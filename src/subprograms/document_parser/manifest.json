@@ -1,0 +1,11 @@
+{
+  "name": "document-parser",
+  "version": "0.1.0",
+  "description": "Docling-backed document parsing service for Mini-Agent",
+  "enabled": true,
+  "entry_point": "subprograms.document_parser.main:main",
+  "router_module": "subprograms.document_parser.gateway.router:router",
+  "config": {
+    "mount_path": "/api/document-parser"
+  }
+}

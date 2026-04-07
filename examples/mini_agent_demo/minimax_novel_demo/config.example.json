@@ -1,0 +1,9 @@
+{
+  "topic": "赛博都市中被篡改记忆的调查员追查真相",
+  "genre": "科幻悬疑",
+  "num_chapters": 12,
+  "words_per_chapter": 2500,
+  "model": "MiniMax-M2.5",
+  "temperature": 0.8,
+  "max_tokens": 4096
+}

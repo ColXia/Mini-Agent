@@ -1,0 +1,123 @@
+"""Code-agent runtime primitives (P14 baseline)."""
+
+from mini_agent.code_agent.agent_loop import (
+    AgentSubmissionLoop,
+    InMemoryLoopMessageBus,
+    SubmissionEvent,
+    SubmissionEventType,
+)
+from mini_agent.code_agent.coordinator import (
+    CoordinatorRunResult,
+    CoordinatorStage,
+    InMemoryCoordinatorProgressBus,
+    MiniCoordinator,
+    StageSummary,
+    WorkerResult,
+    WorkerTask,
+)
+from mini_agent.code_agent.context_compression import (
+    CompressionStats,
+    ContextCompressionResult,
+    LayeredContextCompactor,
+    estimate_tokens,
+)
+from mini_agent.code_agent.mcp_client import CodeAgentMCPClient, MCPToolDescriptor
+from mini_agent.code_agent.mcp_tools import (
+    build_declarative_mcp_registry,
+    infer_mcp_tool_attributes,
+    mcp_tool_alias,
+)
+from mini_agent.code_agent.permissions import (
+    ApprovalCache,
+    ApprovalEngine,
+    ApprovalOutcome,
+    PermissionDecision,
+    PermissionPolicy,
+    PermissionRule,
+    invocation_fingerprint,
+)
+from mini_agent.code_agent.context import AgentLoopContext, TurnContext, TurnPolicySnapshot
+from mini_agent.code_agent.output_masking import MaskedOutputRecord, ToolOutputMasker
+from mini_agent.code_agent.scheduler import SchedulerResult, SchedulerState, TurnScheduler
+from mini_agent.code_agent.sandbox import (
+    NetworkAccessMode,
+    NetworkDomainPolicy,
+    SandboxBackend,
+    SandboxManager,
+    SandboxSelection,
+    SandboxTransformResult,
+    WindowsRestrictedSandbox,
+    WindowsSandboxPolicy,
+    extract_domains_from_command,
+)
+from mini_agent.code_agent.tools import (
+    DeclarativeTool,
+    DeclarativeToolAdapter,
+    DeclarativeToolAttributes,
+    InterruptBehavior,
+    ToolBuilder,
+    ToolInvocation,
+    ToolKind,
+    adapt_declarative_tools,
+    build_declarative_registry,
+    build_runtime_adapter_path,
+    infer_attributes_from_tool_name,
+)
+
+__all__ = [
+    "SubmissionEventType",
+    "SubmissionEvent",
+    "InMemoryLoopMessageBus",
+    "AgentSubmissionLoop",
+    "CoordinatorStage",
+    "WorkerTask",
+    "WorkerResult",
+    "StageSummary",
+    "CoordinatorRunResult",
+    "InMemoryCoordinatorProgressBus",
+    "MiniCoordinator",
+    "CompressionStats",
+    "ContextCompressionResult",
+    "LayeredContextCompactor",
+    "estimate_tokens",
+    "MaskedOutputRecord",
+    "ToolOutputMasker",
+    "MCPToolDescriptor",
+    "CodeAgentMCPClient",
+    "mcp_tool_alias",
+    "infer_mcp_tool_attributes",
+    "build_declarative_mcp_registry",
+    "PermissionDecision",
+    "PermissionRule",
+    "PermissionPolicy",
+    "ApprovalOutcome",
+    "ApprovalCache",
+    "ApprovalEngine",
+    "invocation_fingerprint",
+    "TurnPolicySnapshot",
+    "TurnContext",
+    "AgentLoopContext",
+    "SchedulerState",
+    "SchedulerResult",
+    "TurnScheduler",
+    "SandboxBackend",
+    "SandboxSelection",
+    "SandboxManager",
+    "NetworkAccessMode",
+    "NetworkDomainPolicy",
+    "extract_domains_from_command",
+    "SandboxTransformResult",
+    "WindowsSandboxPolicy",
+    "WindowsRestrictedSandbox",
+    "ToolKind",
+    "InterruptBehavior",
+    "DeclarativeToolAttributes",
+    "ToolInvocation",
+    "DeclarativeTool",
+    "ToolBuilder",
+    "infer_attributes_from_tool_name",
+    "build_declarative_registry",
+    "DeclarativeToolAdapter",
+    "adapt_declarative_tools",
+    "build_runtime_adapter_path",
+]

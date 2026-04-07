@@ -1,0 +1,11 @@
+{
+  "name": "memory-manager",
+  "version": "0.1.0",
+  "description": "Memory browsing/search/edit/export service for Mini-Agent",
+  "enabled": true,
+  "entry_point": "subprograms.memory_manager.main:main",
+  "router_module": "subprograms.memory_manager.gateway.router:router",
+  "config": {
+    "mount_path": "/api/memory"
+  }
+}

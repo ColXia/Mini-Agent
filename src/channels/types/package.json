@@ -1,0 +1,17 @@
+{
+  "name": "@mini-agent/channel-types",
+  "version": "0.1.0",
+  "description": "Type definitions for Mini-Agent channels",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "prepare": "npm run build"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "files": [
+    "dist"
+  ]
+}

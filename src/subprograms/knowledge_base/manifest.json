@@ -1,0 +1,11 @@
+{
+  "name": "knowledge-base",
+  "version": "0.1.0",
+  "description": "MaxKB query and ingestion service for Mini-Agent",
+  "enabled": true,
+  "entry_point": "subprograms.knowledge_base.main:main",
+  "router_module": "subprograms.knowledge_base.gateway.router:router",
+  "config": {
+    "mount_path": "/api/knowledge-base"
+  }
+}

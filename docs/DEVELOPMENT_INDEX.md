@@ -1,0 +1,903 @@
+# Development Index (Published)
+
+> **状态**: ✅ 活跃
+> **最后更新**: 2026-04-07
+> **维护者**: Mini-Agent Core Refactor
+> **文档索引**: [DOCS_INDEX.md](./DOCS_INDEX.md)
+
+> Note (P18 hard refactor): entries under old phases may reference deleted legacy modules for historical traceability only.
+> Current runtime architecture is single-host v1 (`apps/agent_studio_gateway/main.py` + `/api/v1/*`).
+> Stage normalization (2026-04-07): P18 closeout baseline frozen; P19 kickoff + Stage-C docs + ops alerting + adoption tracking/target-bands/delta slices landed.
+
+## 1. Navigation
+- Refactor plan: `docs/REFACTOR_TASKS.md`
+- Active hard-refactor execution plan: `docs/P18_HARD_REFACTOR_EXECUTION_PLAN.md`
+- Dev habit and mistake ledger: `docs/MINIAGENT_DEV_HABIT_LEDGER.md`
+- API v1 contract skeleton: `docs/API_V1_CONTRACT_SKELETON.md`
+- Route deletion backlog: `docs/P18_ROUTE_DELETION_BACKLOG.md`
+- P18 closeout baseline evidence: `docs/P18_CLOSEOUT_BASELINE_2026-04-07.md`
+- P19 rollout prep contract: `docs/P19_AGENT_TEAM_ROLLOUT_CONTRACT.md`
+- P19 operator runbook: `docs/P19_TEAM_MODE_OPERATOR_RUNBOOK.md`
+- P19 rollout announcement: `docs/P19_TEAM_MODE_ROLLOUT_ANNOUNCEMENT.md`
+- P19 support FAQ: `docs/P19_TEAM_MODE_SUPPORT_FAQ.md`
+- P19 ops alert policy: `docs/P19_TEAM_MODE_ALERT_POLICY.md`
+- P19 Stage-C adoption tracking: `docs/P19_STAGEC_ADOPTION_TRACKING.md`
+- P19 canary cadence: `docs/P19_TEAM_MODE_CANARY_CADENCE.md`
+- P19 weekly readiness template: `docs/P19_WEEKLY_RELEASE_READINESS_TEMPLATE.md`
+- GitHub upload scope (2026-04-07): `docs/GITHUB_UPLOAD_SCOPE_2026-04-07.md`
+- Cross-device handoff (2026-04-07): `docs/CROSS_DEVICE_HANDOFF_2026-04-07.md`
+- Transformation plan (v2): `docs/TRANSFORMATION_PLAN.md`
+- Transformation plan (mini guardrails): `docs/TRANSFORMATION_PLAN_LITE_ADDENDUM.md`
+- OSS mapping index: `docs/OSS_REFERENCE_INDEX.md`
+- External OSS index bridge: `docs/EXTERNAL_OSS_INDEX.md`
+- Runtime boundary notes: `docs/RUNTIME_FLOW.md`
+
+## 2. Current Phase Status
+- `P0`: done
+- `P1`: done
+- `P2`: done
+- `P3`: done (session kernel persistence + retention + migration landed)
+- `P4`: done (ACP states + gateway lock/auth + conversation binding landed)
+- `P5`: done (MCP modular split + policy/resources + profile sync + atomic writes)
+- `P6`: done (runtime policy + approval profiles + security audit command)
+- `P7`: done (plugin capability boundaries + markdown memory split + hybrid retrieval)
+- `P8`: done (structured run events + replay logs + doctor + startup self-check)
+- `P9`: done (retention/rotation + observability APIs + deep doctor probe + export/guardrails)
+- `P10`: done (schema/export/auth + durability + ops/metrics/throughput controls landed and rechecked)
+- `P11`: done (agent execution policy and step-state refactor kickoff landed)
+- `P12`: done (memory core baseline completed with lean architecture)
+- `P13`: done (model-manager minimal path landed: T1.1-T1.6)
+- `P14`: done (T2.1-T2.7 landed)
+- `P15`: done (T3.1-T3.7 landed)
+- `P16`: done (T4.1-T4.4 landed)
+- `P17+`: done (T5.1/T5.2/T5.3 hardening + deployment follow-up validations completed on 2026-04-07)
+- `P18`: done (hard refactor completed; baseline frozen for single-host v1 on 2026-04-07)
+- `P19`: active (kickoff+stage-C docs delivered on 2026-04-07: runtime diagnostics, team-mode session guardrails, matrix baseline, ops diagnostics API/view, promotion checklist policy, saturation/conflict counters, operator runbook, rollout announcement + support FAQ, ops alert policy + Studio alert mapping, Stage-C KPI tracking/canary cadence/weekly readiness template + report script, runtime snapshot trend aggregation + env target bands + weekly delta + mode-split + remediation hints + JSON summary artifact, CI handoff with optional secret-backed advisory no-dry-run path + deterministic artifact gate + optional strict weekly review path)
+
+## 15. P12+ Deep Transformation (Planned)
+
+See `docs/TRANSFORMATION_PLAN.md` for the complete transformation plan.
+Execution guardrails are enforced by `docs/TRANSFORMATION_PLAN_LITE_ADDENDUM.md` (small/fast/strong only).
+Mini principle in execution: capability strong, architecture lean (not capability reduction).
+
+### P12: Memory Core (P0 in transformation plan)
+- [x] T0.1: Memoria STM/LTM engine (mini baseline)
+  - `mini_agent/memory/engram.py`
+  - `mini_agent/memory/memoria_engine.py`
+  - tests: `tests/test_memory_core_baseline.py`
+- [x] T0.2: GEMINI.md hierarchical file system (discovery + safe append baseline)
+  - `mini_agent/memory/memory_files.py`
+  - tests: `tests/test_memory_core_baseline.py`
+- [x] T0.3: MemoryTool self-save (runtime path integration)
+  - `mini_agent/tools/note_tool.py` (hierarchical memory anchor + topic tag self-save)
+  - tests: `tests/test_note_tool.py`
+- [x] T0.4: FTS5 session search (router + health diagnostics baseline)
+  - `mini_agent/memory/session_search.py`
+  - `mini_agent/session/persistence.py`
+  - `mini_agent/core/session.py`
+  - `gateway/routers/sessions.py`
+  - `gateway/routers/observability.py`
+  - tests: `tests/test_session_search.py`, `tests/test_session_store_persistence.py`, `tests/test_gateway_routers.py`
+- [x] T0.5: Two-phase memory consolidation baseline (bounded phase1/phase2 + scheduler)
+  - phase1: `mini_agent/memory/consolidation_phase1.py`
+  - phase2: `mini_agent/memory/consolidation_phase2.py`
+  - scheduler: `mini_agent/memory/consolidation_scheduler.py`
+  - facade: `mini_agent/memory/consolidation.py`
+  - CLI entry: `mini-agent consolidate-memory`
+  - tests: `tests/test_memory_consolidation.py`
+- [x] T0.6: Relevance memory retrieval
+  - relevance ranker: `mini_agent/memory/relevance.py`
+  - persistence/store integration:
+    - `mini_agent/session/persistence.py`
+    - `mini_agent/core/session.py`
+  - gateway endpoint: `GET /api/sessions/memory/relevance`
+  - router: `gateway/routers/sessions.py`
+  - tests:
+    - `tests/test_memory_relevance.py`
+    - `tests/test_session_store_persistence.py`
+    - `tests/test_gateway_routers.py`
+- [x] T0.7: User modeling (Honcho)
+  - provider abstraction: `mini_agent/memory/memory_provider.py`
+  - builtin provider: `mini_agent/memory/builtin_memory.py`
+  - tool surface: `mini_agent/tools/user_modeling.py`
+  - runtime wiring: `mini_agent/runtime/tooling.py`
+  - tests:
+    - `tests/test_user_modeling.py`
+    - `tests/test_note_tool.py`
+
+### P13: Model Manager (P1 in transformation plan)
+- [x] T1.1: Custom Provider configuration
+  - provider schema + normalization:
+    - `mini_agent/model_manager/provider.py`
+    - `mini_agent/model_manager/__init__.py`
+  - tests: `tests/test_provider_config.py`
+- [x] T1.2: Proxy routing
+  - model mapper + route selector:
+    - `mini_agent/model_manager/model_mapper.py`
+    - `mini_agent/model_manager/runtime.py`
+  - runtime wiring:
+    - `mini_agent/cli_interactive.py`
+    - `gateway/routers/chat.py`
+    - `mini_agent/acp/__init__.py`
+  - tests:
+    - `tests/test_model_mapper.py`
+    - `tests/test_model_routing_runtime.py`
+- [x] T1.3: Circuit breaker
+  - three-state breaker core:
+    - `mini_agent/model_manager/circuit_breaker.py`
+  - exported model-manager interfaces:
+    - `mini_agent/model_manager/__init__.py`
+  - tests:
+    - `tests/test_circuit_breaker.py`
+- [x] T1.4: Health monitoring
+  - provider health monitor + runtime state hooks:
+    - `mini_agent/model_manager/health_monitor.py`
+    - `mini_agent/model_manager/runtime.py`
+  - dashboard APIs:
+    - `gateway/routers/model_manager.py`
+    - `gateway/core/app.py`
+    - `gateway/routers/__init__.py`
+  - tests:
+    - `tests/test_health_monitor.py`
+    - `tests/test_model_manager_router.py`
+- [x] T1.5: Failover
+  - error classification + failover executor:
+    - `mini_agent/model_manager/error_classifier.py`
+    - `mini_agent/model_manager/failover.py`
+  - routing candidate chain + breaker-aware fallback:
+    - `mini_agent/model_manager/model_mapper.py`
+    - `mini_agent/model_manager/runtime.py`
+  - runtime wiring:
+    - `mini_agent/cli_interactive.py`
+    - `gateway/routers/chat.py`
+    - `mini_agent/acp/__init__.py`
+  - tests:
+    - `tests/test_model_failover.py`
+    - `tests/test_error_classifier.py`
+    - `tests/test_model_routing_runtime.py`
+- [x] T1.6: Request rectifier
+  - request rectifier + protocol converters:
+    - `mini_agent/model_manager/rectifier.py`
+  - llm client request-stage integration:
+    - `mini_agent/llm/openai_client.py`
+    - `mini_agent/llm/anthropic_client.py`
+  - model-manager exports:
+    - `mini_agent/model_manager/__init__.py`
+  - tests:
+    - `tests/test_request_rectifier.py`
+
+### P14: Code Agent (P2 in transformation plan)
+- [x] T2.1: Agent event loop
+  - submission loop + event channel:
+    - `mini_agent/code_agent/agent_loop.py`
+  - turn context snapshot:
+    - `mini_agent/code_agent/context.py`
+  - scheduler state machine baseline:
+    - `mini_agent/code_agent/scheduler.py`
+  - package exports:
+    - `mini_agent/code_agent/__init__.py`
+  - tests:
+    - `tests/test_code_agent_loop.py`
+- [x] T2.2: Windows sandbox
+  - network policy and domain extraction baseline:
+    - `mini_agent/code_agent/sandbox/network.py`
+  - restricted-token command transform and policy validation:
+    - `mini_agent/code_agent/sandbox/windows.py`
+  - backend selection manager and exports:
+    - `mini_agent/code_agent/sandbox/manager.py`
+    - `mini_agent/code_agent/sandbox/__init__.py`
+    - `mini_agent/code_agent/__init__.py`
+  - tests:
+    - `tests/test_code_agent_sandbox.py`
+- [x] T2.3: Tool system (DeclarativeTool)
+  - declarative contract attributes:
+    - `mini_agent/code_agent/tools/attributes.py`
+  - invocation model + schema validation:
+    - `mini_agent/code_agent/tools/invocation.py`
+  - schema-first builder and registry:
+    - `mini_agent/code_agent/tools/builder.py`
+  - runtime adapter path:
+    - `mini_agent/code_agent/tools/runtime_adapter.py`
+  - package exports:
+    - `mini_agent/code_agent/tools/__init__.py`
+    - `mini_agent/code_agent/__init__.py`
+  - tests:
+    - `tests/test_code_agent_tools.py`
+- [x] T2.4: Multi-agent coordination
+  - coordinator pipeline and worker contract baseline:
+    - `mini_agent/code_agent/coordinator.py`
+  - package exports:
+    - `mini_agent/code_agent/__init__.py`
+  - tests:
+    - `tests/test_code_agent_coordinator.py`
+- [x] T2.5: Context management
+  - layered context compaction:
+    - `mini_agent/code_agent/context_compression.py`
+  - tool output masking:
+    - `mini_agent/code_agent/output_masking.py`
+  - package exports:
+    - `mini_agent/code_agent/__init__.py`
+  - tests:
+    - `tests/test_code_agent_context_compaction.py`
+- [x] T2.6: MCP client
+  - code-agent MCP client manager:
+    - `mini_agent/code_agent/mcp_client.py`
+  - MCP declarative wrapper helpers:
+    - `mini_agent/code_agent/mcp_tools.py`
+  - package exports:
+    - `mini_agent/code_agent/__init__.py`
+  - tests:
+    - `tests/test_code_agent_mcp_client.py`
+- [x] T2.7: Permission system
+  - permission policy model:
+    - `mini_agent/code_agent/permissions/policy.py`
+  - approval cache and escalation engine:
+    - `mini_agent/code_agent/permissions/approval.py`
+    - `mini_agent/code_agent/permissions/__init__.py`
+  - package exports:
+    - `mini_agent/code_agent/__init__.py`
+  - tests:
+    - `tests/test_code_agent_permissions.py`
+
+### P15: Agent Core (P3 in transformation plan)
+- [x] T3.1: 8-level routing
+  - route table and priority resolver:
+    - `mini_agent/agent_core/routing.py`
+  - package exports:
+    - `mini_agent/agent_core/__init__.py`
+  - tests:
+    - `tests/test_agent_core_routing.py`
+- [x] T3.2: Skills platform
+  - skills loader + tiers:
+    - `mini_agent/agent_core/skills/loader.py`
+  - source registry:
+    - `mini_agent/agent_core/skills/registry.py`
+  - eligibility checks:
+    - `mini_agent/agent_core/skills/eligibility.py`
+  - package exports:
+    - `mini_agent/agent_core/skills/__init__.py`
+    - `mini_agent/agent_core/__init__.py`
+  - runtime bridge wiring:
+    - `mini_agent/tools/skill_tool.py`
+  - tests:
+    - `tests/test_agent_core_skills.py`
+- [x] T3.3: Cron jobs
+  - scheduler core:
+    - `mini_agent/agent_core/cron/scheduler.py`
+  - isolated execution:
+    - `mini_agent/agent_core/cron/isolated_run.py`
+  - delivery router:
+    - `mini_agent/agent_core/cron/delivery.py`
+  - package exports:
+    - `mini_agent/agent_core/cron/__init__.py`
+    - `mini_agent/agent_core/__init__.py`
+  - tests:
+    - `tests/test_agent_core_cron.py`
+- [x] T3.4: Sub-agent delegation
+  - delegation manager and contracts:
+    - `mini_agent/agent_core/delegation.py`
+  - package exports:
+    - `mini_agent/agent_core/__init__.py`
+  - tests:
+    - `tests/test_agent_core_delegation.py`
+- [x] T3.5: Session management
+  - session-key model and index:
+    - `mini_agent/agent_core/session/session_key.py`
+  - lifecycle reset policy:
+    - `mini_agent/agent_core/session/lifecycle.py`
+  - lineage graph and cycle guard:
+    - `mini_agent/agent_core/session/lineage.py`
+  - package exports:
+    - `mini_agent/agent_core/session/__init__.py`
+    - `mini_agent/agent_core/__init__.py`
+  - tests:
+    - `tests/test_agent_core_session.py`
+- [x] T3.6: Browser control
+  - chrome lifecycle manager:
+    - `mini_agent/agent_core/browser/chrome.py`
+  - CDP client and navigation guard:
+    - `mini_agent/agent_core/browser/cdp.py`
+  - agent browser tool interface:
+    - `mini_agent/agent_core/browser/tool.py`
+  - package exports:
+    - `mini_agent/agent_core/browser/__init__.py`
+    - `mini_agent/agent_core/__init__.py`
+  - tests:
+    - `tests/test_agent_core_browser.py`
+- [x] T3.7: DM pairing security
+  - pairing store baseline:
+    - `mini_agent/agent_core/security/pairing.py`
+  - dm/group access policy baseline:
+    - `mini_agent/agent_core/security/policy.py`
+  - package exports:
+    - `mini_agent/agent_core/security/__init__.py`
+    - `mini_agent/agent_core/__init__.py`
+  - tests:
+    - `tests/test_agent_core_security_pairing.py`
+
+### P16: Tools & Subprograms (P4 in transformation plan)
+- [x] T4.1: Docling integration
+  - tool baseline:
+    - `mini_agent/tools/docling_parse.py`
+    - `mini_agent/tools/__init__.py`
+  - document parser subprogram baseline:
+    - `subprograms/document_parser/manifest.json`
+    - `subprograms/document_parser/main.py`
+    - `subprograms/document_parser/gateway/router.py`
+  - tests:
+    - `tests/test_docling_parse_tool.py`
+    - `tests/test_document_parser_router.py`
+- [x] T4.2: MaxKB integration
+  - tool baseline:
+    - `mini_agent/tools/maxkb_query.py`
+    - `mini_agent/tools/__init__.py`
+  - knowledge-base subprogram baseline:
+    - `subprograms/knowledge_base/manifest.json`
+    - `subprograms/knowledge_base/main.py`
+    - `subprograms/knowledge_base/gateway/router.py`
+  - tests:
+    - `tests/test_maxkb_query_tool.py`
+    - `tests/test_knowledge_base_router.py`
+- [x] T4.3: Web search tool
+  - tool baseline:
+    - `mini_agent/tools/web_search.py`
+    - `mini_agent/tools/__init__.py`
+  - tests:
+    - `tests/test_web_search_tool.py`
+- [x] T4.4: Memory manager subprogram
+  - subprogram baseline:
+    - `subprograms/memory_manager/manifest.json`
+    - `subprograms/memory_manager/main.py`
+    - `subprograms/memory_manager/gateway/router.py`
+  - tests:
+    - `tests/test_memory_manager_router.py`
+
+### P17: Frontend & Integration (P5 in transformation plan)
+- [x] T5.1: Open WebUI integration
+  - openai-compatible adapter baseline:
+    - `apps/open_webui/adapter.py`
+    - `apps/open_webui/main.py`
+    - `apps/open_webui/__init__.py`
+  - deployment baseline:
+    - `apps/open_webui/.env.example`
+    - `apps/open_webui/docker-compose.yml`
+    - `apps/open_webui/requirements.txt`
+    - `apps/open_webui/README_zh-CN.md`
+  - tests:
+    - `tests/test_open_webui_adapter.py`
+    - `tests/test_open_webui_main.py`
+  - hardening slice:
+    - `scripts/open_webui_smoke.py` (real-endpoint smoke runner)
+    - `apps/open_webui/main.py` (`/health` guardrail diagnostics)
+    - `apps/open_webui/README_zh-CN.md` (deployment guardrails + smoke run)
+    - `apps/open_webui/.env.example` (primary key/adapter key consistency note)
+- [x] T5.2: Agent Studio enhancement
+  - gateway contract baseline:
+    - `apps/agent_studio_gateway/main.py`
+    - `apps/agent_studio_gateway/studio_router.py`
+  - studio frontend baseline:
+    - `apps/agent_studio/src/App.tsx`
+    - `apps/agent_studio/src/components/StudioOpsMode.tsx`
+    - `apps/agent_studio/src/api/*`
+    - `apps/agent_studio/src/types.ts`
+    - `apps/agent_studio/src/styles.css`
+  - tests:
+    - `tests/test_agent_studio_gateway_studio_router.py`
+  - hardening slice:
+    - `apps/agent_studio_gateway/studio_router.py` (route auth + path boundary checks)
+    - `scripts/studio_ops_smoke.py` (real-endpoint studio contract smoke runner)
+    - `apps/agent_studio/src/api/client.ts` (`VITE_STUDIO_API_KEY` header injection)
+    - `tests/test_agent_studio_gateway_studio_router.py` (auth + boundary coverage)
+- [x] T5.3: QQ/WeChat channel completion
+  - shared channel contract update:
+    - `channels/types/src/index.ts`
+  - QQ channel completion:
+    - `channels/qqbot/src/channel.ts`
+    - `channels/qqbot/src/gateway_client.ts`
+    - `channels/qqbot/src/session_store.ts`
+    - `channels/qqbot/src/index.ts`
+    - `channels/qqbot/package.json`
+    - `channels/qqbot/.env.example`
+  - WeChat channel baseline:
+    - `channels/wechat/manifest.json`
+    - `channels/wechat/package.json`
+    - `channels/wechat/tsconfig.json`
+    - `channels/wechat/.env.example`
+    - `channels/wechat/src/channel.ts`
+    - `channels/wechat/src/gateway_client.ts`
+    - `channels/wechat/src/session_store.ts`
+    - `channels/wechat/src/index.ts`
+  - channel run scripts:
+    - `scripts/run_qqbot_channel.ps1`
+    - `scripts/run_wechat_channel.ps1`
+  - tests:
+    - `tests/test_gateway_routers.py` (conversation binding sender split coverage)
+  - hardening slice:
+    - `channels/qqbot/src/channel.ts` (workspace boundary, inbound guardrail, smoke helper)
+    - `channels/qqbot/src/gateway_client.ts` (`Authorization` passthrough)
+    - `channels/qqbot/src/index.ts` (guardrail env wiring)
+    - `channels/qqbot/src/smoke_runner.ts` (QQ synthetic message smoke runner)
+    - `channels/qqbot/.env.example` (gateway auth + guardrail envs)
+    - `channels/wechat/src/channel.ts` (timestamp/body-size/dedupe/workspace guardrails)
+    - `channels/wechat/src/gateway_client.ts` (`Authorization` passthrough)
+    - `channels/wechat/src/index.ts` (guardrail env wiring)
+    - `channels/wechat/.env.example` (gateway auth + guardrail envs)
+    - `scripts/qq_wechat_smoke.py` (real message flow smoke runner)
+  - hardening validations:
+    - `npm run build --prefix channels/types`
+    - `npm run build --prefix channels/qqbot`
+    - `npm run build --prefix channels/wechat`
+    - `python scripts/qq_wechat_smoke.py`
+    - `python scripts/test_stable.py`
+
+## 3. P2 Execution Index
+
+### P2.1 Critical structural fixes
+- [x] Restore canonical session implementation
+  - `mini_agent/core/session.py`
+- [x] Unify session import path to one source of truth
+  - canonical module: `mini_agent.core.session`
+- [x] Fix gateway tool initialization duplication
+  - `gateway/routers/chat.py`
+- [x] Remove compatibility shims after refactor
+  - deleted `gateway/core/session.py`
+  - ACP now uses only `run_agent` + snake_case protocol methods
+
+### P2.2 Test and baseline completion
+- [x] Add stable test command script
+  - `scripts/test_stable.py`
+- [x] Add gateway router/session tests
+  - `tests/test_gateway_routers.py`
+- [x] Add MCP example config compatibility validation
+  - `tests/test_mcp.py`
+
+## 4. P3 Execution Index
+
+### P3.1 Session persistence kernel
+- [x] Add persistence backend package
+  - `mini_agent/session/persistence.py`
+  - `mini_agent/session/__init__.py`
+- [x] Expand canonical session store APIs
+  - resume/list/delete/reset/history/checkpoint
+  - `mini_agent/core/session.py`
+- [x] Add retention and cleanup support
+  - `POST /api/sessions/cleanup`
+  - `gateway/routers/sessions.py`
+- [x] Add in-memory to new storage migration path
+  - `SessionStore.set_storage_dir(..., migrate_existing=True)`
+
+## 5. P4 Execution Index
+
+### P4.1 ACP and Gateway control-plane hardening
+- [x] Introduce ACP explicit session state machine
+  - `mini_agent/acp/__init__.py`
+  - states: `new/running/cancelled/closed/expired`
+- [x] Add gateway single-instance lock and conflict error path
+  - `gateway/security/instance_lock.py`
+  - `gateway/core/app.py`
+- [x] Add token auth mode for non-local access
+  - `gateway/security/auth.py`
+  - `gateway/core/app.py`, `apps/agent_studio_gateway/main.py`
+- [x] Add conversation-to-session binding model
+  - `mini_agent/session/binding.py`
+  - `gateway/routers/chat.py`
+
+## 6. P5 Execution Index
+
+### P5.1 MCP modularization and config safety
+- [x] Split MCP loader implementation modules
+  - `mini_agent/tools/mcp/discovery.py`
+  - `mini_agent/tools/mcp/registry.py`
+  - `mini_agent/tools/mcp/executor.py`
+  - `mini_agent/tools/mcp/lifecycle.py`
+- [x] Add server-level policy gate and timeout wiring
+  - `allow/exclude/trust/enable_resources`
+  - `mini_agent/tools/mcp/types.py`
+- [x] Add resource discovery/read entry tools
+  - `<server>_list_resources`
+  - `<server>_read_resource`
+- [x] Add MCP profile sync and atomic write helpers
+  - `mini_agent/tools/mcp_profile_sync.py`
+- [x] Keep public loader entry stable via facade
+  - `mini_agent/tools/mcp_loader.py`
+
+## 7. Next Work Queue
+1. Release-gate consolidation:
+   - run one unified pre-release gate (`open_webui_verify` + `studio_ops_smoke` + stable tests) and archive output in devlog
+2. P20 handoff and observation:
+   - keep OpenWebUI as optional adapter entry and collect 1-2 weeks of operational feedback before deep integration decision
+
+## 8. P6 Execution Index
+
+### P6.1 Runtime safety and policy layer
+- [x] Add three-layer runtime policy model
+  - `mini_agent/security/policy.py`
+  - layers: sandbox/tool/elevated
+- [x] Add approval profiles (`suggest`, `auto-edit`, `full-auto`)
+  - config: `mini_agent/config.py` + `mini_agent/config/config*.yaml`
+  - runtime wiring: `mini_agent/runtime/tooling.py`, `mini_agent/tools/bash_tool.py`
+  - CLI/ACP wiring: `mini_agent/cli.py`, `mini_agent/cli_interactive.py`, `mini_agent/acp/__init__.py`
+- [x] Add security audit command and risk report
+  - command: `mini-agent security-audit`
+  - implementation: `mini_agent/security/audit.py`
+  - tests: `tests/test_security_audit.py`, `tests/test_security_policy.py`
+
+## 9. P7 Execution Index
+
+### P7.1 Plugin and memory evolution
+- [x] Add plugin capability registry boundaries
+  - `mini_agent/plugins/registry.py`
+  - domains: `provider/channel/tool/hook`
+  - tests: `tests/test_plugin_registry.py`
+- [x] Move note memory to markdown split model
+  - `mini_agent/tools/note_tool.py`
+  - storage: `MEMORY.md` + `memory/YYYY-MM-DD.md`
+  - runtime wiring: `mini_agent/runtime/tooling.py`
+- [x] Add hybrid memory retrieval
+  - keyword ranking by default
+  - optional embedding ranking via pluggable embedding provider
+  - tests: `tests/test_note_tool.py`, `tests/test_session_integration.py`, `tests/test_integration.py`
+
+## 10. Verification Commands
+```bash
+pytest -q tests/test_open_webui_adapter.py tests/test_open_webui_main.py
+python scripts/open_webui_smoke.py --adapter-base-url http://127.0.0.1:8010 --api-key <token> --dry-run
+pytest -q tests/test_agent_studio_gateway_studio_router.py
+python scripts/studio_ops_smoke.py --base-url http://127.0.0.1:8008 --token <studio-token> --expect-auth
+npm run build --prefix channels/types
+npm run build --prefix channels/qqbot
+npm run build --prefix channels/wechat
+python scripts/qq_wechat_smoke.py
+python scripts/test_stable.py
+pytest -q tests/test_code_agent_sandbox.py tests/test_code_agent_loop.py tests/test_request_rectifier.py tests/test_gateway_routers.py
+pytest -q tests/test_code_agent_tools.py tests/test_code_agent_sandbox.py tests/test_code_agent_loop.py
+pytest -q tests/test_code_agent_coordinator.py tests/test_code_agent_tools.py tests/test_code_agent_sandbox.py tests/test_code_agent_loop.py
+pytest -q tests/test_code_agent_context_compaction.py tests/test_code_agent_coordinator.py tests/test_code_agent_tools.py tests/test_code_agent_sandbox.py tests/test_code_agent_loop.py
+pytest -q tests/test_code_agent_mcp_client.py tests/test_code_agent_context_compaction.py tests/test_code_agent_coordinator.py tests/test_code_agent_tools.py tests/test_code_agent_sandbox.py tests/test_code_agent_loop.py
+pytest -q tests/test_code_agent_permissions.py tests/test_code_agent_mcp_client.py tests/test_code_agent_context_compaction.py tests/test_code_agent_coordinator.py tests/test_code_agent_tools.py tests/test_code_agent_sandbox.py tests/test_code_agent_loop.py
+pytest -q tests/test_agent_core_routing.py tests/test_code_agent_permissions.py tests/test_code_agent_mcp_client.py tests/test_code_agent_context_compaction.py tests/test_code_agent_coordinator.py tests/test_code_agent_tools.py tests/test_code_agent_sandbox.py tests/test_code_agent_loop.py
+pytest -q tests/test_agent_core_skills.py tests/test_agent_core_routing.py tests/test_code_agent_permissions.py tests/test_code_agent_mcp_client.py tests/test_code_agent_context_compaction.py tests/test_code_agent_coordinator.py tests/test_code_agent_tools.py tests/test_code_agent_sandbox.py tests/test_code_agent_loop.py tests/test_skill_tool.py tests/test_skill_loader.py tests/test_markdown_links.py
+pytest -q tests/test_agent_core_cron.py tests/test_agent_core_skills.py tests/test_agent_core_routing.py tests/test_code_agent_permissions.py tests/test_code_agent_mcp_client.py tests/test_code_agent_context_compaction.py tests/test_code_agent_coordinator.py tests/test_code_agent_tools.py tests/test_code_agent_sandbox.py tests/test_code_agent_loop.py tests/test_skill_tool.py tests/test_skill_loader.py tests/test_markdown_links.py
+pytest -q tests/test_agent_core_delegation.py tests/test_agent_core_cron.py tests/test_agent_core_skills.py tests/test_agent_core_routing.py tests/test_code_agent_permissions.py tests/test_code_agent_mcp_client.py tests/test_code_agent_context_compaction.py tests/test_code_agent_coordinator.py tests/test_code_agent_tools.py tests/test_code_agent_sandbox.py tests/test_code_agent_loop.py tests/test_skill_tool.py tests/test_skill_loader.py tests/test_markdown_links.py
+pytest -q tests/test_note_tool.py tests/test_session_integration.py tests/test_plugin_registry.py
+pytest -q tests/test_logger_events.py tests/test_logger_retention.py tests/test_event_schema.py tests/test_doctor.py tests/test_gateway_routers.py
+pytest -q tests/test_gateway_security.py
+pytest -q tests/test_agent_execution_policy.py
+pytest -q tests/test_acp.py
+pytest -q tests/test_session_store_persistence.py
+pytest -q tests/test_session_search.py
+pytest -q tests/test_memory_consolidation.py
+pytest -q tests/test_memory_relevance.py
+pytest -q tests/test_user_modeling.py
+pytest -q tests/test_provider_config.py
+pytest -q tests/test_model_mapper.py tests/test_model_routing_runtime.py
+pytest -q tests/test_circuit_breaker.py
+pytest -q tests/test_memory_core_baseline.py
+pytest -q tests/test_mcp.py -k "mcp_example_json_is_valid_and_utf8_compatible"
+pytest -q tests/test_mcp_policy.py tests/test_mcp_profile_sync.py
+pytest -q tests/test_security_policy.py tests/test_security_audit.py
+mini-agent consolidate-memory --phase all --max-jobs 8 --top-n 40
+mini-agent migrate-event-logs --path ~/.mini-agent/log --dry-run
+mini-agent prune-export-jobs --path ~/.mini-agent/log --max-age-hours 0 --max-jobs 0
+```
+
+## 11. P8 Execution Index
+
+### P8.1 Observability and operations
+- [x] Add structured run events and replayable logs
+  - `mini_agent/logger.py` (`*.events.jsonl` journal + replay formatter)
+  - `mini_agent/agent.py` (step/tool/run lifecycle event emission)
+  - command: `mini-agent replay-log --file <events.jsonl>`
+- [x] Add `doctor` diagnostics command
+  - implementation: `mini_agent/ops/doctor.py`
+  - CLI wiring: `mini_agent/cli.py`
+  - tests: `tests/test_doctor.py`
+- [x] Add startup self-check gates
+  - gateway startup gate: `mini_agent/cli.py`
+  - CLI startup gate: `mini_agent/cli_interactive.py`
+  - coverage: `tests/test_doctor.py`
+
+## 12. P9 Execution Index
+
+### P9.1 Run-event retention and rotation
+- [x] Add retention policy configuration
+  - `mini_agent/config.py`
+  - `mini_agent/config/config.yaml`, `mini_agent/config/config-example.yaml`
+  - keys: `observability.log_dir`, `event_log_*`
+- [x] Add run-log pruning implementation and command
+  - `mini_agent/logger.py` (`EventLogRetentionPolicy`, `prune_logs`)
+  - `mini_agent/cli.py` (`mini-agent prune-logs`)
+- [x] Wire logger retention across runtime entry points
+  - `mini_agent/cli_interactive.py`
+  - `gateway/routers/chat.py`
+  - `mini_agent/acp/__init__.py`
+- [x] Add retention test coverage
+  - `tests/test_logger_retention.py`
+
+### P9.2 Gateway observability API surfaces
+- [x] Add observability router and endpoint set
+  - `gateway/routers/observability.py`
+  - health/run listing/event page/replay API endpoints
+- [x] Wire observability router into gateway app
+  - `gateway/routers/__init__.py`
+  - `gateway/core/app.py`
+- [x] Add gateway router test coverage for observability endpoints
+  - `tests/test_gateway_routers.py`
+
+### P9.3 Doctor deep MCP probe and remediation
+- [x] Add optional deep MCP handshake probe path
+  - flag: `mini-agent doctor --mcp-handshake`
+  - implementation: `mini_agent/ops/doctor.py`
+  - runtime probe signal: `mini_agent/tools/mcp/registry.py` (`last_error`)
+- [x] Add actionable remediation hints in doctor report output
+  - formatter includes `Hint:` lines for warn/fail findings
+  - CLI wiring: `mini_agent/cli.py`
+- [x] Add test coverage for deep-probe/hint behavior
+  - `tests/test_doctor.py`
+
+### P9.4 Export interfaces and endpoint guardrails
+- [x] Add run-event export endpoint for analysis pipelines
+  - `GET /api/observability/runs/{run_id}/export`
+  - formats: `jsonl`, `json`, `csv`
+  - implementation: `gateway/routers/observability.py`
+- [x] Add observability auth/rate-limit guardrails
+  - implementation: `gateway/security/observability.py`
+  - envs: `MINI_AGENT_OBSERVABILITY_TOKEN`, `MINI_AGENT_OBSERVABILITY_AUTH_STRICT`
+  - envs: `MINI_AGENT_OBSERVABILITY_RATE_LIMIT_PER_MIN`, `MINI_AGENT_OBSERVABILITY_RATE_LIMIT_WINDOW_SECONDS`
+- [x] Add filtering enhancements for large event archives
+  - runs: `run_id_prefix`, `updated_after`
+  - events/replay/export: `event_type`, `level`, `contains`
+  - implementation: `gateway/routers/observability.py`
+- [x] Add test coverage for export + guardrail paths
+  - `tests/test_gateway_routers.py`
+  - `tests/test_gateway_security.py`
+
+## 13. P10 Execution Index
+
+### P10.1 Event schema versioning and compatibility checks
+- [x] Add schema version to event journal records
+  - `mini_agent/logger.py` (`schema_version`)
+- [x] Add compatibility check helpers for downstream consumers
+  - `mini_agent/logger.py` (`check_event_schema_compatibility`)
+- [x] Add compatibility gates in CLI and gateway observability APIs
+  - CLI: `mini_agent/cli.py` (`replay-log --expected-schema-version`)
+  - Gateway: `gateway/routers/observability.py` (`expected_schema_version`)
+- [x] Add schema compatibility coverage
+  - `tests/test_event_schema.py`
+  - `tests/test_logger_events.py`
+  - `tests/test_gateway_routers.py`
+
+### P10.2 Async export jobs and large-archive delivery
+- [x] Add async export-job endpoint set
+  - `POST /api/observability/exports`
+  - `GET /api/observability/exports/{job_id}`
+  - `GET /api/observability/exports/{job_id}/download`
+  - implementation: `gateway/routers/observability.py`
+- [x] Add chunked delivery path for large sync exports (`jsonl`/`csv`)
+  - implementation: `gateway/routers/observability.py`
+- [x] Add export job lifecycle coverage
+  - tests: `tests/test_gateway_routers.py`
+
+### P10.3 Observability auth policy convergence
+- [x] Integrate observability guard with gateway token state
+  - gateway state wiring: `gateway/core/app.py`
+  - observability policy resolver: `gateway/security/observability.py`
+- [x] Add profile-driven auth mode for observability endpoints
+  - env: `MINI_AGENT_OBSERVABILITY_AUTH_PROFILE`
+  - values: `inherit_gateway` / `observability_only` / `gateway_only`
+- [x] Add security coverage for inheritance/profile behavior
+  - tests: `tests/test_gateway_security.py`
+
+### P10.4 Legacy schema migration tooling
+- [x] Add event-log migration helpers in logger layer
+  - `AgentLogger.list_event_log_files(...)`
+  - `AgentLogger.migrate_event_schema_file(...)`
+  - implementation: `mini_agent/logger.py`
+- [x] Add CLI migration command
+  - `mini-agent migrate-event-logs`
+  - flags: `--path`, `--dry-run`, `--no-backup`, `--target-schema-version`, `--no-recursive`
+  - implementation: `mini_agent/cli.py`
+- [x] Add migration test coverage
+  - tests: `tests/test_event_schema.py`
+
+### P10.5 Export durability across restarts
+- [x] Add filesystem-backed export job metadata
+  - metadata dir: `<log_dir>/exports/jobs`
+  - implementation: `gateway/routers/observability.py`
+- [x] Add lazy reload of persisted jobs in status/download APIs
+  - `GET /api/observability/exports/{job_id}`
+  - `GET /api/observability/exports/{job_id}/download`
+- [x] Define restart behavior for in-flight jobs
+  - persisted `queued/running` jobs are marked `failed` after reload
+- [x] Add persistence recovery test coverage
+  - tests: `tests/test_gateway_routers.py`
+
+### P10.6 Export control-plane cancel API
+- [x] Add explicit export job cancel endpoint
+  - `POST /api/observability/exports/{job_id}/cancel`
+  - implementation: `gateway/routers/observability.py`
+- [x] Add deterministic cancel transitions
+  - queued jobs cancel immediately to `cancelled`
+  - running jobs set `cancel_requested` and terminate to `cancelled`
+- [x] Add cancel behavior coverage
+  - tests: `tests/test_gateway_routers.py`
+
+### P10.7 Export metrics history
+- [x] Add queue/runtime aggregate metrics endpoint
+  - `GET /api/observability/exports/metrics`
+  - dimensions include queue depth/failure ratio/avg duration
+- [x] Add time-bucketed metrics history endpoint
+  - `GET /api/observability/exports/metrics/history`
+  - implementation: `gateway/routers/observability.py`
+- [x] Add metrics endpoint test coverage
+  - tests: `tests/test_gateway_routers.py`
+
+### P10.8 Throughput controls and restart replay
+- [x] Add export queue concurrency and backpressure controls
+  - envs: `MINI_AGENT_OBSERVABILITY_EXPORT_MAX_CONCURRENCY`, `MINI_AGENT_OBSERVABILITY_EXPORT_MAX_QUEUE`
+  - behavior: bounded running workers + queue full `429`
+- [x] Add restart replay mode for persisted queued jobs
+  - env: `MINI_AGENT_OBSERVABILITY_EXPORT_REPLAY_ON_RESTART`
+  - behavior: replay queued/running persisted jobs as queued when enabled
+- [x] Add throughput/restart replay coverage
+  - tests: `tests/test_gateway_routers.py`
+
+### P10.9 Export metadata compaction and checksum
+- [x] Add compact export metadata persistence format
+  - compact JSON write (`sort_keys` + no indentation)
+  - implementation: `gateway/routers/observability.py`
+- [x] Add snapshot index with checksum map
+  - file: `<log_dir>/exports/jobs/snapshot.json`
+  - fields include per-job `checksum_sha256`
+- [x] Add snapshot-first restore with integrity gate
+  - checksum mismatch blocks loading tampered metadata
+- [x] Add checksum and tamper coverage
+  - tests: `tests/test_gateway_routers.py`
+
+## 14. P11 Execution Index
+
+### P11.1 Agent execution policy and tool budget kickoff
+- [x] Add explicit execution policy model in Agent runtime
+  - `mini_agent/agent.py`
+  - models: `AgentExecutionPolicy`, `StepExecutionState`
+- [x] Add per-step tool-call budget with truncation telemetry
+  - policy knob: `max_tool_calls_per_step`
+  - events: `step.tool_calls_truncated`, `step.completed`
+  - implementation: `mini_agent/agent.py`
+- [x] Wire policy config through runtime entry points
+  - config schema + YAML: `mini_agent/config.py`, `mini_agent/config/config.yaml`, `mini_agent/config/config-example.yaml`
+  - runtime wiring: `mini_agent/cli_interactive.py`, `gateway/routers/chat.py`, `mini_agent/acp/__init__.py`
+- [x] Add deterministic unit coverage for budget behavior
+  - tests: `tests/test_agent_execution_policy.py`
+  - includes Agent loop and ACP turn path
+
+### P11.2 Agent run-loop planner/executor split
+- [x] Split `Agent.run` into planner/executor/state transition phases
+  - planner: `_plan_step(...)`
+  - executor: `_execute_tool_calls(...)`
+  - transition contract: `StepPlan`, `StepOutcome`, `StepTransition`
+  - implementation: `mini_agent/agent.py`
+- [x] Normalize step timing finalization through one path
+  - helper: `_finalize_step_timing(...)`
+  - implementation: `mini_agent/agent.py`
+- [x] Add transition-level test coverage
+  - planner failure transition
+  - executor complete transition
+  - tests: `tests/test_agent_execution_policy.py`
+
+### P11.3 Step failure envelope and metrics wiring
+- [x] Add structured step failure envelope
+  - model: `StepFailureEnvelope` (`error_type`, `recoverable`, `retryable`)
+  - event: `step.failed`
+  - implementation: `mini_agent/agent.py`
+- [x] Add run-level metrics aggregation payload
+  - model: `RunExecutionMetrics`
+  - terminal events include `metrics` payload (`run.completed` / `run.failed` / `run.cancelled` / `run.max_steps`)
+  - implementation: `mini_agent/agent.py`
+- [x] Add failure envelope + metrics coverage
+  - tests: `tests/test_agent_execution_policy.py`
+
+### P11.4 Policy surfaces in inspection APIs
+- [x] Expose run policy in session inspection endpoints
+  - `/api/sessions` includes `max_steps`, `max_tool_calls_per_step`
+  - `/api/sessions/{session_id}/history` includes `max_steps`, `max_tool_calls_per_step`
+  - implementation: `mini_agent/core/session.py`, `mini_agent/session/persistence.py`, `gateway/routers/sessions.py`
+- [x] Expose run policy in chat response surfaces
+  - `POST /api/chat` response includes policy fields
+  - `GET /api/chat/stream` done event includes policy fields
+  - implementation: `gateway/routers/chat.py`
+- [x] Add policy-surface coverage
+  - tests: `tests/test_gateway_routers.py`, `tests/test_session_store_persistence.py`
+
+### P11.5 Shared planner/executor facade for ACP/Gateway parity
+- [x] Extract shared planner/executor run-loop facade in Agent runtime
+  - shared loop: `_run_planner_executor_loop(...)`
+  - facade entry: `run_turn(...)`
+  - contracts: `PlannerExecutorHooks`, `TurnExecutionResult`, `TurnStopReason`
+  - implementation: `mini_agent/agent.py`
+- [x] Migrate ACP turn execution to shared facade (remove duplicated run loop)
+  - ACP callbacks wired via `on_step_plan`, `on_tool_call_start`, `on_tool_call_result`
+  - ACP session agent now runs with `console_output=False` to avoid stdio noise
+  - implementation: `mini_agent/acp/__init__.py`
+- [x] Add facade behavior coverage
+  - hook + stop reason tests: `tests/test_agent_execution_policy.py`
+  - ACP integration coverage remains passing: `tests/test_acp.py`
+
+### P11.6 Step-failure trend aggregation endpoint
+- [x] Add dashboard-facing step-failure trend endpoint
+  - endpoint: `GET /api/observability/failures/step-trends`
+  - params: `bucket_minutes`, `limit`, `top_error_types`, `run_id_prefix`, `since_utc`
+  - aggregation dimensions: `total/planner/executor/recoverable/retryable/unique_runs`
+  - top breakdown: `top_error_types`
+  - implementation: `gateway/routers/observability.py`
+- [x] Add router coverage for trend endpoint and invalid `since_utc` guard
+  - tests: `tests/test_gateway_routers.py`
+
+### P11.7 Policy-drift detector in session diagnostics
+- [x] Add configured-vs-runtime policy drift detector in session core
+  - diagnostics fields: `configured_max_steps`, `configured_max_tool_calls_per_step`, `policy_drift`, `policy_drift_fields`
+  - implementation: `mini_agent/core/session.py`
+- [x] Persist configured policy snapshot for inactive-session diagnostics
+  - metadata key: `configured_execution_policy`
+  - implementation: `mini_agent/session/persistence.py`
+- [x] Add store-level drift diagnostics coverage
+  - tests: `tests/test_session_store_persistence.py`
+
+### P11.8 Policy-drift fields exposed in session inspection APIs
+- [x] Extend session summary/history models with drift diagnostics flags
+  - `/api/sessions`
+  - `/api/sessions/{session_id}/history`
+  - implementation: `gateway/routers/sessions.py`
+- [x] Add gateway router drift diagnostics coverage
+  - tests: `tests/test_gateway_routers.py`
+
+### P11.9 Step-failure trend phase/error_type filters
+- [x] Add targeted trend filters for SRE dashboards
+  - endpoint: `GET /api/observability/failures/step-trends`
+  - new query params: `phase`, `error_type`
+  - `error_type` filter is case-insensitive
+  - implementation: `gateway/routers/observability.py`
+- [x] Add router coverage for phase/error_type filtering behavior
+  - tests: `tests/test_gateway_routers.py`
+
+### P11.10 Policy-drift fields exposed in chat response surfaces
+- [x] Extend `POST /api/chat` response with drift diagnostics fields
+  - `configured_max_steps`, `configured_max_tool_calls_per_step`, `policy_drift`, `policy_drift_fields`
+  - implementation: `gateway/routers/chat.py`
+- [x] Extend `GET /api/chat/stream` done payload with drift diagnostics fields
+  - dry-run emits null/false defaults for drift fields
+  - implementation: `gateway/routers/chat.py`
+- [x] Add gateway router coverage for chat drift diagnostics fields
+  - tests: `tests/test_gateway_routers.py`
+
+### P11.11 Drift-focused counters in observability health diagnostics
+- [x] Extend observability health response with drift counters
+  - endpoint: `GET /api/observability/health`
+  - fields: `policy_drift_active_sessions`, `policy_drift_sessions`, `policy_drift_ratio`
+  - implementation: `gateway/routers/observability.py`
+- [x] Add health counter coverage for drift-session scenarios
+  - tests: `tests/test_gateway_routers.py`
+
+### P11.12 Session listing filter for policy drift
+- [x] Add `policy_drift` filtering to session listing API
+  - endpoint: `GET /api/sessions`
+  - query param: `policy_drift` (`true`/`false`)
+  - implementation: `gateway/routers/sessions.py`
+- [x] Add gateway router coverage for drift filter behavior
+  - tests: `tests/test_gateway_routers.py`
+
+### P11.13 Drift triage summary surfaces and trend context
+- [x] Add drift summary fields to run/session listings for faster triage
+  - run listing fields: `policy_drift_active_sessions`, `policy_drift_sessions`, `policy_drift_ratio`
+  - session listing fields: `policy_drift_field_count`, `policy_drift_summary`
+  - implementation: `gateway/routers/observability.py`, `gateway/routers/sessions.py`
+- [x] Add trend response context counters for dashboard filtering visibility
+  - endpoint: `GET /api/observability/failures/step-trends`
+  - fields: `matched_failures`, `filtered_out_failures`
+  - implementation: `gateway/routers/observability.py`
+- [x] Add health diagnostics drilldown field for top drifted sessions
+  - endpoint: `GET /api/observability/health`
+  - field: `top_policy_drift_session_ids`
+  - implementation: `gateway/routers/observability.py`
+- [x] Add gateway router coverage for P11.13 fields
+  - tests: `tests/test_gateway_routers.py`

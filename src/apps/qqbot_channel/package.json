@@ -1,0 +1,15 @@
+{
+  "name": "mini-agent-qqbot-channel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "QQ Official Bot bridge channel for Mini-Agent gateway",
+  "scripts": {
+    "start": "node ./bot.mjs",
+    "check": "node --check ./bot.mjs"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "qq-official-bot": "^1.0.12"
+  }
+}

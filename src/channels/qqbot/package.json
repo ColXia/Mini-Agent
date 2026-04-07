@@ -1,0 +1,26 @@
+{
+  "name": "@mini-agent/qqbot-channel",
+  "version": "0.1.0",
+  "description": "QQ Bot channel for Mini-Agent",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "smoke": "ts-node src/smoke_runner.ts"
+  },
+  "dependencies": {
+    "@mini-agent/channel-types": "file:../types",
+    "qq-official-bot": "^1.0.12",
+    "dotenv": "^16.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "ts-node": "^10.9.0",
+    "@types/node": "^20.0.0"
+  },
+  "files": [
+    "dist"
+  ]
+}

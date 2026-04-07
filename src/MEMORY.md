@@ -1,0 +1,30 @@
+# Long-Term Memory
+
+- [2026-04-07T00:59:26.766321] [smoke] studio smoke long-term note
+- [2026-04-07T01:01:27.152347] [smoke] studio smoke long-term note
+- [2026-04-07T01:15:57.865221] [smoke] studio smoke long-term note
+- [2026-04-07T01:28:13.157927] [smoke] studio smoke long-term note
+- [2026-04-07T03:44:05.467860] [smoke] studio smoke long-term note
+- [2026-04-07T03:48:16.772308] [smoke] studio smoke long-term note
+- [2026-04-07T03:51:29.120848] [smoke] studio smoke long-term note
+- [2026-04-07T10:04:13.015084] [smoke] [topic:test] Smoke test turn 2 executed successfully. Tested bash operations, web search, and memory systems.
+- [2026-04-07T10:05:13.790269] [smoke] studio smoke long-term note
+- [2026-04-07T10:17:23.994121] [smoke] [topic:test] Smoke test turn 2 executed successfully. Tested bash operations, web search, file operations, Python execution with async/await, mini_agent tools (BashTool, WebSearchTool, ReadTool, WriteTool, RecallNoteTool, SessionNoteTool, UserModelingTool), Agent class initialization, and various system capabilities.
+- [2026-04-07T10:21:46.239473] [smoke] [topic:streaming-test] Streaming smoke test executed successfully. Tested 22 components: bash commands, Python, mini_agent core modules, all tools (BashTool, ReadTool, WriteTool, EditTool, WebSearchTool, DoclingParseTool, RecallNoteTool, SessionNoteTool, UserModelingTool), async operations, skills system (19 skills available), LLM wrapper, Agent class, memory, logger, retry, session, model_manager, utils, schema. All tests passed. System is fully operational.
+- [2026-04-07T10:22:05.844462] [smoke] studio smoke long-term note
+- [2026-04-07T10:23:58.808439] [general] [topic:smoke-test] Smoke test turn 1 executed successfully. Tested bash operations, file read/write, web search, and basic system commands.
+- [2026-04-07T10:32:07.885391] [smoke] studio smoke long-term note
+- [2026-04-07T10:52:30.672642] [general] [topic:smoke-test] Smoke test turn 1 executed successfully. Tested bash operations, file read/write, Python execution, and mini_agent core modules.
+- [2026-04-07T10:55:04.381035] [general] [topic:smoke-test-turn-2] Smoke test turn 2 completed successfully. Tested 18 components: web search, file read/write/edit, memory recall, Python execution, JSON operations, skill system structure, environment variables, background jobs, file globbing, directory operations, and more. All core systems verified operational.
+- [2026-04-07T10:59:07.107523] [general] [topic:smoke-stream-test] Smoke stream test completed successfully. Tested 20+ streaming components: async generators, async context managers, async iterators, concurrent tasks, backpressure handling, chunked processing, AI API simulation, log streaming, data pipelines, WebSocket with heartbeats, JSONL processing, file I/O streaming (JSON, CSV, lines, binary). All streaming scenarios passed. Total items processed: 363+ in real-world scenarios.
+- [2026-04-07T11:03:31.258810] [smoke] [topic:turn-2-advanced] Smoke test turn 2 advanced testing completed successfully. Tested web search, memory systems, Python scripting, environment variables, and skill loading.
+- [2026-04-07T11:12:36.920755] [smoke] studio smoke long-term note
+- [2026-04-07T11:52:04.958283] [smoke] studio smoke long-term note
+- [2026-04-07T12:06:51.546118] [smoke] studio smoke long-term note
+- [2026-04-07T12:24:34.897184] [smoke] studio smoke long-term note
+- [2026-04-07T12:45:21.373600] [smoke] studio smoke long-term note
+- [2026-04-07T13:01:20.692503] [smoke] studio smoke long-term note
+- [2026-04-07T13:01:56.728804] [smoke] studio smoke long-term note
+- [2026-04-07T13:08:24.071084] [smoke] studio smoke long-term note
+- [2026-04-07T13:56:51.535078] [smoke] studio smoke long-term note
+- [2026-04-07T15:07:47.582124] [smoke] studio smoke long-term note
