@@ -5,7 +5,7 @@
 > **维护者**: Codex execution discipline
 > **文档索引**: [DOCS_INDEX.md](./DOCS_INDEX.md)
 
-Updated: 2026-04-06
+Updated: 2026-04-07
 Scope: Hard-refactor execution constraints, mistake prevention, and operational guardrails.
 
 ## 1. Core Habits (Must Follow)
@@ -38,6 +38,7 @@ Scope: Hard-refactor execution constraints, mistake prevention, and operational 
 | 2026-04-06 | E-010 | Runtime architecture | Legacy gateway/orchestrator startup entries remained callable after v1 host migration | Multiple backend host startup paths could reappear | Migration completed features before deleting old runtime entrypoints | Hard-remove legacy entry modules and block standalone subprogram host startup | Fixed |
 | 2026-04-06 | E-011 | CLI UX | Duplicate `mini-agent dev up` surfaced full Python traceback | Noisy output and harder operator control | `run_dev_command` propagated manager `RuntimeError` directly | Catch runtime errors in dev command path and print concise user-facing error with exit code 1 | Fixed |
 | 2026-04-06 | E-012 | Test workflow | Gateway v1 TestClient suites failed while local dev backend held instance lock | Lock-sensitive tests produced false negatives | Ran backend-lock tests while real host process occupied same lock key/port | Enforce pre-test `dev down` for lock-sensitive suites or isolate lock host/port in test env | Fixed |
+| 2026-04-07 | E-013 | Core runtime design | Started to implement parallel runtime capabilities before full module inventory, risking duplicate bootstraps | Higher maintenance burden and inconsistent behavior across surfaces | Capability assumptions were made from partial scan results | Run code-level inventory first, then enforce single shared bootstrap entrypoint for CLI/TUI/Gateway | Fixed |
 
 ## 3. Hard-Refactor Guardrails
 

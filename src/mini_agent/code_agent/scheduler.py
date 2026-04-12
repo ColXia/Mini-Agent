@@ -101,6 +101,7 @@ class TurnScheduler:
                 turn_result = await agent.run_turn(
                     cancel_event=cancel_event,
                     hooks=hooks,
+                    turn_context=turn_context,
                     start_new_run=turn_context.start_new_run,
                 )
         except Exception as exc:

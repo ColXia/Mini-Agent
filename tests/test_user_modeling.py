@@ -75,41 +75,47 @@ def test_builtin_memory_provider_uses_discovered_anchor():
 
 
 @pytest.mark.asyncio
-async def test_user_modeling_tool_profile_search_conclude_replace_remove():
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tool = UserModelingTool(memory_root=tmpdir)
+async def test_user_modeling_tool_profile_search_conclude_replace_remove(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    global_root = (tmp_path / "global").resolve()
+    monkeypatch.setenv("MINI_AGENT_GLOBAL_MEMORY_ROOT", str(global_root))
+    tool = UserModelingTool(memory_root=str(tmp_path / "workspace"))
 
-        empty_profile = await tool.execute(action="profile")
-        assert empty_profile.success
-        assert "(no facts yet)" in empty_profile.content
+    empty_profile = await tool.execute(action="profile")
+    assert empty_profile.success
+    assert "scope: global" in empty_profile.content
+    assert "(no facts yet)" in empty_profile.content
 
-        conclude = await tool.execute(
-            action="conclude",
-            fact="User prefers concise responses for quick operational checks",
-        )
-        assert conclude.success
-        assert "status=added" in conclude.content
+    conclude = await tool.execute(
+        action="conclude",
+        fact="User prefers concise responses for quick operational checks",
+    )
+    assert conclude.success
+    assert "status=added" in conclude.content
 
-        search = await tool.execute(action="search", query="concise responses")
-        assert search.success
-        assert "concise responses" in search.content
+    search = await tool.execute(action="search", query="concise responses")
+    assert search.success
+    assert "concise responses" in search.content
 
-        replace = await tool.execute(
-            action="replace",
-            match="concise responses",
-            fact="User prefers concise updates but detailed architecture plans",
-        )
-        assert replace.success
-        assert "status=replaced" in replace.content
+    replace = await tool.execute(
+        action="replace",
+        match="concise responses",
+        fact="User prefers concise updates but detailed architecture plans",
+    )
+    assert replace.success
+    assert "status=replaced" in replace.content
 
-        profile = await tool.execute(action="profile")
-        assert profile.success
-        assert "detailed architecture plans" in profile.content
+    profile = await tool.execute(action="profile")
+    assert profile.success
+    assert "detailed architecture plans" in profile.content
 
-        remove = await tool.execute(action="remove", match="detailed architecture plans")
-        assert remove.success
-        assert "status=removed" in remove.content
+    remove = await tool.execute(action="remove", match="detailed architecture plans")
+    assert remove.success
+    assert "status=removed" in remove.content
 
-        invalid = await tool.execute(action="unknown")
-        assert invalid.success is False
-        assert "Invalid action" in (invalid.error or "")
+    invalid = await tool.execute(action="unknown")
+    assert invalid.success is False
+    assert "Invalid action" in (invalid.error or "")
+    assert "detailed architecture plans" not in (global_root / "USER.md").read_text(encoding="utf-8")

@@ -10,6 +10,7 @@ from typing import Any
 
 from mini_agent.memory.consolidation_phase1 import Phase1ArtifactStore, Phase1Extractor
 from mini_agent.memory.consolidation_phase2 import Phase2Consolidator, Phase2Result
+from mini_agent.memory.memory_files import resolve_workspace_root
 from mini_agent.session.persistence import SessionPersistence
 
 
@@ -233,12 +234,45 @@ class ConsolidationScheduler:
         session_persistence: SessionPersistence,
         base_dir: Path,
         memory_file: Path,
+        workspace_anchor_dir: Path | str | None = None,
     ):
         self.session_persistence = session_persistence
         self.job_store = ConsolidationJobStore(base_dir)
         self.phase1_store = Phase1ArtifactStore(base_dir)
         self.phase1_extractor = Phase1Extractor()
         self.phase2 = Phase2Consolidator(base_dir, memory_file)
+        self.workspace_anchor_dir = (
+            Path(workspace_anchor_dir).expanduser().resolve()
+            if workspace_anchor_dir is not None
+            else None
+        )
+
+    def _matches_workspace_anchor(self, workspace_dir: Any) -> bool:
+        if self.workspace_anchor_dir is None:
+            return True
+        try:
+            resolved_workspace_dir = resolve_workspace_root(str(workspace_dir or ""))
+        except Exception:
+            return False
+        return resolved_workspace_dir == self.workspace_anchor_dir
+
+    def _list_workspace_sessions(
+        self,
+        *,
+        exclude_session_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        normalized_excluded = str(exclude_session_id or "").strip()
+        sessions: list[dict[str, Any]] = []
+        for session in self.session_persistence.list_sessions():
+            session_id = str(session.get("session_id", "")).strip()
+            if not session_id:
+                continue
+            if normalized_excluded and session_id == normalized_excluded:
+                continue
+            if not self._matches_workspace_anchor(session.get("workspace_dir")):
+                continue
+            sessions.append(session)
+        return sessions
 
     def run_phase1(
         self,
@@ -246,8 +280,9 @@ class ConsolidationScheduler:
         max_jobs: int = 8,
         lease_seconds: int = 3600,
         retry_seconds: int = 3600,
+        exclude_session_id: str | None = None,
     ) -> Phase1RunSummary:
-        sessions = self.session_persistence.list_sessions()
+        sessions = self._list_workspace_sessions(exclude_session_id=exclude_session_id)
         self.job_store.upsert_session_jobs(sessions)
         leased_jobs = self.job_store.lease_jobs(max_jobs=max_jobs, lease_seconds=lease_seconds)
 
@@ -262,6 +297,9 @@ class ConsolidationScheduler:
                 record = self.session_persistence.load_session(session_id)
                 if record is None:
                     raise ValueError(f"Session not found while consolidating: {session_id}")
+                if not self._matches_workspace_anchor(record.get("workspace_dir")):
+                    self.job_store.mark_success(session_id, artifact_id=None)
+                    continue
 
                 messages = record.get("messages", [])
                 if not isinstance(messages, list):
@@ -300,11 +338,13 @@ class ConsolidationScheduler:
         lease_seconds: int = 3600,
         retry_seconds: int = 3600,
         top_n: int = 40,
+        exclude_session_id: str | None = None,
     ) -> dict[str, Any]:
         phase1 = self.run_phase1(
             max_jobs=max_jobs,
             lease_seconds=lease_seconds,
             retry_seconds=retry_seconds,
+            exclude_session_id=exclude_session_id,
         )
         phase2 = self.run_phase2(top_n=top_n)
         return {

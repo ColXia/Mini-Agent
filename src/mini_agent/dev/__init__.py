@@ -6,6 +6,7 @@ from .studio_dev_manager import (
     StudioDevProfile,
     StudioDevStatus,
 )
+from .runtime_stack_manager import RuntimeStackManager, RuntimeStackStatus
 from .release_promotion_checklist import (
     PromotionChecklistItem,
     build_promotion_report,
@@ -44,6 +45,8 @@ __all__ = [
     "StudioDevManager",
     "StudioDevProfile",
     "StudioDevStatus",
+    "RuntimeStackManager",
+    "RuntimeStackStatus",
     "PromotionChecklistItem",
     "build_promotion_report",
     "collect_advisories",

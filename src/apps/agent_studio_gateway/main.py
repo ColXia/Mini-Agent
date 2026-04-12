@@ -6,38 +6,58 @@ import json
 import mimetypes
 import os
 import sys
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from types import ModuleType
 from typing import Any
 from uuid import uuid4
 
-from dotenv import load_dotenv
 import uvicorn
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from mini_agent import LLMClient
 from mini_agent.agent import Agent
+from mini_agent.agent_core.kernel import AgentKernelBuildOptions, build_agent_kernel
 from mini_agent.application import (
     ChannelIngressUseCases,
     MainAgentGatewayUseCases,
     NovelAgentProfile,
     NovelServiceUseCases,
 )
-from mini_agent.config import Config
 from mini_agent.interfaces import (
     ApiEnvelope,
     ChapterRollbackRequest,
     ChapterVersionMetaUpdateRequest,
     ChannelMessageRequest,
     ChannelMessageResponse,
+    MainAgentRoutingDiagnostics,
     MainAgentRuntimeDiagnostics,
+    MainAgentSessionApprovalRequest,
+    MainAgentSessionApprovalResponse,
     MainAgentChatRequest,
     MainAgentChatResponse,
+    MainAgentSessionCancelRequest,
+    MainAgentSessionContextRequest,
+    MainAgentSessionContextResponse,
+    MainAgentSessionControlRequest,
+    MainAgentSessionControlResponse,
+    MainAgentSessionCreateRequest,
+    MainAgentSessionDetail,
+    MainAgentSessionMemoryRequest,
+    MainAgentSessionMemoryResponse,
+    MainAgentSessionMessage,
+    MainAgentSessionSkillRequest,
+    MainAgentSessionSkillResponse,
+    MainAgentSessionModelSelectionRequest,
+    MainAgentSessionModelSelectionResponse,
     MainAgentSessionMutationResponse,
+    MainAgentSessionRenameRequest,
+    MainAgentSessionRuntimePolicyRequest,
+    MainAgentSessionRuntimePolicyResponse,
+    MainAgentSessionShareRequest,
     MainAgentSessionSummary,
     NovelChapterSaveRequest,
     NovelCoverRequest,
@@ -46,24 +66,25 @@ from mini_agent.interfaces import (
     NovelSetupRequest,
     NovelWriteRequest,
     SystemHealthResponse,
+    StudioModelListResponse,
 )
-from mini_agent.retry import RetryConfig as RetryConfigBase
 from mini_agent.runtime.main_agent_runtime_manager import (
     MainAgentRuntimeManager,
     MainAgentRuntimeMode,
     MainAgentRuntimePolicy,
 )
-from mini_agent.runtime.tooling import add_workspace_tools, initialize_shared_tools
-from mini_agent.schema import LLMProvider
+from mini_agent.runtime.session_lifecycle import resolve_session_lifecycle_policy
 from mini_agent.tools.mcp_loader import cleanup_mcp_connections
 from gateway.security.instance_lock import GatewayInstanceLock, GatewayInstanceLockError
-from apps.agent_studio_gateway.studio_router import _require_studio_auth, router as studio_router
+from apps.agent_studio_gateway.studio_router import (
+    _STUDIO_OPS_USE_CASES,
+    _require_studio_auth,
+    router as studio_router,
+)
 from subprograms.knowledge_base.gateway.router import router as knowledge_base_router
+from subprograms.memory_manager.gateway.router import router as memory_manager_router
 
-# Load environment variables from .env file
-load_dotenv(Path(__file__).parent / ".env")
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 WORKSPACE_ROOT = REPO_ROOT / "workspace"
 DEFAULT_NOVEL_PROJECT_DIR = WORKSPACE_ROOT / "mini-agent-novel-demo"
 NOVEL_DEMO_FILE = REPO_ROOT / "examples" / "mini_agent_demo" / "minimax_novel_demo" / "novel_demo.py"
@@ -78,6 +99,8 @@ STUDIO_INSTANCE_LOCK_ENABLED = (
 MAIN_AGENT_RUNTIME_MODE_RAW = os.getenv("MINI_AGENT_RUNTIME_MODE", "single_main").strip().lower()
 MAIN_AGENT_MAIN_WORKSPACE_RAW = os.getenv("MINI_AGENT_MAIN_WORKSPACE", str(REPO_ROOT)).strip()
 MAIN_AGENT_TEAM_MAX_AGENTS_RAW = os.getenv("MINI_AGENT_TEAM_MAX_AGENTS", "4").strip()
+MAIN_AGENT_SESSION_RESET_MODE_RAW = os.getenv("MINI_AGENT_SESSION_RESET_MODE", "none").strip().lower()
+MAIN_AGENT_SESSION_IDLE_SECONDS_RAW = os.getenv("MINI_AGENT_SESSION_IDLE_SECONDS", "1800").strip()
 NOVEL_PROFILE_ID_RAW = os.getenv("MINI_AGENT_NOVEL_PROFILE_ID", "novel-default").strip()
 NOVEL_PROFILE_API_HOST_RAW = os.getenv("MINI_AGENT_NOVEL_API_HOST", "https://api.minimaxi.com").strip()
 NOVEL_PROFILE_STYLE_TYPE_RAW = os.getenv("MINI_AGENT_NOVEL_STYLE_TYPE", "漫画").strip()
@@ -89,6 +112,12 @@ NOVEL_PROFILE_TOOL_PROFILE_ID_RAW = os.getenv("MINI_AGENT_NOVEL_TOOL_PROFILE_ID"
 NOVEL_PROFILE_ENABLE_TEXT_TOOLS_RAW = os.getenv("MINI_AGENT_NOVEL_ENABLE_TEXT_TOOLS", "1").strip()
 NOVEL_PROFILE_ENABLE_IMAGE_TOOLS_RAW = os.getenv("MINI_AGENT_NOVEL_ENABLE_IMAGE_TOOLS", "1").strip()
 NOVEL_PROFILE_ENABLE_AUDIO_TOOLS_RAW = os.getenv("MINI_AGENT_NOVEL_ENABLE_AUDIO_TOOLS", "1").strip()
+MAIN_AGENT_SESSION_STORE_DIR = Path(
+    os.getenv(
+        "MINI_AGENT_MAIN_SESSION_STORE_DIR",
+        str(Path.home() / ".mini-agent" / "state" / "main_agent_runtime"),
+    )
+).expanduser()
 _STUDIO_INSTANCE_LOCK: GatewayInstanceLock | None = None
 _MAIN_AGENT_USE_CASES: MainAgentGatewayUseCases | None = None
 _NOVEL_USE_CASES: NovelServiceUseCases | None = None
@@ -338,7 +367,8 @@ def _format_agent_bootstrap_error(exc: Exception) -> HTTPException:
     if "API Key" in raw or "api key" in raw.lower():
         detail = (
             "Mini-Agent bootstrap failed: valid API key not detected. "
-            "Check MINIMAX_API_KEY in environment or mini_agent/config/config.yaml."
+            "Check OPENAI_API_KEY / ANTHROPIC_API_KEY / GEMINI_API_KEY / MINIMAX_API_KEY "
+            "or local .env.local fallback."
         )
     elif "Configuration file not found" in raw:
         detail = "Mini-Agent bootstrap failed: missing configuration file config.yaml."
@@ -347,51 +377,33 @@ def _format_agent_bootstrap_error(exc: Exception) -> HTTPException:
     return HTTPException(status_code=503, detail=detail)
 
 
-def _load_system_prompt(config: Config, skill_loader: Any) -> str:
-    prompt_path = Config.find_config_file(config.agent.system_prompt_path)
-    if prompt_path and prompt_path.exists():
-        system_prompt = prompt_path.read_text(encoding="utf-8")
-    else:
-        system_prompt = "You are Mini-Agent, an intelligent assistant powered by MiniMax."
-
-    if skill_loader:
-        skills_metadata = skill_loader.get_skills_metadata_prompt()
-        system_prompt = system_prompt.replace("{SKILLS_METADATA}", skills_metadata or "")
-    else:
-        system_prompt = system_prompt.replace("{SKILLS_METADATA}", "")
-    return system_prompt
-
-
 async def _build_agent(workspace_dir: Path) -> Agent:
-    config = Config.load()
-    provider = LLMProvider.ANTHROPIC if config.llm.provider.lower() == "anthropic" else LLMProvider.OPENAI
-    retry_config = RetryConfigBase(
-        enabled=config.llm.retry.enabled,
-        max_retries=config.llm.retry.max_retries,
-        initial_delay=config.llm.retry.initial_delay,
-        max_delay=config.llm.retry.max_delay,
-        exponential_base=config.llm.retry.exponential_base,
-        retryable_exceptions=(Exception,),
-    )
-    llm_client = LLMClient(
-        api_key=config.llm.api_key,
-        provider=provider,
-        api_base=config.llm.api_base,
-        model=config.llm.model,
-        retry_config=retry_config if config.llm.retry.enabled else None,
+    return await build_agent_kernel(
+        workspace_dir=workspace_dir,
+        options=AgentKernelBuildOptions(
+            console_output=False,
+            allow_interactive_setup=False,
+            session_store_dir=MAIN_AGENT_SESSION_STORE_DIR,
+        ),
     )
 
-    tools, skill_loader = await initialize_shared_tools(config)
-    add_workspace_tools(tools, config, workspace_dir)
-    system_prompt = _load_system_prompt(config, skill_loader)
 
-    return Agent(
-        llm_client=llm_client,
-        system_prompt=system_prompt,
-        tools=tools,
-        max_steps=config.agent.max_steps,
-        workspace_dir=str(workspace_dir),
-        console_output=False,
+async def _build_agent_with_selection(
+    workspace_dir: Path,
+    provider_source: str | None,
+    provider_id: str | None,
+    model_id: str | None,
+) -> Agent:
+    return await build_agent_kernel(
+        workspace_dir=workspace_dir,
+        options=AgentKernelBuildOptions(
+            requested_provider_source=provider_source,
+            requested_provider_id=provider_id,
+            requested_model=model_id,
+            console_output=False,
+            allow_interactive_setup=False,
+            session_store_dir=MAIN_AGENT_SESSION_STORE_DIR,
+        ),
     )
 
 
@@ -413,6 +425,11 @@ def _parse_main_agent_runtime_policy() -> MainAgentRuntimePolicy:
         team_max_agents = 4
     team_max_agents = max(1, team_max_agents)
 
+    session_lifecycle = resolve_session_lifecycle_policy(
+        reset_mode_raw=MAIN_AGENT_SESSION_RESET_MODE_RAW,
+        idle_seconds_raw=MAIN_AGENT_SESSION_IDLE_SECONDS_RAW,
+    )
+
     if mode == MainAgentRuntimeMode.SINGLE_MAIN:
         return MainAgentRuntimePolicy(
             mode=mode,
@@ -420,6 +437,7 @@ def _parse_main_agent_runtime_policy() -> MainAgentRuntimePolicy:
             max_active_sessions=1,
             reserved_team_slots=team_max_agents,
             workspace_application_required=True,
+            session_lifecycle=session_lifecycle,
         )
 
     return MainAgentRuntimePolicy(
@@ -428,6 +446,7 @@ def _parse_main_agent_runtime_policy() -> MainAgentRuntimePolicy:
         max_active_sessions=team_max_agents,
         reserved_team_slots=team_max_agents,
         workspace_application_required=True,
+        session_lifecycle=session_lifecycle,
     )
 
 
@@ -437,7 +456,9 @@ def _main_agent_runtime_manager() -> MainAgentRuntimeManager:
         _MAIN_AGENT_RUNTIME_MANAGER = MainAgentRuntimeManager(
             ttl_seconds=SESSION_TTL_SECONDS,
             build_agent=_build_agent,
+            build_agent_with_selection=_build_agent_with_selection,
             policy=_parse_main_agent_runtime_policy(),
+            storage_dir=MAIN_AGENT_SESSION_STORE_DIR,
         )
     return _MAIN_AGENT_RUNTIME_MANAGER
 
@@ -582,9 +603,52 @@ def _list_novel_assets(project_dir: Path) -> list[dict[str, str]]:
     return assets
 
 
-app = FastAPI(title="Mini-Agent Studio Gateway", version="0.1.0")
+async def _startup_instance_lock() -> None:
+    global _STUDIO_INSTANCE_LOCK
+    if not STUDIO_INSTANCE_LOCK_ENABLED:
+        return
+    lock = GatewayInstanceLock(host=STUDIO_GATEWAY_HOST, port=STUDIO_GATEWAY_PORT)
+    try:
+        lock.acquire()
+    except GatewayInstanceLockError as exc:
+        raise RuntimeError(str(exc)) from exc
+    _STUDIO_INSTANCE_LOCK = lock
+
+
+async def _shutdown_cleanup() -> None:
+    global _STUDIO_INSTANCE_LOCK, _MAIN_AGENT_USE_CASES, _NOVEL_USE_CASES, _CHANNEL_INGRESS_USE_CASES
+    try:
+        await cleanup_mcp_connections()
+    finally:
+        try:
+            if _MAIN_AGENT_RUNTIME_MANAGER is not None:
+                await _MAIN_AGENT_RUNTIME_MANAGER.clear()
+            _MAIN_AGENT_USE_CASES = None
+            _NOVEL_USE_CASES = None
+            _CHANNEL_INGRESS_USE_CASES = None
+        finally:
+            if _STUDIO_INSTANCE_LOCK is not None:
+                _STUDIO_INSTANCE_LOCK.release()
+                _STUDIO_INSTANCE_LOCK = None
+
+
+@asynccontextmanager
+async def _app_lifespan(_: FastAPI):
+    await _startup_instance_lock()
+    try:
+        yield
+    finally:
+        await _shutdown_cleanup()
+
+
+app = FastAPI(
+    title="Mini-Agent Studio Gateway",
+    version="0.1.0",
+    lifespan=_app_lifespan,
+)
 app.include_router(studio_router)
 app.include_router(knowledge_base_router)
+app.include_router(memory_manager_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -602,37 +666,6 @@ if STUDIO_UI_DIST_DIR is not None and (STUDIO_UI_DIST_DIR / "assets").exists():
         StaticFiles(directory=str(STUDIO_UI_DIST_DIR / "assets"), check_dir=True),
         name="studio-assets",
     )
-
-
-@app.on_event("startup")
-async def _startup_instance_lock() -> None:
-    global _STUDIO_INSTANCE_LOCK
-    if not STUDIO_INSTANCE_LOCK_ENABLED:
-        return
-    lock = GatewayInstanceLock(host=STUDIO_GATEWAY_HOST, port=STUDIO_GATEWAY_PORT)
-    try:
-        lock.acquire()
-    except GatewayInstanceLockError as exc:
-        raise RuntimeError(str(exc)) from exc
-    _STUDIO_INSTANCE_LOCK = lock
-
-
-@app.on_event("shutdown")
-async def _shutdown_cleanup() -> None:
-    global _STUDIO_INSTANCE_LOCK, _MAIN_AGENT_USE_CASES, _NOVEL_USE_CASES, _CHANNEL_INGRESS_USE_CASES
-    try:
-        await cleanup_mcp_connections()
-    finally:
-        try:
-            if _MAIN_AGENT_RUNTIME_MANAGER is not None:
-                await _MAIN_AGENT_RUNTIME_MANAGER.clear()
-            _MAIN_AGENT_USE_CASES = None
-            _NOVEL_USE_CASES = None
-            _CHANNEL_INGRESS_USE_CASES = None
-        finally:
-            if _STUDIO_INSTANCE_LOCK is not None:
-                _STUDIO_INSTANCE_LOCK.release()
-                _STUDIO_INSTANCE_LOCK = None
 
 
 async def _build_health_response() -> SystemHealthResponse:
@@ -668,6 +701,15 @@ async def v1_ops_runtime_diagnostics() -> MainAgentRuntimeDiagnostics:
     return MainAgentRuntimeDiagnostics(**runtime.__dict__)
 
 
+@app.get(
+    "/api/v1/ops/diagnostics/routing",
+    response_model=MainAgentRoutingDiagnostics,
+    dependencies=[Depends(_require_studio_auth)],
+)
+async def v1_ops_routing_diagnostics() -> MainAgentRoutingDiagnostics:
+    return await _main_agent_use_cases().get_routing_diagnostics()
+
+
 @app.post("/api/v1/agent/chat", response_model=ApiEnvelope[MainAgentChatResponse])
 async def v1_agent_chat(request: MainAgentChatRequest) -> ApiEnvelope[MainAgentChatResponse]:
     return ApiEnvelope[MainAgentChatResponse](ok=True, data=await _run_main_agent_chat(request))
@@ -678,21 +720,157 @@ async def v1_channel_message(request: ChannelMessageRequest) -> ApiEnvelope[Chan
     return ApiEnvelope[ChannelMessageResponse](ok=True, data=await _run_channel_message(request))
 
 
-async def _list_main_agent_sessions() -> list[MainAgentSessionSummary]:
-    return await _main_agent_use_cases().list_sessions()
+async def _list_main_agent_sessions(
+    *,
+    workspace_dir: str | None = None,
+    shared_only: bool = False,
+) -> list[MainAgentSessionSummary]:
+    return await _main_agent_use_cases().list_sessions(
+        workspace_dir=workspace_dir,
+        shared_only=shared_only,
+    )
+
+
+async def _create_main_agent_session(request: MainAgentSessionCreateRequest) -> MainAgentSessionDetail:
+    return await _main_agent_use_cases().create_session(request)
+
+
+async def _get_main_agent_session_detail(session_id: str, recent_limit: int = 50) -> MainAgentSessionDetail:
+    return await _main_agent_use_cases().get_session_detail(session_id, recent_limit=recent_limit)
+
+
+async def _get_main_agent_session_messages(session_id: str, limit: int = 10) -> list[MainAgentSessionMessage]:
+    return await _main_agent_use_cases().get_session_messages(session_id, limit=limit)
+
+
+def _list_main_agent_models() -> StudioModelListResponse:
+    return _STUDIO_OPS_USE_CASES.list_models(catalog_path=None)
 
 
 async def _delete_main_agent_session(session_id: str) -> MainAgentSessionMutationResponse:
     return await _main_agent_use_cases().delete_session(session_id)
 
 
+async def _rename_main_agent_session(
+    session_id: str,
+    request: MainAgentSessionRenameRequest,
+) -> MainAgentSessionMutationResponse:
+    return await _main_agent_use_cases().rename_session(session_id, request)
+
+
+async def _share_main_agent_session(
+    session_id: str,
+    request: MainAgentSessionShareRequest,
+) -> MainAgentSessionMutationResponse:
+    return await _main_agent_use_cases().set_session_shared(session_id, request)
+
+
 async def _reset_main_agent_session(session_id: str) -> MainAgentSessionMutationResponse:
     return await _main_agent_use_cases().reset_session(session_id)
 
 
+async def _cancel_main_agent_session(
+    session_id: str,
+    request: MainAgentSessionCancelRequest,
+) -> MainAgentSessionMutationResponse:
+    return await _main_agent_use_cases().cancel_session(session_id, request)
+
+
+async def _control_main_agent_session(
+    session_id: str,
+    request: MainAgentSessionControlRequest,
+) -> MainAgentSessionControlResponse:
+    return await _main_agent_use_cases().control_session(session_id, request)
+
+
+async def _update_main_agent_session_context(
+    session_id: str,
+    request: MainAgentSessionContextRequest,
+) -> MainAgentSessionContextResponse:
+    return await _main_agent_use_cases().update_session_context(session_id, request)
+
+
+async def _manage_main_agent_session_memory(
+    session_id: str,
+    request: MainAgentSessionMemoryRequest,
+) -> MainAgentSessionMemoryResponse:
+    return await _main_agent_use_cases().manage_session_memory(session_id, request)
+
+
+async def _manage_main_agent_session_skill(
+    session_id: str,
+    request: MainAgentSessionSkillRequest,
+) -> MainAgentSessionSkillResponse:
+    return await _main_agent_use_cases().manage_session_skills(session_id, request)
+
+
+async def _update_main_agent_session_model(
+    session_id: str,
+    request: MainAgentSessionModelSelectionRequest,
+) -> MainAgentSessionModelSelectionResponse:
+    return await _main_agent_use_cases().update_session_model_selection(session_id, request)
+
+
+async def _respond_main_agent_session_approval(
+    session_id: str,
+    request: MainAgentSessionApprovalRequest,
+) -> MainAgentSessionApprovalResponse:
+    return await _main_agent_use_cases().respond_to_approval(session_id, request)
+
+
+async def _update_main_agent_session_runtime_policy(
+    session_id: str,
+    request: MainAgentSessionRuntimePolicyRequest,
+) -> MainAgentSessionRuntimePolicyResponse:
+    return await _main_agent_use_cases().update_session_runtime_policy(session_id, request)
+
+
 @app.get("/api/v1/agent/sessions", response_model=ApiEnvelope[list[MainAgentSessionSummary]])
-async def v1_list_sessions() -> ApiEnvelope[list[MainAgentSessionSummary]]:
-    return ApiEnvelope[list[MainAgentSessionSummary]](ok=True, data=await _list_main_agent_sessions())
+async def v1_list_sessions(
+    workspace_dir: str | None = None,
+    shared_only: bool = False,
+) -> ApiEnvelope[list[MainAgentSessionSummary]]:
+    return ApiEnvelope[list[MainAgentSessionSummary]](
+        ok=True,
+        data=await _list_main_agent_sessions(workspace_dir=workspace_dir, shared_only=shared_only),
+    )
+
+
+@app.post("/api/v1/agent/sessions", response_model=ApiEnvelope[MainAgentSessionDetail])
+async def v1_create_session(
+    request: MainAgentSessionCreateRequest,
+) -> ApiEnvelope[MainAgentSessionDetail]:
+    return ApiEnvelope[MainAgentSessionDetail](
+        ok=True,
+        data=await _create_main_agent_session(request),
+    )
+
+
+@app.get("/api/v1/agent/sessions/{session_id}", response_model=ApiEnvelope[MainAgentSessionDetail])
+async def v1_get_session_detail(
+    session_id: str,
+    recent_limit: int = 50,
+) -> ApiEnvelope[MainAgentSessionDetail]:
+    return ApiEnvelope[MainAgentSessionDetail](
+        ok=True,
+        data=await _get_main_agent_session_detail(session_id, recent_limit=recent_limit),
+    )
+
+
+@app.get("/api/v1/agent/sessions/{session_id}/messages", response_model=ApiEnvelope[list[MainAgentSessionMessage]])
+async def v1_get_session_messages(
+    session_id: str,
+    limit: int = 10,
+) -> ApiEnvelope[list[MainAgentSessionMessage]]:
+    return ApiEnvelope[list[MainAgentSessionMessage]](
+        ok=True,
+        data=await _get_main_agent_session_messages(session_id, limit=limit),
+    )
+
+
+@app.get("/api/v1/agent/models", response_model=ApiEnvelope[StudioModelListResponse])
+async def v1_list_agent_models() -> ApiEnvelope[StudioModelListResponse]:
+    return ApiEnvelope[StudioModelListResponse](ok=True, data=_list_main_agent_models())
 
 
 @app.delete("/api/v1/agent/sessions/{session_id}", response_model=ApiEnvelope[MainAgentSessionMutationResponse])
@@ -700,22 +878,142 @@ async def v1_delete_session(session_id: str) -> ApiEnvelope[MainAgentSessionMuta
     return ApiEnvelope[MainAgentSessionMutationResponse](ok=True, data=await _delete_main_agent_session(session_id))
 
 
+@app.patch("/api/v1/agent/sessions/{session_id}", response_model=ApiEnvelope[MainAgentSessionMutationResponse])
+async def v1_rename_session(
+    session_id: str,
+    request: MainAgentSessionRenameRequest,
+) -> ApiEnvelope[MainAgentSessionMutationResponse]:
+    return ApiEnvelope[MainAgentSessionMutationResponse](
+        ok=True,
+        data=await _rename_main_agent_session(session_id, request),
+    )
+
+
+@app.post("/api/v1/agent/sessions/{session_id}/share", response_model=ApiEnvelope[MainAgentSessionMutationResponse])
+async def v1_share_session(
+    session_id: str,
+    request: MainAgentSessionShareRequest,
+) -> ApiEnvelope[MainAgentSessionMutationResponse]:
+    return ApiEnvelope[MainAgentSessionMutationResponse](
+        ok=True,
+        data=await _share_main_agent_session(session_id, request),
+    )
+
+
 @app.post("/api/v1/agent/sessions/{session_id}/reset", response_model=ApiEnvelope[MainAgentSessionMutationResponse])
 async def v1_reset_session(session_id: str) -> ApiEnvelope[MainAgentSessionMutationResponse]:
     return ApiEnvelope[MainAgentSessionMutationResponse](ok=True, data=await _reset_main_agent_session(session_id))
 
 
+@app.post("/api/v1/agent/sessions/{session_id}/cancel", response_model=ApiEnvelope[MainAgentSessionMutationResponse])
+async def v1_cancel_session(
+    session_id: str,
+    request: MainAgentSessionCancelRequest,
+) -> ApiEnvelope[MainAgentSessionMutationResponse]:
+    return ApiEnvelope[MainAgentSessionMutationResponse](ok=True, data=await _cancel_main_agent_session(session_id, request))
+
+
+@app.post("/api/v1/agent/sessions/{session_id}/control", response_model=ApiEnvelope[MainAgentSessionControlResponse])
+async def v1_control_session(
+    session_id: str,
+    request: MainAgentSessionControlRequest,
+) -> ApiEnvelope[MainAgentSessionControlResponse]:
+    return ApiEnvelope[MainAgentSessionControlResponse](
+        ok=True,
+        data=await _control_main_agent_session(session_id, request),
+    )
+
+
+@app.post("/api/v1/agent/sessions/{session_id}/context", response_model=ApiEnvelope[MainAgentSessionContextResponse])
+async def v1_update_session_context(
+    session_id: str,
+    request: MainAgentSessionContextRequest,
+) -> ApiEnvelope[MainAgentSessionContextResponse]:
+    return ApiEnvelope[MainAgentSessionContextResponse](
+        ok=True,
+        data=await _update_main_agent_session_context(session_id, request),
+    )
+
+
+@app.post("/api/v1/agent/sessions/{session_id}/memory", response_model=ApiEnvelope[MainAgentSessionMemoryResponse])
+async def v1_manage_session_memory(
+    session_id: str,
+    request: MainAgentSessionMemoryRequest,
+) -> ApiEnvelope[MainAgentSessionMemoryResponse]:
+    return ApiEnvelope[MainAgentSessionMemoryResponse](
+        ok=True,
+        data=await _manage_main_agent_session_memory(session_id, request),
+    )
+
+
+@app.post("/api/v1/agent/sessions/{session_id}/skill", response_model=ApiEnvelope[MainAgentSessionSkillResponse])
+async def v1_manage_session_skill(
+    session_id: str,
+    request: MainAgentSessionSkillRequest,
+) -> ApiEnvelope[MainAgentSessionSkillResponse]:
+    return ApiEnvelope[MainAgentSessionSkillResponse](
+        ok=True,
+        data=await _manage_main_agent_session_skill(session_id, request),
+    )
+
+
+@app.post(
+    "/api/v1/agent/sessions/{session_id}/model",
+    response_model=ApiEnvelope[MainAgentSessionModelSelectionResponse],
+)
+async def v1_update_session_model(
+    session_id: str,
+    request: MainAgentSessionModelSelectionRequest,
+) -> ApiEnvelope[MainAgentSessionModelSelectionResponse]:
+    return ApiEnvelope[MainAgentSessionModelSelectionResponse](
+        ok=True,
+        data=await _update_main_agent_session_model(session_id, request),
+    )
+
+
+@app.post("/api/v1/agent/sessions/{session_id}/policy", response_model=ApiEnvelope[MainAgentSessionRuntimePolicyResponse])
+async def v1_update_session_runtime_policy(
+    session_id: str,
+    request: MainAgentSessionRuntimePolicyRequest,
+) -> ApiEnvelope[MainAgentSessionRuntimePolicyResponse]:
+    return ApiEnvelope[MainAgentSessionRuntimePolicyResponse](
+        ok=True,
+        data=await _update_main_agent_session_runtime_policy(session_id, request),
+    )
+
+
+@app.post("/api/v1/agent/sessions/{session_id}/approval", response_model=ApiEnvelope[MainAgentSessionApprovalResponse])
+async def v1_respond_session_approval(
+    session_id: str,
+    request: MainAgentSessionApprovalRequest,
+) -> ApiEnvelope[MainAgentSessionApprovalResponse]:
+    return ApiEnvelope[MainAgentSessionApprovalResponse](
+        ok=True,
+        data=await _respond_main_agent_session_approval(session_id, request),
+    )
+
+
 async def chat_stream(
     message: str,
     session_id: str | None = None,
+    session_title_hint: str | None = None,
     workspace_dir: str | None = None,
     dry_run: bool = False,
+    surface: str | None = None,
+    channel_type: str | None = None,
+    conversation_id: str | None = None,
+    sender_id: str | None = None,
 ) -> StreamingResponse:
     stream = _main_agent_use_cases().stream_chat_events(
         message=message,
         session_id=session_id,
+        session_title_hint=session_title_hint,
         workspace_dir=workspace_dir,
         dry_run=dry_run,
+        surface=surface,
+        channel_type=channel_type,
+        conversation_id=conversation_id,
+        sender_id=sender_id,
     )
 
     return StreamingResponse(
@@ -729,14 +1027,24 @@ async def chat_stream(
 async def v1_chat_stream(
     message: str,
     session_id: str | None = None,
+    session_title_hint: str | None = None,
     workspace_dir: str | None = None,
     dry_run: bool = False,
+    surface: str | None = None,
+    channel_type: str | None = None,
+    conversation_id: str | None = None,
+    sender_id: str | None = None,
 ) -> StreamingResponse:
     return await chat_stream(
         message=message,
         session_id=session_id,
+        session_title_hint=session_title_hint,
         workspace_dir=workspace_dir,
         dry_run=dry_run,
+        surface=surface,
+        channel_type=channel_type,
+        conversation_id=conversation_id,
+        sender_id=sender_id,
     )
 
 

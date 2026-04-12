@@ -82,3 +82,7 @@ class LLMClientBase(ABC):
             Tuple of (system_message, api_messages)
         """
         pass
+
+    async def close(self) -> None:
+        """Release client resources when supported by the provider SDK."""
+        return None

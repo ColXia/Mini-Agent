@@ -6,7 +6,14 @@ import json
 
 import pytest
 
-from mini_agent.config import AgentConfig, Config, LLMConfig, SecurityConfig, ToolsConfig
+from mini_agent.config import (
+    OFFICIAL_PRESET_ENV_KEYS,
+    AgentConfig,
+    Config,
+    LLMConfig,
+    SecurityConfig,
+    ToolsConfig,
+)
 from mini_agent.model_manager.runtime import (
     get_circuit_breaker_registry,
     reset_model_manager_runtime_state,
@@ -36,8 +43,17 @@ def _reset_runtime_state():
     reset_model_manager_runtime_state()
 
 
-def test_resolve_routed_llm_settings_falls_back_to_config_without_catalog(monkeypatch):
-    monkeypatch.delenv("MINI_AGENT_PROVIDER_CATALOG_PATH", raising=False)
+@pytest.fixture(autouse=True)
+def _clear_preset_provider_keys(monkeypatch):
+    for env_key in OFFICIAL_PRESET_ENV_KEYS:
+        # Keep keys present-but-empty so load_dotenv(override=False) cannot
+        # repopulate real local keys from .env.local during this test module.
+        monkeypatch.setenv(env_key, "")
+
+
+def test_resolve_routed_llm_settings_falls_back_to_config_without_catalog(monkeypatch, tmp_path):
+    # Isolate from machine-level ~/.mini-agent/providers.json.
+    monkeypatch.setenv("MINI_AGENT_PROVIDER_CATALOG_PATH", str(tmp_path / "missing.json"))
     config = _make_config(provider="anthropic", model="MiniMax-M2.5")
 
     resolved = resolve_routed_llm_settings(config, requested_model="MiniMax-M2.5")

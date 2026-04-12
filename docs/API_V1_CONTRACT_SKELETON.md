@@ -5,7 +5,7 @@
 > **版本**: v1.0 (P18 execution baseline)
 > **文档索引**: [DOCS_INDEX.md](./DOCS_INDEX.md)
 
-Updated: 2026-04-06
+Updated: 2026-04-09
 
 ## 1. Scope
 
@@ -24,8 +24,14 @@ Rules:
    - `POST /api/v1/agent/chat`
    - `GET /api/v1/agent/chat/stream`
    - `GET /api/v1/agent/sessions`
+   - `POST /api/v1/agent/sessions`
+   - `GET /api/v1/agent/sessions/{session_id}`
+   - `GET /api/v1/agent/sessions/{session_id}/messages`
+   - `PATCH /api/v1/agent/sessions/{session_id}`
    - `DELETE /api/v1/agent/sessions/{session_id}`
+   - `POST /api/v1/agent/sessions/{session_id}/share`
    - `POST /api/v1/agent/sessions/{session_id}/reset`
+   - `POST /api/v1/agent/sessions/{session_id}/control`
 3. Novel Subprogram:
    - `GET /api/v1/novel/config`
    - `POST /api/v1/novel/setup`
@@ -63,8 +69,14 @@ Rules:
 | `POST /api/v1/agent/chat` | Implemented |
 | `GET /api/v1/agent/chat/stream` | Implemented |
 | `GET /api/v1/agent/sessions` | Implemented |
+| `POST /api/v1/agent/sessions` | Implemented |
+| `GET /api/v1/agent/sessions/{session_id}` | Implemented |
+| `GET /api/v1/agent/sessions/{session_id}/messages` | Implemented |
+| `PATCH /api/v1/agent/sessions/{session_id}` | Implemented |
 | `DELETE /api/v1/agent/sessions/{session_id}` | Implemented |
+| `POST /api/v1/agent/sessions/{session_id}/share` | Implemented |
 | `POST /api/v1/agent/sessions/{session_id}/reset` | Implemented |
+| `POST /api/v1/agent/sessions/{session_id}/control` | Implemented |
 | `GET /api/v1/novel/config` | Implemented |
 | `POST /api/v1/novel/setup` | Implemented |
 | `POST /api/v1/novel/write` | Implemented |

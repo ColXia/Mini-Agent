@@ -3,13 +3,39 @@
 import asyncio
 import inspect
 import json
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
 from time import perf_counter
-from typing import Awaitable, Callable, Optional
+from typing import Any, Awaitable, Callable, Optional
+from uuid import uuid4
 
 import tiktoken
+
+from mini_agent.code_agent.context_compression import LayeredContextCompactor, estimate_tokens
+from mini_agent.code_agent.permissions.approval import ApprovalEngine
+from mini_agent.code_agent.permissions.policy import PermissionDecision
+from mini_agent.code_agent.tools.builder import build_declarative_registry
+from mini_agent.code_agent.tools.invocation import ToolInvocation
+from mini_agent.memory.automation import TurnMemoryAutomation
+from mini_agent.memory.runtime_task_memory import TurnRuntimeTaskMemory
+from mini_agent.model_manager.error_classifier import (
+    ProviderErrorClassification,
+    classify_provider_error,
+)
+from mini_agent.model_manager.failover import ProviderFailoverError
+from mini_agent.model_manager.model_registry_service import ModelRegistryService
+from mini_agent.turn_context import (
+    coerce_runtime_turn_context,
+    context_policy_summary_line,
+    curate_turn_context_items,
+    format_turn_context_block,
+    normalize_turn_context_items,
+    provider_allowed_by_policy,
+    resolve_turn_context_policy,
+    summarize_turn_context_items,
+    update_prepared_context_diagnostics,
+)
 
 from .llm import LLMClient
 from .logger import AgentLogger
@@ -214,8 +240,25 @@ class TurnExecutionResult:
     message: str
 
 
+@dataclass(frozen=True)
+class ToolApprovalRequest:
+    """Interactive approval request for one tool invocation."""
+
+    token: str
+    step: int
+    tool_name: str
+    arguments: dict[str, Any]
+    kind: str
+    reason: str
+    cache_key: str | None = None
+    can_escalate: bool = False
+
+
 class Agent:
     """Single agent with basic tools and MCP support."""
+
+    _TURN_CONTEXT_MESSAGE_NAME = "__mini_agent_turn_context__"
+    _KNOWLEDGE_BASE_TOOL_NAME = "knowledge_base_query"
 
     def __init__(
         self,
@@ -228,9 +271,23 @@ class Agent:
         token_limit: int = 80000,  # Summary triggered when tokens exceed this value
         logger: AgentLogger | None = None,
         console_output: bool = True,
+        approval_engine: ApprovalEngine | None = None,
+        tool_approval_handler: Callable[[ToolApprovalRequest], Awaitable[bool | None] | bool | None] | None = None,
+        runtime_policy_engine: Any | None = None,
+        sandbox_manager: Any | None = None,
+        context_compactor: LayeredContextCompactor | None = None,
+        turn_context_providers: list[Any] | None = None,
+        turn_context_max_items: int = 4,
+        turn_context_max_items_per_source: int = 1,
+        turn_context_max_total_chars: int = 2400,
+        turn_memory_automation: TurnMemoryAutomation | None = None,
+        turn_runtime_task_memory: TurnRuntimeTaskMemory | None = None,
     ):
         self.llm = llm_client
-        self.tools = {tool.name: tool for tool in tools}
+        self.llm_client = llm_client
+        self._tool_catalog = {tool.name: tool for tool in tools}
+        self.tools = dict(self._tool_catalog)
+        self.declarative_tools = build_declarative_registry(self.tools.values())
         self.execution_policy = AgentExecutionPolicy(
             max_steps=max_steps,
             max_tool_calls_per_step=max_tool_calls_per_step,
@@ -258,6 +315,21 @@ class Agent:
 
         # Initialize logger
         self.logger = logger or AgentLogger()
+        self.approval_engine = approval_engine
+        self.tool_approval_handler = tool_approval_handler
+        self.runtime_policy_engine = runtime_policy_engine
+        self.sandbox_manager = sandbox_manager
+        self.context_compactor = context_compactor
+        self.turn_context_providers = list(turn_context_providers or [])
+        self.turn_context_max_items = max(1, int(turn_context_max_items))
+        self.turn_context_max_items_per_source = max(1, int(turn_context_max_items_per_source))
+        self.turn_context_max_total_chars = max(200, int(turn_context_max_total_chars))
+        self.last_prepared_turn_context: dict[str, Any] | None = None
+        self.prepared_context_diagnostics: dict[str, Any] = {}
+        self.turn_memory_automation = turn_memory_automation
+        self.last_memory_automation: dict[str, Any] = {}
+        self.turn_runtime_task_memory = turn_runtime_task_memory
+        self.last_runtime_task_memory: dict[str, Any] = {}
 
         # Token usage from last API response (updated after each LLM call)
         self.api_total_tokens: int = 0
@@ -268,9 +340,442 @@ class Agent:
         """Add a user message to history."""
         self.messages.append(Message(role="user", content=content))
 
+    def _refresh_tool_registry(self) -> None:
+        self.declarative_tools = build_declarative_registry(self.tools.values())
+
+    def _build_lazy_tool(self, tool_name: str) -> Tool | None:
+        normalized_name = str(tool_name or "").strip().lower()
+        if normalized_name != self._KNOWLEDGE_BASE_TOOL_NAME:
+            return None
+        from mini_agent.tools.knowledge_base import KnowledgeBaseQueryTool
+
+        return KnowledgeBaseQueryTool(workspace_dir=self.workspace_dir)
+
+    def is_tool_enabled(self, tool_name: str) -> bool:
+        normalized_name = str(tool_name or "").strip()
+        return bool(normalized_name and normalized_name in self.tools)
+
+    def set_tool_enabled(self, tool_name: str, enabled: bool) -> bool:
+        normalized_name = str(tool_name or "").strip()
+        if not normalized_name:
+            return False
+
+        desired_state = bool(enabled)
+        current_state = normalized_name in self.tools
+        if desired_state == current_state:
+            return current_state
+
+        if desired_state:
+            tool = self._tool_catalog.get(normalized_name)
+            if tool is None:
+                tool = self._build_lazy_tool(normalized_name)
+                if tool is None:
+                    return False
+                self._tool_catalog[normalized_name] = tool
+            self.tools[normalized_name] = tool
+        else:
+            self.tools.pop(normalized_name, None)
+
+        self._refresh_tool_registry()
+        return normalized_name in self.tools
+
+    def knowledge_base_enabled(self) -> bool:
+        return self.is_tool_enabled(self._KNOWLEDGE_BASE_TOOL_NAME)
+
+    def set_knowledge_base_enabled(self, enabled: bool) -> bool:
+        return self.set_tool_enabled(self._KNOWLEDGE_BASE_TOOL_NAME, enabled)
+
+    def reset_ephemeral_runtime_state(self) -> None:
+        self._clear_ephemeral_turn_context_messages()
+        self.last_prepared_turn_context = None
+        self.prepared_context_diagnostics = {}
+        self.last_memory_automation = {}
+        self.last_runtime_task_memory = {}
+
+    def _last_user_query(self) -> str | None:
+        for message in reversed(self.messages):
+            if message.role != "user":
+                continue
+            if isinstance(message.content, str):
+                content = message.content.strip()
+            else:
+                content = str(message.content).strip()
+            if content:
+                return content
+        return None
+
+    def _last_user_message_index(self) -> int | None:
+        for index in range(len(self.messages) - 1, -1, -1):
+            if str(getattr(self.messages[index], "role", "")).strip().lower() == "user":
+                return index
+        return None
+
+    def _run_memory_automation(
+        self,
+        *,
+        stop_reason: str,
+        turn_start_index: int | None,
+        turn_context: Any | None,
+        assistant_message: str,
+    ) -> None:
+        automation = self.turn_memory_automation
+        if automation is None:
+            self.last_memory_automation = {}
+            return
+        if turn_start_index is None or turn_start_index < 0 or turn_start_index >= len(self.messages):
+            self.last_memory_automation = {
+                "enabled": True,
+                "skipped_reason": "missing_turn_anchor",
+                "action_count": 0,
+                "actions": [],
+            }
+            return
+
+        try:
+            result = automation.process_turn(
+                stop_reason=stop_reason,
+                turn_messages=self.messages[turn_start_index:],
+                turn_context=turn_context,
+                assistant_message=assistant_message,
+            )
+            payload = result.to_payload()
+            self.last_memory_automation = payload
+            self.logger.log_event(
+                "memory.auto_writeback",
+                {
+                    **payload,
+                    "workspace_dir": str(self.workspace_dir),
+                },
+            )
+        except Exception as exc:
+            payload = {
+                "enabled": True,
+                "skipped_reason": "automation_failed",
+                "action_count": 0,
+                "actions": [],
+                "error": f"{type(exc).__name__}: {exc}",
+            }
+            self.last_memory_automation = payload
+            self.logger.log_event(
+                "memory.auto_writeback_failed",
+                {
+                    **payload,
+                    "workspace_dir": str(self.workspace_dir),
+                },
+                level="warning",
+            )
+
+    def _run_runtime_task_memory(
+        self,
+        *,
+        stop_reason: str,
+        turn_start_index: int | None,
+        turn_context: Any | None,
+        assistant_message: str,
+    ) -> None:
+        runtime_memory = self.turn_runtime_task_memory
+        if runtime_memory is None:
+            self.last_runtime_task_memory = {}
+            return
+        if turn_start_index is None or turn_start_index < 0 or turn_start_index >= len(self.messages):
+            self.last_runtime_task_memory = {
+                "enabled": True,
+                "skipped_reason": "missing_turn_anchor",
+                "stored": False,
+                "duplicate": False,
+                "namespace": None,
+                "engram_id": None,
+                "content": "",
+            }
+            return
+
+        try:
+            result = runtime_memory.process_turn(
+                stop_reason=stop_reason,
+                turn_messages=self.messages[turn_start_index:],
+                turn_context=turn_context,
+                assistant_message=assistant_message,
+            )
+            payload = result.to_payload()
+            self.last_runtime_task_memory = payload
+            self.logger.log_event(
+                "memory.runtime_task_writeback",
+                {
+                    **payload,
+                    "workspace_dir": str(self.workspace_dir),
+                },
+            )
+        except Exception as exc:
+            payload = {
+                "enabled": True,
+                "skipped_reason": "runtime_task_memory_failed",
+                "stored": False,
+                "duplicate": False,
+                "namespace": None,
+                "engram_id": None,
+                "content": "",
+                "error": f"{type(exc).__name__}: {exc}",
+            }
+            self.last_runtime_task_memory = payload
+            self.logger.log_event(
+                "memory.runtime_task_writeback_failed",
+                {
+                    **payload,
+                    "workspace_dir": str(self.workspace_dir),
+                },
+                level="warning",
+            )
+
+    @staticmethod
+    def _route_model_identity(route: Any) -> tuple[str, str, str] | None:
+        if route is None:
+            return None
+        model_id = " ".join(str(getattr(route, "model", "") or "").split())
+        provider_id = " ".join(str(getattr(route, "provider_id", "") or "").split())
+        if not model_id:
+            return None
+        if provider_id.startswith("preset-"):
+            return ("preset", provider_id.removeprefix("preset-"), model_id)
+        if provider_id:
+            return ("custom", provider_id, model_id)
+        return None
+
+    def _active_runtime_model_identity(self) -> tuple[str, str, str] | None:
+        return self._route_model_identity(getattr(self, "runtime_route", None))
+
+    def _runtime_catalog_path(self) -> Path | None:
+        route = getattr(self, "runtime_route", None)
+        raw = str(getattr(route, "catalog_path", "") or "").strip()
+        if not raw:
+            return None
+        try:
+            return Path(raw).expanduser().resolve()
+        except Exception:
+            return None
+
+    @staticmethod
+    def _unwrap_provider_error(exc: Exception) -> Exception:
+        from .retry import RetryExhaustedError
+
+        if isinstance(exc, RetryExhaustedError) and isinstance(exc.last_exception, Exception):
+            return exc.last_exception
+        return exc
+
+    def _classify_generation_error(self, exc: Exception) -> ProviderErrorClassification:
+        unwrapped = self._unwrap_provider_error(exc)
+        if isinstance(unwrapped, ProviderFailoverError):
+            attempts = list(getattr(unwrapped, "attempts", []) or [])
+            for attempt in reversed(attempts):
+                if str(getattr(attempt, "reason", "") or "").strip() == "context_window_exceeded":
+                    return classify_provider_error(RuntimeError(str(getattr(attempt, "message", "") or "")))
+        return classify_provider_error(unwrapped)
+
+    def _record_learned_token_limit(self, *, learned_token_limit: int) -> int | None:
+        normalized_limit = max(0, int(learned_token_limit or 0))
+        if normalized_limit <= 0:
+            return None
+        current_limit = max(0, int(self.token_limit or 0))
+        effective_limit = min(current_limit, normalized_limit) if current_limit > 0 else normalized_limit
+        self.token_limit = effective_limit
+
+        identity = self._active_runtime_model_identity()
+        if identity is None:
+            return effective_limit
+
+        catalog_path = self._runtime_catalog_path()
+        try:
+            ModelRegistryService(catalog_path=catalog_path).record_learned_token_limit(
+                source=identity[0],
+                provider_id=identity[1],
+                model_id=identity[2],
+                learned_token_limit=effective_limit,
+            )
+        except Exception:
+            pass
+        return effective_limit
+
+    async def _recover_from_context_overflow(
+        self,
+        *,
+        step: int,
+        exc: Exception,
+    ) -> bool:
+        classification = self._classify_generation_error(exc)
+        if classification.reason != "context_window_exceeded":
+            return False
+
+        estimated_before = max(self._estimate_tokens(), estimate_tokens(self.messages))
+        learned_limit = None
+        if classification.context_window_limit is not None:
+            learned_limit = self._record_learned_token_limit(
+                learned_token_limit=classification.context_window_limit
+            )
+
+        reason_parts = ["context overflow recovery"]
+        if learned_limit is not None:
+            reason_parts.append(f"learned_limit={learned_limit}")
+        if classification.requested_tokens is not None:
+            reason_parts.append(f"requested={classification.requested_tokens}")
+        recovery_reason = ", ".join(reason_parts)
+
+        self.logger.log_event(
+            "context.overflow_detected",
+            {
+                "step": step,
+                "message": str(self._unwrap_provider_error(exc)),
+                "context_window_limit": classification.context_window_limit,
+                "requested_tokens": classification.requested_tokens,
+                "estimated_tokens_before": estimated_before,
+                "learned_token_limit": learned_limit,
+                "identity": self._active_runtime_model_identity(),
+            },
+            level="warning",
+        )
+        self._emit_console(
+            f"{Colors.BRIGHT_YELLOW}[...] Context overflow detected. Attempting automatic recovery...{Colors.RESET}"
+        )
+
+        compact_payload = self.compact_context(reason=recovery_reason)
+        estimated_after_compact = max(self._estimate_tokens(), estimate_tokens(self.messages))
+        drop_payload: dict[str, Any] | None = None
+        if (
+            not compact_payload.get("applied")
+            or (
+                self.token_limit > 0
+                and estimated_after_compact >= max(1, int(self.token_limit))
+            )
+        ):
+            drop_payload = self.drop_memories(reason=recovery_reason)
+
+        estimated_after = max(self._estimate_tokens(), estimate_tokens(self.messages))
+        changed = bool(compact_payload.get("applied")) or bool(drop_payload and drop_payload.get("applied"))
+        if not changed and learned_limit is None:
+            self._emit_console(
+                f"{Colors.BRIGHT_YELLOW}[!]  Context overflow recovery could not reduce message history.{Colors.RESET}"
+            )
+            return False
+
+        self.logger.log_event(
+            "context.overflow_recovered",
+            {
+                "step": step,
+                "estimated_tokens_before": estimated_before,
+                "estimated_tokens_after": estimated_after,
+                "learned_token_limit": learned_limit,
+                "compact": compact_payload,
+                "drop_memories": drop_payload,
+            },
+            level="warning",
+        )
+        self._emit_console(
+            f"{Colors.BRIGHT_GREEN}[OK] Context recovery applied: {estimated_before} -> {estimated_after} tokens{Colors.RESET}"
+        )
+        return True
+
+    def _build_context_compactor(self, *, aggressive: bool = False) -> LayeredContextCompactor:
+        configured = self.context_compactor
+        if configured is not None and not aggressive:
+            return configured
+
+        current_tokens = max(estimate_tokens(self.messages), 1)
+        budget_ratio = 0.35 if aggressive else 0.65
+        budget = max(200, int(current_tokens * budget_ratio))
+        if self.token_limit > 0:
+            limit_ratio = 0.3 if aggressive else 0.75
+            budget = min(budget, max(200, int(self.token_limit * limit_ratio)))
+        return LayeredContextCompactor(
+            token_budget=budget,
+            keep_recent_tool_messages=1 if aggressive else 2,
+            snip_tail_lines=12 if aggressive else 24,
+        )
+
+    def compact_context(self, *, reason: str | None = None) -> dict[str, Any]:
+        """Compact message history with the layered context compactor."""
+        before_messages = len(self.messages)
+        before_tokens = estimate_tokens(self.messages)
+        compactor = self._build_context_compactor(aggressive=False)
+        result = compactor.compact(
+            self.messages,
+            query=(reason or self._last_user_query()),
+            enable_masking=True,
+        )
+        self.messages = list(result.messages)
+        self.api_total_tokens = result.stats.compressed_tokens
+        self._skip_next_token_check = True
+
+        changed = (
+            before_messages != len(self.messages)
+            or before_tokens != result.stats.compressed_tokens
+        )
+        payload = {
+            "reason": (reason or "").strip() or None,
+            "applied": changed,
+            "message_count_before": before_messages,
+            "message_count_after": len(self.messages),
+            "token_count_before": before_tokens,
+            "token_count_after": result.stats.compressed_tokens,
+            "stats": asdict(result.stats),
+        }
+        self.logger.log_event("context.compacted", payload)
+        return payload
+
+    def drop_memories(self, *, reason: str | None = None) -> dict[str, Any]:
+        """Drop older conversational memory and keep only the freshest turn context."""
+        before_messages = len(self.messages)
+        before_tokens = estimate_tokens(self.messages)
+        preserved = [message.model_copy(deep=True) for message in self.messages[:1]]
+
+        last_user_index = None
+        for index in range(len(self.messages) - 1, -1, -1):
+            if self.messages[index].role == "user":
+                last_user_index = index
+                break
+
+        if last_user_index is None:
+            tail_start = max(1, len(self.messages) - 2)
+            preserved.extend(message.model_copy(deep=True) for message in self.messages[tail_start:])
+        else:
+            preserved.extend(message.model_copy(deep=True) for message in self.messages[last_user_index:])
+
+        compactor = self._build_context_compactor(aggressive=True)
+        result = compactor.compact(
+            preserved,
+            query=(reason or self._last_user_query()),
+            enable_masking=True,
+        )
+        self.messages = list(result.messages)
+        self.api_total_tokens = result.stats.compressed_tokens
+        self._skip_next_token_check = True
+
+        changed = (
+            before_messages != len(self.messages)
+            or before_tokens != result.stats.compressed_tokens
+        )
+        payload = {
+            "reason": (reason or "").strip() or None,
+            "applied": changed,
+            "message_count_before": before_messages,
+            "message_count_after": len(self.messages),
+            "token_count_before": before_tokens,
+            "token_count_after": result.stats.compressed_tokens,
+            "stats": asdict(result.stats),
+        }
+        self.logger.log_event("context.memories_dropped", payload, level="warning")
+        return payload
+
     def _emit_console(self, text: str) -> None:
         if self.console_output:
             print(text)
+
+    def _clear_ephemeral_turn_context_messages(self) -> None:
+        self.messages = [
+            message
+            for message in self.messages
+            if not (
+                getattr(message, "role", None) == "system"
+                and str(getattr(message, "name", "") or "").startswith(self._TURN_CONTEXT_MESSAGE_NAME)
+            )
+        ]
 
     async def _emit_hook(
         self,
@@ -292,6 +797,188 @@ class Agent:
         if self.cancel_event is not None and self.cancel_event.is_set():
             return True
         return False
+
+    async def _describe_turn_context_provider(
+        self,
+        *,
+        provider: Any,
+        provider_name: str,
+        runtime_turn_context: Any,
+    ) -> dict[str, Any] | None:
+        describe = getattr(provider, "describe_readiness", None)
+        if describe is None:
+            return None
+        result = describe(
+            turn_context=runtime_turn_context,
+            agent=self,
+        )
+        if inspect.isawaitable(result):
+            result = await result
+        if not isinstance(result, dict):
+            return None
+
+        raw_status = str(result.get("status") or "").strip().lower()
+        available = result.get("available")
+        if raw_status:
+            status = raw_status
+        elif available is False:
+            status = "unavailable"
+        else:
+            status = "ready"
+        return {
+            "provider": provider_name,
+            "status": status,
+            "reason": " ".join(str(result.get("reason") or "").split()),
+            "item_count": max(0, int(result.get("item_count") or 0)),
+            "available": bool(available) if available is not None else status not in {"unavailable", "disabled"},
+        }
+
+    async def _prepare_turn_context_messages(
+        self,
+        *,
+        turn_context: Any | None = None,
+    ) -> None:
+        self._clear_ephemeral_turn_context_messages()
+        self.last_prepared_turn_context = None
+
+        if not self.turn_context_providers:
+            self.last_prepared_turn_context = summarize_turn_context_items([])
+            return
+
+        runtime_turn_context = coerce_runtime_turn_context(
+            turn_context,
+            workspace_dir=self.workspace_dir,
+        )
+        policy = resolve_turn_context_policy(
+            runtime_turn_context,
+            default_max_items=self.turn_context_max_items,
+            default_max_items_per_source=self.turn_context_max_items_per_source,
+            default_max_total_chars=self.turn_context_max_total_chars,
+        )
+        prepared_items = []
+        provider_failures: list[dict[str, Any]] = []
+        provider_statuses: list[dict[str, Any]] = []
+
+        for provider in self.turn_context_providers:
+            provider_name = "turn_context_provider"
+            if provider is not None:
+                provider_name = str(getattr(provider, "name", "") or provider.__class__.__name__).strip() or provider_name
+            allowed, filter_reason = provider_allowed_by_policy(provider_name, policy)
+            if not allowed:
+                provider_statuses.append(
+                    {
+                        "provider": provider_name,
+                        "status": "filtered",
+                        "reason": filter_reason,
+                        "item_count": 0,
+                    }
+                )
+                continue
+            try:
+                readiness = await self._describe_turn_context_provider(
+                    provider=provider,
+                    provider_name=provider_name,
+                    runtime_turn_context=runtime_turn_context,
+                )
+                if readiness is not None and not readiness.get("available", True):
+                    provider_statuses.append(
+                        {
+                            "provider": provider_name,
+                            "status": str(readiness.get("status") or "unavailable"),
+                            "reason": str(readiness.get("reason") or ""),
+                            "item_count": int(readiness.get("item_count") or 0),
+                        }
+                    )
+                    continue
+                result = provider.prepare(
+                    turn_context=runtime_turn_context,
+                    agent=self,
+                )
+                if inspect.isawaitable(result):
+                    result = await result
+                normalized_items = normalize_turn_context_items(
+                    result,
+                    default_source=provider_name,
+                )
+                prepared_items.extend(normalized_items)
+                provider_statuses.append(
+                    {
+                        "provider": provider_name,
+                        "status": "used" if normalized_items else "no_match",
+                        "reason": (
+                            str(readiness.get("reason") or "")
+                            if readiness is not None and readiness.get("reason")
+                            else ("no relevant context for this turn" if not normalized_items else "")
+                        ),
+                        "item_count": len(normalized_items),
+                    }
+                )
+            except Exception as exc:
+                failure_payload = {
+                    "provider": provider_name,
+                    "error": f"{type(exc).__name__}: {exc}",
+                }
+                provider_failures.append(failure_payload)
+                provider_statuses.append(
+                    {
+                        "provider": provider_name,
+                        "status": "failed",
+                        "reason": failure_payload["error"],
+                        "item_count": 0,
+                    }
+                )
+                self.logger.log_event(
+                    "turn_context.provider_failed",
+                    {
+                        **failure_payload,
+                        "session_id": runtime_turn_context.session_id,
+                        "submission_id": runtime_turn_context.submission_id,
+                    },
+                    level="warning",
+                )
+
+        curated_items, curation_summary = curate_turn_context_items(
+            prepared_items,
+            max_items=int(policy.get("max_items") or self.turn_context_max_items),
+            max_items_per_source=int(
+                policy.get("max_items_per_source") or self.turn_context_max_items_per_source
+            ),
+            max_total_chars=int(policy.get("max_total_chars") or self.turn_context_max_total_chars),
+        )
+        summary = summarize_turn_context_items(
+            curated_items,
+            failures=provider_failures,
+            curation=curation_summary,
+            provider_statuses=provider_statuses,
+            policy=policy,
+        )
+        self.last_prepared_turn_context = summary
+        self.prepared_context_diagnostics = update_prepared_context_diagnostics(
+            self.prepared_context_diagnostics,
+            summary,
+        )
+        self.logger.log_event(
+            "turn_context.prepared",
+            {
+                **summary,
+                "diagnostics": dict(self.prepared_context_diagnostics),
+                "session_id": runtime_turn_context.session_id,
+                "submission_id": runtime_turn_context.submission_id,
+                "policy_summary": context_policy_summary_line(policy, include_default=True),
+            },
+        )
+        if not curated_items:
+            return
+
+        context_message = Message(
+            role="system",
+            content=format_turn_context_block(curated_items),
+            name=f"{self._TURN_CONTEXT_MESSAGE_NAME}:{runtime_turn_context.submission_id}",
+        )
+        insert_at = len(self.messages)
+        if self.messages and self.messages[-1].role == "user":
+            insert_at = max(1, len(self.messages) - 1)
+        self.messages.insert(insert_at, context_message)
 
     def _cleanup_incomplete_messages(self):
         """Remove the incomplete assistant message and its partial tool results.
@@ -432,6 +1119,43 @@ class Agent:
             failure=failure,
         )
 
+    def _build_planner_generation_failure(
+        self,
+        *,
+        step: int,
+        exc: Exception,
+    ) -> tuple[str, StepFailureEnvelope]:
+        from .retry import RetryExhaustedError
+
+        if isinstance(exc, RetryExhaustedError):
+            error_msg = f"LLM call failed after {exc.attempts} retries\nLast error: {str(exc.last_exception)}"
+            self._emit_console(f"\n{Colors.BRIGHT_RED}[Error] Retry failed:{Colors.RESET} {error_msg}")
+            failure = self._build_step_failure_envelope(
+                step=step,
+                phase="planner",
+                error_type=type(exc).__name__,
+                message=error_msg,
+                recoverable=False,
+                retryable=False,
+                details={
+                    "attempts": exc.attempts,
+                    "last_error_type": type(exc.last_exception).__name__,
+                },
+            )
+            return error_msg, failure
+
+        error_msg = f"LLM call failed: {str(exc)}"
+        self._emit_console(f"\n{Colors.BRIGHT_RED}[Error] Error:{Colors.RESET} {error_msg}")
+        failure = self._build_step_failure_envelope(
+            step=step,
+            phase="planner",
+            error_type=type(exc).__name__,
+            message=error_msg,
+            recoverable=False,
+            retryable=False,
+        )
+        return error_msg, failure
+
     def _finalize_step_timing(
         self,
         step: int,
@@ -468,35 +1192,21 @@ class Agent:
         try:
             response = await self.llm.generate(messages=self.messages, tools=tool_list)
         except Exception as exc:
-            from .retry import RetryExhaustedError
-
-            if isinstance(exc, RetryExhaustedError):
-                error_msg = f"LLM call failed after {exc.attempts} retries\nLast error: {str(exc.last_exception)}"
-                self._emit_console(f"\n{Colors.BRIGHT_RED}[Error] Retry failed:{Colors.RESET} {error_msg}")
-                failure = self._build_step_failure_envelope(
+            recovered = await self._recover_from_context_overflow(step=step, exc=exc)
+            if not recovered:
+                error_msg, failure = self._build_planner_generation_failure(step=step, exc=exc)
+                return self._build_failed_outcome(step=step, error_msg=error_msg, failure=failure)
+            self._emit_console(
+                f"{Colors.BRIGHT_CYAN}[...] Retrying planner generation once after context recovery...{Colors.RESET}"
+            )
+            try:
+                response = await self.llm.generate(messages=self.messages, tools=tool_list)
+            except Exception as retry_exc:
+                error_msg, failure = self._build_planner_generation_failure(
                     step=step,
-                    phase="planner",
-                    error_type=type(exc).__name__,
-                    message=error_msg,
-                    recoverable=False,
-                    retryable=False,
-                    details={
-                        "attempts": exc.attempts,
-                        "last_error_type": type(exc.last_exception).__name__,
-                    },
+                    exc=retry_exc,
                 )
-            else:
-                error_msg = f"LLM call failed: {str(exc)}"
-                self._emit_console(f"\n{Colors.BRIGHT_RED}[Error] Error:{Colors.RESET} {error_msg}")
-                failure = self._build_step_failure_envelope(
-                    step=step,
-                    phase="planner",
-                    error_type=type(exc).__name__,
-                    message=error_msg,
-                    recoverable=False,
-                    retryable=False,
-                )
-            return self._build_failed_outcome(step=step, error_msg=error_msg, failure=failure)
+                return self._build_failed_outcome(step=step, error_msg=error_msg, failure=failure)
 
         if response.usage:
             self.api_total_tokens = response.usage.total_tokens
@@ -534,6 +1244,295 @@ class Agent:
             response_thinking=response.thinking,
             planned_tool_calls=planned_tool_calls,
             step_state=step_state,
+        )
+
+    async def _best_effort_cancel_tool(
+        self,
+        *,
+        step: int,
+        tool_name: str,
+        tool: Tool,
+    ) -> bool:
+        """Try to interrupt one running tool invocation."""
+        cancel_running = getattr(tool, "cancel_running", None)
+        if cancel_running is None:
+            self.logger.log_event(
+                "tool.cancel_not_supported",
+                {"step": step, "tool_name": tool_name},
+                level="warning",
+            )
+            return False
+
+        try:
+            cancelled = cancel_running(reason="agent_cancelled")
+            if inspect.isawaitable(cancelled):
+                cancelled = await cancelled
+            cancelled_flag = bool(cancelled)
+            self.logger.log_event(
+                "tool.cancel_attempt",
+                {
+                    "step": step,
+                    "tool_name": tool_name,
+                    "cancelled": cancelled_flag,
+                },
+            )
+            return cancelled_flag
+        except Exception as exc:
+            self.logger.log_event(
+                "tool.cancel_failed",
+                {
+                    "step": step,
+                    "tool_name": tool_name,
+                    "error": f"{type(exc).__name__}: {exc}",
+                },
+                level="warning",
+            )
+            return False
+
+    async def _execute_tool_with_interrupt_support(
+        self,
+        *,
+        step: int,
+        tool_name: str,
+        tool: Tool,
+        arguments: dict[str, object] | None = None,
+        invocation: ToolInvocation | None = None,
+    ) -> ToolResult:
+        """Execute one tool call with cancel-event race handling."""
+        if invocation is not None:
+            tool_task = asyncio.create_task(invocation.execute())
+        else:
+            tool_task = asyncio.create_task(tool.execute(**dict(arguments or {})))
+        cancel_wait_task: asyncio.Task[bool] | None = None
+        try:
+            if self.cancel_event is None:
+                return await tool_task
+
+            cancel_wait_task = asyncio.create_task(self.cancel_event.wait())
+            done, _ = await asyncio.wait(
+                {tool_task, cancel_wait_task},
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            if tool_task in done:
+                return await tool_task
+
+            # Cancellation fired while tool call is still running.
+            self.logger.log_event(
+                "tool.cancel_requested",
+                {"step": step, "tool_name": tool_name},
+                level="warning",
+            )
+            interrupted = await self._best_effort_cancel_tool(
+                step=step,
+                tool_name=tool_name,
+                tool=tool,
+            )
+            try:
+                result = await asyncio.wait_for(tool_task, timeout=2)
+            except asyncio.TimeoutError:
+                tool_task.cancel()
+                try:
+                    await tool_task
+                except asyncio.CancelledError:
+                    pass
+                except Exception:
+                    pass
+                reason = "hard stop requested" if interrupted else "tool does not support hard stop"
+                return ToolResult(
+                    success=False,
+                    content="",
+                    error=f"Tool interrupted due to cancellation request ({reason}).",
+                )
+            except asyncio.CancelledError:
+                return ToolResult(
+                    success=False,
+                    content="",
+                    error="Tool interrupted due to cancellation request.",
+                )
+
+            if self._check_cancelled() and result.success:
+                return ToolResult(
+                    success=False,
+                    content="",
+                    error="Tool interrupted due to cancellation request.",
+                )
+            return result
+        finally:
+            if cancel_wait_task is not None and not cancel_wait_task.done():
+                cancel_wait_task.cancel()
+            if cancel_wait_task is not None:
+                try:
+                    await cancel_wait_task
+                except asyncio.CancelledError:
+                    pass
+                except Exception:
+                    pass
+
+    def _build_tool_invocation(
+        self,
+        *,
+        function_name: str,
+        arguments: dict[str, object],
+    ) -> ToolInvocation:
+        declarative_tool = self.declarative_tools.get(function_name)
+        if declarative_tool is None:
+            raise KeyError(function_name)
+        return declarative_tool.build(arguments)
+
+    async def _request_tool_approval(
+        self,
+        *,
+        step: int,
+        invocation: ToolInvocation,
+        reason: str,
+        cache_key: str | None,
+        can_escalate: bool,
+    ) -> bool | None:
+        handler = self.tool_approval_handler
+        if handler is None:
+            return None
+        request = ToolApprovalRequest(
+            token=f"approval_{uuid4().hex[:12]}",
+            step=step,
+            tool_name=invocation.tool_name,
+            arguments=dict(invocation.arguments),
+            kind=invocation.attributes.kind.value,
+            reason=reason,
+            cache_key=cache_key,
+            can_escalate=can_escalate,
+        )
+        maybe_awaitable = handler(request)
+        if inspect.isawaitable(maybe_awaitable):
+            return await maybe_awaitable
+        return maybe_awaitable
+
+    async def _authorize_tool_invocation(
+        self,
+        *,
+        step: int,
+        invocation: ToolInvocation,
+    ) -> ToolResult | None:
+        policy_engine = self.runtime_policy_engine
+        if policy_engine is not None and invocation.tool_name == "bash":
+            command = str(invocation.arguments.get("command") or "")
+            run_in_background = bool(invocation.arguments.get("run_in_background", False))
+            policy_decision = policy_engine.inspect_bash_command(
+                command,
+                run_in_background=run_in_background,
+            )
+            if not policy_decision.allowed:
+                return ToolResult(
+                    success=False,
+                    content="",
+                    error=policy_decision.reason or "Shell command blocked by runtime policy.",
+                )
+            if policy_decision.requires_approval:
+                if self.approval_engine is None:
+                    return ToolResult(
+                        success=False,
+                        content="",
+                        error=(
+                            policy_decision.reason
+                            or "Shell command requires approval, but no approval engine is configured."
+                        ),
+                    )
+                approval = self.approval_engine.request_escalation(
+                    invocation,
+                    reason=policy_decision.reason or "runtime_policy_requires_approval",
+                )
+                self.logger.log_event(
+                    "tool.approval.evaluated",
+                    {
+                        "step": step,
+                        "tool_name": invocation.tool_name,
+                        "decision": approval.decision.value,
+                        "reason": approval.reason,
+                        "requires_confirmation": approval.requires_confirmation,
+                        "from_cache": approval.from_cache,
+                        "runtime_policy": "elevated_shell_requires_approval",
+                    },
+                )
+                approval_decision = await self._request_tool_approval(
+                    step=step,
+                    invocation=invocation,
+                    reason=approval.reason,
+                    cache_key=approval.cache_key,
+                    can_escalate=approval.can_escalate,
+                )
+                if approval_decision is True:
+                    self.approval_engine.record_user_decision(invocation, PermissionDecision.ALLOW)
+                    if policy_decision.host_access_required:
+                        invocation.arguments["_mini_agent_host_access_approved"] = True
+                    return None
+                if approval_decision is False:
+                    self.approval_engine.record_user_decision(invocation, PermissionDecision.DENY)
+                    return ToolResult(
+                        success=False,
+                        content="",
+                        error=f"Tool execution denied by user approval for '{invocation.tool_name}'.",
+                    )
+                return ToolResult(
+                    success=False,
+                    content="",
+                    error=(
+                        f"Tool execution for '{invocation.tool_name}' was cancelled while waiting "
+                        "for approval."
+                    ),
+                )
+
+        if self.approval_engine is None:
+            return None
+
+        approval = self.approval_engine.evaluate(invocation)
+        self.logger.log_event(
+            "tool.approval.evaluated",
+            {
+                "step": step,
+                "tool_name": invocation.tool_name,
+                "decision": approval.decision.value,
+                "reason": approval.reason,
+                "requires_confirmation": approval.requires_confirmation,
+                "from_cache": approval.from_cache,
+            },
+        )
+
+        if approval.decision == PermissionDecision.ALLOW:
+            return None
+
+        if approval.decision == PermissionDecision.DENY:
+            return ToolResult(
+                success=False,
+                content="",
+                error=(
+                    f"Tool execution denied by policy for '{invocation.tool_name}' "
+                    f"({approval.reason})."
+                ),
+            )
+
+        approval_decision = await self._request_tool_approval(
+            step=step,
+            invocation=invocation,
+            reason=approval.reason,
+            cache_key=approval.cache_key,
+            can_escalate=approval.can_escalate,
+        )
+        if approval_decision is True:
+            self.approval_engine.record_user_decision(invocation, PermissionDecision.ALLOW)
+            return None
+        if approval_decision is False:
+            self.approval_engine.record_user_decision(invocation, PermissionDecision.DENY)
+            return ToolResult(
+                success=False,
+                content="",
+                error=f"Tool execution denied by user approval for '{invocation.tool_name}'.",
+            )
+        return ToolResult(
+            success=False,
+            content="",
+            error=(
+                f"Tool execution for '{invocation.tool_name}' was cancelled while waiting "
+                "for approval."
+            ),
         )
 
     async def _execute_tool_calls(
@@ -591,7 +1590,29 @@ class Agent:
             else:
                 try:
                     tool = self.tools[function_name]
-                    result = await tool.execute(**arguments)
+                    invocation = self._build_tool_invocation(
+                        function_name=function_name,
+                        arguments=arguments,
+                    )
+                    approval_result = await self._authorize_tool_invocation(
+                        step=step,
+                        invocation=invocation,
+                    )
+                    if approval_result is not None:
+                        result = approval_result
+                    else:
+                        result = await self._execute_tool_with_interrupt_support(
+                            step=step,
+                            tool_name=function_name,
+                            tool=tool,
+                            invocation=invocation,
+                        )
+                except KeyError:
+                    result = ToolResult(
+                        success=False,
+                        content="",
+                        error=f"Unknown tool: {function_name}",
+                    )
                 except Exception as exc:
                     import traceback
 
@@ -901,6 +1922,7 @@ Requirements:
         *,
         cancel_event: asyncio.Event | None = None,
         hooks: PlannerExecutorHooks | None = None,
+        turn_context: Any | None = None,
         start_new_run: bool = True,
     ) -> RunLoopResult:
         if cancel_event is not None:
@@ -909,120 +1931,125 @@ Requirements:
         if start_new_run:
             self._start_run_logging()
 
+        await self._prepare_turn_context_messages(turn_context=turn_context)
+
         run_start_time = perf_counter()
         run_metrics = RunExecutionMetrics()
+        try:
+            for step in range(1, self.max_steps + 1):
+                self.logger.log_event("step.start", {"step": step, "max_steps": self.max_steps})
+                run_metrics.steps_started += 1
+                step_start_time = perf_counter()
 
-        for step in range(1, self.max_steps + 1):
-            self.logger.log_event("step.start", {"step": step, "max_steps": self.max_steps})
-            run_metrics.steps_started += 1
-            step_start_time = perf_counter()
+                plan_or_outcome = await self._plan_step(step=step, run_start_time=run_start_time)
+                if isinstance(plan_or_outcome, StepOutcome):
+                    if plan_or_outcome.transition == StepTransition.CANCELLED:
+                        run_metrics.steps_cancelled += 1
+                        self._log_cancelled_run(
+                            step=step,
+                            run_start_time=run_start_time,
+                            run_metrics=run_metrics,
+                        )
+                        return RunLoopResult(
+                            terminal_state=RunLoopTerminalState.CANCELLED,
+                            message=plan_or_outcome.message,
+                        )
+                    if plan_or_outcome.transition == StepTransition.FAILED:
+                        self._log_failed_run(
+                            step=step,
+                            message=plan_or_outcome.message,
+                            run_start_time=run_start_time,
+                            run_metrics=run_metrics,
+                            failure=plan_or_outcome.failure,
+                        )
+                        return RunLoopResult(
+                            terminal_state=RunLoopTerminalState.FAILED,
+                            message=plan_or_outcome.message,
+                        )
+                    continue
 
-            plan_or_outcome = await self._plan_step(step=step, run_start_time=run_start_time)
-            if isinstance(plan_or_outcome, StepOutcome):
-                if plan_or_outcome.transition == StepTransition.CANCELLED:
-                    run_metrics.steps_cancelled += 1
-                    self._log_cancelled_run(
-                        step=step,
-                        run_start_time=run_start_time,
-                        run_metrics=run_metrics,
-                    )
-                    return RunLoopResult(
-                        terminal_state=RunLoopTerminalState.CANCELLED,
-                        message=plan_or_outcome.message,
-                    )
-                if plan_or_outcome.transition == StepTransition.FAILED:
+                step_plan = plan_or_outcome
+                run_metrics.record_step_plan(step_plan.step_state)
+                await self._emit_hook(hooks.on_step_plan if hooks else None, step_plan)
+
+                execution_outcome = await self._execute_tool_calls(
+                    step=step,
+                    tool_calls=step_plan.planned_tool_calls,
+                    step_state=step_plan.step_state,
+                    run_start_time=run_start_time,
+                    hooks=hooks,
+                )
+                if execution_outcome.transition in {StepTransition.CANCELLED, StepTransition.FAILED}:
+                    run_metrics.tool_calls_executed += step_plan.step_state.executed_tool_calls
+                    if execution_outcome.transition == StepTransition.CANCELLED:
+                        run_metrics.steps_cancelled += 1
+                        self._log_cancelled_run(
+                            step=step,
+                            run_start_time=run_start_time,
+                            run_metrics=run_metrics,
+                        )
+                        return RunLoopResult(
+                            terminal_state=RunLoopTerminalState.CANCELLED,
+                            message=execution_outcome.message,
+                        )
+
                     self._log_failed_run(
                         step=step,
-                        message=plan_or_outcome.message,
+                        message=execution_outcome.message,
                         run_start_time=run_start_time,
                         run_metrics=run_metrics,
-                        failure=plan_or_outcome.failure,
+                        failure=execution_outcome.failure,
                     )
                     return RunLoopResult(
                         terminal_state=RunLoopTerminalState.FAILED,
-                        message=plan_or_outcome.message,
-                    )
-                continue
-
-            step_plan = plan_or_outcome
-            run_metrics.record_step_plan(step_plan.step_state)
-            await self._emit_hook(hooks.on_step_plan if hooks else None, step_plan)
-
-            execution_outcome = await self._execute_tool_calls(
-                step=step,
-                tool_calls=step_plan.planned_tool_calls,
-                step_state=step_plan.step_state,
-                run_start_time=run_start_time,
-                hooks=hooks,
-            )
-            if execution_outcome.transition in {StepTransition.CANCELLED, StepTransition.FAILED}:
-                run_metrics.tool_calls_executed += step_plan.step_state.executed_tool_calls
-                if execution_outcome.transition == StepTransition.CANCELLED:
-                    run_metrics.steps_cancelled += 1
-                    self._log_cancelled_run(
-                        step=step,
-                        run_start_time=run_start_time,
-                        run_metrics=run_metrics,
-                    )
-                    return RunLoopResult(
-                        terminal_state=RunLoopTerminalState.CANCELLED,
                         message=execution_outcome.message,
                     )
 
-                self._log_failed_run(
+                _, total_elapsed = self._finalize_step_timing(
                     step=step,
-                    message=execution_outcome.message,
+                    step_state=step_plan.step_state,
+                    step_start_time=step_start_time,
                     run_start_time=run_start_time,
-                    run_metrics=run_metrics,
-                    failure=execution_outcome.failure,
                 )
-                return RunLoopResult(
-                    terminal_state=RunLoopTerminalState.FAILED,
-                    message=execution_outcome.message,
-                )
+                run_metrics.record_step_completion(step_plan.step_state)
+                if execution_outcome.transition == StepTransition.COMPLETE:
+                    self.logger.log_event(
+                        "run.completed",
+                        {
+                            "steps": step,
+                            "elapsed_seconds": total_elapsed,
+                            "metrics": run_metrics.to_payload(),
+                        },
+                    )
+                    return RunLoopResult(
+                        terminal_state=RunLoopTerminalState.COMPLETED,
+                        message=step_plan.response_content,
+                    )
 
-            _, total_elapsed = self._finalize_step_timing(
-                step=step,
-                step_state=step_plan.step_state,
-                step_start_time=step_start_time,
-                run_start_time=run_start_time,
+            error_msg = f"Task couldn't be completed after {self.max_steps} steps."
+            self._emit_console(f"\n{Colors.BRIGHT_YELLOW}[!]  {error_msg}{Colors.RESET}")
+            self.logger.log_event(
+                "run.max_steps",
+                {
+                    "max_steps": self.max_steps,
+                    "elapsed_seconds": perf_counter() - run_start_time,
+                    "metrics": run_metrics.to_payload(),
+                },
+                level="warning",
             )
-            run_metrics.record_step_completion(step_plan.step_state)
-            if execution_outcome.transition == StepTransition.COMPLETE:
-                self.logger.log_event(
-                    "run.completed",
-                    {
-                        "steps": step,
-                        "elapsed_seconds": total_elapsed,
-                        "metrics": run_metrics.to_payload(),
-                    },
-                )
-                return RunLoopResult(
-                    terminal_state=RunLoopTerminalState.COMPLETED,
-                    message=step_plan.response_content,
-                )
-
-        error_msg = f"Task couldn't be completed after {self.max_steps} steps."
-        self._emit_console(f"\n{Colors.BRIGHT_YELLOW}[!]  {error_msg}{Colors.RESET}")
-        self.logger.log_event(
-            "run.max_steps",
-            {
-                "max_steps": self.max_steps,
-                "elapsed_seconds": perf_counter() - run_start_time,
-                "metrics": run_metrics.to_payload(),
-            },
-            level="warning",
-        )
-        return RunLoopResult(
-            terminal_state=RunLoopTerminalState.MAX_STEPS,
-            message=error_msg,
-        )
+            return RunLoopResult(
+                terminal_state=RunLoopTerminalState.MAX_STEPS,
+                message=error_msg,
+            )
+        finally:
+            self._clear_ephemeral_turn_context_messages()
 
     async def run(self, cancel_event: Optional[asyncio.Event] = None) -> str:
         """Execute agent loop until task is complete or max steps reached."""
         run_result = await self._run_planner_executor_loop(
             cancel_event=cancel_event,
             hooks=None,
+            turn_context=None,
             start_new_run=True,
         )
         return run_result.message
@@ -1032,12 +2059,15 @@ Requirements:
         *,
         cancel_event: asyncio.Event | None = None,
         hooks: PlannerExecutorHooks | None = None,
+        turn_context: Any | None = None,
         start_new_run: bool = True,
     ) -> TurnExecutionResult:
         """Execute one conversational turn using the shared planner/executor loop."""
+        turn_start_index = self._last_user_message_index()
         run_result = await self._run_planner_executor_loop(
             cancel_event=cancel_event,
             hooks=hooks,
+            turn_context=turn_context,
             start_new_run=start_new_run,
         )
         if run_result.terminal_state == RunLoopTerminalState.COMPLETED:
@@ -1048,6 +2078,19 @@ Requirements:
             stop_reason = TurnStopReason.REFUSAL
         else:
             stop_reason = TurnStopReason.MAX_TURN_REQUESTS
+        stop_reason_value = getattr(stop_reason, "value", str(stop_reason or ""))
+        self._run_memory_automation(
+            stop_reason=stop_reason_value,
+            turn_start_index=turn_start_index,
+            turn_context=turn_context,
+            assistant_message=run_result.message,
+        )
+        self._run_runtime_task_memory(
+            stop_reason=stop_reason_value,
+            turn_start_index=turn_start_index,
+            turn_context=turn_context,
+            assistant_message=run_result.message,
+        )
         return TurnExecutionResult(
             stop_reason=stop_reason,
             message=run_result.message,

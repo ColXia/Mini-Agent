@@ -4,6 +4,7 @@ Supports both bash (Unix/Linux/macOS) and PowerShell (Windows).
 """
 
 import asyncio
+import os
 import platform
 import re
 import time
@@ -15,6 +16,7 @@ from pydantic import Field, model_validator
 from .base import Tool, ToolResult
 
 if TYPE_CHECKING:
+    from mini_agent.code_agent.sandbox import SandboxManager
     from mini_agent.security.policy import RuntimePolicyEngine
 
 
@@ -237,7 +239,12 @@ class BashTool(Tool):
     - Unix/Linux/macOS: bash
     """
 
-    def __init__(self, workspace_dir: str | None = None, policy_engine: "RuntimePolicyEngine | None" = None):
+    def __init__(
+        self,
+        workspace_dir: str | None = None,
+        policy_engine: "RuntimePolicyEngine | None" = None,
+        sandbox_manager: "SandboxManager | None" = None,
+    ):
         """Initialize BashTool with OS-specific shell detection.
 
         Args:
@@ -245,11 +252,15 @@ class BashTool(Tool):
                            If provided, all commands run in this directory.
                            If None, commands run in the process's cwd.
             policy_engine: Optional runtime policy engine for sandbox/elevated checks.
+            sandbox_manager: Optional sandbox command transformer for execution.
         """
         self.is_windows = platform.system() == "Windows"
         self.shell_name = "PowerShell" if self.is_windows else "bash"
         self.workspace_dir = workspace_dir
         self.policy_engine = policy_engine
+        self.sandbox_manager = sandbox_manager
+        self._active_foreground_process: asyncio.subprocess.Process | None = None
+        self._active_foreground_cancel_event: asyncio.Event | None = None
 
     @property
     def name(self) -> str:
@@ -323,11 +334,40 @@ Examples:
             "required": ["command"],
         }
 
+    async def cancel_running(self, *, reason: str | None = None) -> bool:
+        """Best-effort cancel for one running foreground command."""
+        _ = reason
+        process = self._active_foreground_process
+        if process is None or process.returncode is not None:
+            return False
+
+        cancel_event = self._active_foreground_cancel_event
+        if cancel_event is not None and not cancel_event.is_set():
+            cancel_event.set()
+
+        process.terminate()
+        try:
+            await asyncio.wait_for(process.wait(), timeout=2)
+        except asyncio.TimeoutError:
+            process.kill()
+            try:
+                await asyncio.wait_for(process.wait(), timeout=2)
+            except Exception:
+                pass
+
+        # Drain pipes to avoid platform transport warnings.
+        try:
+            await asyncio.wait_for(process.communicate(), timeout=1)
+        except Exception:
+            pass
+        return True
+
     async def execute(
         self,
         command: str,
         timeout: int = 120,
         run_in_background: bool = False,
+        _mini_agent_host_access_approved: bool = False,
     ) -> ToolResult:
         """Execute shell command with optional background execution.
 
@@ -348,12 +388,21 @@ Examples:
                 timeout = 120
 
             if self.policy_engine is not None:
-                allowed, reason = self.policy_engine.check_bash_command(
+                decision = self.policy_engine.inspect_bash_command(
                     command=command,
                     run_in_background=run_in_background,
                 )
-                if not allowed:
-                    message = reason or "Command blocked by runtime policy."
+                if not decision.allowed:
+                    message = decision.reason or "Command blocked by runtime policy."
+                    return BashOutputResult(
+                        success=False,
+                        error=message,
+                        stdout="",
+                        stderr=message,
+                        exit_code=-1,
+                    )
+                if decision.requires_approval and not _mini_agent_host_access_approved:
+                    message = decision.reason or "Command requires approval before execution."
                     return BashOutputResult(
                         success=False,
                         error=message,
@@ -362,32 +411,57 @@ Examples:
                         exit_code=-1,
                     )
 
+            transformed_command = command
+            transformed_cwd = self.workspace_dir
+            transformed_env = os.environ.copy()
+            transformed_backend = None
+            if _mini_agent_host_access_approved:
+                transformed_env["MINI_AGENT_HOST_ACCESS_APPROVED"] = "1"
+            elif self.sandbox_manager is not None:
+                transform_result = self.sandbox_manager.transform(
+                    command,
+                    cwd=self.workspace_dir,
+                )
+                transformed_command = transform_result.command
+                transformed_cwd = transform_result.cwd or transformed_cwd
+                transformed_env.update(transform_result.env_overrides)
+                transformed_backend = str(transform_result.metadata.get("backend") or "").strip().lower()
+
             # Prepare shell-specific command execution
             if self.is_windows:
                 # Windows: Use PowerShell with appropriate encoding
-                shell_cmd = ["powershell.exe", "-NoProfile", "-Command", command]
+                shell_cmd = ["powershell.exe", "-NoProfile", "-Command", transformed_command]
             else:
                 # Unix/Linux/macOS: Use bash
-                shell_cmd = command
+                shell_cmd = transformed_command
 
             if run_in_background:
                 # Background execution: Create isolated process
                 bash_id = str(uuid.uuid4())[:8]
 
                 # Start background process with combined stdout/stderr
-                if self.is_windows:
+                if self.is_windows and transformed_backend == "windows_restricted_token":
+                    process = self.sandbox_manager.launch_process(
+                        shell_cmd,
+                        cwd=transformed_cwd,
+                        env=transformed_env,
+                        merge_stderr=True,
+                    )
+                elif self.is_windows:
                     process = await asyncio.create_subprocess_exec(
                         *shell_cmd,
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.STDOUT,
-                        cwd=self.workspace_dir,
+                        cwd=transformed_cwd,
+                        env=transformed_env,
                     )
                 else:
                     process = await asyncio.create_subprocess_shell(
                         shell_cmd,
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.STDOUT,
-                        cwd=self.workspace_dir,
+                        cwd=transformed_cwd,
+                        env=transformed_env,
                     )
 
                 # Create background shell and add to manager
@@ -412,21 +486,33 @@ Examples:
 
             else:
                 # Foreground execution: Create isolated process
-                if self.is_windows:
+                if self.is_windows and transformed_backend == "windows_restricted_token":
+                    process = self.sandbox_manager.launch_process(
+                        shell_cmd,
+                        cwd=transformed_cwd,
+                        env=transformed_env,
+                        merge_stderr=False,
+                    )
+                elif self.is_windows:
                     process = await asyncio.create_subprocess_exec(
                         *shell_cmd,
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.PIPE,
-                        cwd=self.workspace_dir,
+                        cwd=transformed_cwd,
+                        env=transformed_env,
                     )
                 else:
                     process = await asyncio.create_subprocess_shell(
                         shell_cmd,
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.PIPE,
-                        cwd=self.workspace_dir,
+                        cwd=transformed_cwd,
+                        env=transformed_env,
                     )
 
+                cancel_event = asyncio.Event()
+                self._active_foreground_process = process
+                self._active_foreground_cancel_event = cancel_event
                 try:
                     stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
                 except asyncio.TimeoutError:
@@ -443,12 +529,26 @@ Examples:
                         stderr=error_msg,
                         exit_code=-1,
                     )
+                finally:
+                    if self._active_foreground_process is process:
+                        self._active_foreground_process = None
+                    if self._active_foreground_cancel_event is cancel_event:
+                        self._active_foreground_cancel_event = None
 
                 # Decode output
                 stdout_text = stdout.decode("utf-8", errors="replace")
                 stderr_text = stderr.decode("utf-8", errors="replace")
 
                 # Create result (content auto-formatted by model_validator)
+                if cancel_event.is_set():
+                    return BashOutputResult(
+                        success=False,
+                        error="Command interrupted by cancellation request.",
+                        stdout=stdout_text,
+                        stderr=stderr_text,
+                        exit_code=process.returncode if process.returncode is not None else -1,
+                    )
+
                 is_success = process.returncode == 0
                 error_msg = None
                 if not is_success:

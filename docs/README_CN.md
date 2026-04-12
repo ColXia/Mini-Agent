@@ -23,7 +23,6 @@
     - [2. 选择使用模式](#2-选择使用模式)
       - [🚀 快速上手模式（推荐新手）](#-快速上手模式推荐新手)
       - [🔧 开发模式](#-开发模式)
-  - [ACP \& Zed Editor 集成（可选）](#acp--zed-editor-集成可选)
   - [使用示例](#使用示例)
     - [任务执行](#任务执行)
     - [使用 Claude Skill（例如：PDF 生成）](#使用-claude-skill例如pdf-生成)
@@ -208,34 +207,6 @@ mini-agent --workspace /path/to/your/project
 > 📖 更多开发指引，请参阅 [开发指南](docs/DEVELOPMENT_GUIDE_CN.md)
 
 > 📖 更多生产部署指引，请参阅 [生产指南](docs/PRODUCTION_GUIDE_CN.md)
-
-## ACP & Zed Editor 集成（可选）
-
-Mini Agent 支持 [Agent Communication Protocol (ACP)](https://github.com/modelcontextprotocol/protocol)，可与 Zed 等代码编辑器集成。
-
-**在 Zed Editor 中设置：**
-
-1. 以开发模式或工具模式安装 Mini Agent
-2. 在您的 Zed `settings.json` 中添加：
-
-```json
-{
-  "agent_servers": {
-    "mini-agent": {
-      "command": "/path/to/mini-agent-acp"
-    }
-  }
-}
-```
-
-命令路径应为：
-- 通过 `uv tool install` 安装：使用 `which mini-agent-acp` 的输出结果
-- 开发模式：`./mini_agent/acp/server.py`
-
-**使用方法：**
-- 使用 `Ctrl+Shift+P` → "Agent: Toggle Panel" 打开 Zed 的 Agent 面板
-- 从 Agent 下拉列表中选择 "mini-agent"
-- 直接在编辑器中开始与 Mini Agent 对话
 
 ## 使用示例
 

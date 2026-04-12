@@ -1033,7 +1033,7 @@ Coordinator 模式: Research → Synthesis → Implementation
 
 1. **权限策略** (`mini_agent/code_agent/permissions/policy.py`)
    - 三层: always-allow / always-deny / ask
-   - 绕过模式 (full-auto)
+   - 绕过模式 (full-access)
    - 安全分类器: 工具输入自动分类
 
 2. **审批流程** (`mini_agent/code_agent/permissions/approval.py`)
@@ -1197,13 +1197,13 @@ Coordinator 模式: Research → Synthesis → Implementation
 
 #### T4.2 MaxKB 知识库集成
 
-**目标**: 集成 MaxKB RAG 能力
+**目标**: 集成内置知识库 RAG 能力
 
 **实现内容**:
 
-1. **查询工具** (`mini_agent/tools/maxkb_query.py`)
-   - 知识库检索 API 调用
-   - 文档上传/向量化触发
+1. **查询工具** (`mini_agent/tools/knowledge_base.py`)
+   - 原生知识库检索 tool
+   - 面向 agent 的显式 grounded retrieval
 
 2. **子程序** (`subprograms/knowledge_base/`)
    - manifest.json 配置
@@ -1435,7 +1435,7 @@ Mini-Agent/
 │   │   ├── mcp_tools.py
 │   │   ├── skill_tools.py
 │   │   ├── docling_parse.py       # [新增]
-│   │   ├── maxkb_query.py         # [新增]
+│   │   ├── knowledge_base.py      # [新增]
 │   │   └── web_search.py          # [新增]
 │   │
 │   └── launcher/                  # 启动器

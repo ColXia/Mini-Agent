@@ -1,0 +1,1467 @@
+# Progress
+
+## 2026-04-12
+
+- Landed the next P29.3 implementation slice: `P29.3e Local Skill Command Convergence`.
+- Extended the shared local operator command execution service with local `skill` semantics:
+  - `src/mini_agent/commands/execution.py`
+  - now covers:
+    - `list`
+    - `active`
+    - `show`
+    - `install`
+    - `uninstall`
+    - `rollback`
+    - `search`
+    - `mode`
+    - `enable`
+    - `disable`
+    - `reset`
+    - `refresh`
+- Refactored TUI and CLI local skill execution to consume the shared seam:
+  - `src/mini_agent/tui/app.py`
+  - `src/mini_agent/cli_interactive.py`
+- Added focused shared-skill regression coverage:
+  - `tests/test_command_execution_service.py`
+  - now directly covers:
+    - shared skill catalog list/show rendering
+    - workspace skill install mutation
+    - workspace skill mode mutation
+- Verification:
+  - `uv run pytest tests/test_command_execution_service.py tests/test_tui_app.py tests/test_cli_submission_loop.py -q -k "skill or memory or context or kb or mcp or sandbox"`
+  - result: `60 passed`
+  - `uv run pytest tests/test_command_execution_service.py tests/test_tui_app.py tests/test_tui_readiness_walkthroughs.py tests/test_cli_submission_loop.py tests/test_command_catalog.py tests/test_command_router.py tests/test_shared_session_gateway_walkthrough.py -q`
+  - result: `153 passed`
+- Boundary status after this cut:
+  - the shared local command execution seam now covers:
+    - `skill`
+    - `memory`
+    - `context`
+    - `kb`
+    - `mcp`
+    - `sandbox`
+  - remaining larger command families in surface-owned code are now mainly:
+    - parts of `model`
+    - remote/shared-session command transport
+
+- Landed the next P29.3 implementation slice: `P29.3d Local Memory Command Convergence`.
+- Extended the shared local operator command execution service with local memory semantics:
+  - `src/mini_agent/commands/execution.py`
+  - now covers the local `memory` action families used in TUI/CLI:
+    - `status`
+    - `show`
+    - `list`
+    - `overview`
+    - `export`
+    - `consolidated show|search`
+    - `profile`
+    - `notes`
+    - `daily`
+    - `runtime`
+    - `shared list|show|clear`
+    - `refresh`
+    - `promote shared|note|profile`
+    - `save note|profile`
+- Unified `/memory show` argument parsing into the shared command execution module:
+  - `parse_memory_show_target(...)`
+- Refactored TUI and CLI local memory execution to consume the shared seam:
+  - `src/mini_agent/tui/app.py`
+  - `src/mini_agent/cli_interactive.py`
+- Added focused shared-memory regression coverage:
+  - `tests/test_command_execution_service.py`
+  - now directly covers:
+    - shared `/memory show` parsing
+    - runtime-memory list rendering via the shared service
+    - workspace/runtime mutation flows like `shared_clear` and `save_note`
+- One unrelated but real defect surfaced while running the regression bundle:
+  - `src/mini_agent/cli_interactive.py` still contained a corrupted banner string from prior file-encoding history
+  - importing the module raised a `SyntaxError` before tests could run
+  - fixed by replacing the banner with a stable unicode box-art string
+- Verification:
+  - `uv run pytest tests/test_command_execution_service.py tests/test_tui_app.py tests/test_cli_submission_loop.py -q -k "memory or context or kb or mcp or sandbox"`
+  - result: `44 passed`
+  - `uv run pytest tests/test_command_execution_service.py tests/test_tui_app.py tests/test_tui_readiness_walkthroughs.py tests/test_cli_submission_loop.py tests/test_command_catalog.py tests/test_command_router.py tests/test_shared_session_gateway_walkthrough.py -q`
+  - result: `150 passed`
+- Boundary status after this cut:
+  - the shared local command execution seam now covers:
+    - `memory`
+    - `context`
+    - `kb`
+    - `mcp`
+    - `sandbox`
+  - remaining large command families in surface-owned code are now mainly:
+    - `skill`
+    - parts of `model`
+    - remote/shared-session transport branches
+
+- Landed the next P29.3 implementation slice: `P29.3c Local Context Command Convergence`.
+- Extended the shared local operator command execution service with local context semantics:
+  - `src/mini_agent/commands/execution.py`
+  - now covers:
+    - `context show`
+    - `context stats`
+    - `context include`
+    - `context exclude`
+    - `context budget`
+    - `context reset`
+  - shared semantics now include:
+    - show/detail-mode validation
+    - source-list normalization and opposite-list cleanup
+    - budget integer parsing and normalization
+    - reset semantics that preserve local empty-policy state (`{}`) while still rendering normalized default details
+- Refactored TUI and CLI local context handling to consume the shared execution seam:
+  - `src/mini_agent/tui/app.py`
+  - `src/mini_agent/cli_interactive.py`
+- Added focused regression coverage for shared context command behavior:
+  - `tests/test_command_execution_service.py`
+- Verification:
+  - `uv run pytest tests/test_command_execution_service.py tests/test_tui_app.py tests/test_cli_submission_loop.py -q -k "context or kb or mcp or sandbox"`
+  - result: `26 passed`
+  - `uv run pytest tests/test_command_execution_service.py tests/test_tui_app.py tests/test_tui_readiness_walkthroughs.py tests/test_cli_submission_loop.py tests/test_command_catalog.py tests/test_command_router.py tests/test_shared_session_gateway_walkthrough.py -q`
+  - result: `147 passed`
+- One meaningful behavior guard surfaced during the cut:
+  - shared `context reset` initially returned a normalized default-policy payload instead of an empty dict
+  - readiness walkthroughs correctly caught that as a regression because local reset must actually clear stored policy state
+  - fixed by separating:
+    - rendered default-policy details
+    - from persisted local policy payload (`{}`)
+
+- Landed the next P29.3 implementation slice: `P29.3b Local KB Command Convergence`.
+- Extended the shared local operator command execution service with local KB semantics:
+  - `src/mini_agent/commands/execution.py`
+  - now covers:
+    - `kb status`
+    - `kb on`
+    - `kb off`
+  - shared semantics now include:
+    - status shaping
+    - unknown-action handling
+    - busy-state rejection
+    - toggle success/failure evaluation
+- Refactored TUI and CLI local KB handling to consume the shared execution seam:
+  - `src/mini_agent/tui/app.py`
+  - `src/mini_agent/cli_interactive.py`
+- Added focused regression coverage for shared KB command behavior:
+  - `tests/test_command_execution_service.py`
+- Verification:
+  - `uv run pytest tests/test_command_execution_service.py tests/test_tui_app.py tests/test_cli_submission_loop.py -q -k "kb or mcp or sandbox"`
+  - result: `13 passed`
+  - `uv run pytest tests/test_command_execution_service.py tests/test_tui_app.py tests/test_tui_readiness_walkthroughs.py tests/test_cli_submission_loop.py tests/test_command_catalog.py tests/test_command_router.py tests/test_shared_session_gateway_walkthrough.py -q`
+  - result: `144 passed`
+- Boundary status after this cut:
+  - the shared command execution seam now covers three local operator families:
+    - `kb`
+    - `mcp`
+    - `sandbox`
+  - remote KB/session-control behavior remains intentionally outside this local command slice
+
+- Landed the first P29.3 implementation cut: `P29.3a Local Operator Command Service First Cut`.
+- Added a shared local operator command execution module:
+  - `src/mini_agent/commands/execution.py`
+  - provides:
+    - typed command execution results
+    - shared local `mcp` execution semantics
+    - shared local `sandbox status` execution semantics
+    - shared reload outcome metadata for surface-specific MCP runtime rebuilds
+- Refactored TUI and CLI to consume the shared command execution seam for local operator commands:
+  - `src/mini_agent/tui/app.py`
+  - `src/mini_agent/cli_interactive.py`
+  - current shared first-cut command family:
+    - `mcp status`
+    - `mcp list`
+    - `mcp reload`
+    - `sandbox status`
+- Added focused regression coverage:
+  - `tests/test_command_execution_service.py`
+- Verification:
+  - `uv run pytest tests/test_command_execution_service.py tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_command_router.py tests/test_command_catalog.py -q`
+  - result: `139 passed`
+  - `uv run pytest tests/test_command_execution_service.py tests/test_tui_app.py tests/test_tui_readiness_walkthroughs.py tests/test_cli_submission_loop.py tests/test_command_catalog.py tests/test_command_router.py tests/test_shared_session_gateway_walkthrough.py -q`
+  - result: `142 passed`
+- One small behavior-parity regression surfaced during the cut:
+  - the shared service initially collapsed `mcp reload` snapshot probing to one post-reload read
+  - existing CLI behavior and test expectations still relied on the previous pre/post reload snapshot cadence
+  - fixed by preserving the pre-reload snapshot probe before cleanup/rebuild
+
+- Landed the next P29 implementation slice: `P29.2b TUI Remote Session Service Convergence`.
+- Added a typed client-side remote session facade:
+  - `src/mini_agent/application/session_remote_service.py`
+  - covers:
+    - session list/detail/messages/create
+    - rename/share/reset/delete/cancel
+    - model selection
+    - runtime policy
+    - prepared-context policy
+    - memory actions
+    - skill actions
+    - approval responses
+    - generic session control actions
+- Refactored TUI remote shared-session mutation/control flows to consume the typed remote service instead of raw `gateway_client` calls:
+  - `src/mini_agent/tui/app.py`
+  - remote paths now route through `RemoteSessionService` for:
+    - model selection
+    - runtime policy updates
+    - context policy updates
+    - memory actions
+    - skill actions
+    - approval decisions
+    - compact/drop-memories and other control actions
+    - remote KB and MCP control commands
+- Added focused regression coverage:
+  - `tests/test_session_remote_service.py`
+- Verification:
+  - `uv run pytest tests/test_session_remote_service.py tests/test_tui_app.py tests/test_session_service.py tests/test_interface_dto_contracts.py -q`
+  - result: `117 passed`
+  - `uv run pytest tests/test_session_projection.py tests/test_session_remote_service.py tests/test_session_service.py tests/test_tui_app.py tests/test_tui_readiness_walkthroughs.py tests/test_command_catalog.py tests/test_command_router.py tests/test_shared_session_gateway_walkthrough.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_p19_runtime_matrix.py tests/test_interface_dto_contracts.py tests/test_main_agent_gateway_use_cases.py -q`
+  - result: `194 passed`
+- Boundary status after this cut:
+  - `app.py` no longer directly mutates remote session state through raw gateway mutation calls
+  - the only remaining `gateway_client` execution call in TUI is remote `run_chat`, which belongs to the execution stream rather than this mutation/control slice
+
+- Landed the next P29 implementation slice: `P29.2a Session Application Service Extraction`.
+- Added a shared session application service:
+  - `src/mini_agent/application/session_service.py`
+  - includes:
+    - session CRUD/detail/control wrapper methods
+    - `ManagedSessionTurn` lease that owns:
+      - session lock acquisition/release
+      - surface binding
+      - pending model/skill application
+      - turn start/finish
+      - initial user-message recording
+- Refactored gateway use cases to consume the shared service instead of runtime session internals:
+  - `src/mini_agent/application/main_agent_gateway_use_cases.py`
+  - key result:
+    - no direct `MainAgentSessionState` import
+    - no direct `session.lock` usage
+    - `run_chat` / `stream_chat_events` now run inside the service-owned turn lease
+- Added focused service regression coverage:
+  - `tests/test_session_service.py`
+- Verification:
+  - `uv run pytest tests/test_session_service.py tests/test_main_agent_gateway_use_cases.py tests/test_interface_dto_contracts.py tests/test_tui_app.py tests/test_shared_session_gateway_walkthrough.py tests/test_channel_ingress_gateway_walkthrough.py -q`
+  - result: `179 passed`
+  - `uv run pytest tests/test_session_projection.py tests/test_session_service.py tests/test_tui_app.py tests/test_tui_readiness_walkthroughs.py tests/test_command_catalog.py tests/test_command_router.py tests/test_shared_session_gateway_walkthrough.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_p19_runtime_matrix.py tests/test_interface_dto_contracts.py tests/test_main_agent_gateway_use_cases.py -q`
+  - result: `193 passed`
+
+- Landed the first P29 implementation slice: `P29.1a Shared Session Projection Seam`.
+- Added a new shared projection module:
+  - `src/mini_agent/session/projection.py`
+  - exports transport projections for summary/detail/message/recovery/approval and a terminal projection for TUI semantics
+- Refactored runtime read-model assembly so session summary/detail DTOs are now built from shared projections instead of duplicated field-by-field DTO construction:
+  - `src/mini_agent/runtime/main_agent_runtime_manager.py`
+- Refactored TUI session read/display semantics onto the same projection seam:
+  - remote session summary/detail payload parsing now goes through shared transport projections
+  - terminal session display/status semantics now go through a shared terminal projection
+  - file: `src/mini_agent/tui/app.py`
+- Added focused regression coverage:
+  - `tests/test_session_projection.py`
+- Verification:
+  - `uv run pytest tests/test_session_projection.py tests/test_tui_app.py tests/test_interface_dto_contracts.py tests/test_main_agent_gateway_use_cases.py -q`
+  - result: `178 passed`
+  - `uv run pytest tests/test_session_projection.py tests/test_tui_app.py tests/test_tui_readiness_walkthroughs.py tests/test_command_catalog.py tests/test_command_router.py tests/test_shared_session_gateway_walkthrough.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_p19_runtime_matrix.py tests/test_interface_dto_contracts.py tests/test_main_agent_gateway_use_cases.py -q`
+  - result: `191 passed`
+- One projection-boundary regression surfaced during implementation:
+  - persisted-record recovery assembly briefly mixed projection objects back into raw-approval recovery computation
+  - symptom: restarted shared-session recovery lost pending approvals in detail payloads
+  - fix: keep persisted recovery computation fed from raw approval records, then project afterward
+
+- Switched the active slice from feature work to an architecture audit after the latest session-unification fix exposed deeper boundary problems.
+- Completed a code-level ownership review across:
+  - `src/mini_agent/tui/app.py`
+  - `src/mini_agent/cli_interactive.py`
+  - `src/mini_agent/runtime/main_agent_runtime_manager.py`
+  - `src/mini_agent/application/main_agent_gateway_use_cases.py`
+  - `src/mini_agent/session/*`
+  - `src/mini_agent/core/session.py`
+  - `src/apps/qqbot_channel/bot.mjs`
+  - `src/channels/qqbot/src/*`
+  - `src/gateway/channels/base.py`
+- Recorded the audit in:
+  - `docs/P29_SESSION_BOUNDARY_AUDIT_2026-04-12.md`
+- Converted the audit into an execution plan:
+  - `docs/P29_SESSION_HARD_REFACTOR_PLAN.md`
+- Synced development planning/index docs so P29 is now visible as an active architecture-repair track:
+  - `docs/DEVELOPMENT_INDEX.md`
+  - `docs/REFACTOR_TASKS.md`
+  - `task_plan.md`
+- Main conclusions captured in the audit:
+  - session currently has multiple competing owners
+  - TUI is both surface and runtime host
+  - runtime manager is overloaded well beyond one responsibility
+  - command parsing is shared, but command execution is still split across surfaces
+  - duplicate / stale channel-session abstractions remain in-tree and obscure the active path
+
+## 2026-04-11
+
+- Completed the next real-use demo validation round with the live runtime stack already running:
+  - verified:
+    - `uv run mini --mode headless --prompt "Reply with exactly: READY" --output-format json --workspace D:\file\Mini-Agent`
+    - `uv run python scripts/shared_session_gateway_walkthrough.py`
+    - `uv run python scripts/channel_ingress_gateway_walkthrough.py`
+  - ran:
+    - `uv run python scripts/terminal_readiness_gate.py --run-live-headless --skip-baseline`
+    - `uv run pytest -q`
+  - found one real blocker:
+    - gateway API suites failed under `TestClient(app)` when a real local gateway was already holding the instance lock for `127.0.0.1:8008`
+  - fixed test isolation in `tests/conftest.py` by defaulting:
+    - `MINI_AGENT_STUDIO_ENABLE_INSTANCE_LOCK=0`
+  - re-verified:
+    - `uv run pytest tests/test_agent_studio_gateway_api_v1.py tests/test_agent_studio_gateway_integration_flows.py tests/test_agent_studio_gateway_studio_router.py -q`
+    - result: `31 passed`
+    - `uv run pytest -q`
+    - result: `855 passed, 16 skipped`
+    - `uv run python scripts/terminal_readiness_gate.py --run-live-headless --skip-baseline`
+    - result: `PASS`
+  - validated runtime stack lifecycle on the real stack:
+    - `uv run mini qq status`
+    - `uv run mini qq logs --target gateway`
+    - `uv run mini qq logs --target qqbot`
+    - `uv run mini qq down --force`
+    - `uv run mini qq up --no-tui --startup-timeout 30`
+    - `uv run mini qq status`
+  - current result:
+    - local TUI/CLI/headless/shared-session/channel-ingress/demo-stack paths are green
+    - remaining manual acceptance item is still the external QQ inbound/outbound roundtrip on the live bot
+
+- Ran the next P24 demo-baseline acceptance audit instead of opening another subsystem track:
+  - preflight passed:
+    - `uv run pytest tests/test_command_catalog.py -q`
+    - `uv run mini --help`
+    - `uv run mini qq status`
+  - initial readiness audit found one real blocker:
+    - `scripts/tui_interaction_walkthrough.py` could race on the streaming assistant placeholder and fail with `assistant echo mismatch`
+  - fixed the walkthrough to wait for the final assistant content with `streaming=false` instead of only waiting for the assistant placeholder entry
+  - re-verified:
+    - `uv run pytest tests/test_tui_readiness_walkthroughs.py -q`
+    - `uv run python scripts/tui_interaction_walkthrough.py`
+    - `uv run python scripts/terminal_readiness_gate.py --skip-full-tests --skip-baseline`
+    - `uv run mini --mode headless --prompt "Reply with exactly: READY" --output-format json --workspace D:\file\Mini-Agent`
+- Current P24 status after this audit:
+  - scripted/local demo path is green
+  - shared-session scripted gateway path is green
+  - real headless model invocation is green
+  - the biggest remaining unverified item is now the live external QQ roundtrip, not the local agent core/runtime path
+
+- Recorded the stage transition after the latest sandbox slice:
+  - current Windows sandbox baseline is considered sufficient for the present demo target
+  - optional deeper sandbox work (`CPU/time quotas`, `non-Windows native backend`) is intentionally deferred
+  - active focus returns to the demo-baseline / real-use acceptance path for `TUI / CLI / QQ / gateway`
+- Synced the acceptance docs with the live runtime surface:
+  - promoted the new `/sandbox status` operator seam into the P24 command-level acceptance checklist
+  - updated project planning docs so the active slice is now P24 demo-baseline acceptance rather than more sandbox expansion
+
+- Closed the next Windows sandbox hardening slice and repaired the persistence regression introduced during sandbox-status plumbing:
+  - added two security-config knobs for the Windows workspace sandbox:
+    - `sandbox_max_processes` (default `32`)
+    - `sandbox_max_process_memory_mb` (default `2048`)
+  - runtime tooling now passes those caps into `SandboxManager`
+  - the Windows native job-object launcher now applies:
+    - `JOB_OBJECT_LIMIT_ACTIVE_PROCESS`
+    - `JOB_OBJECT_LIMIT_PROCESS_MEMORY`
+  - sandbox diagnostics and `/sandbox status` now report the effective cap values
+  - fixed shared-session persistence so sandbox diagnostics are normalized without calling an instance method through the class, restoring metadata writes and restart recovery
+- Added regression coverage for:
+  - default cap metadata/env wiring
+  - cap-disable normalization (`0` => disabled)
+  - configured cap propagation from security config
+  - live Windows job-object cap flags on the native restricted child
+- Verification:
+  - `uv run pytest tests/test_code_agent_sandbox.py tests/test_security_policy.py -q`
+  - result: `20 passed`
+  - `uv run pytest tests/test_bash_tool.py tests/test_agent_execution_policy.py tests/test_code_agent_permissions.py tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_gateway_use_cases.py -q -k "sandbox or approval or bash or security or session or snapshot"`
+  - result: `119 passed, 150 deselected`
+  - `uv run pytest tests/test_command_catalog.py tests/test_interface_dto_contracts.py tests/test_cli_submission_loop.py -q`
+  - result: `36 passed`
+  - `uv run pytest tests/test_tui_app.py -q -k "sandbox or status_panel or prompt_input_slash_completer_suggests_command_candidates"`
+  - result: `10 passed, 147 deselected`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -q -k "session or snapshot or model or mcp"`
+  - result: `45 passed, 11 deselected`
+
+- Finalized the next Windows sandbox tightening step so the native restricted launch now also carries a low-integrity label:
+  - restricted primary token creation now explicitly applies `WinLowLabelSid`
+  - sandbox env + metadata now expose:
+    - `MINI_AGENT_SANDBOX_INTEGRITY_LEVEL=low`
+    - `MINI_AGENT_SANDBOX_MANDATORY_POLICY=3`
+    - `low_integrity`
+    - `mandatory_policy`
+  - `SandboxManager` preview metadata now uses the same helper source for mandatory-policy bits instead of a local hardcoded literal
+  - Windows-only native-launch regression coverage now verifies the child token itself is low integrity and still executes normally
+- Verification:
+  - `uv run pytest tests/test_code_agent_sandbox.py tests/test_bash_tool.py -q`
+  - result: `25 passed`
+  - `uv run pytest tests/test_security_policy.py tests/test_agent_execution_policy.py tests/test_code_agent_permissions.py -q`
+  - result: `26 passed`
+  - `uv run pytest tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_gateway_use_cases.py -q -k "approval or bash or security"`
+  - result: `3 passed, 230 deselected`
+
+- Tightened the Windows restricted backend further on top of the native-launch baseline:
+  - restricted-token creation now disables a curated set of high-privilege builtin groups
+  - job objects now also enable `JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION`
+  - job UI restrictions now block desktop / exit-windows / clipboard / global-atoms / system-parameter style UI actions
+  - sandbox env + metadata now expose:
+    - `MINI_AGENT_SANDBOX_NATIVE_LAUNCH=1`
+    - `disable_admin_groups`
+    - `restrict_ui`
+    - `die_on_unhandled_exception`
+  - `SandboxManager` selection metadata now forwards those flags so operator-visible state matches the real backend
+- Added focused regression coverage for the tightened Windows restriction defaults and kept the native-launch path green.
+- Verification:
+  - `uv run pytest tests/test_code_agent_sandbox.py tests/test_bash_tool.py -q`
+  - result: `25 passed`
+  - `uv run pytest tests/test_security_policy.py tests/test_agent_execution_policy.py tests/test_code_agent_permissions.py -q`
+  - result: `26 passed`
+  - `uv run pytest tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_gateway_use_cases.py -q -k "approval or bash or security"`
+  - result: `3 passed, 230 deselected`
+
+- Closed the Windows native sandbox-launch slice so `windows_restricted_token` now maps to a real restricted child process instead of only transform metadata:
+  - added a native Windows process adapter in `src/mini_agent/code_agent/sandbox/windows.py`
+  - Windows sandbox launch now uses:
+    - `CreateRestrictedToken`
+    - `CreateProcessAsUser`
+    - inherited stdio pipes
+    - job object with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`
+  - `BashTool` now routes Windows execution through the native launcher whenever the active sandbox backend is `windows_restricted_token`
+  - direct launcher env handling now merges `os.environ` with sandbox overrides so required baseline env like `PATH` / `SystemRoot` is preserved
+- Added focused regression coverage for:
+  - direct Windows restricted-process launch
+  - `BashTool` native-launch branch selection
+  - end-to-end `SandboxManager + BashTool` native Windows execution
+- Verification:
+  - `uv run pytest tests/test_code_agent_sandbox.py tests/test_bash_tool.py -q`
+  - result: `24 passed`
+  - `uv run pytest tests/test_security_policy.py tests/test_agent_execution_policy.py tests/test_code_agent_permissions.py -q`
+  - result: `26 passed`
+  - `uv run pytest tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_gateway_use_cases.py -q -k "approval or bash or security"`
+  - result: `3 passed, 230 deselected`
+
+- Closed the next sandbox approval slice so `auto-edit` is now tiered instead of uniformly strict:
+  - ordinary workspace `write_file` / `edit_file` mutations are auto-allowed again under `auto-edit`
+  - durable/system mutations still require approval under the default ASK path:
+    - `record_note`
+    - `user_modeling`
+    - `install_skill*`
+    - `uninstall_skill`
+    - `rollback_skill`
+    - shell execution remains approval-gated
+  - `tool_exclude` deny rules still override the `auto-edit` allow rules
+  - config example wording now documents the tiered `auto-edit` semantics directly
+- Added focused regression coverage for:
+  - workspace edit allow under `auto-edit`
+  - durable mutation approval under `auto-edit`
+  - `tool_exclude` precedence
+  - unchanged `full-auto` behavior
+- Verification:
+  - `uv run pytest tests/test_security_policy.py tests/test_code_agent_permissions.py tests/test_agent_execution_policy.py tests/test_code_agent_tools.py -q`
+  - result: `36 passed`
+  - `uv run pytest tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_gateway_use_cases.py -q -k approval`
+  - result: `3 passed, 230 deselected`
+  - `uv run pytest tests/test_security_audit.py tests/test_bash_tool.py tests/test_code_agent_sandbox.py -q`
+  - result: `24 passed`
+
+- Closed the next sandbox tightening slice so the default approval profile now matches the hardened workspace boundary more honestly:
+  - `build_approval_engine(...)` no longer auto-allows `WRITE` / `EDIT` under `auto-edit`
+  - read-only tools still use the existing default-allow path
+  - `full-auto` remains the explicit no-approval mode for autonomous execution
+  - security audit wording for `elevated_exec=require_approval` now reflects the live approval gate instead of stale "not yet implemented" wording
+- Added focused regression coverage for the tightened mutation-approval baseline:
+  - `auto-edit` now requires confirmation for `write_file` / `edit_file`
+  - read-only still auto-allows
+  - `full-auto` still allows mutations without confirmation
+  - security-audit output now reports the live approval flow correctly
+- Verification:
+  - `uv run pytest tests/test_security_policy.py tests/test_security_audit.py tests/test_code_agent_permissions.py tests/test_agent_execution_policy.py -q`
+  - result: `28 passed`
+  - `uv run pytest tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_gateway_use_cases.py -q -k approval`
+  - result: `3 passed, 230 deselected`
+  - `uv run pytest tests/test_bash_tool.py tests/test_code_agent_sandbox.py -q`
+  - result: `21 passed`
+
+- Closed the sandbox hardening slice so the current runtime boundary is more honest and usable:
+  - file tools now reject absolute-path and traversal escapes outside the active workspace root
+  - `elevated_exec=require_approval` no longer dead-ends at shell policy time; elevated bash now enters the existing approval flow and can continue after approval
+  - runtime sandbox wiring now accepts configured network policy (`network_mode`, `network_allow_domains`, `network_block_domains`) and passes it into the active sandbox manager
+  - kernel-built agents now receive the runtime policy engine directly so approval and shell policy stay coordinated instead of drifting apart
+- Verification:
+  - `uv run pytest tests/test_file_tools_workspace_boundary.py tests/test_security_policy.py tests/test_agent_execution_policy.py tests/test_bash_tool.py tests/test_code_agent_sandbox.py tests/test_code_agent_permissions.py -q`
+  - result: `47 passed`
+  - `uv run pytest tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_gateway_use_cases.py -q -k "approval or security or bash"`
+  - result: `3 passed, 230 deselected`
+  - `uv run pytest tests/test_config_local_env.py tests/test_single_instance.py tests/test_cli_stack_command.py tests/test_provider_config.py -q`
+  - result: `23 passed`
+  - `uv run pytest tests/test_agent_core_kernel.py tests/test_agent.py tests/test_security_audit.py -q`
+  - result: `8 passed, 2 skipped`
+
+- Closed the next skill lifecycle slice so workspace skills now support a full operator/agent loop instead of install-only:
+  - `install_skill_from_path(...)` now accepts:
+    - local skill directories
+    - local `SKILL.md` files
+    - single-skill archives
+    - `http/https` URLs to those sources
+  - added safe archive extraction checks so packaged skill installs cannot escape the workspace temp/extract root
+  - added agent-facing `uninstall_skill(...)` and `rollback_skill(...)`
+  - `/skill uninstall <skill_name>` and `/skill rollback <skill_name>` are now wired through TUI / CLI / shared gateway session flow
+  - workspace skill ledger/backups now support real uninstall + restore instead of source audit only
+  - regression coverage now locks:
+    - archive install
+    - URL archive install
+    - uninstall
+    - rollback
+    - declarative tool classification for the new tool names
+- Verification:
+  - `uv run pytest tests/test_skill_tool.py tests/test_agent_core_skills.py tests/test_code_agent_tools.py tests/test_command_catalog.py -q`
+  - result: `40 passed`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py -q -k "skill or rollback or uninstall or ledger"`
+  - result: `31 passed, 199 deselected`
+
+- Landed the next skill-installation slice so agent-side skill installation is no longer limited to inline-authored `SKILL.md` content:
+  - kept `install_skill(...)` for inline workspace skill creation
+  - added agent-facing `install_skill_from_path(...)` so the agent can import an existing local skill directory or `SKILL.md` path into the active workspace
+  - added a persisted workspace skill-source ledger at `.mini-agent/skill_sources.json`
+  - both inline and path installs now record source metadata for later audit / rollback / operator inspection
+  - operator-facing install formatting now exposes the ledger path in TUI / CLI / gateway responses
+  - tightened skill-composition guidance so metadata/runtime prompts explicitly allow loading multiple relevant skills for one task
+- Verification:
+  - `uv run pytest tests/test_skill_tool.py tests/test_agent_core_skills.py tests/test_code_agent_tools.py -q`
+  - result: `28 passed`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py -q -k "skill or ledger"`
+  - result: `31 passed, 199 deselected`
+
+- Closed the P28 real-use skill-trigger validation slice instead of stopping at static matching:
+  - added a live probe runner in `scripts/skill_live_probe.py` that boots a real agent kernel, runs real turns, and records actual tool-call traces
+  - hardened MCP shutdown and connection-startup cancellation handling so the probe does not fail just because one MCP server cancels during startup/cleanup
+  - added LLM client close paths so repeated live probe cases no longer leak async client shutdown past the event loop boundary
+  - tightened progressive-disclosure instructions at three layers:
+    - system prompt
+    - skill metadata prompt
+    - per-turn `Relevant skills` context
+  - shortened several overly self-sufficient tier-1 skill descriptions (`frontend-dev`, `fullstack-dev`, `buddy-sings`, `minimax-music-playlist`) so metadata acts more like routing and less like the full answer
+  - real live probe result after tuning:
+    - `frontend-dev`: `get_skill(frontend-dev)` called
+    - `fullstack-dev`: `get_skill(fullstack-dev)` called
+    - `buddy-sings`: `get_skill(buddy-sings)` called
+    - `minimax-music-playlist`: `get_skill(minimax-music-playlist)` called
+    - summary: `4/4` expected skills loaded in real model turns
+- Verification:
+  - `uv run pytest tests/test_agent_core_skills.py tests/test_skill_tool.py tests/test_agent_turn_context.py -q`
+  - result: `44 passed`
+  - `uv run python scripts/skill_live_probe.py`
+  - result: `4/4` live expected-skill matches
+
+- Locked the builtin skill target to a MiniMax-first bundled catalog instead of the older Anthropic-style example bundle that is still vendored under `src/mini_agent/skills/`.
+- Recorded the final builtin target layers in `docs/P28_BUILTIN_SKILL_REALIGNMENT_PLAN.md`:
+  - Core Development
+  - Documents And Office
+  - Multimodal And Creative
+  - Optional Entertainment / Demo
+- Recorded the execution order for the migration:
+  - replace builtin document skills first
+  - add the first MiniMax-first dev/multimodal skills next
+  - archive product-misaligned example skills from the default builtin bundle
+  - expand to mobile / shader / music tiers after the first bundle is stable
+- Landed the first P28 document-skill replacement slice:
+  - builtin document skill registration names now resolve as `minimax-docx`, `minimax-pdf`, `pptx-generator`, and `minimax-xlsx`
+  - the local document skills keep their existing runnable resource/script base for now, but their runtime-facing names and descriptions are now MiniMax-first
+  - `system_prompt.md` now references the new document-skill names in the Python-skill guidance block
+  - bundled `src/mini_agent/skills/README.md` document-skill listings now use the new MiniMax-first names
+  - `tests/test_skill_loader.py` now locks the new naming scheme in metadata-prompt coverage
+- Verification:
+  - builtin skill enumeration confirmed the new names are discoverable through `AgentSkillLoader`
+  - `uv run pytest tests/test_skill_loader.py tests/test_agent_core_skills.py tests/test_skill_tool.py -q`
+  - result: `25 passed`
+- Closed the first document-boundary gap between docling and document skills:
+  - `docling_parse` is now mounted into the main workspace tool set instead of existing only as a side module/subprogram
+  - document skills now explicitly treat `docling_parse` as the default read/analyze path for `.docx`, `.pdf`, `.pptx`, and `.xlsx`
+  - deeper format-specific scripts remain the fallback path for editing, filling, OOXML structure work, and workbook/document-preserving operations
+  - the intended boundary is now:
+    - `docling_parse` = normalized parsing/extraction entrypoint
+    - document skills = higher-level document workflow orchestration
+- Verification:
+  - workspace tool enumeration now includes `docling_parse`
+  - `uv run pytest tests/test_docling_parse_tool.py tests/test_knowledge_base_tool.py tests/test_security_policy.py -q`
+  - result: `20 passed`
+- Hardened the document-boundary implementation so it reflects real runnable capability instead of only prompt wiring:
+  - `docling_parse` now has a built-in lightweight OOXML extraction path for `.docx`, `.pptx`, and `.xlsx`
+  - `docling_parse` still treats PDF as an optional backend path and now fails explicitly when no PDF adapter/backend is available
+  - document skills therefore no longer duplicate parsing responsibility; they sit above `docling_parse` for orchestration/editing workflows
+- Verification:
+  - added deterministic parser regression coverage for:
+    - no-adapter binary asset rejection
+    - built-in `.docx` extraction
+    - built-in `.pptx` extraction
+    - built-in `.xlsx` extraction
+  - `uv run pytest tests/test_docling_parse_tool.py tests/test_knowledge_base_tool.py tests/test_security_policy.py -q`
+  - result: `23 passed`
+- Landed the first bundled-skill realignment slice beyond the document tier:
+  - replaced the old builtin skill directory/name pair `artifacts-builder` with `frontend-dev`
+  - replaced the old builtin skill directory/name pair `slack-gif-creator` with `gif-sticker-maker`
+  - added new builtin skills `fullstack-dev` and `vision-analysis`
+  - rewrote the new skill instructions so they describe Mini-Agent-native usage instead of the old Claude/example positioning
+  - removed stale `canvas-design` / `algorithmic-art` references from `system_prompt.md`
+  - rewrote `src/mini_agent/skills/README.md` around the active Mini-Agent bundled catalog and explicitly marked remaining legacy skills as temporary reference material
+  - added regression coverage that the real repo builtin catalog now exposes:
+    - `frontend-dev`
+    - `fullstack-dev`
+    - `vision-analysis`
+    - `gif-sticker-maker`
+    - and no longer exposes `artifacts-builder` / `slack-gif-creator`
+- Verification:
+  - `uv run pytest tests/test_skill_loader.py tests/test_agent_core_skills.py tests/test_skill_tool.py -q`
+  - result: `26 passed`
+- Completed the archive phase for product-misaligned builtin example skills:
+  - moved `algorithmic-art`, `brand-guidelines`, `canvas-design`, `internal-comms`, `template-skill`, and `theme-factory` out of `src/mini_agent/skills/`
+  - archived them under `docs/archive/builtin-skills/`
+  - updated bundled-skill docs to point at the archive location instead of pretending those skills are still part of the runtime-default bundle
+  - extended repo builtin-catalog coverage so the default loader path explicitly excludes those archived names
+- Verification:
+  - `uv run pytest tests/test_agent_core_skills.py tests/test_skill_loader.py tests/test_skill_tool.py -q`
+  - result: `26 passed`
+  - runtime builtin enumeration confirms the archived names no longer appear in the default builtin catalog
+- Landed the next bundled-skill expansion slice for the target MiniMax-first catalog:
+  - added `android-native-dev`
+  - added `ios-application-dev`
+  - added `flutter-dev`
+  - added `react-native-dev`
+  - added `shader-dev`
+  - added `minimax-music-gen`
+  - updated the bundled skills README so these new entries are part of the visible default catalog
+  - repo-level builtin-catalog coverage now asserts these names are discoverable through the real bundled skills directory
+- Verification:
+  - `uv run pytest tests/test_agent_core_skills.py tests/test_skill_loader.py tests/test_skill_tool.py -q`
+  - result: `26 passed`
+  - runtime builtin enumeration confirms all six new names are discoverable
+- Landed the optional / demo tier completion slice:
+  - added `buddy-sings` as a lightweight sung-demo / jingle skill on top of the existing MiniMax music path
+  - added `minimax-music-playlist` as a small multi-track playlist planning/generation orchestration skill
+  - updated the bundled skills README so both optional/demo skills are visible in the default catalog
+  - repo-level builtin-catalog coverage now asserts both names are discoverable through the real bundled skills directory
+- Verification:
+  - `uv run pytest tests/test_agent_core_skills.py tests/test_skill_loader.py tests/test_skill_tool.py -q`
+  - result: `26 passed`
+  - runtime builtin enumeration confirms:
+    - `buddy-sings`
+    - `minimax-music-playlist`
+    are both discoverable
+- Added a real trigger-audit seam for bundled skills instead of relying on subjective prompt reading:
+  - added `scripts/skill_trigger_audit.py` to audit builtin skill matching against representative prompts
+  - added repo-level trigger coverage in `tests/test_agent_turn_context.py` for key Chinese prompts
+- Tightened skill triggering for real Chinese operator usage:
+  - `SkillTier1Metadata` now preserves skill frontmatter metadata into tier-1 discovery
+  - skill ranking now considers curated metadata fields such as `trigger_keywords`, `trigger_phrases`, `aliases`, `keywords`, and `tags`
+  - skill ranking now includes an explicit metadata-keyword bonus so curated trigger phrases can outrank generic English overlap
+  - skill ranking now handles Chinese substring-style intent better instead of depending only on token overlap
+  - added multilingual trigger keywords to the newly introduced builtin skills so Chinese prompts can match the intended skills directly
+- Verification:
+  - `uv run python scripts/skill_trigger_audit.py`
+  - result: `TOTAL_MISS=0`
+  - `uv run pytest tests/test_agent_turn_context.py tests/test_agent_core_skills.py tests/test_skill_loader.py tests/test_skill_tool.py -q`
+  - result: `51 passed`
+
+- Refined the active MCP boundary again to match the current real-use target:
+  - kept only `context7`, `minimax_coding_plan`, `fetch`, and `playwright` in `src/mini_agent/config/mcp.json`
+  - removed the unused `memory_mcp`, `sequential_thinking`, `github`, and `git_mcp` entries entirely from the active runtime config
+  - re-enabled `minimax_coding_plan` and kept its API host/key sourced from environment variables
+- Verified the tightened MCP config statically and at runtime:
+  - static operator snapshot now reports `4 configured / 4 discoverable / 0 disabled`
+  - live connection check confirmed:
+    - `context7`: `resolve-library-id`, `query-docs`
+    - `minimax_coding_plan`: `web_search`, `understand_image`
+    - `fetch`: `fetch`
+    - `playwright`: browser automation tool suite
+- Re-audited MCP task selection behavior instead of assuming explicit routing exists:
+  - the planner still sends the full available tool list directly to the model
+  - MCP selection is currently guided by tool descriptions plus `MCPToolCatalogTurnContextProvider` relevance matching against tool names/descriptions
+  - there is still no hardcoded rule like "URL present => fetch" / "open-ended external lookup => web_search"
+  - current behavior is therefore soft-routed by model reasoning and catalog hints, not deterministic policy routing
+
+- Re-audited MCP after the latest agent-core / command-surface work:
+  - confirmed that basic MCP was already integrated at the runtime/tool-loading layer
+  - confirmed existing MCP turn-context hints and diagnostics were already present
+  - identified the real gap as the missing operator-facing seam and incomplete runtime config fallback wiring
+- Completed the basic MCP operator slice instead of starting a duplicate subsystem:
+  - added shared `/mcp` operator helpers in `src/mini_agent/commands/mcp_support.py`
+  - local TUI / CLI now support `/mcp status`, `/mcp list`, and `/mcp reload`
+  - `initialize_shared_tools(...)` now resolves MCP config through the shared helper, including `mcp.json -> mcp-example.json` fallback
+  - operator snapshot formatting now exposes configured/disabled/active server counts and exposed MCP tool counts
+- Locked the current MCP boundary explicitly:
+  - MCP base integration exists now as a usable local operator path
+  - remote shared-session MCP control is still intentionally unsupported in this slice
+  - raw MCP runtime tool-name collision / namespacing is still a follow-up refinement, not solved here
+- Verification:
+  - `uv run python -m compileall src/mini_agent/commands/mcp_support.py src/mini_agent/runtime/tooling.py src/mini_agent/tui/app.py tests/test_mcp_support.py tests/test_command_catalog.py tests/test_tui_app.py tests/test_cli_submission_loop.py`
+  - `uv run pytest tests/test_mcp_support.py tests/test_command_catalog.py tests/test_tui_app.py tests/test_cli_submission_loop.py -q`
+  - result: `185 passed`
+- Completed the MCP namespacing / collision follow-up slice:
+  - runtime-exposed MCP tools now use deterministic namespaced aliases like `mcp_<server>_<tool>`
+  - MCP execution still calls the original remote tool name, so aliasing only affects local runtime exposure and planner/operator references
+  - resource helpers now follow the same alias rule instead of using a separate naming style
+  - turn-context MCP capability hints and `/mcp list` operator output now show `alias <- raw_name` so the agent sees the callable name without losing readability
+  - alias reservations now suffix on slug collisions, preventing one MCP tool from overwriting another in the runtime tool catalog
+- Completed the shared-session remote MCP control slice:
+  - gateway/runtime session control now accepts `mcp_status`, `mcp_list`, and `mcp_reload`
+  - remote `/mcp ...` in TUI now routes through the shared-session control API instead of rejecting the command
+  - MCP operator output is now written back into the shared session transcript with `mcp status|list|reload` command labels
+  - remote MCP reload rebuilds the active shared-session agent after MCP connection cleanup so bindings stay aligned with the selected model route
+- Extended the same MCP control surface into QQ shared-session mode:
+  - QQ bot now exposes `/mcp status`, `/mcp list`, and `/mcp reload`
+  - QQ `/mcp` reuses the existing shared-session control API instead of introducing a bot-only path
+  - QQ control result formatting now renders MCP status/list/reload output from control `stats.summary/details` instead of forcing the compact/drop-memories text shape
+  - shared command catalog now exposes `mcp` on the `qq` surface, so `/help` and usage prompts stay consistent across TUI / CLI / QQ
+- Moved MCP from template-only state into an actual project configuration:
+  - enabled MCP loading in the active local `src/mini_agent/config/config.yaml`
+  - added formal `src/mini_agent/config/mcp.json` with `context7`, `fetch`, `playwright`, `github`, `git_mcp`, `sequential_thinking`, `minimax_coding_plan`
+  - kept `memory_mcp` configured but disabled because it overlaps with the project's built-in memory/workspace/session memory stack
+  - switched the MiniMax MCP secret handling to environment-variable references instead of embedding secrets in `mcp.json`
+  - added `MINIMAX_API_HOST` to local env so the MiniMax MCP config can resolve cleanly
+- Fixed one real regression uncovered while landing the MCP alias slice:
+  - `runtime.tooling` now lazily imports `WorkspaceSkillPolicyStore` inside `build_turn_context_providers(...)`
+  - this removes a circular import path that surfaced during isolated runtime/turn-context test collection
+- Verification:
+  - `uv run python -m compileall src/mini_agent/tools/mcp/naming.py src/mini_agent/tools/mcp/executor.py src/mini_agent/tools/mcp/registry.py src/mini_agent/code_agent/mcp_tools.py src/mini_agent/commands/mcp_support.py src/mini_agent/turn_context.py src/mini_agent/runtime/tooling.py tests/test_mcp_policy.py tests/test_mcp_support.py tests/test_agent_turn_context.py tests/test_mcp.py`
+  - `uv run pytest tests/test_mcp_policy.py tests/test_mcp_support.py tests/test_agent_turn_context.py tests/test_code_agent_mcp_client.py tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_command_catalog.py tests/test_mcp.py -q -m "not integration"`
+  - result: `238 passed, 6 deselected`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -q -k "mcp or control_session"`
+  - result: `6 passed, 50 deselected`
+  - `uv run pytest tests/test_agent_studio_gateway_api_v1.py -q -k "mcp or control"`
+  - result: `1 passed, 18 deselected`
+  - `uv run pytest tests/test_tui_app.py -q -k "mcp"`
+  - result: `4 passed, 151 deselected`
+  - `uv run pytest tests/test_command_catalog.py -q`
+  - result: `5 passed`
+  - `node --check src/apps/qqbot_channel/bot.mjs`
+  - static MCP config validation via `discover_servers(...)` and `collect_mcp_operator_snapshot(...)`
+  - result: `mcp.json` discovered successfully, `8 configured / 7 discoverable / 1 disabled / 0 active before runtime connect`
+- Completed the first persisted skill-installation slice:
+  - added `WorkspaceSkillInstaller` as the shared workspace skill install path
+  - added agent-facing `install_skill(...)` tool for inline skill authoring into workspace storage
+  - added `/skill install <path>` across TUI / CLI / QQ shared-session gateway flow
+  - installed skills now auto-activate in workspace policy and trigger the existing skill-runtime reload path
+  - Windows-style absolute path handling for `/skill install ...` now preserves raw command tails instead of mangling backslashes through command tokenization
+- Verification:
+  - `uv run pytest tests/test_skill_tool.py tests/test_agent_core_skills.py tests/test_command_catalog.py tests/test_interface_dto_contracts.py tests/test_code_agent_tools.py tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py tests/test_tui_app.py -q`
+  - result: `259 passed`
+- Moved the active top-level target into a demo-baseline stage:
+  - the immediate goal is now one coherent "basic capabilities" demo path instead of opening another broad subsystem track
+  - TUI / CLI remain the primary operator surface
+  - QQ + gateway shared-session flow remains the remote extension path for the demo
+- Completed the latest P27 skill/runtime operator slice:
+  - shared-session skill policy changes now support pending reload state instead of only one-shot command feedback
+  - busy shared sessions queue skill-runtime reload and apply it automatically after the current turn
+  - sibling shared sessions in the same workspace are marked for reload together
+  - gateway import/export/session detail contracts now carry `pending_skill_reload` state
+- Completed the latest local TUI skill ergonomics slice:
+  - TUI status now shows a compact local skill runtime summary
+  - TUI status now shows a compact workspace skill-policy summary
+  - local pending skill reload state is visible without leaving the normal operator view
+- Fixed a real runtime packaging issue discovered during regression:
+  - `mini_agent.runtime` exports are now lazy so CLI/skill support import paths do not trigger a circular import on startup
+- Reconfirmed the current skill-system boundary for planning:
+  - Mini-Agent can already discover, filter, inspect, enable/disable, refresh, and load skills through the unified runtime seam
+  - Mini-Agent does not yet provide a finished "agent installs a skill by itself" workflow
+  - current remote-skill support is transient loader registration, not a persisted install pipeline
+- Verification:
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_interface_dto_contracts.py tests/test_tui_app.py -q`
+  - result: `209 passed`
+  - `uv run pytest tests/test_command_catalog.py tests/test_cli_submission_loop.py tests/test_agent_studio_gateway_api_v1.py tests/test_agent_turn_context.py tests/test_agent_core_kernel.py tests/test_skill_tool.py tests/test_agent_core_skills.py -q`
+  - result: `81 passed`
+  - `uv run pytest tests/test_tui_app.py -q`
+  - result: `150 passed`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_interface_dto_contracts.py tests/test_command_catalog.py tests/test_cli_submission_loop.py tests/test_agent_studio_gateway_api_v1.py tests/test_agent_turn_context.py tests/test_agent_core_kernel.py tests/test_skill_tool.py tests/test_agent_core_skills.py -q`
+  - result: `142 passed`
+  - `node --check src/apps/qqbot_channel/bot.mjs`
+
+## 2026-04-10
+
+- Started the next P26 refinement slice to avoid semantic drift between plan and code:
+  - re-audited `memory / runtime / TUI / CLI` reset and delete paths against the current architecture docs
+  - confirmed the main gap is incomplete cleanup semantics, not missing memory primitives
+  - wrote a detailed execution slice into `task_plan.md` before code changes so the next edits stay bounded and reviewable
+- Locked the implementation target for this turn:
+  - add explicit namespace cleanup to `WorkspaceMemoriaRuntime`
+  - make gateway `reset/delete/lifecycle reset` clear session runtime task memory
+  - align TUI local clear/delete and CLI `/clear` with the same session-reset contract
+  - add focused tests for gateway/TUI/CLI/runtime cleanup behavior
+- Completed the P26.7 reset/delete semantics hardening slice:
+  - `WorkspaceMemoriaRuntime` now supports explicit namespace cleanup for `session:<id>` and `workspace:shared`
+  - gateway `reset_session`, `delete_session`, and lifecycle auto-reset now clear session-scoped runtime task memory
+  - gateway reset now uses the same stronger runtime-state reset semantics as local surfaces, including token/prepared-context cleanup
+  - local TUI clear/delete now clears runtime task memory and stale restored/resume state
+  - CLI lifecycle reset and `/clear` now clear `cli-session` runtime task memory and reset token/prepared-context residue
+- Added focused regression coverage for:
+  - namespace cleanup without sibling-session contamination
+  - gateway reset clearing runtime task memory and runtime residue
+  - gateway delete clearing persisted runtime task memory for inactive sessions
+  - TUI clear/delete not preserving stale local resume/runtime state
+  - CLI `/clear` clearing runtime task memory
+- Verification:
+  - `uv run python -m compileall src/mini_agent/memory/memoria_runtime.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/tui/app.py src/mini_agent/cli_interactive.py tests/test_memoria_runtime.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_cli_submission_loop.py`
+  - `uv run pytest tests/test_memoria_runtime.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_cli_submission_loop.py -q`
+  - result: `171 passed`
+- Completed the P26.8 snapshot/import/export runtime-memory parity slice:
+  - session snapshot/import DTOs now carry a dedicated `runtime_task_memory_payload`
+  - `WorkspaceMemoriaRuntime` now supports session namespace snapshot/restore helpers
+  - gateway session export now includes session-scoped runtime task memory payload
+  - gateway session import now restores that payload under the effective destination session id
+  - local TUI share now migrates session runtime memory to gateway through the snapshot contract
+  - local TUI share now clears the old local runtime namespace after successful migration when the session id changes
+  - TUI unshare now restores session runtime memory back into the local workspace runtime store
+- Added focused regression coverage for:
+  - runtime-memory namespace snapshot/restore
+  - gateway import restoring runtime task memory
+  - gateway export including runtime task memory payload
+  - TUI share migrating runtime task memory payload
+  - TUI unshare restoring runtime task memory locally
+  - API/DTO contract exposure of the new snapshot field
+- Verification:
+  - `uv run python -m compileall src/mini_agent/interfaces/agent.py src/mini_agent/memory/memoria_runtime.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/tui/app.py tests/test_memoria_runtime.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py`
+  - `uv run pytest tests/test_memoria_runtime.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py -q`
+  - result: `181 passed`
+- Completed the P26.9 workspace-shared runtime-memory portability slice:
+  - session snapshot/import DTOs now also carry `workspace_shared_runtime_memory_payload`
+  - `WorkspaceMemoriaRuntime` now supports workspace-shared namespace snapshot/restore helpers
+  - workspace-shared restore semantics are non-destructive merge-by-content instead of snapshot replace
+  - gateway import/export now preserves portable `workspace:shared` runtime memory
+  - TUI share/unshare now carries and restores workspace-shared runtime memory through the same snapshot contract
+- Added focused regression coverage for:
+  - workspace-shared namespace snapshot/merge restore
+  - gateway import merging workspace-shared runtime memory
+  - gateway export including workspace-shared runtime memory payload
+  - TUI share including workspace-shared runtime memory payload
+  - TUI unshare restoring workspace-shared runtime memory locally
+  - API/DTO contract exposure of the new workspace-shared snapshot field
+- Verification:
+  - `uv run python -m compileall src/mini_agent/interfaces/agent.py src/mini_agent/memory/memoria_runtime.py src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/tui/app.py tests/test_memoria_runtime.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py`
+  - `uv run pytest tests/test_memoria_runtime.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py -q`
+  - result: `186 passed`
+- Completed the P26.10 workspace-shared boundary / promotion-policy slice:
+  - runtime writeback still defaults to `session:<id>` and no longer risks accidental silent shared writes
+  - post-turn runtime writeback now annotates whether the latest assistant conclusion is a `workspace:shared` candidate
+  - `WorkspaceMemoriaRuntime.promote_session_memory_to_workspace_shared(...)` now prefers the distilled candidate text instead of the raw `task: ... | latest: ...` envelope
+  - gateway, CLI, TUI, and QQ now support `promote_shared` through `/memory promote shared <selector>`
+  - runtime diagnostics now expose shared-candidate status for the latest runtime writeback
+- Added focused regression coverage for:
+  - runtime writeback shared-candidate detection
+  - direct promotion from session runtime memory into `workspace:shared`
+  - gateway memory control promoting shared runtime memory
+  - TUI local `/memory promote shared latest`
+  - CLI interactive `/memory promote shared 1`
+- Verification:
+  - `uv run python -m compileall src/mini_agent/memory/promotion.py src/mini_agent/memory/runtime_task_memory.py src/mini_agent/memory/memoria_runtime.py src/mini_agent/memory/diagnostics.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py tests/test_memoria_runtime.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_cli_submission_loop.py`
+  - `uv run pytest tests/test_memoria_runtime.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py -q`
+  - `node --check src/apps/qqbot_channel/bot.mjs`
+  - result: `206 passed`
+- Completed the P26.11 workspace-shared retrieval-boundary slice:
+  - `RuntimeTaskMemoryTurnContextProvider` now queries session runtime memory first
+  - `workspace:shared` is now included only for workspace-scoped queries or session-hit fallback
+  - prepared-context metadata now records whether shared retrieval was used because of `query_scope`, `session_fallback`, or `suppressed_by_session_hits`
+  - this keeps workspace-shared runtime memory supplemental instead of competing with current session memory on every turn
+- Added focused regression coverage for:
+  - suppressing shared hits when session-local hits are already sufficient
+  - including shared hits as fallback when session-local hits are insufficient
+- Verification:
+  - `uv run python -m compileall src/mini_agent/memory/promotion.py src/mini_agent/turn_context.py tests/test_memoria_runtime.py`
+  - `uv run pytest tests/test_memoria_runtime.py tests/test_agent_turn_context.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_cli_submission_loop.py -q`
+  - result: `204 passed`
+
+- Completed the next memory operator-ergonomics slice:
+  - runtime/gateway/TUI/CLI now support `/memory promote [note|profile] <selector>`
+  - supported selectors are exact `engram_id`, numeric preview index like `1`, and `latest`
+  - runtime preview rendering now enumerates session entries so selector choice is visible to the operator
+  - added `/memory list` as the selector-oriented runtime preview alias
+- Added explicit manual durable-memory confirmation commands:
+  - `/memory save note <text>`
+  - `/memory save profile <text>`
+  - these flow through the same local/shared memory control seam as the existing diagnostics actions
+- Extended shared-session remote control into QQ:
+  - QQ bot `/help` now documents the memory command family
+  - QQ shared sessions now support `/memory status|show|list|refresh|promote|save`
+  - remote QQ and TUI now operate on the same gateway memory control route for the bound shared session
+- Preserved the RAG-to-memory boundary:
+  - manual note saves use `kb_confirmed` when the latest prepared context came from `knowledge_base`
+  - raw KB payloads still fail durable-memory promotion checks instead of being copied into `MEMORY.md`
+- Added focused regression coverage for:
+  - gateway selector resolution and manual save actions
+  - TUI local promote/save commands
+  - CLI interactive promote/save commands
+  - DTO contract updates for shared-session memory requests
+- Verification:
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_interface_dto_contracts.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - inline `compileall` verification for the touched memory/runtime/TUI/CLI modules
+
+## 2026-04-08
+
+- Started planning for unified QQ + TUI handoff workflow.
+- Confirmed there is already QQ channel and gateway infrastructure in the repo.
+- Confirmed current QQ path already persists per-conversation `sessionId`, which is a good reuse anchor.
+- Wrote the implementation target for this feature as a backend-first shared-session slice.
+- Synced the formal P23/TASKS development plan docs.
+- Landed the backend shared-session slice:
+  - runtime metadata for `origin_surface` / `active_surface`
+  - transcript snapshots for recent messages
+  - gateway session detail / messages / takeover APIs
+  - QQ Bot `/continue`
+- Landed the TUI shared-session slice:
+  - background remote session sync
+  - remote session rendering in Threads
+  - explicit `/session takeover`
+  - remote prompts continue via gateway shared session
+- Current state: QQ -> gateway -> runtime -> TUI shared-session loop is available end-to-end.
+- Added a repo runbook for real manual verification:
+  - `docs/P23_QQ_TUI_SHARED_SESSION_RUNBOOK.md`
+  - includes exact gateway, QQ bot, TUI startup commands and handoff checks
+- Upgraded shared-session transcript + remote TUI rendering:
+  - runtime now records intermediate activity blocks in shared transcript
+  - gateway stream now emits remote activity events for main-agent runs
+  - TUI remote sessions now show `thinking` / tool / shell activity instead of only final replies
+- Added runtime stack one-command startup:
+  - `mini-agent stack up/status/logs/down`
+  - backgrounds gateway + optional QQ bot, then attaches TUI in the current terminal
+  - added Windows shortcut script: `scripts/start_runtime_stack.ps1`
+- Added shared-session numeric selection:
+  - TUI supports `/session <n>` to jump to the nth session
+  - QQ bot supports `/session` to list shared sessions and `/session <n>` to bind the current QQ conversation to one
+
+## 2026-04-09
+
+- Started the next shared-session refinement pass:
+  - split TUI local-private sessions from gateway shared sessions explicitly
+  - add gateway persistence so shared sessions survive restart
+- Re-audited the current code paths before implementation:
+  - `src/mini_agent/tui/app.py`
+  - `src/mini_agent/runtime/main_agent_runtime_manager.py`
+  - `src/mini_agent/application/main_agent_gateway_use_cases.py`
+  - `src/mini_agent/session/persistence.py`
+- Confirmed the current gap:
+  - local TUI sessions are already persisted
+  - gateway shared sessions are not
+  - no API yet exists to promote a local session into a shared gateway session
+- Landed the local/private vs shared/gateway refinement:
+  - gateway shared sessions now persist metadata + transcript
+  - runtime can list persisted shared sessions after restart and lazily restore them on demand
+  - gateway now exposes `POST /api/v1/agent/sessions/import`
+  - TUI now supports `/session share` to promote a local thread into a gateway-managed shared session
+- Added reverse flow for TUI-owned shared threads:
+  - gateway now exposes `GET /api/v1/agent/sessions/{session_id}/snapshot`
+  - TUI now supports `/session unshare`
+  - unshare restores the thread back into local TUI state and removes the gateway copy
+- Tightened shared-session visibility in TUI:
+  - Threads now shows `share | ...` state for every session
+  - status panel now mirrors the same share/unshare eligibility label
+  - covers `local only` / `can unshare` / `takeover to unshare` / `locked by origin`
+- Refined Threads into a denser sidebar summary:
+  - combined count/task/time into compact `meta` rows
+  - folded remote surface flow into compact `share` rows like `locked qq->tui`
+  - removed verbose `via` / `peer` rows from Threads while keeping full remote detail in `Status`
+- Improved TUI sidebar readability again:
+  - Threads title tags now use distinct semantic styling for `remote` / provider / `live` / `focus`
+  - Status now includes `thread` + `scope` in Summary
+  - Remote status now uses compact `peer` + `route` summaries instead of repeated `surface/reply/model` rows
+- Aligned the Models sidebar with follow-style navigation:
+  - Providers now use a centered window around the focused provider instead of always rendering the full list
+  - model candidates continue to use the same windowing helper, so provider/model follow behavior stays consistent
+  - far providers and far model candidates collapse into `...` markers around the focused slice
+- Fixed the remaining Models follow bug:
+  - models panel now tracks the selected model line with document cursor + viewport scroll
+  - selecting a model beyond the visible area keeps the active model in view instead of leaving the panel pinned at the top
+- Refined Models follow behavior to match the fixed-header layout:
+  - `focus/count/active/filter` and `Providers` / `Models(...)` headers now stay fixed in place
+  - only the provider/model option windows move around the current selection
+  - removed whole-panel scrolling from Models in favor of local window updates under each section
+- Added shorter runtime entry commands:
+  - `uv run mini` now maps to the main `mini-agent` CLI entry
+  - `uv run mini qq` now shortcuts to gateway + qqbot + TUI startup via the existing runtime stack path
+  - `uv run mini qq status|down|logs` now shortcut to the matching QQ runtime stack actions
+- Fixed the single-line `Down` scroll regression in TUI chat history:
+  - history-mode line scroll now trusts session scroll state first
+  - live-mode scroll only snaps to bottom when the session state is already aligned with the live viewport
+  - prevents `Down` from getting stuck because of stale viewport state while preserving normal live-mode behavior
+- Updated QQ shared-session list labels so shared TUI titles can show up when available.
+- Added verification coverage:
+  - `pytest tests/test_main_agent_gateway_use_cases.py -q`
+  - `pytest tests/test_tui_app.py -q`
+  - `pytest tests/test_agent_studio_gateway_api_v1.py -q`
+  - `python -m compileall ...` for touched Python modules
+  - `npm run check` in `src/apps/qqbot_channel`
+- Re-audited the `mini-agent core` runtime path and confirmed the next blocking gap:
+  - approval events existed, but real tool execution still bypassed them
+  - CLI/TUI submission helpers waited on `join()` and would hang once approval became real
+- Landed the first `agent-core` repair slice:
+  - `Agent` now builds declarative tool invocations on the real execution path
+  - tool calls now run through a real `ApprovalEngine` before execution
+  - approval requests now pause execution and wait for a real allow/deny decision
+  - approval denial returns a tool error to the model instead of silently executing
+- Upgraded the submission loop from passive event logging to active approval coordination:
+  - pending approvals are tracked in-loop
+  - `submit_exec_approval()` now resolves waiting execution immediately
+  - interrupt now also releases approval waits so turns do not deadlock
+  - added streamed loop events for `loop.approval.requested` / `loop.approval.resolved`
+- Wired runtime profile policy into the real kernel path:
+  - kernel now constructs a runtime approval engine
+  - `full-auto` maps to allow-all
+  - `auto-edit` allows normal write/edit flows but still gates higher-risk actions
+- Made local surfaces usable with the new approval path:
+  - CLI interactive now prompts for approval when a tool call needs confirmation
+  - headless mode auto-denies approval-gated calls instead of hanging forever
+  - TUI now tracks pending approvals, shows approval state in status/activity, and supports `/approve [token]` and `/deny [token]`
+- Added verification coverage for the new approval chain:
+  - `pytest tests/test_agent_execution_policy.py tests/test_code_agent_loop.py tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_agent_core_kernel.py -q`
+  - `pytest tests/test_code_agent_permissions.py tests/test_security_policy.py -q`
+- Landed the next `agent-core` hardening slice:
+  - `BashTool` now applies real `SandboxManager.transform()` output before execution
+  - transformed command / cwd / env are now carried into foreground and background shell subprocesses
+  - workspace tooling now injects a real sandbox manager into the runtime `bash` tool
+- Wired explicit context mutation into the real submission loop:
+  - `Agent.compact_context()` now uses `LayeredContextCompactor` against live `agent.messages`
+  - `Agent.drop_memories()` now prunes older turns and keeps only the freshest turn context before compacting
+  - `AgentSubmissionLoop` now executes `compact` / `drop_memories` requests instead of only publishing placeholder events
+  - compact/drop failures are reported as loop events instead of crashing the worker
+- Added verification coverage for the sandbox + compaction slice:
+  - `pytest tests/test_bash_tool.py tests/test_security_policy.py tests/test_code_agent_loop.py tests/test_agent_core_kernel.py -q`
+  - `pytest tests/test_agent_execution_policy.py tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_code_agent_context_compaction.py tests/test_code_agent_sandbox.py tests/test_code_agent_loop.py tests/test_agent_core_kernel.py tests/test_bash_tool.py tests/test_security_policy.py -q`
+  - `python -m compileall src/mini_agent/agent.py src/mini_agent/tools/bash_tool.py src/mini_agent/runtime/tooling.py src/mini_agent/code_agent/agent_loop.py src/mini_agent/agent_core/kernel.py`
+- Exposed the new core context controls to user-facing surfaces:
+  - CLI interactive now supports `/compact [reason]` and `/drop_memories [reason]`
+  - TUI command palette now supports `compact` / `drop_memories` and `drop-memories`
+  - both surfaces wait on real loop events instead of calling separate side paths
+  - command feedback now shows message/token deltas and compaction stats
+- Extended the same context controls into shared-session surfaces:
+  - gateway now exposes `POST /api/v1/agent/sessions/{session_id}/control`
+  - remote TUI shared sessions now route `compact` / `drop_memories` through gateway instead of rejecting them
+  - QQ bot now supports `/compact [reason]` and `/drop_memories [reason]`
+  - shared-session control writes a command block into the shared transcript without implicitly changing session ownership
+- Added verification coverage for the new TUI/CLI context-control commands:
+  - `pytest tests/test_cli_submission_loop.py tests/test_tui_app.py -q`
+  - `pytest tests/test_code_agent_loop.py tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_bash_tool.py tests/test_security_policy.py tests/test_agent_core_kernel.py -q`
+  - `python -m compileall src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py src/mini_agent/code_agent/agent_loop.py src/mini_agent/code_agent/__init__.py`
+- Added verification coverage for the shared-session control slice:
+  - `pytest tests/test_interface_dto_contracts.py tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py tests/test_tui_app.py -q`
+  - `python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/application/main_agent_gateway_use_cases.py src/apps/agent_studio_gateway/main.py src/mini_agent/tui/gateway_client.py src/mini_agent/tui/app.py`
+  - `npm run check` in `src/apps/qqbot_channel`
+- Hardened terminal real-use gate semantics:
+  - `scripts/terminal_readiness_gate.py` now runs `headless_live_smoke` before targeted/full regression and runtime baseline when `--run-live-headless` is enabled
+  - added `--skip-baseline` for quick real-use validation
+  - added `--baseline-runs` override and reduced the live-mode default baseline load to `20` runs
+- Added verification coverage for the readiness-gate hardening:
+  - `pytest tests/test_terminal_readiness_gate.py -q`
+  - `python scripts/terminal_readiness_gate.py --run-live-headless`
+  - `python -m compileall scripts/terminal_readiness_gate.py`
+- Completed the next `agent-core` readiness-observability slice:
+  - headless JSON output now includes both `prepared_context` and `prepared_context_diagnostics`
+  - `terminal_readiness_gate.py` now captures/parses live headless JSON instead of only exit codes
+  - live gate reports now include a dedicated `Live Headless Context` section with contract status, diagnostics summary, last prepared-context summary, and provider/source coverage
+  - live headless smoke now fails the readiness gate when `prepared_context_diagnostics` are missing, preventing false-green real-use reports
+- Added verification coverage for the readiness-observability slice:
+  - `pytest tests/test_cli_unified_mode.py tests/test_cli_submission_loop.py tests/test_code_agent_loop.py tests/test_terminal_readiness_gate.py -q`
+  - `python -m compileall src/mini_agent/cli.py scripts/terminal_readiness_gate.py tests/test_cli_submission_loop.py tests/test_terminal_readiness_gate.py`
+- Completed the next `agent-core` scripted real-use readiness slice:
+  - `scripts/tui_manual_checklist.py` now covers `/context include|exclude|budget|show|stats|reset`
+  - `scripts/tui_interaction_walkthrough.py` now drives the same `/context ...` operator flow through the live prompt-toolkit input path
+  - walkthrough fake agents were updated to the current runtime `run_turn(..., turn_context=...)` contract so the scripts stop silently drifting from the real agent loop
+  - `terminal_readiness_gate.py` now runs `tui_manual_checklist` and `tui_interaction_walkthrough` by default before targeted regression, with explicit skip flags when needed
+  - targeted readiness tests now also include `tests/test_terminal_readiness_gate.py` and `tests/test_tui_readiness_walkthroughs.py`
+- Added verification coverage for the scripted real-use readiness slice:
+  - `pytest tests/test_tui_readiness_walkthroughs.py tests/test_terminal_readiness_gate.py -q`
+  - `python scripts/tui_manual_checklist.py`
+  - `python scripts/tui_interaction_walkthrough.py`
+  - `python scripts/terminal_readiness_gate.py --run-live-headless --skip-full-tests --skip-baseline`
+  - `python -m pytest tests/test_agent_core_kernel.py tests/test_code_agent_minimal_workflow.py tests/test_cli_unified_mode.py tests/test_cli_submission_loop.py tests/test_terminal_readiness_gate.py tests/test_tui_readiness_walkthroughs.py tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py -q`
+- Completed the next `agent-core` shared-session readiness slice:
+  - added `scripts/shared_session_gateway_walkthrough.py` to validate gateway-managed shared sessions without requiring a live QQ login
+  - scripted shared-session walkthrough now covers qq-origin metadata, remote activity transcript visibility, TUI takeover, shared context controls, remote cancel, TUI import/export roundtrip, and restart persistence
+  - shared-session walkthrough fake agents were aligned with the current `run_turn(..., turn_context=...)` runtime contract
+  - `terminal_readiness_gate.py` now runs `shared_session_gateway_walkthrough` by default, with `--skip-shared-session-walkthrough` available for faster local runs
+  - targeted readiness tests now include `tests/test_shared_session_gateway_walkthrough.py`
+- Added verification coverage for the shared-session readiness slice:
+  - `pytest tests/test_shared_session_gateway_walkthrough.py tests/test_terminal_readiness_gate.py -q`
+  - `python scripts/shared_session_gateway_walkthrough.py`
+  - `python -m pytest tests/test_agent_core_kernel.py tests/test_code_agent_minimal_workflow.py tests/test_cli_unified_mode.py tests/test_cli_submission_loop.py tests/test_shared_session_gateway_walkthrough.py tests/test_terminal_readiness_gate.py tests/test_tui_readiness_walkthroughs.py tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py -q`
+  - `python scripts/terminal_readiness_gate.py --run-live-headless --skip-full-tests --skip-baseline`
+- Completed the next `agent-core` channel-ingress readiness slice:
+  - added `scripts/channel_ingress_gateway_walkthrough.py` to exercise the real `ChannelIngressUseCases -> MainAgentGatewayUseCases -> MainAgentRuntimeManager` chain without a live QQ login
+  - scripted ingress walkthrough now covers channel-created session reuse, metadata persistence, `/continue`-style recent transcript visibility, activity transcript retention, and TUI takeover on the same shared session
+  - `terminal_readiness_gate.py` now runs `channel_ingress_gateway_walkthrough` by default, with `--skip-channel-ingress-walkthrough` available for faster local runs
+  - targeted readiness tests now include `tests/test_channel_ingress_gateway_walkthrough.py`
+- Added verification coverage for the channel-ingress readiness slice:
+  - `pytest tests/test_channel_ingress_gateway_walkthrough.py tests/test_terminal_readiness_gate.py tests/test_shared_session_gateway_walkthrough.py tests/test_tui_readiness_walkthroughs.py -q`
+  - `python scripts/channel_ingress_gateway_walkthrough.py`
+  - `python scripts/terminal_readiness_gate.py --skip-full-tests --skip-baseline`
+- Completed the next `agent-core` remote-recovery slice:
+  - shared-session summaries/details now expose a compact `recovery` snapshot with `state`, `summary`, `last_activity`, `last_user_message`, and `last_assistant_message`
+  - persisted shared sessions that were interrupted before restart now surface as `interrupted after restart: ...` instead of silently appearing idle with no clue where they stopped
+  - TUI remote sessions now render that recovery state in Threads/Status, so interrupted gateway sessions are visible before takeover
+  - QQ bot `/status` and `/continue` now consume the shared-session recovery snapshot instead of dumping only raw recent messages
+  - `scripts/shared_session_gateway_walkthrough.py` now covers restart-time interrupted recovery snapshots in addition to normal restart persistence
+- Added verification coverage for the remote-recovery slice:
+  - `pytest tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py tests/test_shared_session_gateway_walkthrough.py tests/test_interface_dto_contracts.py -q`
+  - `python scripts/shared_session_gateway_walkthrough.py`
+  - `python scripts/terminal_readiness_gate.py --skip-full-tests --skip-baseline`
+  - `node --check src/apps/qqbot_channel/bot.mjs`
+- Verified the real provider path directly:
+  - `uv run mini-agent --mode headless --prompt "Reply with exactly: READY" --output-format json --workspace ...`
+  - returned `{"ok": true, "output": "READY", ...}`
+- Landed the next shared-session cancel slice:
+  - runtime sessions now own a real per-session `cancel_event`
+  - gateway now exposes `POST /api/v1/agent/sessions/{session_id}/cancel`
+  - `MainAgentGatewayUseCases` now passes the session cancel event into `agent.run_turn(...)`
+  - remote TUI `/cancel` now routes through gateway instead of only touching local state
+  - QQ bot now supports `/cancel` for bound shared sessions
+- Added verification coverage for shared-session cancel:
+
+## 2026-04-10
+
+- Completed the P26 consolidated-memory refresh/promotion slice:
+  - consolidation now scopes its scheduler/artifact state per workspace anchor instead of sharing one cross-workspace state bucket
+  - scheduler phase-1 scans now filter sessions by stable workspace anchor before extracting memory
+  - `MemoryService` now exposes `consolidated_refresh_status()` and `refresh_consolidated_memory()`
+  - consolidated-memory turn-context retrieval now auto-refreshes when workspace session history is newer than the consolidated section
+- Added a reusable durable-memory promotion policy:
+  - raw tool payloads are rejected from consolidated-memory promotion
+  - raw KB-style payloads with citations/source metadata are rejected from consolidated-memory promotion
+  - distilled assistant conclusions still remain promotable
+- Added regression coverage for the new memory boundary rules:
+  - workspace A / workspace B consolidation no longer bleed into each other
+  - missing consolidated section now refreshes from same-workspace session history
+  - fresh consolidated memory correctly no-ops
+  - raw `knowledge_base_query` payloads are not copied into `MEMORY.md`
+- Verification:
+  - `uv run pytest tests/test_memory_consolidation.py tests/test_memory_service.py tests/test_agent_turn_context.py -q`
+  - `uv run pytest tests/test_memory_relevance.py tests/test_memory_automation.py tests/test_agent_core_kernel.py tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - `uv run pytest tests/test_session_search.py tests/test_memory_relevance.py tests/test_session_store_persistence.py -q`
+  - `uv run python -m compileall src/mini_agent/memory/consolidation.py src/mini_agent/memory/consolidation_scheduler.py src/mini_agent/memory/consolidation_phase1.py src/mini_agent/memory/promotion.py src/mini_agent/memory/service.py src/mini_agent/turn_context.py src/mini_agent/runtime/tooling.py src/mini_agent/session/persistence.py`
+- Completed the P26 persisted runtime task-memory slice:
+  - `MemoriaEngine` now has a persisted workspace runtime wrapper instead of remaining process-local only
+  - runtime task memory is stored per workspace anchor under `~/.mini-agent/state/workspaces/<hash>/memoria/...`
+  - namespaces are isolated as `session:<session_id>` and `workspace:shared`
+  - successful turns now write a compact runtime task summary through `TurnRuntimeTaskMemory`
+  - prepared context now includes `runtime_task_memory` retrieval through the same turn-context seam
+  - explicit promotion hooks now exist from runtime task memory into workspace durable notes and global profile memory
+- Added regression coverage for the new runtime task-memory path:
+  - persistence across restart
+  - session namespace isolation
+  - runtime-task-memory turn-context retrieval
+  - per-turn writeback
+  - promotion into workspace durable notes and global profile memory
+- Verification:
+  - `uv run pytest tests/test_memoria_runtime.py tests/test_memory_core_baseline.py tests/test_agent_turn_context.py tests/test_agent_core_kernel.py -q`
+  - `uv run pytest tests/test_memory_service.py tests/test_memory_consolidation.py tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - `pytest tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - `pytest tests/test_tui_app.py -q`
+- Completed the P26 operator-facing memory diagnostics/control slice:
+  - runtime/gateway session summaries/details/snapshots now include shared `memory_diagnostics`
+  - gateway now exposes `POST /api/v1/agent/sessions/{session_id}/memory`
+  - TUI now shows compact memory summary in `Status` and supports `/memory status|show|runtime|refresh|promote ...`
+  - CLI interactive now supports the same local `/memory` inspection/control commands
+- Added focused regression coverage for the new memory operator seam:
+  - shared-session runtime memory inspection and promotion
+  - API v1 memory endpoint contract
+  - TUI local and remote `/memory` commands
+  - CLI `/memory show`
+- Verification:
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py tests/test_tui_app.py tests/test_cli_submission_loop.py -q`
+  - `uv run pytest tests/test_memoria_runtime.py tests/test_memory_service.py tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_interface_dto_contracts.py -q`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/application/main_agent_gateway_use_cases.py src/apps/agent_studio_gateway/main.py src/mini_agent/tui/gateway_client.py src/mini_agent/tui/app.py src/mini_agent/cli_interactive.py`
+  - `node --check src/apps/qqbot_channel/bot.mjs`
+- Completed the next `agent-core` recovery/tool-state slice:
+  - `AgentSubmissionLoop` now emits structured `loop.activity` updates during planning, tool start/result, and approval transitions
+  - `loop.turn.completed` now carries `activity_items`, `running_state`, `last_activity_summary`, `last_tool_activity`, and `last_tool_activity_summary`
+  - CLI submission paths now stream the same activity payload live instead of waiting for only the final reply
+  - TUI session persistence now keeps interrupted-turn recovery context including running state and pending approval snapshots
+- Aligned the CLI regression suite with the new activity-summary contract:
+  - concise tool previews remain human-readable for single-key text-like arguments
+  - `running_state` remains the overall latest turn state, including `preparing final response`
+  - tool-specific observability is preserved separately through `last_tool_activity_summary`
+- Added verification coverage for the tool-state/recovery slice:
+  - `pytest tests/test_cli_submission_loop.py -q`
+  - `pytest tests/test_code_agent_loop.py tests/test_cli_submission_loop.py tests/test_tui_app.py -q`
+- Completed the next `agent-core` integration-seam slice for future RAG/memory/MCP work:
+  - added a unified turn-context provider surface for ephemeral per-turn context injection
+  - `Agent` now prepares and removes temporary runtime context without polluting persistent conversation history
+  - `AgentSubmissionLoop` completed payloads now include `prepared_context`
+  - gateway direct-turn execution now passes the same turn context shape as the local scheduler path
+  - kernel wiring now has a first concrete provider: workspace memory retrieval via note/memory files
+- Added focused verification coverage for the turn-context slice:
+  - `pytest tests/test_agent_turn_context.py tests/test_agent_execution_policy.py tests/test_code_agent_loop.py tests/test_cli_submission_loop.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_core_kernel.py -q`
+  - `python -m compileall src/mini_agent/agent.py src/mini_agent/turn_context.py src/mini_agent/runtime/tooling.py src/mini_agent/agent_core/kernel.py src/mini_agent/code_agent/scheduler.py src/mini_agent/code_agent/agent_loop.py src/mini_agent/application/main_agent_gateway_use_cases.py`
+- Completed the next `agent-core` knowledge-base provider slice on top of the same turn-context seam:
+  - added `KnowledgeBaseTurnContextProvider` to reuse the existing `HybridSearchStore` and `rewrite_query(...)` path instead of building a parallel retriever
+  - runtime turn-context wiring now includes both workspace memory and knowledge-base retrieval providers
+  - knowledge-base turn context supports metadata-driven `knowledge_base_id`, follow-up query rewrite from recent conversation lines, and router-compatible store path fallback
+  - provider remains safely no-op when no knowledge-base store exists, so the seam can stay always attached without breaking local runtimes
+- Added focused verification coverage for the knowledge-base turn-context slice:
+  - `pytest tests/test_agent_turn_context.py -q`
+  - `pytest tests/test_code_agent_loop.py tests/test_agent_execution_policy.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_core_kernel.py tests/test_cli_submission_loop.py -q`
+  - `python -m compileall src/mini_agent/turn_context.py src/mini_agent/runtime/tooling.py src/mini_agent/agent_core/__init__.py tests/test_agent_turn_context.py`
+- Completed the next `agent-core` operator-facing prepared-context slice:
+  - added shared prepared-context display helpers on top of the existing turn-context summary payload
+  - CLI now prints compact prepared-context summaries and item previews from `loop.turn.completed`
+  - TUI now stores the latest prepared-context summary per session, surfaces it in `Status`, and writes a collapsed internal `/context` operator block into the chat transcript
+  - prepared-context transcript entries stay hidden from `Threads`, so operator visibility improved without polluting thread previews
+  - TUI session persistence now keeps the latest prepared-context summary across restart
+- Added focused verification coverage for the operator-facing prepared-context slice:
+  - `pytest tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_agent_turn_context.py tests/test_code_agent_loop.py -q`
+  - `python -m compileall src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py src/mini_agent/turn_context.py tests/test_cli_submission_loop.py tests/test_tui_app.py`
+- Completed the next `agent-core` additional-provider slice on top of the same turn-context seam:
+  - added `ConsolidatedMemoryTurnContextProvider` by reusing `ConsolidatedMemoryRelevanceRetriever` instead of building a second memory-retrieval path
+  - added `SkillCatalogTurnContextProvider` by reusing `AgentSkillLoader` and surfacing lightweight relevant-skill hints per turn
+  - added `MCPToolCatalogTurnContextProvider` by reusing active registered MCP connections and exposed tool metadata instead of inventing a second MCP catalog
+  - runtime turn-context wiring now includes workspace memory, consolidated memory, knowledge-base retrieval, skill hints, and MCP capability hints behind the same `prepared_context` summary path
+  - unified builtin-skills directory resolution so shared tools and turn-context skills discovery cannot silently drift onto different skill roots
+- Added focused verification coverage for the additional-provider slice:
+  - `pytest tests/test_agent_turn_context.py -q`
+  - `pytest tests/test_code_agent_loop.py tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_agent_core_kernel.py -q`
+  - `pytest tests/test_agent_core_skills.py tests/test_mcp_policy.py -q`
+  - `python -m compileall src/mini_agent/turn_context.py src/mini_agent/runtime/tooling.py src/mini_agent/agent_core/__init__.py tests/test_agent_turn_context.py`
+- Completed the next `agent-core` provider-quality slice:
+  - added centralized prepared-context curation before prompt injection
+  - cross-provider duplicates now collapse to the higher-priority source instead of blindly stacking the same context twice
+  - prepared-context now enforces a shared item budget and total-character budget so multi-provider turns stay lightweight
+  - curation statistics (`raw_item_count`, duplicate drops, budget drops) now ride on the existing `prepared_context` summary payload instead of creating a second reporting path
+  - operator-facing summary/detail rendering now reports when context was curated or trimmed
+- Added focused verification coverage for the provider-quality slice:
+  - `pytest tests/test_agent_turn_context.py tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_code_agent_loop.py -q`
+  - `pytest tests/test_agent_core_kernel.py tests/test_agent_execution_policy.py tests/test_agent_core_skills.py tests/test_mcp_policy.py -q`
+  - `python -m compileall src/mini_agent/turn_context.py src/mini_agent/agent.py tests/test_agent_turn_context.py`
+- Completed the next `agent-core` provider-readiness and operator-policy slice:
+  - providers can now expose readiness state before turn preparation instead of silently no-oping
+  - prepared-context summaries now carry provider statuses such as `used / no_match / filtered / unavailable / failed`
+  - turn metadata now supports `prepared_context_policy` for include/exclude source filtering and budget overrides
+  - TUI now persists per-session context policy and exposes `/context show|include|exclude|budget|reset`
+  - CLI interactive mode now exposes the same `/context ...` policy controls and applies them to subsequent turns/workflows
+  - TUI status panel now shows the active context-policy summary alongside the last prepared-context summary
+- Added focused verification coverage for the provider-readiness/operator-policy slice:
+  - `pytest tests/test_agent_turn_context.py tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_code_agent_loop.py -q`
+  - `pytest tests/test_agent_core_kernel.py tests/test_agent_execution_policy.py tests/test_agent_core_skills.py tests/test_mcp_policy.py -q`
+  - `python -m compileall src/mini_agent/turn_context.py src/mini_agent/agent.py src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py tests/test_agent_turn_context.py tests/test_cli_submission_loop.py tests/test_tui_app.py`
+- Completed the next `agent-core` provider-tuning and runtime-diagnostics slice:
+  - prepared-context curation now uses both source weight and provider-local relevance metadata instead of relying on fixed source priority alone
+  - CLI/TUI prepared-context detail rendering now explains why an item won with `item-relevance`, `provider-weight`, `priority`, and `final-selection`
+  - CLI and TUI now support `/context show brief|full` so operators can choose compact or fully explained prepared-context detail
+  - agent runtime now accumulates cross-turn prepared-context diagnostics (`turn_count`, source usage, provider-status totals, dropped/curated counts) on the same core seam instead of inventing a second stats subsystem
+  - `loop.turn.completed` now carries `prepared_context_diagnostics` beside the existing `prepared_context` payload
+  - CLI and TUI now expose `/context stats`, and TUI persists diagnostics per session across restart
+  - lifecycle/reset paths now clear prepared-context diagnostics along with transient prepared-context state so fresh sessions do not inherit stale operator stats
+- Added focused verification coverage for the provider-tuning/runtime-diagnostics slice:
+  - `pytest tests/test_agent_turn_context.py tests/test_code_agent_loop.py tests/test_cli_submission_loop.py tests/test_tui_app.py -q`
+  - `pytest tests/test_agent_core_kernel.py tests/test_agent_execution_policy.py tests/test_agent_core_skills.py tests/test_mcp_policy.py -q`
+  - `pytest tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - `python -m compileall src/mini_agent/turn_context.py src/mini_agent/agent.py src/mini_agent/code_agent/agent_loop.py src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py tests/test_agent_turn_context.py tests/test_code_agent_loop.py tests/test_cli_submission_loop.py tests/test_tui_app.py`
+- Completed the next `agent-core` remote-operator control slice on top of the existing shared-session runtime:
+  - gateway-managed shared sessions now attach a real `tool_approval_handler` instead of bypassing live approval waits
+  - shared-session summaries/details now expose live `pending_approvals`, and recovery snapshots preserve interrupted approvals after restart
+  - gateway now exposes `POST /api/v1/agent/sessions/{session_id}/approval` for remote approve/deny control
+  - TUI remote sessions now support `/approve [token]` and `/deny [token]` through the gateway path, including live pending-token visibility during streamed remote turns
+  - QQ bot now supports `/approve [token]` and `/deny [token]`, and `/status` / `/continue` surface live-or-lost approval state
+  - remote `/cancel` now also resolves pending approval waiters so approval-time turns do not hang forever
+- Added focused verification coverage for the remote-approval slice:
+  - `pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py -q`
+  - `pytest tests/test_shared_session_gateway_walkthrough.py -q`
+  - `python scripts/shared_session_gateway_walkthrough.py`
+  - `python scripts/terminal_readiness_gate.py --skip-full-tests --skip-baseline`
+  - `node --check src/apps/qqbot_channel/bot.mjs`
+- Completed the next `agent-core` post-restart shared-session continuation slice:
+  - interrupted shared sessions now keep structured recovery context on runtime session state instead of only exposing a passive summary
+  - recovery snapshots survive restart and TUI takeover until the next real continuation turn consumes them
+  - the next post-restart turn now receives one-shot recovery metadata through `turn_context.metadata["recovery"]`
+  - runtime turn-context wiring now includes `RuntimeRecoveryTurnContextProvider`, so restart/lost-approval hints are visible to the model without polluting persistent transcript history
+  - TUI `/approve` on lost-after-restart approvals and QQ `/status` + `/continue` now guide the operator to continue with a new message
+- Added focused verification coverage for the post-restart continuation slice:
+  - `pytest tests/test_agent_turn_context.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_shared_session_gateway_walkthrough.py -q`
+  - `pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_agent_turn_context.py tests/test_shared_session_gateway_walkthrough.py -q`
+  - `python scripts/shared_session_gateway_walkthrough.py`
+  - `python scripts/terminal_readiness_gate.py --skip-full-tests --skip-baseline`
+  - `node --check src/apps/qqbot_channel/bot.mjs`
+- Completed the next `agent-core` shared-session remote-context parity slice:
+  - shared runtime sessions now persist `context_policy`, `last_prepared_context`, and `prepared_context_diagnostics`
+  - gateway session detail/export/import now carries the same prepared-context state, so share/unshare and restart no longer drop it
+  - remote TUI `/context ...` now writes through the gateway for shared sessions instead of mutating only local UI state
+  - QQ bot now supports `/context show|stats|include|exclude|budget|reset` for bound shared sessions
+  - main-agent gateway runtime now reapplies shared-session context policy on future turns through `turn_context.metadata["prepared_context_policy"]`
+- Added focused verification coverage for the shared-session remote-context parity slice:
+  - `pytest tests/test_interface_dto_contracts.py tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py tests/test_tui_app.py -q`
+  - `pytest tests/test_shared_session_gateway_walkthrough.py tests/test_terminal_readiness_gate.py tests/test_tui_readiness_walkthroughs.py -q`
+  - `python scripts/terminal_readiness_gate.py --skip-full-tests --skip-baseline`
+  - `node --check src/apps/qqbot_channel/bot.mjs`
+- Completed the next `agent-core` shared-session remote-model parity slice:
+  - shared runtime sessions now persist `selected_model_*` and `pending_model_*`
+  - gateway-managed shared sessions now rebuild the session agent with exact provider/model pinning
+  - queued model switches now apply automatically before the next shared-session turn starts
+  - gateway now exposes `GET /api/v1/agent/models` and `POST /api/v1/agent/sessions/{session_id}/model`
+  - remote TUI shared sessions now show the real selected/queued model instead of `gateway-managed`
+  - QQ bot now supports `/model show|list|use` for bound shared sessions
+- Added focused verification coverage for the shared-session remote-model parity slice:
+  - `uv run pytest tests/test_interface_dto_contracts.py tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py tests/test_tui_app.py tests/test_shared_session_gateway_walkthrough.py tests/test_tui_readiness_walkthroughs.py -q`
+  - `uv run python scripts/shared_session_gateway_walkthrough.py`
+  - `uv run python scripts/terminal_readiness_gate.py --skip-full-tests --skip-baseline`
+  - `node --check src/apps/qqbot_channel/bot.mjs`
+- Deferred one remaining live-environment check for later:
+  - real QQ + gateway + TUI manual smoke on `/model show|list|use` parity
+  - keep the scripted readiness path as the current acceptance baseline until that live bot-session check is run
+- Completed the next `agent-core` TUI telemetry slice:
+  - shared-session summary/detail/snapshot/import contracts now carry `token_usage` and `token_limit`
+  - gateway runtime now persists token telemetry for shared sessions and restores it after restart/import/export
+  - TUI local and remote sessions now compute one unified token/context usage view instead of separate ad-hoc counters
+  - header now shows compact context usage telemetry, and status now shows token count plus a context-window usage bar
+  - local TUI state/share-unshare flows now preserve token telemetry across persistence and gateway handoff
+- Added focused verification coverage for the TUI telemetry slice:
+  - `uv run pytest tests/test_interface_dto_contracts.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py -q`
+- Started and completed the P25.9 `MemoriaEngine` role-evaluation slice:
+  - audited `mini_agent/memory/memoria_engine.py`, `engram.py`, baseline tests, and historical transformation docs
+  - compared `MemoriaEngine` against the now-live memory stack built around `MemoryService`, turn-context providers, note/profile tools, session search, and consolidated retrieval
+  - concluded that `MemoriaEngine` should remain a lower-level primitive for now rather than being force-mounted as a second runtime memory subsystem
+  - prepared project docs so this decision is explicit and future promotion has concrete admission criteria
+- Completed a design-only architecture pass for the next memory stage:
+  - re-evaluated Mini-Agent memory around the user's target of `global memory + workspace MemoriaEngine + RAG`
+  - checked local reference projects to extract two relevant principles:
+    - Hermes: persistent memory and session search should stay distinct
+    - extracted-src/Claude: session/project identity should stay anchored to a stable workspace root
+  - produced a corrected architecture report:
+    - global durable memory
+    - workspace durable memory
+    - workspace runtime task memory (`MemoriaEngine`)
+    - RAG/KB as a separate grounding layer
+  - explicitly documented that workspace `MemoriaEngine` must be session-namespaced and must not become a second durable truth store
+- Converted the P26 architecture report into an executable implementation plan:
+  - added `docs/P26_MEMORY_RUNTIME_TASK_PLAN.md`
+  - rewrote root `task_plan.md` to track the active P26 phases instead of the older agent-core slice
+- Landed the first P26 implementation slice around the most important memory boundary correction:
+  - added `mini_agent.memory.paths.resolve_global_memory_dir(...)`
+  - `MemoryService` now treats profile memory as true global durable memory
+  - explicit workspace-profile access remains available through `workspace_profile()` methods
+  - `UserModelingTool` now defaults to the global profile path
+  - runtime turn-context now includes `UserProfileTurnContextProvider`
+- Added focused regression coverage for the new global-profile path:
+  - `tests/test_memory_service.py`
+  - `tests/test_user_modeling.py`
+  - `tests/test_memory_automation.py`
+  - `tests/test_agent_turn_context.py`
+- Verified the wider runtime-facing surface after the refactor:
+  - `tests/test_agent_core_kernel.py`
+  - `tests/test_main_agent_gateway_use_cases.py`
+  - `tests/test_memory_manager_router.py`
+  - `tests/test_agent_studio_gateway_api_v1.py`
+- Landed the second P26 implementation slice around workspace/session integration:
+  - session-search indexing now stores stable `workspace_anchor_dir`
+  - same-anchor session-history filtering now works across nested paths in one workspace tree
+  - added `SessionSearchTurnContextProvider` on the shared prepared-context seam
+  - provider excludes the current session by default to avoid echoing the active transcript back into the model
+  - provider now retries with keyword-focused lookup when the full natural-language query is too strict for FTS search
+- Extended runtime wiring so gateway-managed sessions also benefit:
+  - `build_agent_kernel` now accepts `session_store_dir`
+  - Studio gateway passes `MAIN_AGENT_SESSION_STORE_DIR` into kernel bootstrap
+- Added focused regression coverage for the workspace-aware session-history slice:
+  - `tests/test_session_search.py`
+  - `tests/test_memory_service.py`
+  - `tests/test_agent_turn_context.py`
+  - `tests/test_session_store_persistence.py`
+- Re-ran the broader runtime-facing regression set after the new wiring:
+  - `tests/test_agent_core_kernel.py`
+  - `tests/test_main_agent_gateway_use_cases.py`
+  - `tests/test_agent_studio_gateway_api_v1.py`
+
+- Completed the next `workspace:shared` operator-surface slice:
+  - gateway/runtime/TUI/CLI/QQ now support `/memory shared list|show|clear`
+  - workspace-shared runtime memory is now directly inspectable/clearable instead of diagnostics-only
+  - command catalog/help/examples now document the shared-memory sub-surface explicitly
+- Verification:
+  - `uv run pytest tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py tests/test_cli_submission_loop.py tests/test_command_catalog.py -q`
+  - result: `181 passed`
+
+- Completed the first explicit memory/RAG grounding-boundary slice:
+  - KB-grounded turns now annotate runtime task memory with compact grounding metadata (`query`, `knowledge_base_id`, `hits`, `refs`)
+  - automatic durable note/daily-note writeback is now suppressed for KB-grounded turns unless the operator explicitly confirms memory
+  - KB-grounded runtime-memory promotion into workspace durable notes now auto-categorizes as `kb_confirmed`
+  - manual save/promote flows now surface KB grounding details in TUI/CLI/gateway responses
+- Verification:
+  - `uv run python -m compileall src/mini_agent/memory/knowledge_base_grounding.py src/mini_agent/memory/runtime_task_memory.py src/mini_agent/memory/operator_actions.py src/mini_agent/memory/memoria_runtime.py src/mini_agent/memory/automation.py src/mini_agent/memory/diagnostics.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/tui/app.py src/mini_agent/cli_interactive.py`
+  - `uv run pytest tests/test_memoria_runtime.py tests/test_memory_automation.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_command_catalog.py -q`
+  - `node --check src/apps/qqbot_channel/bot.mjs`
+  - result: `201 passed`
+
+- Completed the KB-grounding operator-visibility follow-up slice:
+  - runtime-memory preview rendering is now unified across gateway/TUI/CLI through one shared diagnostics formatter
+  - KB-grounded runtime-memory previews now show explicit badges and compact `kb / hits / query / refs` lines
+  - shared-entry detail rendering now reuses the same grounding formatter, so `shared show` exposes `Knowledge Base: grounded` consistently across surfaces
+  - regression coverage now locks the new operator-facing KB display in TUI, CLI, and gateway session-memory flows
+- Verification:
+  - `uv run python -m compileall src/mini_agent/memory/diagnostics.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py tests/test_cli_submission_loop.py`
+  - `uv run pytest tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py tests/test_cli_submission_loop.py tests/test_command_catalog.py tests/test_memoria_runtime.py tests/test_memory_automation.py -q`
+  - result: `201 passed`
+
+- Completed the session-runtime entry inspection follow-up slice:
+  - `memory show brief|full` still renders diagnostics, but `memory show <selector>` now opens one concrete session runtime-memory entry
+  - session runtime-memory inspection is now symmetric with `memory shared show <selector>`
+  - the new session-entry detail path is aligned across gateway, TUI, CLI, and QQ
+  - command catalog/examples now document `memory show latest`
+- Verification:
+  - `uv run python -m compileall src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py tests/test_cli_submission_loop.py tests/test_command_catalog.py`
+  - `uv run pytest tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py tests/test_cli_submission_loop.py tests/test_command_catalog.py tests/test_memoria_runtime.py tests/test_memory_automation.py -q`
+  - `node --check src/apps/qqbot_channel/bot.mjs`
+  - result: `203 passed`
+
+- Completed the durable-memory unified command-surface follow-up slice:
+  - `/memory` now covers both runtime memory and durable memory instead of only runtime/session state
+  - added `memory profile [query]` for global user-profile browsing/search
+  - added `memory notes [query]` for workspace durable-note browsing/search
+  - added `memory daily <YYYY-MM-DD>` for workspace daily-memory inspection
+  - the new durable-memory read actions are aligned across gateway, TUI, CLI, and QQ through the same session-memory API seam
+  - request contracts now carry explicit `query` and `day` fields instead of overloading `content`
+- Verification:
+  - `uv run python -m compileall src/mini_agent/memory/diagnostics.py src/mini_agent/interfaces/agent.py src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/cli_interactive.py src/mini_agent/tui/gateway_client.py src/mini_agent/tui/app.py tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py tests/test_cli_submission_loop.py tests/test_command_catalog.py`
+  - `uv run pytest tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py tests/test_cli_submission_loop.py tests/test_command_catalog.py tests/test_memoria_runtime.py tests/test_memory_automation.py tests/test_interface_dto_contracts.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - `node --check src/apps/qqbot_channel/bot.mjs`
+  - result: `230 passed`
+
+- Completed the consolidated-memory operator-surface follow-up slice:
+  - added `memory consolidated` / `memory consolidated show` for direct consolidated snapshot inspection
+  - added `memory consolidated search <query>` for ranked consolidated-memory lookup
+  - consolidated-memory rendering now uses one shared formatting seam across gateway, TUI, CLI, and QQ
+  - `/memory refresh` remains the explicit consolidated refresh path; the new commands are read-only inspection/search surfaces
+- Verification:
+  - `uv run python -m compileall src/mini_agent/memory/diagnostics.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py tests/test_cli_submission_loop.py tests/test_command_catalog.py`
+  - `uv run pytest tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py tests/test_cli_submission_loop.py tests/test_command_catalog.py tests/test_memoria_runtime.py tests/test_memory_automation.py tests/test_interface_dto_contracts.py tests/test_agent_studio_gateway_api_v1.py tests/test_memory_service.py tests/test_memory_relevance.py -q`
+  - `node --check src/apps/qqbot_channel/bot.mjs`
+  - result: `242 passed`
+
+- Completed the cross-layer memory overview/export follow-up slice:
+  - added `memory overview` for one operator-facing summary across runtime task memory, durable memory, and consolidated memory
+  - added `memory export [jsonl|markdown]` for explicit durable-note export from the same `/memory` seam
+  - gateway memory request contracts now carry dedicated `export_format` instead of overloading existing read/write fields
+  - overview/export rendering now uses the same shared diagnostics seam across gateway, TUI, CLI, and QQ
+- Refined `memory overview` so it is more useful for the next integration phase:
+  - added an explicit `Session Context` block
+  - overview now shows `session id`, `workspace anchor`, and the effective runtime namespaces
+  - prepared-context sources now live under that session/workspace block instead of floating separately
+- Verification:
+  - `uv run pytest tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py tests/test_cli_submission_loop.py tests/test_command_catalog.py tests/test_interface_dto_contracts.py -q`
+  - `node --check src/apps/qqbot_channel/bot.mjs`
+  - result: `203 passed`
+  - `uv run pytest tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py tests/test_cli_submission_loop.py -q`
+  - result: `190 passed`
+
+- Completed the KB call-decision / memory-quality strengthening slice:
+  - added shared low-signal filtering in `src/mini_agent/memory/quality.py`
+  - durable auto-memory writeback now skips low-signal control chatter with explicit `skipped_reason="low_signal_control_turn"`
+  - runtime task-memory writeback now applies the same low-signal filter so session task memory stays cleaner too
+  - KB tool guidance now more explicitly steers the agent toward README/spec/API/design/manual retrieval use cases
+  - system prompt guidance now more explicitly tells the agent to prefer KB first for doc-grounded requests and to form concrete KB queries
+  - added a personal real-use integration test skeleton to verify workspace/session boundaries and explicit KB-to-memory confirmation
+- Added focused regression coverage for:
+  - low-signal turns not entering durable auto-memory
+  - low-signal turns not entering runtime task memory
+  - KB tool description preserving explicit doc-grounding guidance
+  - real-use memory flow preserving workspace/session boundaries while requiring explicit KB confirmation
+- Verification:
+  - `uv run python -m compileall src/mini_agent/memory/quality.py src/mini_agent/memory/automation.py src/mini_agent/memory/runtime_task_memory.py src/mini_agent/tools/knowledge_base.py`
+  - `uv run pytest tests/test_memory_automation.py tests/test_memoria_runtime.py tests/test_knowledge_base_tool.py tests/test_memory_real_use_flow.py -q`
+  - result: `31 passed`
+  - `uv run pytest tests/test_memory_service.py tests/test_memoria_runtime.py tests/test_agent_turn_context.py tests/test_memory_automation.py tests/test_session_search.py tests/test_knowledge_base_tool.py tests/test_main_agent_gateway_use_cases.py tests/test_memory_real_use_flow.py -q`
+  - result: `103 passed`
+
+- Added a real-use command acceptance checklist for terminal-first daily use:
+  - new doc: `docs/P24_REAL_USE_COMMAND_ACCEPTANCE_CHECKLIST.md`
+  - covers runtime entry commands, CLI/TUI/QQ command surfaces, cross-surface handoff, and restart recovery checks
+  - explicitly anchors the checklist to the command catalog and existing readiness scripts instead of creating a parallel command spec
+- Verification:
+  - `uv run pytest tests/test_command_catalog.py -q`
+  - `uv run mini --help`
+  - `uv run mini qq status`
+  - result: command catalog green, unified entry help available, runtime stack status shortcut available

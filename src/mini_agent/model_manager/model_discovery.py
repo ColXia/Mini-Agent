@@ -33,6 +33,70 @@ class ProviderType(str, Enum):
     CUSTOM = "custom"
 
 
+def _normalize_provider_name(provider: str) -> str:
+    """Normalize external aliases to internal provider keys."""
+    return provider.lower().strip()
+
+
+_KNOWN_CONTEXT_WINDOWS: dict[ProviderType, dict[str, int]] = {
+    ProviderType.OPENAI: {
+        "gpt-5.4": 1_050_000,
+        "gpt-5.3": 400_000,
+        "gpt-5.2": 400_000,
+        "gpt-5.1": 400_000,
+        "gpt-4.1": 1_047_576,
+        "gpt-4o": 128_000,
+    },
+    ProviderType.ANTHROPIC: {
+        "claude-sonnet-4-6": 1_000_000,
+        "claude-opus-4-1": 200_000,
+        "claude-sonnet-4-5": 200_000,
+        "claude-haiku-4-0": 200_000,
+    },
+}
+
+
+def _normalize_context_window(value: Any) -> int | None:
+    try:
+        parsed = int(value)
+    except Exception:
+        return None
+    return parsed if parsed > 0 else None
+
+
+def resolve_known_context_window(
+    provider: ProviderType | str,
+    model_id: str,
+) -> int | None:
+    """Resolve a known context window when provider APIs omit it."""
+
+    normalized_model = str(model_id or "").strip().lower()
+    if not normalized_model:
+        return None
+
+    if isinstance(provider, ProviderType):
+        provider_type = provider
+    else:
+        try:
+            provider_type = ProviderType(_normalize_provider_name(str(provider)))
+        except ValueError:
+            return None
+
+    exact = _KNOWN_CONTEXT_WINDOWS.get(provider_type, {}).get(normalized_model)
+    if exact is not None:
+        return exact
+
+    if provider_type == ProviderType.OPENAI:
+        if normalized_model.startswith("gpt-4.1"):
+            return 1_047_576
+        if normalized_model.startswith("gpt-4o"):
+            return 128_000
+        if normalized_model == "gpt-5":
+            return 400_000
+
+    return None
+
+
 @dataclass
 class ModelInfo:
     """Information about a discovered model."""
@@ -198,25 +262,25 @@ class ModelDiscoveryService:
     # Fallback model lists (when API is unavailable)
     FALLBACK_MODELS = {
         ProviderType.OPENAI: [
+            "gpt-5.4",
+            "gpt-5.3",
+            "gpt-5.2",
+            "gpt-5.1",
+            "gpt-4.1",
             "gpt-4o",
-            "gpt-4o-mini",
-            "gpt-4-turbo",
-            "gpt-4",
-            "gpt-3.5-turbo",
         ],
         ProviderType.ANTHROPIC: [
-            "claude-3-5-sonnet-20241022",
-            "claude-3-5-haiku-20241022",
-            "claude-3-opus-20240229",
-            "claude-3-sonnet-20240229",
-            "claude-3-haiku-20240307",
+            "claude-sonnet-4-6",
+            "claude-opus-4-1",
+            "claude-sonnet-4-5",
+            "claude-haiku-4-0",
         ],
         ProviderType.GEMINI: [
-            "gemini-2.0-flash-exp",
+            "gemini-3.1-pro",
+            "gemini-3.1-flash",
+            "gemini-2.5-pro",
+            "gemini-2.0-flash",
             "gemini-1.5-pro",
-            "gemini-1.5-flash",
-            "gemini-1.5-pro-002",
-            "gemini-1.5-flash-002",
         ],
         ProviderType.MINIMAX: [
             "MiniMax-M2.7",
@@ -360,6 +424,10 @@ class ModelDiscoveryService:
                     owned_by=model_data.get("owned_by"),
                     is_deprecated=is_deprecated,
                     is_fine_tuned=is_fine_tuned,
+                    context_window=resolve_known_context_window(
+                        ProviderType.OPENAI,
+                        model_id,
+                    ),
                     metadata=model_data,
                 )
             )
@@ -427,6 +495,10 @@ class ModelDiscoveryService:
                         name=model_id,
                         provider=ProviderType.MINIMAX,
                         owned_by=model_data.get("owned_by"),
+                        context_window=resolve_known_context_window(
+                            ProviderType.MINIMAX,
+                            model_id,
+                        ),
                         metadata=model_data,
                     )
                 )
@@ -451,6 +523,7 @@ class ModelDiscoveryService:
                 id=model_id,
                 name=model_id,
                 provider=provider,
+                context_window=resolve_known_context_window(provider, model_id),
             )
             for model_id in model_ids
         ]
@@ -532,7 +605,7 @@ async def list_available_models(
         show_all: Show all models including deprecated/fine-tuned
     """
     try:
-        provider_type = ProviderType(provider.lower())
+        provider_type = ProviderType(_normalize_provider_name(provider))
     except ValueError:
         print(f"Unknown provider: {provider}")
         print(f"Supported providers: {', '.join([p.value for p in ProviderType])}")
@@ -586,7 +659,7 @@ async def get_latest_model_id(
         Latest base model ID or None
     """
     try:
-        provider_type = ProviderType(provider.lower())
+        provider_type = ProviderType(_normalize_provider_name(provider))
     except ValueError:
         return None
 

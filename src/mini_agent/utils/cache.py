@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import inspect
 import json
 import time
 from collections import OrderedDict
@@ -285,7 +286,7 @@ def cached(
 ) -> Callable:
     """Decorator for caching function results."""
     def decorator(func: Callable) -> Callable:
-        if asyncio.iscoroutinefunction(func):
+        if inspect.iscoroutinefunction(func):
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 key = key_func(*args, **kwargs) if key_func else cache_key(*args, **kwargs)
                 if isinstance(cache, AsyncLRUCache):

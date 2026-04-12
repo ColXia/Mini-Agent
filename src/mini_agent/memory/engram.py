@@ -26,6 +26,7 @@ class Engram:
     created_at: datetime = field(default_factory=_utc_now)
     updated_at: datetime = field(default_factory=_utc_now)
     access_count: int = 0
+    sequence: int = 0
 
     def touch(self) -> None:
         """Mark one access and refresh update timestamp."""

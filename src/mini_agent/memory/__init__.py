@@ -2,6 +2,7 @@
 
 from mini_agent.memory.engram import Engram, MemoryLayer
 from mini_agent.memory.memoria_engine import MemoriaEngine, MemoryQueryResult
+from mini_agent.memory.memoria_runtime import RuntimeTaskMemoryHit, WorkspaceMemoriaRuntime
 from mini_agent.memory.memory_files import (
     MemoryFileLayout,
     append_memory_note,
@@ -22,6 +23,8 @@ __all__ = [
     "MemoryLayer",
     "MemoriaEngine",
     "MemoryQueryResult",
+    "RuntimeTaskMemoryHit",
+    "WorkspaceMemoriaRuntime",
     "MemoryFileLayout",
     "discover_memory_layout",
     "ensure_memory_file",

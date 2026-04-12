@@ -65,7 +65,7 @@ Mini-Agent/
 │   │   │   ├── note_tool.py
 │   │   │   ├── user_modeling.py
 │   │   │   ├── docling_parse.py
-│   │   │   ├── maxkb_query.py
+│   │   │   ├── knowledge_base.py
 │   │   │   ├── web_search.py
 │   │   │   └── mcp/
 │   │   │
@@ -81,10 +81,6 @@ Mini-Agent/
 │   │   ├── session/            # 会话管理
 │   │   │   ├── persistence.py
 │   │   │   └── state.py
-│   │   │
-│   │   ├── acp/                # ACP 协议
-│   │   │   ├── __init__.py
-│   │   │   └── server.py
 │   │   │
 │   │   ├── application/        # 应用层
 │   │   │   ├── main_agent_gateway_use_cases.py

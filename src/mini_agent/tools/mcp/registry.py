@@ -16,6 +16,7 @@ from mini_agent.tools.base import Tool
 from .discovery import discover_servers
 from .executor import MCPResourceListTool, MCPResourceReadTool, MCPTool
 from .lifecycle import get_mcp_timeout_config, register_connection
+from .naming import reserve_mcp_tool_alias
 from .types import ConnectionType, MCPServerPolicy
 
 
@@ -62,7 +63,7 @@ class MCPServerConnection:
     def _get_execute_timeout(self) -> float:
         return self.execute_timeout or get_mcp_timeout_config().execute_timeout
 
-    async def connect(self) -> bool:
+    async def connect(self, *, reserved_aliases: set[str] | None = None) -> bool:
         self.last_error = None
         if self.connection_type in ("sse", "http", "streamable_http") and not self.policy.trust:
             self.last_error = "Untrusted remote MCP server (policy.trust=false)."
@@ -86,6 +87,7 @@ class MCPServerConnection:
                 tools_list = await session.list_tools()
 
             execute_timeout = self._get_execute_timeout()
+            alias_reservations = reserved_aliases if reserved_aliases is not None else set()
             for remote_tool in tools_list.tools:
                 name = remote_tool.name
                 if not self.policy.allows(name):
@@ -93,16 +95,28 @@ class MCPServerConnection:
                 parameters = remote_tool.inputSchema if hasattr(remote_tool, "inputSchema") else {}
                 self.tools.append(
                     MCPTool(
-                        name=name,
+                        server_name=self.name,
+                        remote_name=name,
                         description=remote_tool.description or "",
                         parameters=parameters,
                         session=session,
                         execute_timeout=execute_timeout,
+                        expose_name=reserve_mcp_tool_alias(
+                            self.name,
+                            name,
+                            alias_reservations,
+                        ),
                     )
                 )
 
             if self.policy.enable_resources:
-                self.tools.extend(self._resource_tools(session, execute_timeout))
+                self.tools.extend(
+                    self._resource_tools(
+                        session,
+                        execute_timeout,
+                        reserved_aliases=alias_reservations,
+                    )
+                )
 
             conn_info = self.url if self.url else self.command
             print(
@@ -117,6 +131,20 @@ class MCPServerConnection:
                 await self.exit_stack.aclose()
                 self.exit_stack = None
             return False
+        except asyncio.CancelledError:
+            self.last_error = f"Connection cancelled while connecting (timeout={connect_timeout}s)"
+            print(
+                f"[WARN] Connection to MCP server '{self.name}' was cancelled during startup; "
+                "skipping this server."
+            )
+            if self.exit_stack:
+                try:
+                    await self.exit_stack.aclose()
+                except Exception:
+                    pass
+                self.exit_stack = None
+            self.session = None
+            return False
         except Exception as exc:
             self.last_error = str(exc)
             print(f"[ERROR] Failed to connect to MCP server '{self.name}': {exc}")
@@ -125,13 +153,36 @@ class MCPServerConnection:
                 self.exit_stack = None
             return False
 
-    def _resource_tools(self, session: ClientSession, execute_timeout: float) -> list[Tool]:
+    def _resource_tools(
+        self,
+        session: ClientSession,
+        execute_timeout: float,
+        *,
+        reserved_aliases: set[str] | None = None,
+    ) -> list[Tool]:
         if not hasattr(session, "list_resources") or not hasattr(session, "read_resource"):
             return []
-        return [
-            MCPResourceListTool(server_name=self.name, session=session, execute_timeout=execute_timeout),
-            MCPResourceReadTool(server_name=self.name, session=session, execute_timeout=execute_timeout),
-        ]
+        list_tool = MCPResourceListTool(
+            server_name=self.name,
+            session=session,
+            execute_timeout=execute_timeout,
+            expose_name=reserve_mcp_tool_alias(
+                self.name,
+                "list_resources",
+                reserved_aliases,
+            ),
+        )
+        read_tool = MCPResourceReadTool(
+            server_name=self.name,
+            session=session,
+            execute_timeout=execute_timeout,
+            expose_name=reserve_mcp_tool_alias(
+                self.name,
+                "read_resource",
+                reserved_aliases,
+            ),
+        )
+        return [list_tool, read_tool]
 
     async def _connect_stdio(self):
         server_params = StdioServerParameters(
@@ -189,6 +240,7 @@ async def load_mcp_tools_async(config_path: str = "mcp.json") -> list[Tool]:
         return []
 
     all_tools: list[Tool] = []
+    reserved_aliases: set[str] = set()
     for server in servers:
         connection = MCPServerConnection(
             name=server.name,
@@ -203,7 +255,7 @@ async def load_mcp_tools_async(config_path: str = "mcp.json") -> list[Tool]:
             sse_read_timeout=server.sse_read_timeout,
             policy=server.policy,
         )
-        success = await connection.connect()
+        success = await connection.connect(reserved_aliases=reserved_aliases)
         if success:
             register_connection(connection)
             all_tools.extend(connection.tools)

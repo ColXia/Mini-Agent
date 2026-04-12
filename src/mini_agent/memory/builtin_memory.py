@@ -1,4 +1,4 @@
-"""Built-in memory provider for MEMORY.md and USER.md profile entries."""
+"""Built-in memory provider for workspace or global profile entries."""
 
 from __future__ import annotations
 
@@ -8,7 +8,12 @@ from pathlib import Path
 import re
 from typing import Any
 
-from mini_agent.memory.memory_files import discover_memory_layout, ensure_memory_file
+from mini_agent.memory.memory_files import (
+    discover_memory_layout,
+    ensure_memory_file,
+    resolve_workspace_root,
+)
+from mini_agent.memory.paths import resolve_global_memory_dir
 from mini_agent.memory.memory_provider import MemoryProvider
 
 
@@ -46,16 +51,29 @@ class UserFactHit:
 class BuiltinMemoryProvider(MemoryProvider):
     """Builtin profile memory provider with substring-based entry operations."""
 
-    def __init__(self, workspace_root: str | Path = "./workspace"):
-        requested_root = Path(workspace_root).expanduser().resolve()
-        layout = discover_memory_layout(requested_root)
-
+    def __init__(
+        self,
+        workspace_root: str | Path = "./workspace",
+        *,
+        profile_scope: str = "workspace",
+        global_root: str | Path | None = None,
+    ):
+        requested_root = resolve_workspace_root(workspace_root)
         self._workspace_root = requested_root
-        self.anchor_dir = layout.anchor_dir
-        self.memory_file = layout.memory_file or (self.anchor_dir / "MEMORY.md")
-        self.user_file = self.anchor_dir / "USER.md"
+        self.profile_scope = " ".join(str(profile_scope or "workspace").split()).lower() or "workspace"
+        if self.profile_scope not in {"workspace", "global"}:
+            raise ValueError("profile_scope must be workspace or global.")
 
-        ensure_memory_file(self.memory_file, title="# Long-Term Memory")
+        if self.profile_scope == "global":
+            self.anchor_dir = resolve_global_memory_dir(global_root)
+            self.memory_file = self.anchor_dir / "AGENT.md"
+            ensure_memory_file(self.memory_file, title="# Agent Memory")
+        else:
+            layout = discover_memory_layout(requested_root)
+            self.anchor_dir = layout.anchor_dir
+            self.memory_file = layout.memory_file or (self.anchor_dir / "MEMORY.md")
+            ensure_memory_file(self.memory_file, title="# Long-Term Memory")
+        self.user_file = self.anchor_dir / "USER.md"
         self._ensure_user_file()
 
     @property
@@ -96,6 +114,7 @@ class BuiltinMemoryProvider(MemoryProvider):
     def profile(self) -> dict[str, Any]:
         facts, updated = self._read_profile_section()
         return {
+            "scope": self.profile_scope,
             "anchor_dir": str(self.anchor_dir),
             "memory_file": str(self.memory_file),
             "user_file": str(self.user_file),

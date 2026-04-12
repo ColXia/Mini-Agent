@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING
 
 from .types import MCPTimeoutConfig
@@ -44,7 +45,13 @@ def get_registered_connections() -> list["MCPServerConnection"]:
 
 
 async def cleanup_mcp_connections() -> None:
-    for connection in _mcp_connections:
-        await connection.disconnect()
+    connections = list(_mcp_connections)
     _mcp_connections.clear()
+    for connection in connections:
+        try:
+            await connection.disconnect()
+        except asyncio.CancelledError:
+            continue
+        except Exception:
+            continue
 

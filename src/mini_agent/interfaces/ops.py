@@ -12,6 +12,7 @@ class StudioProviderSummary(BaseModel):
     api_base: str
     api_key_masked: str
     models: list[str]
+    model_display_names: dict[str, str] = Field(default_factory=dict)
     enabled: bool
     priority: int
     timeout: int
@@ -37,6 +38,11 @@ class StudioProviderUpsertRequest(BaseModel):
     api_base: str
     api_key: str
     models: list[str] = Field(default_factory=list)
+    model_display_names: dict[str, str] = Field(default_factory=dict)
+    model_id: str | None = None
+    model_display_name: str | None = None
+    auto_discover_models: bool = False
+    selected_model_id: str | None = None
     enabled: bool = True
     priority: int = 0
     timeout: int = 60
@@ -63,6 +69,52 @@ class StudioProviderDeleteResponse(BaseModel):
     status: str
     provider_id: str
     catalog_path: str
+
+
+class StudioProviderModelSummary(BaseModel):
+    model_id: str
+    display_name: str
+    is_default: bool
+    context_window: int | None = None
+    learned_token_limit: int | None = None
+
+
+class StudioModelProviderSummary(BaseModel):
+    source: str
+    provider_id: str
+    provider_name: str
+    api_type: str
+    api_base: str
+    default_model_id: str | None = None
+    models: list[StudioProviderModelSummary] = Field(default_factory=list)
+    enabled: bool = True
+    priority: int = 0
+
+
+class StudioModelListResponse(BaseModel):
+    items: list[StudioModelProviderSummary] = Field(default_factory=list)
+
+
+class StudioModelDiscoverRequest(BaseModel):
+    source: str
+    provider_id: str
+
+
+class StudioModelSelectionRequest(BaseModel):
+    source: str
+    provider_id: str
+    model_id: str
+
+
+class StudioProviderModelDiscoveryRequest(BaseModel):
+    api_type: str = "openai"
+    api_base: str
+    api_key: str
+
+
+class StudioProviderModelDiscoveryResponse(BaseModel):
+    models: list[StudioProviderModelSummary] = Field(default_factory=list)
+    latest_model_id: str | None = None
 
 
 class StudioMemoryNote(BaseModel):

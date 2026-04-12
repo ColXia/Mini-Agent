@@ -34,7 +34,7 @@ class PermissionRule:
 
 @dataclass(frozen=True)
 class PermissionPolicy:
-    """Layered ask/allow/deny policy with optional full-auto bypass."""
+    """Layered ask/allow/deny policy with optional unrestricted bypass."""
 
     default_decision: PermissionDecision = PermissionDecision.ASK
     rules: tuple[PermissionRule, ...] = field(default_factory=tuple)

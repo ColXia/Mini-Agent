@@ -16,7 +16,7 @@ def _make_config(mcp_path: Path, security: SecurityConfig) -> Config:
     )
 
 
-def test_security_audit_reports_high_risk_for_full_auto_and_insecure_mcp(tmp_path):
+def test_security_audit_reports_high_risk_for_full_access_and_insecure_mcp(tmp_path):
     mcp_path = tmp_path / "mcp.json"
     mcp_path.write_text(
         json.dumps(
@@ -35,7 +35,8 @@ def test_security_audit_reports_high_risk_for_full_auto_and_insecure_mcp(tmp_pat
     config = _make_config(
         mcp_path,
         SecurityConfig(
-            approval_profile="full-auto",
+            approval_profile="build",
+            access_level="full-access",
             sandbox_mode="unrestricted",
             elevated_exec="allow",
         ),
@@ -45,7 +46,7 @@ def test_security_audit_reports_high_risk_for_full_auto_and_insecure_mcp(tmp_pat
     titles = {item.title for item in findings}
     severities = [item.severity for item in findings]
 
-    assert "Full Auto Enabled" in titles
+    assert "Full Access Enabled" in titles
     assert "Sandbox Unrestricted" in titles
     assert "Elevated Execution Allowed" in titles
     assert "MCP Insecure Transport: remote" in titles
@@ -56,9 +57,28 @@ def test_security_audit_reports_missing_mcp_config(tmp_path):
     missing_path = tmp_path / "missing-mcp.json"
     config = _make_config(
         missing_path,
-        SecurityConfig(approval_profile="auto-edit"),
+        SecurityConfig(approval_profile="build"),
     )
 
     findings = run_security_audit(config, workspace=tmp_path / "workspace")
     titles = {item.title for item in findings}
     assert "MCP Config Missing" in titles
+
+
+def test_security_audit_reports_live_gate_for_require_approval(tmp_path):
+    mcp_path = tmp_path / "mcp.json"
+    mcp_path.write_text(json.dumps({"mcpServers": {}}), encoding="utf-8")
+    config = _make_config(
+        mcp_path,
+        SecurityConfig(
+            approval_profile="build",
+            sandbox_mode="workspace",
+            elevated_exec="require_approval",
+        ),
+    )
+
+    findings = run_security_audit(config, workspace=tmp_path / "workspace")
+    finding = next(item for item in findings if item.title == "Elevated Execution Requires Approval")
+
+    assert finding.severity == "low"
+    assert "live approval flow" in finding.detail.lower()

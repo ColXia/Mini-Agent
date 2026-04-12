@@ -22,6 +22,16 @@ def test_provider_config_normalization_and_redaction():
             "models": [" gpt-4o-mini ", "gpt-4o-mini", "gpt-4o"],
             "priority": "9",
             "timeout": 120,
+            "model_context_windows": {
+                " gpt-4o-mini ": "128000",
+                "missing-model": 4096,
+                "gpt-4o": -1,
+            },
+            "model_learned_token_limits": {
+                " gpt-4o-mini ": "64000",
+                "missing-model": 32000,
+                "gpt-4o": 0,
+            },
             "headers": {
                 " X-Trace ": " trace-1 ",
                 "Authorization": "should_be_filtered",
@@ -39,6 +49,8 @@ def test_provider_config_normalization_and_redaction():
     assert provider.supports_model("GPT-4O") is True
     assert provider.priority == 9
     assert provider.headers == {"X-Trace": "trace-1"}
+    assert provider.model_context_windows == {"gpt-4o-mini": 128000}
+    assert provider.model_learned_token_limits == {"gpt-4o-mini": 64000}
 
     redacted = provider.redacted()
     assert redacted["api_key"] == "sk-1***cdef"

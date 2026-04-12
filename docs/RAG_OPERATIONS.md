@@ -91,3 +91,13 @@ python scripts/rag_offline_eval.py --store workspace/rag/light_hybrid_store.json
 ```
 
 输出包含：`topk_hit_rate`、`citation_coverage`、逐 case 结果。
+
+## Agent 接入模式
+
+- 运行时原生工具：`knowledge_base_query`
+- 该工具直接读取内置轻量 RAG store，不再经过旧 wrapper
+- 默认策略：
+  - `tools.enable_knowledge_base: true`
+- 含义：
+  - 只提供“显式 KB tool”，agent 需要时自主调用
+  - 不再提供内置被动 prepared-context 注入实现

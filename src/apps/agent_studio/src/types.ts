@@ -160,6 +160,7 @@ export interface StudioProviderSummary {
   api_base: string;
   api_key_masked: string;
   models: string[];
+  model_display_names: Record<string, string>;
   enabled: boolean;
   priority: number;
   timeout: number;
@@ -201,10 +202,50 @@ export interface StudioProviderPayload {
   api_base: string;
   api_key: string;
   models: string[];
+  model_display_names?: Record<string, string>;
+  model_id?: string;
+  model_display_name?: string;
+  auto_discover_models?: boolean;
+  selected_model_id?: string;
   enabled: boolean;
   priority: number;
   timeout: number;
   headers: Record<string, string>;
+}
+
+export interface StudioProviderModelSummary {
+  model_id: string;
+  display_name: string;
+  is_default: boolean;
+  context_window?: number | null;
+  learned_token_limit?: number | null;
+}
+
+export interface StudioProviderModelDiscoveryPayload {
+  api_type: string;
+  api_base: string;
+  api_key: string;
+}
+
+export interface StudioProviderModelDiscoveryResponse {
+  models: StudioProviderModelSummary[];
+  latest_model_id?: string | null;
+}
+
+export interface StudioModelProviderSummary {
+  source: "custom" | "preset" | string;
+  provider_id: string;
+  provider_name: string;
+  api_type: string;
+  api_base: string;
+  default_model_id?: string | null;
+  models: StudioProviderModelSummary[];
+  enabled: boolean;
+  priority: number;
+}
+
+export interface StudioModelListResponse {
+  items: StudioModelProviderSummary[];
 }
 
 export interface StudioMemoryNote {

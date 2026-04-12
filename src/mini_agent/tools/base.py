@@ -35,6 +35,16 @@ class Tool:
         """Execute the tool with arbitrary arguments."""
         raise NotImplementedError
 
+    async def cancel_running(self, *, reason: str | None = None) -> bool:
+        """Best-effort cancellation hook for long-running tool execution.
+
+        Returns:
+            True when a running execution was found and cancellation was attempted.
+            False when unsupported or no active execution exists.
+        """
+        _ = reason
+        return False
+
     def to_schema(self) -> dict[str, Any]:
         """Convert tool to Anthropic tool schema."""
         return {

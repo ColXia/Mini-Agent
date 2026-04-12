@@ -2,12 +2,16 @@ import { useEffect, useMemo, useState } from "react";
 
 import {
   createStudioProvider,
+  discoverStudioProviderModels,
+  discoverStudioModels,
   deleteStudioProvider,
   getStudioMemoryDaily,
   getStudioMemorySummary,
   getStudioProviderHealth,
   getStudioRuntimeDiagnostics,
+  listStudioModels,
   listStudioProviders,
+  selectStudioModel,
   searchStudioMemory,
   updateStudioProvider
 } from "../api";
@@ -15,6 +19,7 @@ import type {
   StudioMemoryDailyResponse,
   StudioMemoryNote,
   StudioMemorySummary,
+  StudioModelProviderSummary,
   StudioProviderHealth,
   StudioProviderPayload,
   StudioProviderSummary,
@@ -154,11 +159,14 @@ export function StudioOpsMode() {
   const [selectedProviderId, setSelectedProviderId] = useState("");
   const [providerForm, setProviderForm] = useState<StudioProviderPayload>(EMPTY_PROVIDER_FORM);
   const [providerModelsText, setProviderModelsText] = useState("");
+  const [providerModelId, setProviderModelId] = useState("");
+  const [providerModelDisplayName, setProviderModelDisplayName] = useState("");
   const [providerHeadersText, setProviderHeadersText] = useState("{}");
   const [providerHealth, setProviderHealth] = useState<StudioProviderHealth | null>(null);
   const [providerError, setProviderError] = useState("");
   const [providerBusy, setProviderBusy] = useState(false);
   const [resolvedCatalogPath, setResolvedCatalogPath] = useState("");
+  const [modelRegistry, setModelRegistry] = useState<StudioModelProviderSummary[]>([]);
 
   const [workspaceDir, setWorkspaceDir] = useState("C:/Users/Conli/Mini-Agent");
   const [memorySummary, setMemorySummary] = useState<StudioMemorySummary | null>(null);
@@ -185,6 +193,8 @@ export function StudioOpsMode() {
     if (!provider) {
       setProviderForm(EMPTY_PROVIDER_FORM);
       setProviderModelsText("");
+      setProviderModelId("");
+      setProviderModelDisplayName("");
       setProviderHeadersText("{}");
       setProviderHealth(null);
       return;
@@ -202,6 +212,9 @@ export function StudioOpsMode() {
       headers: { ...provider.headers }
     });
     setProviderModelsText(provider.models.join(", "));
+    const defaultModel = provider.models[0] ?? "";
+    setProviderModelId(defaultModel);
+    setProviderModelDisplayName(defaultModel ? provider.model_display_names[defaultModel] ?? "" : "");
     setProviderHeadersText(JSON.stringify(provider.headers, null, 2));
   };
 
@@ -225,6 +238,57 @@ export function StudioOpsMode() {
         setProviderHealth(health);
       } else {
         setProviderHealth(null);
+      }
+      const models = await listStudioModels(catalogPath || undefined);
+      setModelRegistry(models.items);
+    } catch (error) {
+      setProviderError(String(error));
+    } finally {
+      setProviderBusy(false);
+    }
+  };
+
+  const refreshModelsOnly = async () => {
+    try {
+      const models = await listStudioModels(catalogPath || undefined);
+      setModelRegistry(models.items);
+    } catch (error) {
+      setProviderError(String(error));
+    }
+  };
+
+  const handleDiscoverProviderModels = async (source: string, providerId: string) => {
+    setProviderBusy(true);
+    setProviderError("");
+    try {
+      await discoverStudioModels({ source, provider_id: providerId }, catalogPath || undefined);
+      await loadProviders(selectedProviderId || providerId);
+    } catch (error) {
+      setProviderError(String(error));
+    } finally {
+      setProviderBusy(false);
+    }
+  };
+
+  const handleSelectProviderModel = async (
+    source: string,
+    providerId: string,
+    modelId: string
+  ) => {
+    setProviderBusy(true);
+    setProviderError("");
+    try {
+      await selectStudioModel(
+        {
+          source,
+          provider_id: providerId,
+          model_id: modelId
+        },
+        catalogPath || undefined
+      );
+      await refreshModelsOnly();
+      if (source === "custom") {
+        await loadProviders(providerId);
       }
     } catch (error) {
       setProviderError(String(error));
@@ -325,11 +389,56 @@ export function StudioOpsMode() {
     try {
       const parsedHeaders =
         providerHeadersText.trim() === "" ? {} : (JSON.parse(providerHeadersText) as Record<string, string>);
+      const parsedModels = parseCsv(providerModelsText);
+      const normalizedModelId = providerModelId.trim();
+      const normalizedModelDisplayName = providerModelDisplayName.trim();
       const payload: StudioProviderPayload = {
         ...providerForm,
-        models: parseCsv(providerModelsText),
+        models: parsedModels,
+        model_display_names: {},
+        model_id: normalizedModelId || undefined,
+        model_display_name: normalizedModelDisplayName || undefined,
         headers: parsedHeaders
       };
+
+      if (!selectedProviderId && parsedModels.length === 0 && !normalizedModelId) {
+        const shouldAutoDiscover = window.confirm(
+          "No model configured. Auto-discover available models now?"
+        );
+        if (!shouldAutoDiscover) {
+          setProviderError("Provider not created: no model selected/configured.");
+          return;
+        }
+        const discovery = await discoverStudioProviderModels({
+          api_type: payload.api_type,
+          api_base: payload.api_base,
+          api_key: payload.api_key
+        });
+        if (discovery.models.length === 0) {
+          setProviderError("Provider not created: no models discovered.");
+          return;
+        }
+        const options = discovery.models
+          .slice(0, 30)
+          .map((item, index) => `${index + 1}. ${item.model_id}`)
+          .join("\n");
+        const selectedRaw = window.prompt(
+          `Discovered models:\n${options}\n\nSelect one model by number (blank to cancel):`,
+          discovery.latest_model_id ? "1" : ""
+        );
+        const selectedIndex = Number.parseInt((selectedRaw ?? "").trim(), 10);
+        if (
+          !Number.isFinite(selectedIndex) ||
+          selectedIndex < 1 ||
+          selectedIndex > discovery.models.length
+        ) {
+          setProviderError("Provider not created: no model selected.");
+          return;
+        }
+        const selectedModel = discovery.models[selectedIndex - 1];
+        payload.auto_discover_models = true;
+        payload.selected_model_id = selectedModel.model_id;
+      }
 
       if (selectedProviderId) {
         const updated = await updateStudioProvider(selectedProviderId, payload, catalogPath || undefined);
@@ -470,6 +579,56 @@ export function StudioOpsMode() {
             ))}
           </div>
 
+          <div className="provider-health-box">
+            <div className="row between">
+              <h4>/models</h4>
+              <button
+                type="button"
+                className="ghost-button"
+                onClick={() => void refreshModelsOnly()}
+                disabled={providerBusy}
+              >
+                刷新模型
+              </button>
+            </div>
+            {modelRegistry.length === 0 ? <p className="empty">暂无可用模型分组。</p> : null}
+            {modelRegistry.map((group) => (
+              <div key={`${group.source}:${group.provider_id}`} className="memory-item">
+                <div className="row between">
+                  <strong>
+                    {group.provider_name} ({group.source})
+                  </strong>
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={() => void handleDiscoverProviderModels(group.source, group.provider_id)}
+                    disabled={providerBusy}
+                  >
+                    自动发现
+                  </button>
+                </div>
+                <small className="muted">
+                  {group.api_type} | default={group.default_model_id || "-"}
+                </small>
+                <div className="row wrap">
+                  {group.models.map((model) => (
+                    <button
+                      key={`${group.source}:${group.provider_id}:${model.model_id}`}
+                      type="button"
+                      className={`ghost-button ${model.is_default ? "active" : ""}`}
+                      onClick={() =>
+                        void handleSelectProviderModel(group.source, group.provider_id, model.model_id)
+                      }
+                      disabled={providerBusy}
+                    >
+                      {model.display_name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
           <div className="row wrap">
             <label className="field grow">
               <span>名称</span>
@@ -515,6 +674,17 @@ export function StudioOpsMode() {
             <label className="field grow">
               <span>模型列表（逗号分隔）</span>
               <input value={providerModelsText} onChange={(event) => setProviderModelsText(event.target.value)} />
+            </label>
+            <label className="field grow">
+              <span>Default Model ID (optional)</span>
+              <input value={providerModelId} onChange={(event) => setProviderModelId(event.target.value)} />
+            </label>
+            <label className="field grow">
+              <span>Model Display Name (optional)</span>
+              <input
+                value={providerModelDisplayName}
+                onChange={(event) => setProviderModelDisplayName(event.target.value)}
+              />
             </label>
             <label className="field small">
               <span>启用状态</span>

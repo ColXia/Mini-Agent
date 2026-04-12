@@ -185,3 +185,15 @@ class FailoverLLMClient:
             if last_exception is not None:
                 raise ProviderFailoverError(attempts) from last_exception
             raise ProviderFailoverError(attempts)
+
+    async def close(self) -> None:
+        for client in list(self._clients.values()):
+            close_method = getattr(client, "close", None)
+            if not callable(close_method):
+                continue
+            try:
+                result = close_method()
+                if hasattr(result, "__await__"):
+                    await result
+            except Exception:
+                continue

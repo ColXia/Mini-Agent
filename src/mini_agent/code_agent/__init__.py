@@ -5,6 +5,8 @@ from mini_agent.code_agent.agent_loop import (
     InMemoryLoopMessageBus,
     SubmissionEvent,
     SubmissionEventType,
+    wait_for_loop_event,
+    wait_for_submission_completion,
 )
 from mini_agent.code_agent.coordinator import (
     CoordinatorRunResult,
@@ -14,6 +16,13 @@ from mini_agent.code_agent.coordinator import (
     StageSummary,
     WorkerResult,
     WorkerTask,
+)
+from mini_agent.code_agent.minimal_workflow import (
+    MINIMAL_WORKFLOW_STAGES,
+    build_minimal_workflow_tasks,
+    compose_stage_prompt,
+    format_minimal_workflow_report,
+    run_minimal_workflow_with_runner,
 )
 from mini_agent.code_agent.context_compression import (
     CompressionStats,
@@ -69,6 +78,8 @@ __all__ = [
     "SubmissionEvent",
     "InMemoryLoopMessageBus",
     "AgentSubmissionLoop",
+    "wait_for_submission_completion",
+    "wait_for_loop_event",
     "CoordinatorStage",
     "WorkerTask",
     "WorkerResult",
@@ -76,6 +87,11 @@ __all__ = [
     "CoordinatorRunResult",
     "InMemoryCoordinatorProgressBus",
     "MiniCoordinator",
+    "MINIMAL_WORKFLOW_STAGES",
+    "build_minimal_workflow_tasks",
+    "compose_stage_prompt",
+    "format_minimal_workflow_report",
+    "run_minimal_workflow_with_runner",
     "CompressionStats",
     "ContextCompressionResult",
     "LayeredContextCompactor",

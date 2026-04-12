@@ -13,6 +13,7 @@ from mini_agent.code_agent.sandbox.windows import (
     SandboxTransformResult,
     WindowsRestrictedSandbox,
     WindowsSandboxPolicy,
+    expected_mandatory_policy_bits,
 )
 
 
@@ -42,11 +43,15 @@ class SandboxManager:
         sandbox_mode: str = "workspace",
         runtime_platform: str | None = None,
         network_policy: NetworkDomainPolicy | None = None,
+        max_processes: int | None = 32,
+        max_process_memory_mb: int | None = 2048,
     ):
         self.workspace_dir = str(Path(workspace_dir).expanduser().resolve())
         self.sandbox_mode = str(sandbox_mode).strip().lower() or "workspace"
         self.runtime_platform = (runtime_platform or platform.system()).strip().lower()
         self.network_policy = (network_policy or NetworkDomainPolicy()).normalized()
+        self.max_processes = max_processes
+        self.max_process_memory_mb = max_process_memory_mb
 
         self._selection = self._select_initial_unlocked()
         if self._selection.backend == SandboxBackend.WINDOWS_RESTRICTED_TOKEN:
@@ -54,6 +59,8 @@ class SandboxManager:
                 WindowsSandboxPolicy.from_workspace(
                     self.workspace_dir,
                     network_policy=self.network_policy,
+                    max_processes=self.max_processes,
+                    max_process_memory_mb=self.max_process_memory_mb,
                 )
             )
         else:
@@ -74,6 +81,8 @@ class SandboxManager:
             preview = WindowsSandboxPolicy.from_workspace(
                 self.workspace_dir,
                 network_policy=self.network_policy,
+                max_processes=self.max_processes,
+                max_process_memory_mb=self.max_process_memory_mb,
             ).normalized()
             return SandboxSelection(
                 backend=SandboxBackend.WINDOWS_RESTRICTED_TOKEN,
@@ -83,6 +92,13 @@ class SandboxManager:
                     "workspace_root": preview.workspace_root,
                     "network_mode": preview.network_policy.mode.value,
                     "restricted_token": preview.restricted_token,
+                    "low_integrity": preview.low_integrity,
+                    "mandatory_policy": expected_mandatory_policy_bits(),
+                    "disable_admin_groups": preview.disable_admin_groups,
+                    "restrict_ui": preview.restrict_ui,
+                    "die_on_unhandled_exception": preview.die_on_unhandled_exception,
+                    "max_processes": preview.max_processes,
+                    "max_process_memory_mb": preview.max_process_memory_mb,
                 },
             )
 
@@ -122,5 +138,25 @@ class SandboxManager:
                 "backend": SandboxBackend.NONE.value,
                 "reason": self._selection.reason,
             },
+        )
+
+    def launch_process(
+        self,
+        argv: list[str],
+        *,
+        cwd: str | Path | None = None,
+        env: dict[str, str] | None = None,
+        merge_stderr: bool = False,
+    ):
+        if self._selection.backend == SandboxBackend.WINDOWS_RESTRICTED_TOKEN:
+            assert self._windows_backend is not None
+            return self._windows_backend.launch_process(
+                argv,
+                cwd=cwd,
+                env=env,
+                merge_stderr=merge_stderr,
+            )
+        raise RuntimeError(
+            f"Native process launch is unavailable for sandbox backend: {self._selection.backend.value}"
         )
 

@@ -205,6 +205,7 @@ max_steps: 100
 tools:
   enable_file_tools: true
   enable_bash: true
+  enable_knowledge_base: true
   enable_mcp: true
   enable_skills: true
 ```

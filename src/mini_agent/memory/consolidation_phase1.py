@@ -9,6 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from mini_agent.memory.promotion import evaluate_durable_memory_promotion
+
 
 _SENTENCE_SPLIT = re.compile(r"[\r\n]+|(?<=[.!?。！？])\s+")
 _TOKEN_PATTERN = re.compile(r"[A-Za-z0-9_\u4e00-\u9fff]+")
@@ -90,6 +92,7 @@ class Phase1Extractor:
             if not isinstance(payload, dict):
                 continue
             role = str(payload.get("role", "assistant")).strip().lower()
+            tool_name = str(payload.get("name", "")).strip().lower()
             content = str(payload.get("content", "")).strip()
             if not content:
                 continue
@@ -97,6 +100,14 @@ class Phase1Extractor:
                 normalized = _normalize_sentence(sentence)
                 if len(normalized) < 8:
                     continue
+                promotion = evaluate_durable_memory_promotion(
+                    normalized,
+                    role=role,
+                    tool_name=tool_name,
+                )
+                if not promotion.allowed:
+                    continue
+                normalized = promotion.normalized_text
                 signature = normalized.lower()
                 if signature in seen:
                     continue

@@ -133,3 +133,108 @@ def test_consolidation_job_lease_retry_backoff(tmp_path):
 
     leased_after_backoff = scheduler.job_store.lease_jobs(max_jobs=1, now_utc=now + timedelta(seconds=601))
     assert len(leased_after_backoff) == 1
+
+
+def test_memory_consolidation_pipeline_scopes_to_workspace_anchor(tmp_path):
+    session_store_dir = tmp_path / "sessions"
+
+    workspace_a = (tmp_path / "repo-a").resolve()
+    workspace_b = (tmp_path / "repo-b").resolve()
+    workspace_a.mkdir(parents=True, exist_ok=True)
+    workspace_b.mkdir(parents=True, exist_ok=True)
+    (workspace_a / "MEMORY.md").write_text("# Long-Term Memory\n", encoding="utf-8")
+    (workspace_b / "MEMORY.md").write_text("# Long-Term Memory\n", encoding="utf-8")
+
+    persistence = SessionPersistence(session_store_dir)
+    now_utc = _utc_iso()
+    persistence.save_session(
+        session_id="sess_workspace_a",
+        workspace_dir=str(workspace_a),
+        created_at=now_utc,
+        updated_at=now_utc,
+        messages=[
+            {"role": "user", "content": "keep the opencode-style right sidebar layout"},
+            {"role": "assistant", "content": "the opencode-style right sidebar layout stays as the workspace default"},
+        ],
+        execution_policy={"max_steps": 5},
+        configured_execution_policy={"max_steps": 5},
+    )
+    persistence.save_session(
+        session_id="sess_workspace_b",
+        workspace_dir=str(workspace_b),
+        created_at=now_utc,
+        updated_at=now_utc,
+        messages=[
+            {"role": "user", "content": "memory promotion must reject raw knowledge-base chunks"},
+            {"role": "assistant", "content": "workspace B keeps strict knowledge-base promotion guardrails"},
+        ],
+        execution_policy={"max_steps": 5},
+        configured_execution_policy={"max_steps": 5},
+    )
+
+    pipeline_a = MemoryConsolidationPipeline(
+        session_store_dir=session_store_dir,
+        workspace_dir=workspace_a,
+    )
+    summary_a = pipeline_a.run(phase="all", max_jobs=8, top_n=20)
+
+    assert summary_a["workspace_anchor_dir"] == str(workspace_a)
+    memory_a = (workspace_a / "MEMORY.md").read_text(encoding="utf-8")
+    assert "opencode-style right sidebar layout" in memory_a
+    assert "workspace B keeps strict knowledge-base promotion guardrails" not in memory_a
+
+    pipeline_b = MemoryConsolidationPipeline(
+        session_store_dir=session_store_dir,
+        workspace_dir=workspace_b,
+    )
+    summary_b = pipeline_b.run(phase="all", max_jobs=8, top_n=20)
+
+    assert summary_b["workspace_anchor_dir"] == str(workspace_b)
+    memory_b = (workspace_b / "MEMORY.md").read_text(encoding="utf-8")
+    assert "workspace B keeps strict knowledge-base promotion guardrails" in memory_b
+    assert "opencode-style right sidebar layout" not in memory_b
+
+
+def test_memory_consolidation_skips_raw_knowledge_base_tool_payloads(tmp_path):
+    session_store_dir = tmp_path / "sessions"
+    workspace = (tmp_path / "workspace").resolve()
+    workspace.mkdir(parents=True, exist_ok=True)
+    memory_file = workspace / "MEMORY.md"
+
+    persistence = SessionPersistence(session_store_dir)
+    now_utc = _utc_iso()
+    persistence.save_session(
+        session_id="sess_kb_raw",
+        workspace_dir=str(workspace),
+        created_at=now_utc,
+        updated_at=now_utc,
+        messages=[
+            {"role": "user", "content": "summarize the gateway session persistence design"},
+            {
+                "role": "tool",
+                "name": "knowledge_base_query",
+                "content": (
+                    '{"content":"Gateway shared sessions persist metadata and transcript to disk.",'
+                    '"source":"docs/P23_QQ_TUI_SHARED_SESSION_RUNBOOK.md","score":0.91}'
+                ),
+            },
+            {
+                "role": "assistant",
+                "content": "Gateway shared sessions persist metadata and transcript to disk for restart recovery.",
+            },
+        ],
+        execution_policy={"max_steps": 5},
+        configured_execution_policy={"max_steps": 5},
+    )
+
+    pipeline = MemoryConsolidationPipeline(
+        session_store_dir=session_store_dir,
+        workspace_dir=workspace,
+        memory_file=memory_file,
+    )
+    pipeline.run(phase="all", max_jobs=8, top_n=20)
+
+    memory_text = memory_file.read_text(encoding="utf-8")
+    assert "Gateway shared sessions persist metadata and transcript to disk for restart recovery." in memory_text
+    assert '"source":"docs/P23_QQ_TUI_SHARED_SESSION_RUNBOOK.md"' not in memory_text
+    assert '"score":0.91' not in memory_text

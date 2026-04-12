@@ -28,23 +28,26 @@ def run_security_audit(config, workspace: Path | None = None) -> list[SecurityFi
     _add(
         findings,
         "info",
-        "Approval Profile",
-        f"Profile='{policy.approval_profile}', sandbox='{policy.sandbox_mode}', elevated_exec='{policy.elevated_exec}'.",
+        "Runtime Mode",
+        (
+            f"Mode='{policy.approval_profile}', access='{getattr(policy, 'access_level', 'default')}', "
+            f"sandbox='{policy.sandbox_mode}', elevated_exec='{policy.elevated_exec}'."
+        ),
     )
 
-    if policy.approval_profile == "full-auto":
+    if getattr(policy, "access_level", "default") == "full-access":
         _add(
             findings,
             "high",
-            "Full Auto Enabled",
-            "Approval profile 'full-auto' allows autonomous execution with minimal guardrails.",
+            "Full Access Enabled",
+            "Access level 'full-access' removes the normal sandbox and approval guardrails.",
         )
-    elif policy.approval_profile == "suggest":
+    elif policy.approval_profile == "plan":
         _add(
             findings,
             "low",
-            "Suggest Profile",
-            "Profile 'suggest' is conservative and blocks shell execution.",
+            "Plan Mode",
+            "Mode 'plan' is read-first and blocks shell execution and workspace mutations.",
         )
 
     if policy.sandbox_mode == "unrestricted":
@@ -65,9 +68,9 @@ def run_security_audit(config, workspace: Path | None = None) -> list[SecurityFi
     elif policy.elevated_exec == "require_approval":
         _add(
             findings,
-            "medium",
+            "low",
             "Elevated Execution Requires Approval",
-            "Elevated commands are blocked until explicit approval plumbing is implemented.",
+            "Elevated commands are gated behind the live approval flow before execution.",
         )
 
     if policy.tool_allow:

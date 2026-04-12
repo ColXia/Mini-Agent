@@ -1,14 +1,20 @@
 ---
-name: docx
-description: "Comprehensive document creation, editing, and analysis with support for tracked changes, comments, formatting preservation, and text extraction. When Claude needs to work with professional documents (.docx files) for: (1) Creating new documents, (2) Modifying or editing content, (3) Working with tracked changes, (4) Adding comments, or any other document tasks"
+name: minimax-docx
+description: "Professional DOCX document creation, editing, and formatting for Word document workflows. Supports creating new documents, editing existing documents, template-aware OOXML formatting, tracked changes, comments, and text extraction. Use whenever the user wants a formal Word document output, including reports, proposals, contracts, forms, or template-based reformatting."
 license: Proprietary. LICENSE.txt has complete terms
 ---
 
-# DOCX creation, editing, and analysis
+# MiniMax DOCX creation, editing, and formatting
 
 ## Overview
 
-A user may ask you to create, edit, or analyze the contents of a .docx file. A .docx file is essentially a ZIP archive containing XML files and other resources that you can read or edit. You have different tools and workflows available for different tasks.
+Use this skill whenever the requested final deliverable should be a `.docx` Word document, even if the user does not explicitly say "DOCX". Typical triggers include reports, proposals, contracts, forms, polished internal documents, template-based reformatting, and revision-heavy review workflows.
+
+A `.docx` file is a ZIP archive containing OOXML files and related resources. This skill supports three main routes:
+
+- create a new Word document from scratch
+- edit or fill an existing Word document
+- reformat or review an existing document with template-aware OOXML workflows
 
 ## Workflow Decision Tree
 
@@ -31,7 +37,13 @@ Use "Creating a new Word document" workflow
 ## Reading and analyzing content
 
 ### Text extraction
-If you just need to read the text contents of a document, you should convert the document to markdown using pandoc. Pandoc provides excellent support for preserving document structure and can show tracked changes:
+For normal reading, extraction, and quick analysis, use `docling_parse` first. This is the default normalized document-reading path for Mini-Agent and should be preferred before ad-hoc conversion commands:
+
+```python
+docling_parse(path="path-to-file.docx", output_format="markdown")
+```
+
+Use raw CLI conversion only when you specifically need tracked-change rendering behavior or when `docling_parse` is unavailable. Pandoc provides excellent support for preserving document structure and can show tracked changes:
 
 ```bash
 # Convert document to markdown with tracked changes

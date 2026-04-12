@@ -3,6 +3,10 @@ import type {
   StudioMemorySearchResponse,
   StudioMemorySummary,
   StudioRuntimeDiagnostics,
+  StudioModelListResponse,
+  StudioModelProviderSummary,
+  StudioProviderModelDiscoveryPayload,
+  StudioProviderModelDiscoveryResponse,
   StudioProviderHealth,
   StudioProviderListResponse,
   StudioProviderPayload,
@@ -85,4 +89,40 @@ export async function getStudioMemoryDaily(day: string, workspaceDir?: string): 
 
 export async function getStudioRuntimeDiagnostics(): Promise<StudioRuntimeDiagnostics> {
   return request<StudioRuntimeDiagnostics>("/api/v1/ops/diagnostics/runtime");
+}
+
+export async function discoverStudioProviderModels(
+  payload: StudioProviderModelDiscoveryPayload
+): Promise<StudioProviderModelDiscoveryResponse> {
+  return request<StudioProviderModelDiscoveryResponse>("/api/v1/ops/providers/model-discovery", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function listStudioModels(catalogPath?: string): Promise<StudioModelListResponse> {
+  const path = appendOptionalQuery("/api/v1/ops/models", { catalog_path: catalogPath });
+  return request<StudioModelListResponse>(path);
+}
+
+export async function discoverStudioModels(
+  payload: { source: string; provider_id: string },
+  catalogPath?: string
+): Promise<StudioModelProviderSummary> {
+  const path = appendOptionalQuery("/api/v1/ops/models/discover", { catalog_path: catalogPath });
+  return request<StudioModelProviderSummary>(path, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function selectStudioModel(
+  payload: { source: string; provider_id: string; model_id: string },
+  catalogPath?: string
+): Promise<StudioModelProviderSummary> {
+  const path = appendOptionalQuery("/api/v1/ops/models/selection", { catalog_path: catalogPath });
+  return request<StudioModelProviderSummary>(path, {
+    method: "PATCH",
+    body: JSON.stringify(payload)
+  });
 }

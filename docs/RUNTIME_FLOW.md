@@ -321,19 +321,16 @@ Updated: 2026-04-06
    - gateway endpoints: `/api/document-parser/parse`, `/api/document-parser/parse/batch`, `/formats`, `/health`
    - router: `subprograms/document_parser/gateway/router.py`
 
-## Tools MaxKB Flow (P16 T4.2)
-1. Client baseline:
-   - typed config (`base_url`, `api_key`, timeout) + pluggable transport
-   - operation contracts:
-     - query: `/api/search` with `query/top_k/filters`
-     - ingest: `/api/documents` with `document_name/content/metadata`
-   - implementation: `mini_agent/tools/maxkb_query.py`
+## Tools Knowledge-Base Flow (P16 T4.2)
+1. Built-in retrieval baseline:
+   - lightweight hybrid store (`BM25 + hash-vector + RRF`)
+   - shared runtime store resolution for workspace-aware KB access
+   - implementation: `mini_agent/tools/knowledge_base.py`
 2. Tool exposure:
-   - `maxkb_query` tool for retrieval
-   - `maxkb_ingest` tool for knowledge ingestion trigger
+   - `knowledge_base_query` tool for explicit grounded retrieval during an agent turn
 3. Subprogram exposure:
    - standalone service entry: `subprograms/knowledge_base/main.py`
-   - gateway endpoints: `/api/knowledge-base/query`, `/api/knowledge-base/ingest`, `/health`
+   - gateway endpoints: `/api/knowledge-base/query`, `/api/knowledge-base/ingest`, `/api/knowledge-base/stats`, `/health`
    - router: `subprograms/knowledge_base/gateway/router.py`
 
 ## Tools Web Search Flow (P16 T4.3)

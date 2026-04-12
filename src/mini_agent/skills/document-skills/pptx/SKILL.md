@@ -1,19 +1,31 @@
 ---
-name: pptx
-description: "Presentation creation, editing, and analysis. When Claude needs to work with presentations (.pptx files) for: (1) Creating new presentations, (2) Modifying or editing content, (3) Working with layouts, (4) Adding comments or speaker notes, or any other presentation tasks"
+name: pptx-generator
+description: "Generate, edit, and read PowerPoint presentations. Supports creating decks from scratch, editing template-based PPTX files with OOXML workflows, and extracting presentation text for analysis. Use whenever the user asks for a presentation, slide deck, PowerPoint, PPT, or `.pptx` output."
 license: Proprietary. LICENSE.txt has complete terms
 ---
 
-# PPTX creation, editing, and analysis
+# PPTX Generator and editor
 
 ## Overview
 
-A user may ask you to create, edit, or analyze the contents of a .pptx file. A .pptx file is essentially a ZIP archive containing XML files and other resources that you can read or edit. You have different tools and workflows available for different tasks.
+Use this skill whenever the final output should be a PowerPoint deck or the task involves reading, editing, or restructuring an existing `.pptx` file.
+
+A `.pptx` file is a ZIP archive containing OOXML files and related assets. This skill supports three main routes:
+
+- read and analyze existing presentation content
+- create a new deck from scratch
+- edit an existing presentation with template-aware OOXML workflows
 
 ## Reading and analyzing content
 
 ### Text extraction
-If you just need to read the text contents of a presentation, you should convert the document to markdown:
+Use `docling_parse` first for normalized slide-text extraction and quick presentation review:
+
+```python
+docling_parse(path="path-to-file.pptx", output_format="markdown")
+```
+
+If you specifically need the existing markitdown route or `docling_parse` is unavailable, fall back to:
 
 ```bash
 # Convert document to markdown

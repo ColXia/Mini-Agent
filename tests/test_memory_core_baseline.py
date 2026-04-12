@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from mini_agent.memory import MemoriaEngine, append_memory_note, discover_memory_layout, ensure_memory_file
+from mini_agent.memory import (
+    MemoriaEngine,
+    append_memory_note,
+    discover_memory_layout,
+    ensure_memory_file,
+)
+from mini_agent.memory.memory_files import resolve_workspace_memory_layout
 
 
 def test_memoria_engine_lifecycle_and_retrieval():
@@ -62,3 +68,15 @@ def test_memory_file_layout_discovery_and_append(tmp_path: Path):
     text = memory_file.read_text(encoding="utf-8")
     assert "## P12 kickoff" in text
     assert "memory core baseline landed" in text
+
+
+def test_explicit_workspace_layout_stays_local_even_when_parent_has_memory(tmp_path: Path):
+    workspace = (tmp_path / "workspace").resolve()
+    nested = (workspace / "sub" / "deep").resolve()
+    nested.mkdir(parents=True, exist_ok=True)
+    (workspace / "MEMORY.md").write_text("# Long-Term Memory\n", encoding="utf-8")
+
+    layout = resolve_workspace_memory_layout(nested)
+
+    assert layout.anchor_dir == nested
+    assert layout.memory_file is None

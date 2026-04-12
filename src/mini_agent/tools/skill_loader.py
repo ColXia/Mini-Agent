@@ -1,7 +1,7 @@
 """
-Skill Loader - Load Claude Skills
+Skill Loader - Load Mini-Agent skills.
 
-Supports loading skills from SKILL.md files and providing them to Agent
+Supports loading skills from SKILL.md files and providing them to Agent.
 """
 
 import re

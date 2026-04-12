@@ -3,8 +3,14 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
+import pytest
+from fastapi import HTTPException
+
 from mini_agent.application import StudioOpsUseCases
-from mini_agent.interfaces import StudioProviderUpsertRequest
+from mini_agent.interfaces import (
+    StudioProviderModelDiscoveryRequest,
+    StudioProviderUpsertRequest,
+)
 from mini_agent.tools.note_tool import MarkdownMemoryStore
 
 
@@ -94,3 +100,58 @@ def test_studio_ops_use_cases_memory_summary_search_daily(tmp_path: Path) -> Non
     assert daily.day == day
     assert daily.note_count >= 1
     assert "alpha rollout today" in daily.content
+
+
+def test_create_provider_auto_discover_requires_selected_model_id(tmp_path: Path, monkeypatch) -> None:
+    repo_root = (tmp_path / "repo").resolve()
+    workspace_root = (tmp_path / "workspace").resolve()
+    catalog_path = (workspace_root / "providers.json").resolve()
+    use_cases = _build_use_cases(repo_root=repo_root, workspace_root=workspace_root)
+
+    monkeypatch.setattr(
+        StudioOpsUseCases,
+        "_discover_models_for_provider_payload",
+        lambda self, **kwargs: (["model-a", "model-b"], "model-b"),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        use_cases.create_provider(
+            payload=StudioProviderUpsertRequest(
+                name="Auto Discover Missing Selection",
+                api_type="openai",
+                api_base="https://api.openai.example.com/v1",
+                api_key="sk-openai-primary-0001",
+                models=[],
+                auto_discover_models=True,
+                enabled=True,
+                priority=5,
+                timeout=45,
+                headers={},
+            ),
+            catalog_path=str(catalog_path),
+        )
+
+    assert exc_info.value.status_code == 400
+    assert "no selected_model_id provided" in str(exc_info.value.detail)
+
+
+def test_discover_provider_models_for_setup(tmp_path: Path, monkeypatch) -> None:
+    repo_root = (tmp_path / "repo").resolve()
+    workspace_root = (tmp_path / "workspace").resolve()
+    use_cases = _build_use_cases(repo_root=repo_root, workspace_root=workspace_root)
+
+    monkeypatch.setattr(
+        StudioOpsUseCases,
+        "_discover_models_for_provider_payload",
+        lambda self, **kwargs: (["model-a", "model-b"], "model-b"),
+    )
+
+    payload = use_cases.discover_provider_models(
+        payload=StudioProviderModelDiscoveryRequest(
+            api_type="openai",
+            api_base="https://api.openai.example.com/v1",
+            api_key="sk-openai-primary-0001",
+        )
+    )
+    assert payload.latest_model_id == "model-b"
+    assert [item.model_id for item in payload.models] == ["model-a", "model-b"]

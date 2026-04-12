@@ -10,6 +10,8 @@ from mcp import ClientSession
 
 from mini_agent.tools.base import Tool, ToolResult
 
+from .naming import mcp_tool_alias
+
 
 def _content_to_text(item: Any) -> str:
     text = getattr(item, "text", None)
@@ -61,14 +63,22 @@ class MCPTool(Tool):
 
     def __init__(
         self,
-        name: str,
+        server_name: str,
+        remote_name: str,
         description: str,
         parameters: dict[str, Any],
         session: ClientSession,
         execute_timeout: float,
+        expose_name: str | None = None,
     ):
-        self._name = name
-        self._description = description
+        self._server_name = server_name
+        self._remote_name = remote_name
+        self._name = expose_name or mcp_tool_alias(server_name, remote_name)
+        description_text = str(description or "").strip()
+        if description_text:
+            self._description = f"[MCP:{server_name}/{remote_name}] {description_text}"
+        else:
+            self._description = f"MCP tool '{remote_name}' from server '{server_name}'."
         self._parameters = parameters
         self._session = session
         self._execute_timeout = execute_timeout
@@ -82,13 +92,21 @@ class MCPTool(Tool):
         return self._description
 
     @property
+    def server_name(self) -> str:
+        return self._server_name
+
+    @property
+    def remote_name(self) -> str:
+        return self._remote_name
+
+    @property
     def parameters(self) -> dict[str, Any]:
         return self._parameters
 
     async def execute(self, **kwargs) -> ToolResult:
         try:
             async with asyncio.timeout(self._execute_timeout):
-                result = await self._session.call_tool(self._name, arguments=kwargs)
+                result = await self._session.call_tool(self._remote_name, arguments=kwargs)
 
             content_parts = [_content_to_text(item) for item in getattr(result, "content", [])]
             content_str = "\n".join(content_parts)
@@ -112,12 +130,19 @@ class MCPTool(Tool):
 class MCPResourceListTool(Tool):
     """Expose MCP `list_resources` as a regular tool."""
 
-    def __init__(self, server_name: str, session: ClientSession, execute_timeout: float):
+    def __init__(
+        self,
+        server_name: str,
+        session: ClientSession,
+        execute_timeout: float,
+        *,
+        expose_name: str | None = None,
+    ):
         self._server_name = server_name
         self._session = session
         self._execute_timeout = execute_timeout
-        normalized = server_name.replace("-", "_").replace(" ", "_")
-        self._name = f"{normalized}_list_resources"
+        self._remote_name = "list_resources"
+        self._name = expose_name or mcp_tool_alias(server_name, self._remote_name)
 
     @property
     def name(self) -> str:
@@ -126,6 +151,14 @@ class MCPResourceListTool(Tool):
     @property
     def description(self) -> str:
         return f"List resources exposed by MCP server '{self._server_name}'."
+
+    @property
+    def server_name(self) -> str:
+        return self._server_name
+
+    @property
+    def remote_name(self) -> str:
+        return self._remote_name
 
     @property
     def parameters(self) -> dict[str, Any]:
@@ -187,12 +220,19 @@ class MCPResourceListTool(Tool):
 class MCPResourceReadTool(Tool):
     """Expose MCP `read_resource` as a regular tool."""
 
-    def __init__(self, server_name: str, session: ClientSession, execute_timeout: float):
+    def __init__(
+        self,
+        server_name: str,
+        session: ClientSession,
+        execute_timeout: float,
+        *,
+        expose_name: str | None = None,
+    ):
         self._server_name = server_name
         self._session = session
         self._execute_timeout = execute_timeout
-        normalized = server_name.replace("-", "_").replace(" ", "_")
-        self._name = f"{normalized}_read_resource"
+        self._remote_name = "read_resource"
+        self._name = expose_name or mcp_tool_alias(server_name, self._remote_name)
 
     @property
     def name(self) -> str:
@@ -201,6 +241,14 @@ class MCPResourceReadTool(Tool):
     @property
     def description(self) -> str:
         return f"Read one MCP resource by URI from server '{self._server_name}'."
+
+    @property
+    def server_name(self) -> str:
+        return self._server_name
+
+    @property
+    def remote_name(self) -> str:
+        return self._remote_name
 
     @property
     def parameters(self) -> dict[str, Any]:

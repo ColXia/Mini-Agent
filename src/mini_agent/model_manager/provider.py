@@ -85,6 +85,49 @@ def _normalize_models(value: list[Any]) -> list[str]:
     return models
 
 
+def _normalize_model_display_names(value: dict[str, Any]) -> dict[str, str]:
+    normalized: dict[str, str] = {}
+    for raw_key, raw_val in value.items():
+        model_id = _normalize_text(str(raw_key))
+        display_name = _normalize_text(str(raw_val))
+        if not model_id or not display_name:
+            continue
+        normalized[model_id] = display_name
+    return normalized
+
+
+def _normalize_model_context_windows(value: dict[str, Any]) -> dict[str, int]:
+    normalized: dict[str, int] = {}
+    for raw_key, raw_val in value.items():
+        model_id = _normalize_text(str(raw_key))
+        if not model_id:
+            continue
+        try:
+            context_window = int(raw_val)
+        except Exception:
+            continue
+        if context_window <= 0:
+            continue
+        normalized[model_id] = context_window
+    return normalized
+
+
+def _normalize_model_token_limits(value: dict[str, Any]) -> dict[str, int]:
+    normalized: dict[str, int] = {}
+    for raw_key, raw_val in value.items():
+        model_id = _normalize_text(str(raw_key))
+        if not model_id:
+            continue
+        try:
+            token_limit = int(raw_val)
+        except Exception:
+            continue
+        if token_limit <= 0:
+            continue
+        normalized[model_id] = token_limit
+    return normalized
+
+
 class ProviderConfig(BaseModel):
     """Custom provider configuration."""
 
@@ -94,6 +137,9 @@ class ProviderConfig(BaseModel):
     api_base: str
     api_key: str
     models: list[str] = Field(default_factory=list)
+    model_display_names: dict[str, str] = Field(default_factory=dict)
+    model_context_windows: dict[str, int] = Field(default_factory=dict)
+    model_learned_token_limits: dict[str, int] = Field(default_factory=dict)
     enabled: bool = True
     priority: int = 0
     headers: dict[str, str] = Field(default_factory=dict)
@@ -172,6 +218,48 @@ class ProviderConfig(BaseModel):
         if not isinstance(value, dict):
             raise ValueError("headers must be an object.")
         return _normalize_headers(value)
+
+    @field_validator("model_display_names", mode="before")
+    @classmethod
+    def _validate_model_display_names(cls, value: Any) -> dict[str, str]:
+        if value is None:
+            return {}
+        if not isinstance(value, dict):
+            raise ValueError("model_display_names must be an object.")
+        return _normalize_model_display_names(value)
+
+    @field_validator("model_context_windows", mode="before")
+    @classmethod
+    def _validate_model_context_windows(cls, value: Any) -> dict[str, int]:
+        if value is None:
+            return {}
+        if not isinstance(value, dict):
+            raise ValueError("model_context_windows must be an object.")
+        return _normalize_model_context_windows(value)
+
+    @field_validator("model_learned_token_limits", mode="before")
+    @classmethod
+    def _validate_model_learned_token_limits(cls, value: Any) -> dict[str, int]:
+        if value is None:
+            return {}
+        if not isinstance(value, dict):
+            raise ValueError("model_learned_token_limits must be an object.")
+        return _normalize_model_token_limits(value)
+
+    @model_validator(mode="after")
+    def _validate_model_display_name_keys(self) -> "ProviderConfig":
+        allowed = set(self.models)
+        filtered = {key: value for key, value in self.model_display_names.items() if key in allowed}
+        object.__setattr__(self, "model_display_names", filtered)
+        filtered_context_windows = {
+            key: value for key, value in self.model_context_windows.items() if key in allowed
+        }
+        object.__setattr__(self, "model_context_windows", filtered_context_windows)
+        filtered_learned_limits = {
+            key: value for key, value in self.model_learned_token_limits.items() if key in allowed
+        }
+        object.__setattr__(self, "model_learned_token_limits", filtered_learned_limits)
+        return self
 
     @property
     def default_model(self) -> str:

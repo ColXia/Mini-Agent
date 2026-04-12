@@ -18,6 +18,7 @@ _READ_ONLY_TOOL_NAMES = {
     "list_dir",
     "glob",
     "grep",
+    "knowledge_base_query",
 }
 
 _DESTRUCTIVE_TOOL_NAMES = {
@@ -33,6 +34,7 @@ _CONCURRENCY_SAFE_TOOL_NAMES = {
     "list_dir",
     "glob",
     "grep",
+    "knowledge_base_query",
 }
 
 _ALWAYS_LOAD_TOOL_NAMES = {
@@ -51,6 +53,11 @@ _TOOL_KIND_BY_NAME: dict[str, ToolKind] = {
     "recall_notes": ToolKind.READ,
     "user_modeling": ToolKind.EDIT,
     "get_skill": ToolKind.READ,
+    "install_skill": ToolKind.WRITE,
+    "install_skill_from_path": ToolKind.WRITE,
+    "uninstall_skill": ToolKind.WRITE,
+    "rollback_skill": ToolKind.WRITE,
+    "knowledge_base_query": ToolKind.SEARCH,
 }
 
 

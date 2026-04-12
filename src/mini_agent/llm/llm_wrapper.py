@@ -125,3 +125,10 @@ class LLMClient:
             LLMResponse containing the generated content
         """
         return await self._client.generate(messages, tools)
+
+    async def close(self) -> None:
+        close_method = getattr(self._client, "close", None)
+        if callable(close_method):
+            result = close_method()
+            if hasattr(result, "__await__"):
+                await result

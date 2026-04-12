@@ -1,15 +1,26 @@
 """Mini-Agent CLI - Unified entry point.
 
 Usage:
-    mini-agent                    # Studio API mode (default) - single backend host
-    mini-agent cli                # CLI mode - interactive terminal session
-    mini-agent cli --task "..."   # CLI mode - execute single task
-
-Studio API Mode Options:
-    mini-agent --port 8080        # Specify Studio API port
-    mini-agent --reload           # Enable auto-reload
+    mini-agent                            # Unified terminal entry (auto mode)
+    mini                                  # Unified terminal entry shortcut
+    mini-agent --mode tui                 # Force full-screen TUI
+    mini-agent --mode cli                 # Force line-based CLI
+    mini-agent --prompt "hello"           # Headless single prompt
+    mini-agent serve --port 8080          # Studio API host mode (explicit)
+    mini-agent stack up                   # Start gateway/qqbot stack and attach TUI
+    mini qq                               # Shortcut: start gateway + qqbot + TUI
+    mini qq status                        # Shortcut: check qq runtime stack status
+    mini qq down                          # Shortcut: stop qq runtime stack
 
 Subcommands:
+    mini-agent serve              # Start Studio API host explicitly
+    mini-agent stack up           # Start runtime stack (gateway + optional qqbot + TUI)
+    mini-agent qq                 # Shortcut to boot gateway + qqbot + TUI
+    mini-agent qq status          # Shortcut to inspect qq runtime stack
+    mini-agent qq down            # Shortcut to stop qq runtime stack
+    mini-agent stack down         # Stop runtime stack
+    mini-agent stack status       # Check runtime stack status
+    mini-agent stack logs         # Show runtime stack logs
     mini-agent dev up             # Start Studio backend + frontend dev stack
     mini-agent dev status         # Check Studio dev process status
     mini-agent dev down           # Stop Studio dev stack
@@ -20,11 +31,14 @@ Subcommands:
 
 import argparse
 import asyncio
+from datetime import datetime, timezone
 import json
 import os
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Any
+
+from .utils.terminal_utils import supports_unicode_box_art
 
 
 # ANSI color codes
@@ -47,7 +61,7 @@ class Colors:
 
 def print_banner():
     """Print the Mini-Agent banner."""
-    try:
+    if supports_unicode_box_art():
         banner = f"""
 {Colors.BRIGHT_CYAN}╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
@@ -58,12 +72,11 @@ def print_banner():
 ╚═══════════════════════════════════════════════════════════╝{Colors.RESET}
 """
         print(banner)
-    except UnicodeEncodeError:
-        # Fallback for Windows terminals with limited encoding
-        print("=" * 60)
-        print("  Mini-Agent - Intelligent Agent Platform")
-        print("  Powered by MiniMax M2.5")
-        print("=" * 60)
+        return
+    print("=" * 60)
+    print("  Mini-Agent - Intelligent Agent Platform")
+    print("  Powered by MiniMax M2.5")
+    print("=" * 60)
 
 
 def print_safe_text(text: str) -> None:
@@ -88,10 +101,19 @@ def create_main_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  mini-agent                        Start Studio API host (single backend)
-  mini-agent --port 8080            Start Studio API on port 8080
-  mini-agent cli                    Interactive CLI session
-  mini-agent cli --task "hello"     Execute single task
+  mini-agent                        Start unified terminal mode (TTY -> TUI)
+  mini                              Start unified terminal mode shortcut
+  mini-agent --mode tui             Force full-screen TUI
+  mini-agent --mode cli             Force line-based CLI
+  mini-agent --prompt "hello"       Run one prompt in headless mode
+  mini-agent --prompt "hello" --output-format json
+                                    Run headless and emit JSON
+  mini-agent serve --port 8080      Start Studio API host on port 8080
+  mini-agent stack up               Start gateway/qqbot and attach TUI
+  mini qq                           Shortcut: start gateway + qqbot + TUI
+  mini qq status                    Shortcut: check qq runtime stack status
+  mini qq down                      Shortcut: stop qq runtime stack
+  mini-agent cli --task "hello"     Execute one task via CLI mode
   mini-agent dev up                 Start Studio dev stack (backend + frontend)
   mini-agent dev status             Show Studio dev stack status
   mini-agent list subprograms       List available subprograms
@@ -107,10 +129,9 @@ Examples:
     )
     parser.add_argument(
         "--port",
-        "-p",
         type=int,
         default=8008,
-        help="Studio API port (default: 8008)",
+        help="Studio API port (used by `mini-agent serve`, default: 8008)",
     )
     parser.add_argument(
         "--host",
@@ -121,7 +142,7 @@ Examples:
     parser.add_argument(
         "--reload",
         action="store_true",
-        help="Enable auto-reload for development",
+        help="Enable auto-reload for Studio API host (used by `mini-agent serve`)",
     )
     parser.add_argument(
         "--workspace",
@@ -131,15 +152,89 @@ Examples:
         help="Workspace directory",
     )
     parser.add_argument(
-        "--approval-profile",
+        "--agent-mode",
+        dest="approval_profile",
         type=str,
-        choices=["suggest", "auto-edit", "full-auto"],
+        choices=["plan", "build"],
         default=None,
-        help="Runtime approval profile override",
+        help="Execution mode override",
+    )
+    parser.add_argument(
+        "--access-level",
+        type=str,
+        choices=["default", "full-access"],
+        default=None,
+        help="Access level override",
+    )
+    parser.add_argument(
+        "--mode",
+        type=str,
+        choices=["auto", "tui", "cli", "headless"],
+        default="auto",
+        help="Unified terminal mode (default: auto)",
+    )
+    parser.add_argument(
+        "--prompt",
+        "-p",
+        type=str,
+        default=None,
+        help="Single-prompt input for headless mode",
+    )
+    parser.add_argument(
+        "--output-format",
+        type=str,
+        choices=["text", "json", "stream-json"],
+        default="text",
+        help="Headless output format (default: text)",
     )
 
     # Subcommands
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
+
+    # Serve subcommand (explicit Studio API host entry)
+    serve_parser = subparsers.add_parser(
+        "serve",
+        help="Start Studio API host (single backend)",
+    )
+    serve_parser.add_argument(
+        "--port",
+        type=int,
+        default=8008,
+        help="Studio API port (default: 8008)",
+    )
+    serve_parser.add_argument(
+        "--host",
+        type=str,
+        default="127.0.0.1",
+        help="Studio API host (default: 127.0.0.1)",
+    )
+    serve_parser.add_argument(
+        "--reload",
+        action="store_true",
+        help="Enable auto-reload for development",
+    )
+    serve_parser.add_argument(
+        "--workspace",
+        "-w",
+        type=str,
+        default=None,
+        help="Workspace directory",
+    )
+    serve_parser.add_argument(
+        "--agent-mode",
+        dest="approval_profile",
+        type=str,
+        choices=["plan", "build"],
+        default=None,
+        help="Execution mode override",
+    )
+    serve_parser.add_argument(
+        "--access-level",
+        type=str,
+        choices=["default", "full-access"],
+        default=None,
+        help="Access level override",
+    )
 
     # CLI subcommand
     cli_parser = subparsers.add_parser(
@@ -161,11 +256,53 @@ Examples:
         help="Workspace directory",
     )
     cli_parser.add_argument(
-        "--approval-profile",
+        "--agent-mode",
+        dest="approval_profile",
         type=str,
-        choices=["suggest", "auto-edit", "full-auto"],
+        choices=["plan", "build"],
         default=None,
-        help="Runtime approval profile override",
+        help="Execution mode override",
+    )
+    cli_parser.add_argument(
+        "--access-level",
+        type=str,
+        choices=["default", "full-access"],
+        default=None,
+        help="Access level override",
+    )
+
+    # TUI subcommand
+    tui_parser = subparsers.add_parser(
+        "tui",
+        help="Start in TUI mode (full-screen terminal UI)",
+    )
+    tui_parser.add_argument(
+        "--workspace",
+        "-w",
+        type=str,
+        default=None,
+        help="Workspace directory",
+    )
+    tui_parser.add_argument(
+        "--agent-mode",
+        dest="approval_profile",
+        type=str,
+        choices=["plan", "build"],
+        default=None,
+        help="Execution mode override",
+    )
+    tui_parser.add_argument(
+        "--access-level",
+        type=str,
+        choices=["default", "full-access"],
+        default=None,
+        help="Access level override",
+    )
+    tui_parser.add_argument(
+        "--prompt",
+        type=str,
+        default=None,
+        help="Optional initial prompt text",
     )
 
     # List subcommand
@@ -193,11 +330,19 @@ Examples:
         help="Workspace directory for audit context",
     )
     audit_parser.add_argument(
-        "--approval-profile",
+        "--agent-mode",
+        dest="approval_profile",
         type=str,
-        choices=["suggest", "auto-edit", "full-auto"],
+        choices=["plan", "build"],
         default=None,
-        help="Approval profile override for audit evaluation",
+        help="Execution mode override for audit evaluation",
+    )
+    audit_parser.add_argument(
+        "--access-level",
+        type=str,
+        choices=["default", "full-access"],
+        default=None,
+        help="Access level override for audit evaluation",
     )
 
     doctor_parser = subparsers.add_parser(
@@ -324,7 +469,7 @@ Examples:
     )
     provider_parser.add_argument(
         "action",
-        choices=["list", "add", "remove", "enable", "disable", "show"],
+        choices=["list", "limits", "clear-limit", "add", "remove", "enable", "disable", "show"],
         help="Provider action",
     )
     provider_parser.add_argument(
@@ -365,6 +510,29 @@ Examples:
         help="Comma-separated list of supported models",
     )
     provider_parser.add_argument(
+        "--model-id",
+        type=str,
+        default=None,
+        help="Default model id for this provider",
+    )
+    provider_parser.add_argument(
+        "--model-name",
+        type=str,
+        default=None,
+        help="Display name for --model-id",
+    )
+    provider_parser.add_argument(
+        "--auto-discover-models",
+        action="store_true",
+        help="Discover available models when model is not provided",
+    )
+    provider_parser.add_argument(
+        "--selected-model-id",
+        type=str,
+        default=None,
+        help="Model id selected from discovered models",
+    )
+    provider_parser.add_argument(
         "--priority",
         type=int,
         default=0,
@@ -375,6 +543,13 @@ Examples:
         type=str,
         default=None,
         help="Provider catalog JSON file path (default: ~/.mini-agent/providers.json)",
+    )
+    provider_parser.add_argument(
+        "--source",
+        type=str,
+        choices=["custom", "preset"],
+        default=None,
+        help="Provider source for learned-limit actions",
     )
 
     models_parser = subparsers.add_parser(
@@ -547,7 +722,185 @@ Examples:
         help="Follow logs continuously for `dev logs`",
     )
 
+    stack_parser = subparsers.add_parser(
+        "stack",
+        help="Manage runtime stack for TUI/QQ workflows",
+    )
+    stack_parser.add_argument(
+        "action",
+        choices=["up", "down", "status", "logs"],
+        help="Runtime stack action",
+    )
+    stack_parser.add_argument(
+        "--workspace",
+        "-w",
+        type=str,
+        default=None,
+        help="Workspace directory (default: repo root)",
+    )
+    stack_parser.add_argument(
+        "--host",
+        type=str,
+        default="127.0.0.1",
+        help="Gateway host (default: 127.0.0.1)",
+    )
+    stack_parser.add_argument(
+        "--port",
+        type=int,
+        default=8008,
+        help="Gateway port (default: 8008)",
+    )
+    stack_parser.add_argument(
+        "--qqbot",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Enable/disable QQ bot startup (default: auto-enable when qqbot .env exists)",
+    )
+    stack_parser.add_argument(
+        "--tui",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Attach TUI in the current terminal after background services start",
+    )
+    stack_parser.add_argument(
+        "--tui-prompt",
+        type=str,
+        default=None,
+        help="Optional initial TUI prompt for `stack up`",
+    )
+    stack_parser.add_argument(
+        "--startup-timeout",
+        type=float,
+        default=20.0,
+        help="Startup timeout in seconds for gateway readiness (default: 20)",
+    )
+    stack_parser.add_argument(
+        "--agent-mode",
+        dest="approval_profile",
+        type=str,
+        choices=["plan", "build"],
+        default=None,
+        help="Execution mode override",
+    )
+    stack_parser.add_argument(
+        "--access-level",
+        type=str,
+        choices=["default", "full-access"],
+        default=None,
+        help="Access level override",
+    )
+    stack_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force terminate lingering processes on `stack down`",
+    )
+    stack_parser.add_argument(
+        "--target",
+        type=str,
+        choices=["all", "gateway", "qqbot"],
+        default="all",
+        help="Log target for `stack logs`",
+    )
+    stack_parser.add_argument(
+        "--lines",
+        type=int,
+        default=120,
+        help="Tail lines for `stack logs` (default: 120)",
+    )
+
+    qq_parser = subparsers.add_parser(
+        "qq",
+        help="Shortcut: start gateway + qqbot + TUI",
+    )
+    qq_parser.add_argument(
+        "action",
+        nargs="?",
+        choices=["up", "down", "status", "logs"],
+        default="up",
+        help="QQ runtime shortcut action (default: up)",
+    )
+    qq_parser.add_argument(
+        "--workspace",
+        "-w",
+        type=str,
+        default=None,
+        help="Workspace directory (default: repo root)",
+    )
+    qq_parser.add_argument(
+        "--host",
+        type=str,
+        default="127.0.0.1",
+        help="Gateway host (default: 127.0.0.1)",
+    )
+    qq_parser.add_argument(
+        "--port",
+        type=int,
+        default=8008,
+        help="Gateway port (default: 8008)",
+    )
+    qq_parser.add_argument(
+        "--startup-timeout",
+        type=float,
+        default=20.0,
+        help="Startup timeout in seconds for gateway readiness (default: 20)",
+    )
+    qq_parser.add_argument(
+        "--agent-mode",
+        dest="approval_profile",
+        type=str,
+        choices=["plan", "build"],
+        default=None,
+        help="Execution mode override",
+    )
+    qq_parser.add_argument(
+        "--access-level",
+        type=str,
+        choices=["default", "full-access"],
+        default=None,
+        help="Access level override",
+    )
+    qq_parser.add_argument(
+        "--tui",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Attach TUI for `qq up` (default: enabled)",
+    )
+    qq_parser.add_argument(
+        "--prompt",
+        type=str,
+        default=None,
+        help="Optional initial TUI prompt",
+    )
+    qq_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force terminate lingering processes on `qq down`",
+    )
+    qq_parser.add_argument(
+        "--target",
+        type=str,
+        choices=["all", "gateway", "qqbot"],
+        default="all",
+        help="Log target for `qq logs`",
+    )
+    qq_parser.add_argument(
+        "--lines",
+        type=int,
+        default=120,
+        help="Tail lines for `qq logs` (default: 120)",
+    )
+
     return parser
+
+
+def _apply_runtime_policy_overrides(args: argparse.Namespace) -> None:
+    approval_profile = getattr(args, "approval_profile", None)
+    access_level = getattr(args, "access_level", None)
+    if approval_profile:
+        os.environ["MINI_AGENT_APPROVAL_PROFILE"] = approval_profile
+        os.environ["MINI_AGENT_AGENT_MODE"] = approval_profile
+    if access_level:
+        os.environ["MINI_AGENT_ACCESS_LEVEL"] = access_level
 
 
 def run_gateway_mode(args: argparse.Namespace) -> None:
@@ -560,8 +913,7 @@ def run_gateway_mode(args: argparse.Namespace) -> None:
     from .ops.doctor import format_doctor_report, run_startup_self_check
     from .utils.single_instance import SingleInstanceManager
 
-    if args.approval_profile:
-        os.environ["MINI_AGENT_APPROVAL_PROFILE"] = args.approval_profile
+    _apply_runtime_policy_overrides(args)
 
     # Enforce single backend-host instance.
     instance_manager = SingleInstanceManager()
@@ -605,7 +957,7 @@ def run_gateway_mode(args: argparse.Namespace) -> None:
     print(f"  host: {args.host}")
     print(f"  port: {args.port}")
     print(f"  workspace: {workspace}")
-    print(f"  runtime_mode: single_main")
+    print("  runtime_mode: single_main")
     if args.reload:
         print(f"  reload: {Colors.YELLOW}enabled{Colors.RESET}")
 
@@ -628,6 +980,7 @@ def run_cli_mode(args: argparse.Namespace) -> None:
     """
     from .cli_interactive import run_interactive_session
 
+    _apply_runtime_policy_overrides(args)
     print_banner()
 
     # Determine workspace
@@ -635,13 +988,256 @@ def run_cli_mode(args: argparse.Namespace) -> None:
     workspace.mkdir(parents=True, exist_ok=True)
 
     # Run interactive or single task
+    task = getattr(args, "task", None)
     asyncio.run(
         run_interactive_session(
             workspace=workspace,
-            task=args.task,
-            approval_profile=args.approval_profile,
+            task=task,
+            approval_profile=getattr(args, "approval_profile", None),
         )
     )
+
+
+def run_tui_mode(args: argparse.Namespace) -> None:
+    """Run in full-screen TUI mode."""
+    from .tui import run_tui
+
+    _apply_runtime_policy_overrides(args)
+    workspace = Path(args.workspace) if args.workspace else Path.cwd()
+    workspace.mkdir(parents=True, exist_ok=True)
+
+    asyncio.run(
+        run_tui(
+            workspace=workspace,
+            approval_profile=getattr(args, "approval_profile", None),
+            access_level=getattr(args, "access_level", None),
+            initial_prompt=getattr(args, "prompt", None),
+        )
+    )
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _read_non_tty_prompt() -> str | None:
+    if sys.stdin.isatty():
+        return None
+    data = sys.stdin.read()
+    text = str(data or "").strip()
+    return text or None
+
+
+async def _run_headless_prompt_async(
+    *,
+    workspace: Path,
+    prompt: str,
+    approval_profile: str | None,
+) -> tuple[str, str, dict[str, Any], dict[str, Any]]:
+    from .agent import TurnStopReason
+    from .cli_interactive import (
+        build_agent,
+        create_submission_loop_for_agent,
+        run_prompt_via_submission_loop,
+    )
+    from .tools.mcp_loader import cleanup_mcp_connections
+
+    agent = await build_agent(workspace, approval_profile=approval_profile)
+    agent.console_output = False
+    submission_loop = None
+    loop_bus = None
+    try:
+        submission_loop, loop_bus = await create_submission_loop_for_agent(
+            agent=agent,
+            session_id="headless-session",
+        )
+        payload = await run_prompt_via_submission_loop(
+            loop=submission_loop,
+            bus=loop_bus,
+            agent=agent,
+            prompt=prompt,
+            metadata={"surface": "headless", "mode": "single_prompt"},
+            start_new_run=True,
+            approval_resolver=lambda _payload: False,
+        )
+        state = str(payload.get("state", "") or "").strip().lower()
+        stop_reason = str(payload.get("stop_reason", "") or "").strip().lower()
+        message = str(payload.get("message", "") or "").strip()
+        error = str(payload.get("error", "") or "").strip()
+
+        if not (state == "completed" and stop_reason in {"end_turn", ""}):
+            if state == "interrupted" or stop_reason == TurnStopReason.CANCELLED.value:
+                raise RuntimeError(message or "Task cancelled by user.")
+            if stop_reason == TurnStopReason.MAX_TURN_REQUESTS.value:
+                raise RuntimeError(message or "Turn reached max request limit.")
+            raise RuntimeError(message or error or "Turn failed.")
+
+        model_id = ""
+        llm_client = getattr(agent, "llm_client", None)
+        if llm_client is not None:
+            model_id = str(getattr(llm_client, "model", "") or "")
+        if not model_id:
+            llm_obj = getattr(agent, "llm", None)
+            model_id = str(getattr(llm_obj, "model", "") or "")
+        model_id = model_id or "unknown"
+        prepared_context = payload.get("prepared_context")
+        if not isinstance(prepared_context, dict):
+            prepared_context = {}
+        prepared_context_diagnostics = payload.get("prepared_context_diagnostics")
+        if not isinstance(prepared_context_diagnostics, dict):
+            prepared_context_diagnostics = {}
+        return message, model_id, prepared_context, prepared_context_diagnostics
+    finally:
+        if submission_loop is not None:
+            await submission_loop.stop()
+        await cleanup_mcp_connections()
+
+
+def run_headless_mode(args: argparse.Namespace) -> None:
+    """Run one-shot headless prompt mode (for scripts/CI)."""
+    _apply_runtime_policy_overrides(args)
+    prompt = str(getattr(args, "prompt", "") or "").strip()
+    if not prompt:
+        print(f"{Colors.RED}Error: --prompt is required in headless mode.{Colors.RESET}")
+        raise SystemExit(1)
+
+    workspace = Path(args.workspace) if args.workspace else Path.cwd()
+    workspace.mkdir(parents=True, exist_ok=True)
+
+    try:
+        reply, model_id, prepared_context, prepared_context_diagnostics = asyncio.run(
+            _run_headless_prompt_async(
+                workspace=workspace,
+                prompt=prompt,
+                approval_profile=getattr(args, "approval_profile", None),
+            )
+        )
+    except Exception as exc:
+        output_format = getattr(args, "output_format", "text")
+        if output_format == "json":
+            print_safe_text(
+                json.dumps(
+                    {
+                        "ok": False,
+                        "type": "error",
+                        "error": str(exc),
+                        "timestamp": _utc_now_iso(),
+                    },
+                    ensure_ascii=False,
+                )
+            )
+        elif output_format == "stream-json":
+            print_safe_text(
+                json.dumps(
+                    {
+                        "type": "error",
+                        "ok": False,
+                        "error": str(exc),
+                        "timestamp": _utc_now_iso(),
+                    },
+                    ensure_ascii=False,
+                )
+            )
+        else:
+            print(f"{Colors.RED}Error: {exc}{Colors.RESET}")
+        raise SystemExit(1) from exc
+
+    output_format = getattr(args, "output_format", "text")
+    if output_format == "json":
+        print_safe_text(
+            json.dumps(
+                {
+                    "ok": True,
+                    "type": "result",
+                    "model": model_id,
+                    "output": reply,
+                    "prepared_context": prepared_context,
+                    "prepared_context_diagnostics": prepared_context_diagnostics,
+                    "timestamp": _utc_now_iso(),
+                },
+                ensure_ascii=False,
+            )
+        )
+        return
+
+    if output_format == "stream-json":
+        print_safe_text(
+            json.dumps(
+                {"type": "start", "ok": True, "timestamp": _utc_now_iso()},
+                ensure_ascii=False,
+            )
+        )
+        print_safe_text(
+            json.dumps(
+                {
+                    "type": "assistant",
+                    "ok": True,
+                    "model": model_id,
+                    "content": reply,
+                    "prepared_context": prepared_context,
+                    "prepared_context_diagnostics": prepared_context_diagnostics,
+                    "timestamp": _utc_now_iso(),
+                },
+                ensure_ascii=False,
+            )
+        )
+        print_safe_text(
+            json.dumps(
+                {"type": "end", "ok": True, "timestamp": _utc_now_iso()},
+                ensure_ascii=False,
+            )
+        )
+        return
+
+    print_safe_text(reply)
+
+
+def run_unified_terminal_mode(args: argparse.Namespace) -> None:
+    """Single entry mode inspired by opencode/codex/gemini-cli."""
+    mode = str(getattr(args, "mode", "auto") or "auto").strip().lower()
+    prompt = str(getattr(args, "prompt", "") or "").strip()
+
+    if mode == "tui":
+        run_tui_mode(args)
+        return
+
+    if mode == "cli":
+        cli_args = argparse.Namespace(**vars(args))
+        if not getattr(cli_args, "task", None) and prompt:
+            cli_args.task = prompt
+        run_cli_mode(cli_args)
+        return
+
+    if mode == "headless":
+        run_headless_mode(args)
+        return
+
+    # auto mode:
+    if prompt:
+        run_headless_mode(args)
+        return
+
+    piped_prompt = _read_non_tty_prompt()
+    if piped_prompt:
+        auto_args = argparse.Namespace(**vars(args))
+        auto_args.prompt = piped_prompt
+        run_headless_mode(auto_args)
+        return
+
+    if sys.stdin.isatty() and sys.stdout.isatty():
+        run_tui_mode(args)
+        return
+
+    print(
+        f"{Colors.RED}Error: no interactive TTY detected. Use --prompt for headless mode.{Colors.RESET}"
+    )
+    raise SystemExit(1)
+
+
+def _is_serve_intent(args: argparse.Namespace) -> bool:
+    if getattr(args, "command", None) == "serve":
+        return True
+    return bool(args.reload) or str(args.host) != "127.0.0.1" or int(args.port) != 8008
 
 
 def run_security_audit_command(args: argparse.Namespace) -> None:
@@ -657,6 +1253,8 @@ def run_security_audit_command(args: argparse.Namespace) -> None:
 
     if args.approval_profile:
         config.security.approval_profile = args.approval_profile
+    if getattr(args, "access_level", None):
+        config.security.access_level = args.access_level
 
     workspace = (
         Path(args.workspace).resolve()
@@ -929,16 +1527,16 @@ def run_models_command(args: argparse.Namespace) -> None:
     # Require provider argument
     if not args.provider:
         print(f"{Colors.RED}Error: provider argument is required{Colors.RESET}")
-        print(f"Usage: mini-agent models <provider>")
-        print(f"Providers: openai, anthropic, gemini, minimax")
-        print(f"\nTo list preset providers: mini-agent models --list-presets")
+        print("Usage: mini-agent models <provider>")
+        print("Providers: openai, anthropic, gemini, minimax")
+        print("\nTo list preset providers: mini-agent models --list-presets")
         return
 
     provider = args.provider.lower()
 
     # Validate provider
     try:
-        provider_type = ProviderType(provider)
+        ProviderType(provider)
     except ValueError:
         print(f"{Colors.RED}Unknown provider: {provider}{Colors.RESET}")
         print(f"Supported providers: {', '.join([p.value for p in ProviderType])}")
@@ -990,9 +1588,9 @@ def run_provider_command(args: argparse.Namespace) -> None:
     from pathlib import Path
     from mini_agent.model_manager import (
         ProviderConfig,
-        ProviderCatalog,
         normalize_provider_catalog,
     )
+    from mini_agent.model_manager.model_registry_service import ModelRegistryService
 
     catalog_path = None
     if args.catalog:
@@ -1034,6 +1632,113 @@ def run_provider_command(args: argparse.Namespace) -> None:
             print(f"    status: {status}")
             print()
 
+    elif args.action == "limits":
+        service = ModelRegistryService(catalog_path=catalog_path)
+        rows = service.list_learned_token_limits(
+            source=args.source,
+            provider_id=args.id,
+            model_id=args.model_id,
+        )
+        if not rows:
+            print(f"{Colors.DIM}No learned token limits found.{Colors.RESET}")
+            return
+
+        print(f"{Colors.CYAN}Learned Token Limits:{Colors.RESET}\n")
+        for row in rows:
+            learned = int(row.get("learned_token_limit") or 0)
+            context_window = row.get("context_window")
+            default_suffix = " | default" if row.get("is_default") else ""
+            print(
+                f"  [{row['source']}] {row['provider_id']}/{row['model_id']}{default_suffix}"
+            )
+            print(f"    learned: {learned:,}")
+            print(
+                f"    context: {int(context_window):,}"
+                if isinstance(context_window, int) and context_window > 0
+                else "    context: --"
+            )
+            print(f"    display: {row.get('display_name') or row['model_id']}")
+            print()
+
+    elif args.action == "clear-limit":
+        if not args.id:
+            print(
+                f"{Colors.RED}Error: --id is required for clear-limit action.{Colors.RESET}"
+            )
+            return
+
+        service = ModelRegistryService(catalog_path=catalog_path)
+        source = args.source
+        if not source:
+            matches = service.list_learned_token_limits(
+                provider_id=args.id,
+                model_id=args.model_id,
+            )
+            unique_sources = sorted({str(item.get("source") or "") for item in matches if item.get("source")})
+            if len(unique_sources) == 1:
+                source = unique_sources[0]
+            elif len(unique_sources) > 1:
+                joined = ", ".join(unique_sources)
+                print(
+                    f"{Colors.RED}Error: multiple sources match {args.id}. Use --source <custom|preset>. "
+                    f"Matches: {joined}{Colors.RESET}"
+                )
+                return
+            else:
+                registry_matches = [
+                    item
+                    for item in service.list_registry()
+                    if str(item.get("provider_id") or "") == str(args.id)
+                ]
+                unique_sources = sorted({str(item.get("source") or "") for item in registry_matches if item.get("source")})
+                if len(unique_sources) == 1:
+                    source = unique_sources[0]
+                elif len(unique_sources) > 1:
+                    joined = ", ".join(unique_sources)
+                    print(
+                        f"{Colors.RED}Error: multiple providers match {args.id}. Use --source <custom|preset>. "
+                        f"Matches: {joined}{Colors.RESET}"
+                    )
+                    return
+
+        if not source:
+            print(
+                f"{Colors.RED}Error: provider source could not be resolved. Use --source <custom|preset>.{Colors.RESET}"
+            )
+            return
+
+        try:
+            result = service.clear_learned_token_limit(
+                source=source,
+                provider_id=args.id,
+                model_id=args.model_id,
+            )
+        except Exception as e:
+            print(f"{Colors.RED}Failed to clear learned token limit: {e}{Colors.RESET}")
+            return
+
+        removed_models = list(result.get("removed_models") or [])
+        removed_count = int(result.get("removed_count") or 0)
+        if args.model_id:
+            if removed_count > 0:
+                print(
+                    f"{Colors.GREEN}Cleared learned token limit for {args.id}/{args.model_id}.{Colors.RESET}"
+                )
+            else:
+                print(
+                    f"{Colors.YELLOW}No learned token limit was set for {args.id}/{args.model_id}.{Colors.RESET}"
+                )
+        else:
+            if removed_count > 0:
+                print(
+                    f"{Colors.GREEN}Cleared {removed_count} learned token limit(s) for provider '{args.id}'.{Colors.RESET}"
+                )
+                print(f"  models: {', '.join(removed_models)}")
+            else:
+                print(
+                    f"{Colors.YELLOW}Provider '{args.id}' has no learned token limits to clear.{Colors.RESET}"
+                )
+
     elif args.action == "add":
         if not args.name or not args.url or not args.key:
             print(
@@ -1041,11 +1746,88 @@ def run_provider_command(args: argparse.Namespace) -> None:
             )
             return
 
-        models = []
+        models: list[str] = []
         if args.models:
             models = [m.strip() for m in args.models.split(",") if m.strip()]
+        model_display_names: dict[str, str] = {}
+
+        if args.model_id and str(args.model_id).strip():
+            model_id = str(args.model_id).strip()
+            models = [model_id, *[item for item in models if item != model_id]]
+            if args.model_name and str(args.model_name).strip():
+                model_display_names[model_id] = str(args.model_name).strip()
+
         if not models:
-            models = ["default"]
+            auto_discover = bool(args.auto_discover_models)
+            if not auto_discover and sys.stdin.isatty():
+                confirm = (
+                    input("No model configured. Auto-discover available models now? [y/N]: ")
+                    .strip()
+                    .lower()
+                )
+                auto_discover = confirm in {"y", "yes"}
+
+            if auto_discover:
+                from mini_agent.model_manager.model_discovery import (
+                    ModelDiscoveryService,
+                    ProviderType,
+                )
+
+                provider_type_map = {
+                    "openai": ProviderType.OPENAI,
+                    "anthropic": ProviderType.ANTHROPIC,
+                    "gemini": ProviderType.GEMINI,
+                    "minimax": ProviderType.MINIMAX,
+                    "custom": ProviderType.OPENAI,
+                }
+                provider_type = provider_type_map.get(args.type, ProviderType.OPENAI)
+                endpoint = args.url.rstrip("/")
+                if not endpoint.endswith("/models"):
+                    endpoint = f"{endpoint}/models"
+
+                service = ModelDiscoveryService()
+                result = asyncio.run(
+                    service.discover_models(
+                        provider=provider_type,
+                        api_key=args.key,
+                        api_base=endpoint,
+                        use_cache=False,
+                    )
+                )
+                discovered = []
+                seen: set[str] = set()
+                for item in result.available_models:
+                    model_id = str(item.id).strip()
+                    if not model_id:
+                        continue
+                    lowered = model_id.lower()
+                    if lowered in seen:
+                        continue
+                    seen.add(lowered)
+                    discovered.append(model_id)
+
+                selected_model_id = (
+                    str(args.selected_model_id).strip() if args.selected_model_id else ""
+                )
+                if not selected_model_id and discovered and sys.stdin.isatty():
+                    print("\nDiscovered models:")
+                    for idx, model_id in enumerate(discovered, start=1):
+                        print(f"  {idx}. {model_id}")
+                    raw_choice = input("Select one model by number (blank to skip): ").strip()
+                    if raw_choice.isdigit():
+                        selected_index = int(raw_choice)
+                        if 1 <= selected_index <= len(discovered):
+                            selected_model_id = discovered[selected_index - 1]
+
+                if selected_model_id and selected_model_id in discovered:
+                    models = [selected_model_id, *[item for item in discovered if item != selected_model_id]]
+                    model_display_names[selected_model_id] = selected_model_id
+
+        if not models:
+            print(
+                f"{Colors.YELLOW}Provider not created: no model selected/configured.{Colors.RESET}"
+            )
+            return
 
         new_provider = ProviderConfig(
             id=args.id,
@@ -1054,6 +1836,7 @@ def run_provider_command(args: argparse.Namespace) -> None:
             api_base=args.url,
             api_key=args.key,
             models=models,
+            model_display_names=model_display_names,
             enabled=True,
             priority=args.priority,
         )
@@ -1341,14 +2124,145 @@ def run_dev_command(args: argparse.Namespace) -> None:
         raise SystemExit(1) from exc
 
 
+def run_stack_command(args: argparse.Namespace) -> None:
+    """Run runtime stack manager command."""
+    from .dev import RuntimeStackManager
+
+    source_root = Path(__file__).resolve().parents[1]
+    repo_root = source_root.parent
+    manager = RuntimeStackManager(source_root=source_root, repo_root=repo_root)
+    action = args.action
+
+    try:
+        if action == "up":
+            workspace = Path(args.workspace).resolve() if args.workspace else repo_root
+            status = manager.up(
+                host=args.host,
+                gateway_port=int(args.port),
+                workspace=workspace,
+                qqbot=args.qqbot,
+                approval_profile=getattr(args, "approval_profile", None),
+                access_level=getattr(args, "access_level", None),
+                startup_timeout=float(args.startup_timeout),
+            )
+            print(f"{Colors.GREEN}Runtime stack is running.{Colors.RESET}")
+            print(
+                f"  gateway: http://{status.host}:{status.gateway_port} (PID {status.gateway_pid})"
+            )
+            if status.qqbot_enabled and status.qqbot_pid:
+                print(f"  qqbot:   running (PID {status.qqbot_pid})")
+            elif status.qqbot_enabled:
+                print("  qqbot:   enabled but not active")
+            else:
+                print("  qqbot:   skipped")
+            print(f"  workspace: {status.workspace}")
+            print(f"  state: {status.state_file}")
+            print(f"  logs:  {status.gateway_log} | {status.qqbot_log}")
+            if status.message:
+                print(f"  note: {status.message}")
+            if bool(args.tui):
+                os.environ["MINI_AGENT_GATEWAY_BASE"] = f"http://{status.host}:{status.gateway_port}"
+                print(f"{Colors.CYAN}Attaching TUI to runtime stack...{Colors.RESET}")
+                run_tui_mode(
+                    argparse.Namespace(
+                        workspace=str(workspace),
+                        approval_profile=getattr(args, "approval_profile", None),
+                        access_level=getattr(args, "access_level", None),
+                        prompt=getattr(args, "tui_prompt", None),
+                    )
+                )
+            return
+
+        if action == "down":
+            status = manager.down(force=bool(args.force))
+            print(f"{Colors.GREEN}Runtime stack stopped.{Colors.RESET}")
+            print(f"  state: {status.state_file}")
+            if status.message:
+                print(f"  note: {status.message}")
+            return
+
+        if action == "status":
+            status = manager.status()
+            overall = (
+                f"{Colors.GREEN}running{Colors.RESET}"
+                if status.running
+                else f"{Colors.YELLOW}stopped{Colors.RESET}"
+            )
+            gateway = (
+                f"{Colors.GREEN}running{Colors.RESET} (PID {status.gateway_pid})"
+                if status.gateway_running
+                else f"{Colors.YELLOW}stopped{Colors.RESET}"
+            )
+            if status.qqbot_enabled:
+                qqbot = (
+                    f"{Colors.GREEN}running{Colors.RESET} (PID {status.qqbot_pid})"
+                    if status.qqbot_running
+                    else f"{Colors.YELLOW}stopped{Colors.RESET}"
+                )
+            else:
+                qqbot = f"{Colors.DIM}disabled{Colors.RESET}"
+            print(f"Runtime stack status: {overall}")
+            print(f"  gateway:  {gateway} @ http://{status.host}:{status.gateway_port}")
+            print(f"  qqbot:    {qqbot}")
+            print(f"  workspace: {status.workspace}")
+            print(f"  state: {status.state_file}")
+            print(f"  logs:  {status.gateway_log} | {status.qqbot_log}")
+            if not status.qqbot_configured:
+                print("  qqbot_env: missing")
+            if status.message:
+                print(f"  note: {status.message}")
+            return
+
+        if action == "logs":
+            payload = manager.read_logs(target=args.target, lines=max(1, int(args.lines)))
+            if "gateway" in payload:
+                print("===== gateway.log =====")
+                print_safe_text(payload["gateway"] or "(empty)")
+            if "qqbot" in payload:
+                print("===== qqbot.log =====")
+                print_safe_text(payload["qqbot"] or "(empty)")
+            return
+
+        raise RuntimeError(f"Unsupported stack action: {action}")
+    except RuntimeError as exc:
+        print(f"{Colors.RED}Error: {exc}{Colors.RESET}")
+        raise SystemExit(1) from exc
+
+
+def run_qq_command(args: argparse.Namespace) -> None:
+    """Shortcut command for gateway + qqbot + TUI startup."""
+    action = getattr(args, "action", "up")
+    run_stack_command(
+        argparse.Namespace(
+            action=action,
+            workspace=getattr(args, "workspace", None),
+            host=getattr(args, "host", "127.0.0.1"),
+            port=int(getattr(args, "port", 8008)),
+            qqbot=True if action == "up" else None,
+            tui=bool(getattr(args, "tui", True)) if action == "up" else False,
+            tui_prompt=getattr(args, "prompt", None) if action == "up" else None,
+            startup_timeout=float(getattr(args, "startup_timeout", 20.0)),
+            force=bool(getattr(args, "force", False)),
+            target=getattr(args, "target", "all"),
+            lines=int(getattr(args, "lines", 120)),
+            approval_profile=getattr(args, "approval_profile", None),
+            access_level=getattr(args, "access_level", None),
+        )
+    )
+
+
 def main() -> None:
     """Main entry point for Mini-Agent CLI."""
     parser = create_main_parser()
     args = parser.parse_args()
 
     # Handle subcommands
-    if args.command == "cli":
+    if args.command == "serve":
+        run_gateway_mode(args)
+    elif args.command == "cli":
         run_cli_mode(args)
+    elif args.command == "tui":
+        run_tui_mode(args)
     elif args.command == "models":
         run_models_command(args)
     elif args.command == "list":
@@ -1369,11 +2283,18 @@ def main() -> None:
         run_consolidate_memory_command(args)
     elif args.command == "dev":
         run_dev_command(args)
+    elif args.command == "stack":
+        run_stack_command(args)
+    elif args.command == "qq":
+        run_qq_command(args)
     elif args.command == "provider":
         run_provider_command(args)
     else:
-        # Default: Studio API mode
-        run_gateway_mode(args)
+        # Default: unified terminal mode; retain serve-intent fallback for host/port/reload.
+        if _is_serve_intent(args):
+            run_gateway_mode(args)
+            return
+        run_unified_terminal_mode(args)
 
 
 if __name__ == "__main__":

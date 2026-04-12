@@ -20,6 +20,59 @@ class ProviderErrorClassification:
     retryable: bool
     failover_allowed: bool
     status_code: int | None = None
+    context_window_limit: int | None = None
+    requested_tokens: int | None = None
+
+
+_OVERFLOW_MAX_PATTERNS = (
+    re.compile(r"maximum context length is\s*([\d,]+)\s*tokens?", re.IGNORECASE),
+    re.compile(r"context window(?:\s+of|\s+is)?\s*([\d,]+)\s*tokens?", re.IGNORECASE),
+    re.compile(r"context limit(?:\s+of|\s+is)?\s*([\d,]+)\s*tokens?", re.IGNORECASE),
+    re.compile(r"max(?:imum)?\s+context(?:\s+length)?(?:\s+of|\s+is)?\s*([\d,]+)", re.IGNORECASE),
+)
+_OVERFLOW_REQUESTED_PATTERNS = (
+    re.compile(r"resulted in\s*([\d,]+)\s*tokens?", re.IGNORECASE),
+    re.compile(r"prompt is\s*([\d,]+)\s*tokens?", re.IGNORECASE),
+    re.compile(r"requested\s*([\d,]+)\s*tokens?", re.IGNORECASE),
+    re.compile(r"input tokens?(?:\s*\(|\s*[:=]\s*|\s+)([\d,]+)", re.IGNORECASE),
+)
+
+
+def _normalize_token_number(raw: str | None) -> int | None:
+    candidate = str(raw or "").replace(",", "").strip()
+    if not candidate:
+        return None
+    try:
+        value = int(candidate)
+    except Exception:
+        return None
+    return value if value > 0 else None
+
+
+def _extract_pattern_number(message: str, patterns: tuple[re.Pattern[str], ...]) -> int | None:
+    for pattern in patterns:
+        matched = pattern.search(message)
+        if matched is None:
+            continue
+        value = _normalize_token_number(matched.group(1))
+        if value is not None:
+            return value
+    return None
+
+
+def _is_context_window_overflow(message: str) -> bool:
+    lowered = message.lower()
+    overflow_markers = (
+        "maximum context length",
+        "context window",
+        "context length exceeded",
+        "prompt is too long",
+        "input is too long",
+        "too many tokens",
+        "input tokens exceed",
+        "input length and max_tokens exceed context limit",
+    )
+    return any(marker in lowered for marker in overflow_markers)
 
 
 def _extract_status_code(exc: Exception, message: str) -> int | None:
@@ -61,6 +114,16 @@ def classify_provider_error(exc: Exception) -> ProviderErrorClassification:
         )
 
     status_code = _extract_status_code(exc, message)
+    if _is_context_window_overflow(message):
+        return ProviderErrorClassification(
+            category="non_retryable",
+            reason="context_window_exceeded",
+            retryable=False,
+            failover_allowed=False,
+            status_code=status_code,
+            context_window_limit=_extract_pattern_number(message, _OVERFLOW_MAX_PATTERNS),
+            requested_tokens=_extract_pattern_number(message, _OVERFLOW_REQUESTED_PATTERNS),
+        )
     if status_code == 429:
         return ProviderErrorClassification(
             category="retryable",

@@ -24,6 +24,8 @@
 - P19 weekly readiness template: `docs/P19_WEEKLY_RELEASE_READINESS_TEMPLATE.md`
 - GitHub upload scope (2026-04-07): `docs/GITHUB_UPLOAD_SCOPE_2026-04-07.md`
 - Cross-device handoff (2026-04-07): `docs/CROSS_DEVICE_HANDOFF_2026-04-07.md`
+- Session boundary audit (2026-04-12): `docs/P29_SESSION_BOUNDARY_AUDIT_2026-04-12.md`
+- Session hard-refactor plan (2026-04-12): `docs/P29_SESSION_HARD_REFACTOR_PLAN.md`
 - Transformation plan (v2): `docs/TRANSFORMATION_PLAN.md`
 - Transformation guardrails (mini): `docs/TRANSFORMATION_PLAN_LITE_ADDENDUM.md`
 - External OSS index bridge: `docs/EXTERNAL_OSS_INDEX.md`
@@ -94,7 +96,7 @@ Mini execution contract:
   - sandbox mode (where tool runs)
   - tool policy (what tools are callable)
   - elevated exec (host escape gate)
-- [x] Add approval profiles (`suggest`, `auto-edit`, `full-auto`) for CLI and ACP.
+- [x] Add runtime execution/access modes (`plan` / `build`, `default` / `full-access`) for CLI surfaces.
 - [x] Add `security audit` style command for config risk checks.
 
 ## P7 Plugin and Memory Evolution
@@ -541,7 +543,7 @@ Mini execution contract:
     - `mini_agent/code_agent/__init__.py`
   - capabilities:
     - ordered ask/allow/deny policy rules (`tool_pattern`, optional `ToolKind`)
-    - read-only default-allow guard and full-auto bypass mode
+    - read-only default-allow guard and full-access bypass mode
     - invocation fingerprint cache for repeated approval decisions
     - escalation request path for denied high-impact tool classes
     - typed approval outcomes (`reason`, `from_cache`, `can_escalate`, `escalated`)
@@ -662,19 +664,19 @@ Mini execution contract:
   - tests:
     - `tests/test_docling_parse_tool.py`
     - `tests/test_document_parser_router.py`
-- [x] Add MaxKB query baseline with knowledge-base subprogram skeleton (P16 T4.2).
+- [x] Add knowledge-base query baseline with knowledge-base subprogram skeleton (P16 T4.2).
   - core implementation:
-    - `mini_agent/tools/maxkb_query.py`
+    - `mini_agent/tools/knowledge_base.py`
     - `mini_agent/tools/__init__.py`
     - `subprograms/knowledge_base/manifest.json`
     - `subprograms/knowledge_base/main.py`
     - `subprograms/knowledge_base/gateway/router.py`
   - capabilities:
-    - typed MaxKB query and ingest client with pluggable transport for local deterministic tests
-    - tool wrappers: `maxkb_query` and `maxkb_ingest`
+    - native knowledge-base query tool backed by the built-in lightweight RAG store
+    - explicit `knowledge_base_query` tool plus gateway query/ingest endpoints
     - standalone knowledge-base subprogram exposing query/ingest/health endpoints
   - tests:
-    - `tests/test_maxkb_query_tool.py`
+    - `tests/test_knowledge_base_tool.py`
     - `tests/test_knowledge_base_router.py`
 - [x] Add multi-engine web-search baseline with provider adapter skeleton (P16 T4.3).
   - core implementation:

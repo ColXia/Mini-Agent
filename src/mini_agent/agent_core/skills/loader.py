@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 import re
 from typing import Any, Iterable
@@ -29,6 +29,52 @@ class SkillTier1Metadata:
     skill_key: str
     always: bool
     skill_file: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+def parse_skill_markdown(
+    raw: str,
+    *,
+    source: SkillSource,
+    eligibility_checker: SkillEligibilityChecker | None = None,
+    skill_file: Path | None = None,
+) -> AgentSkill | None:
+    """Parse raw skill markdown into a canonical `AgentSkill`."""
+
+    match = re.match(r"^---\s*\n(.*?)\n---\s*\n(.*)$", raw, flags=re.DOTALL)
+    if not match:
+        return None
+
+    try:
+        frontmatter = yaml.safe_load(match.group(1)) or {}
+    except yaml.YAMLError:
+        return None
+
+    if not isinstance(frontmatter, dict):
+        return None
+
+    name = str(frontmatter.get("name", "")).strip()
+    description = str(frontmatter.get("description", "")).strip()
+    if not name or not description:
+        return None
+
+    checker = eligibility_checker or SkillEligibilityChecker()
+    instructions = match.group(2).strip()
+    requirements = parse_skill_requirements(frontmatter)
+    eligibility = checker.check(requirements)
+    metadata = frontmatter.get("metadata") if isinstance(frontmatter.get("metadata"), dict) else {}
+
+    return AgentSkill(
+        name=name,
+        description=description,
+        instructions=instructions,
+        source=source,
+        frontmatter=frontmatter,
+        requirements=requirements,
+        eligibility=eligibility,
+        skill_file=skill_file.resolve() if skill_file is not None else None,
+        metadata=dict(metadata),
+    )
 
 
 class AgentSkillLoader:
@@ -59,39 +105,11 @@ class AgentSkillLoader:
             raw = skill_file.read_text(encoding="utf-8")
         except Exception:
             return None
-
-        match = re.match(r"^---\s*\n(.*?)\n---\s*\n(.*)$", raw, flags=re.DOTALL)
-        if not match:
-            return None
-
-        try:
-            frontmatter = yaml.safe_load(match.group(1)) or {}
-        except yaml.YAMLError:
-            return None
-
-        if not isinstance(frontmatter, dict):
-            return None
-
-        name = str(frontmatter.get("name", "")).strip()
-        description = str(frontmatter.get("description", "")).strip()
-        if not name or not description:
-            return None
-
-        instructions = match.group(2).strip()
-        requirements = parse_skill_requirements(frontmatter)
-        eligibility = self.eligibility_checker.check(requirements)
-        metadata = frontmatter.get("metadata") if isinstance(frontmatter.get("metadata"), dict) else {}
-
-        return AgentSkill(
-            name=name,
-            description=description,
-            instructions=instructions,
+        return parse_skill_markdown(
+            raw,
             source=source,
-            frontmatter=frontmatter,
-            requirements=requirements,
-            eligibility=eligibility,
-            skill_file=skill_file.resolve(),
-            metadata=dict(metadata),
+            eligibility_checker=self.eligibility_checker,
+            skill_file=skill_file,
         )
 
     def discover(self) -> list[SkillTier1Metadata]:
@@ -178,6 +196,7 @@ class AgentSkillLoader:
                     skill_key=skill_key,
                     always=always,
                     skill_file=str(item.skill_file) if item.skill_file else None,
+                    metadata=dict(item.metadata or {}),
                 )
             )
         return metadata
@@ -190,7 +209,9 @@ class AgentSkillLoader:
         lines = [
             "## Available Skills",
             "",
-            "Use `get_skill(skill_name)` to load full instructions when needed.",
+            "Skill metadata below is only a routing hint, not the full workflow.",
+            "If a skill is relevant, call `get_skill(skill_name)` before relying on it, summarizing it, or claiming you will use it.",
+            "If the task spans multiple domains, you may load more than one relevant skill.",
         ]
         for item in entries:
             suffix = f" [{item.source.value}]"

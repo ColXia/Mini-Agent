@@ -12,6 +12,7 @@ from mini_agent.code_agent.tools import (
 )
 from mini_agent.tools.base import Tool, ToolResult
 from mini_agent.tools.file_tools import ReadTool, WriteTool
+from mini_agent.tools.skill_tool import create_skill_tools
 
 
 class _EchoTool(Tool):
@@ -68,6 +69,78 @@ def test_invocation_should_confirm_for_write_tool(tmp_path):
     declarative = ToolBuilder.from_tool(WriteTool(workspace_dir=str(tmp_path)))
     invocation = declarative.build({"path": "test.txt", "content": "hello"})
     assert invocation.should_confirm_execute() is True
+
+
+def test_builder_from_install_skill_tool_infers_write_contract(tmp_path):
+    builtin_dir = tmp_path / "builtin-skills"
+    builtin_dir.mkdir()
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+
+    tools, _loader = create_skill_tools(
+        str(builtin_dir),
+        workspace_dir=str(workspace_dir),
+    )
+    install_tool = next(tool for tool in tools if tool.name == "install_skill")
+
+    declarative = ToolBuilder.from_tool(install_tool)
+    assert declarative.name == "install_skill"
+    assert declarative.attributes.kind == ToolKind.WRITE
+    assert declarative.attributes.is_read_only is False
+
+
+def test_builder_from_install_skill_from_path_tool_infers_write_contract(tmp_path):
+    builtin_dir = tmp_path / "builtin-skills"
+    builtin_dir.mkdir()
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+
+    tools, _loader = create_skill_tools(
+        str(builtin_dir),
+        workspace_dir=str(workspace_dir),
+    )
+    install_tool = next(tool for tool in tools if tool.name == "install_skill_from_path")
+
+    declarative = ToolBuilder.from_tool(install_tool)
+    assert declarative.name == "install_skill_from_path"
+    assert declarative.attributes.kind == ToolKind.WRITE
+    assert declarative.attributes.is_read_only is False
+
+
+def test_builder_from_uninstall_skill_tool_infers_write_contract(tmp_path):
+    builtin_dir = tmp_path / "builtin-skills"
+    builtin_dir.mkdir()
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+
+    tools, _loader = create_skill_tools(
+        str(builtin_dir),
+        workspace_dir=str(workspace_dir),
+    )
+    uninstall_tool = next(tool for tool in tools if tool.name == "uninstall_skill")
+
+    declarative = ToolBuilder.from_tool(uninstall_tool)
+    assert declarative.name == "uninstall_skill"
+    assert declarative.attributes.kind == ToolKind.WRITE
+    assert declarative.attributes.is_read_only is False
+
+
+def test_builder_from_rollback_skill_tool_infers_write_contract(tmp_path):
+    builtin_dir = tmp_path / "builtin-skills"
+    builtin_dir.mkdir()
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+
+    tools, _loader = create_skill_tools(
+        str(builtin_dir),
+        workspace_dir=str(workspace_dir),
+    )
+    rollback_tool = next(tool for tool in tools if tool.name == "rollback_skill")
+
+    declarative = ToolBuilder.from_tool(rollback_tool)
+    assert declarative.name == "rollback_skill"
+    assert declarative.attributes.kind == ToolKind.WRITE
+    assert declarative.attributes.is_read_only is False
 
 
 def test_invocation_tool_locations_extracts_path():

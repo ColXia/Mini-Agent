@@ -52,6 +52,7 @@ from mini_agent.model_manager.runtime import (
     resolve_provider_catalog,
     resolve_routed_llm_settings,
 )
+from mini_agent.model_manager.model_registry_service import ModelRegistryService
 
 __all__ = [
     "ProviderAPIType",
@@ -92,4 +93,5 @@ __all__ = [
     "record_provider_success",
     "record_provider_failure",
     "reset_model_manager_runtime_state",
+    "ModelRegistryService",
 ]

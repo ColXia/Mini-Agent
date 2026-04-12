@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from mini_agent.memory.builtin_memory import BuiltinMemoryProvider
@@ -10,14 +11,19 @@ from .base import Tool, ToolResult
 
 
 class UserModelingTool(Tool):
-    """Minimal user profile modeling tool surface."""
+    """Minimal global user-profile modeling tool surface."""
 
     def __init__(
         self,
         memory_root: str = "./workspace",
         provider: BuiltinMemoryProvider | None = None,
+        global_root: str | Path | None = None,
     ):
-        self.provider = provider or BuiltinMemoryProvider(memory_root)
+        self.provider = provider or BuiltinMemoryProvider(
+            memory_root,
+            profile_scope="global",
+            global_root=global_root,
+        )
 
     @property
     def name(self) -> str:
@@ -26,8 +32,8 @@ class UserModelingTool(Tool):
     @property
     def description(self) -> str:
         return (
-            "User profile memory tool with actions: profile, search, conclude, replace, remove. "
-            "Use conclude to store stable user facts and preferences."
+            "Global user profile memory tool with actions: profile, search, conclude, replace, remove. "
+            "Use conclude to store stable cross-workspace user facts and preferences."
         )
 
     @property
@@ -103,6 +109,7 @@ class UserModelingTool(Tool):
 
         lines = [
             f"User Profile ({fact_count} facts)",
+            f"scope: {snapshot.get('scope', 'global')}",
             f"user_file: {user_file}",
         ]
         if facts:

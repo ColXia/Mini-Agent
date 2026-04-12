@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 
+from mini_agent.config import Config
+from mini_agent.tools.mcp.naming import mcp_tool_alias
 from mini_agent.tools.mcp_loader import (
     MCPServerConnection,
     MCPTimeoutConfig,
@@ -31,14 +33,19 @@ def _create_temp_mcp_config(config: dict) -> Path:
 @pytest.fixture(scope="module")
 def mcp_config():
     """Read MCP configuration."""
-    mcp_config_path = Path("mini_agent/config/mcp.json")
+    mcp_config_path = Config.find_config_file("mcp.json")
+    if mcp_config_path is None:
+        mcp_config_path = Config.find_config_file("mcp-example.json")
+    if mcp_config_path is None:
+        pytest.skip("No MCP config found (mcp.json/mcp-example.json)")
     with open(mcp_config_path, encoding="utf-8-sig") as f:
         return json.load(f)
 
 
 def test_mcp_example_json_is_valid_and_utf8_compatible():
     """mcp-example.json should be strict JSON and parse with UTF-8/UTF-8-SIG."""
-    mcp_example = Path("mini_agent/config/mcp-example.json")
+    mcp_example = Config.find_config_file("mcp-example.json")
+    assert mcp_example is not None
     assert mcp_example.exists()
 
     with open(mcp_example, encoding="utf-8") as f:
@@ -416,7 +423,11 @@ async def test_git_mcp_loading(mcp_config):
                 print(f"    {desc}")
 
         # Verify expected tools from minimax_search
-        expected_tools = ["search", "parallel_search", "browse"]
+        expected_tools = [
+            mcp_tool_alias("minimax_search", "search"),
+            mcp_tool_alias("minimax_search", "parallel_search"),
+            mcp_tool_alias("minimax_search", "browse"),
+        ]
         loaded_tool_names = [t.name for t in tools]
 
         print("\n馃攳 Function verification:")
@@ -492,7 +503,10 @@ async def test_mcp_tool_execution():
         # Try to find and test create_entities (from memory server)
         create_tool = None
         for tool in tools:
-            if tool.name == "create_entities":
+            if (
+                str(getattr(tool, "remote_name", "")).strip() == "create_entities"
+                or str(getattr(tool, "name", "")).strip().endswith("create_entities")
+            ):
                 create_tool = tool
                 break
 

@@ -7,6 +7,8 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
+from mini_agent.memory.memory_files import resolve_workspace_root
+
 
 _TOKEN_PATTERN = re.compile(r"[A-Za-z0-9_\u4e00-\u9fff]+")
 
@@ -50,6 +52,14 @@ def _build_snippet(content: str, query: str, *, radius: int = 48) -> str:
     return snippet
 
 
+def _resolve_workspace_anchor_dir(workspace_dir: str | Path) -> str:
+    try:
+        resolved = resolve_workspace_root(workspace_dir)
+    except Exception:
+        resolved = resolve_workspace_root(str(workspace_dir or "."))
+    return str(resolved)
+
+
 class SessionSearchIndex:
     """Session search index with FTS5 backend and LIKE fallback."""
 
@@ -72,11 +82,13 @@ class SessionSearchIndex:
                 CREATE TABLE IF NOT EXISTS session_meta (
                     session_id TEXT PRIMARY KEY,
                     workspace_dir TEXT NOT NULL,
+                    workspace_anchor_dir TEXT,
                     updated_at TEXT NOT NULL,
                     message_count INTEGER NOT NULL
                 )
                 """
             )
+            self._ensure_session_meta_column(conn, "workspace_anchor_dir", "TEXT")
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS message_store (
@@ -104,13 +116,41 @@ class SessionSearchIndex:
                 self.backend = "fts5"
             except sqlite3.OperationalError:
                 self.backend = "like"
+            self._backfill_workspace_anchor_dirs(conn)
             conn.commit()
+
+    @staticmethod
+    def _ensure_session_meta_column(conn: sqlite3.Connection, name: str, column_type: str) -> None:
+        rows = conn.execute("PRAGMA table_info(session_meta)").fetchall()
+        existing = {str(row["name"]) for row in rows}
+        if name in existing:
+            return
+        conn.execute(f"ALTER TABLE session_meta ADD COLUMN {name} {column_type}")
+
+    @staticmethod
+    def _backfill_workspace_anchor_dirs(conn: sqlite3.Connection) -> None:
+        rows = conn.execute(
+            """
+            SELECT session_id, workspace_dir
+            FROM session_meta
+            """
+        ).fetchall()
+        for row in rows:
+            workspace_dir = _coerce_text(row["workspace_dir"])
+            if not workspace_dir:
+                continue
+            resolved_anchor = _resolve_workspace_anchor_dir(workspace_dir)
+            conn.execute(
+                "UPDATE session_meta SET workspace_anchor_dir = ? WHERE session_id = ?",
+                (resolved_anchor, _coerce_text(row["session_id"])),
+            )
 
     def upsert_session(
         self,
         *,
         session_id: str,
         workspace_dir: str,
+        workspace_anchor_dir: str | None = None,
         updated_at: str,
         messages: list[dict[str, Any]],
     ) -> None:
@@ -123,6 +163,7 @@ class SessionSearchIndex:
             if not content:
                 continue
             rows.append((session_id, idx, role, content, updated_at))
+        resolved_anchor = _coerce_text(workspace_anchor_dir) or _resolve_workspace_anchor_dir(workspace_dir)
 
         with self._connect() as conn:
             conn.execute("DELETE FROM message_store WHERE session_id = ?", (session_id,))
@@ -146,14 +187,15 @@ class SessionSearchIndex:
                     )
             conn.execute(
                 """
-                INSERT INTO session_meta (session_id, workspace_dir, updated_at, message_count)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO session_meta (session_id, workspace_dir, workspace_anchor_dir, updated_at, message_count)
+                VALUES (?, ?, ?, ?, ?)
                 ON CONFLICT(session_id) DO UPDATE SET
                     workspace_dir = excluded.workspace_dir,
+                    workspace_anchor_dir = excluded.workspace_anchor_dir,
                     updated_at = excluded.updated_at,
                     message_count = excluded.message_count
                 """,
-                (session_id, workspace_dir, updated_at, len(rows)),
+                (session_id, workspace_dir, resolved_anchor, updated_at, len(rows)),
             )
             conn.commit()
 
@@ -171,61 +213,76 @@ class SessionSearchIndex:
         query: str,
         limit: int = 20,
         session_id: str | None = None,
+        workspace_anchor_dir: str | None = None,
+        exclude_session_id: str | None = None,
     ) -> list[dict[str, Any]]:
         normalized_query = query.strip()
         if not normalized_query:
             raise ValueError("query must not be empty.")
         max_limit = max(1, min(int(limit), 200))
+        normalized_anchor = _coerce_text(workspace_anchor_dir).strip()
+        normalized_session_id = _coerce_text(session_id).strip()
+        normalized_exclude_session_id = _coerce_text(exclude_session_id).strip()
 
         with self._connect() as conn:
             if self.backend == "fts5":
                 match_query = self._to_match_query(normalized_query)
-                if session_id:
-                    rows = conn.execute(
-                        """
-                        SELECT session_id, message_index, role, content, updated_at, bm25(message_fts) AS rank
-                        FROM message_fts
-                        WHERE message_fts MATCH ? AND session_id = ?
-                        ORDER BY rank ASC, message_index ASC
-                        LIMIT ?
-                        """,
-                        (match_query, session_id, max_limit),
-                    ).fetchall()
-                else:
-                    rows = conn.execute(
-                        """
-                        SELECT session_id, message_index, role, content, updated_at, bm25(message_fts) AS rank
-                        FROM message_fts
-                        WHERE message_fts MATCH ?
-                        ORDER BY rank ASC, message_index ASC
-                        LIMIT ?
-                        """,
-                        (match_query, max_limit),
-                    ).fetchall()
+                query_sql = """
+                    SELECT
+                        message_fts.session_id,
+                        message_fts.message_index,
+                        message_fts.role,
+                        message_fts.content,
+                        message_fts.updated_at,
+                        session_meta.workspace_dir,
+                        session_meta.workspace_anchor_dir,
+                        bm25(message_fts) AS rank
+                    FROM message_fts
+                    JOIN session_meta ON session_meta.session_id = message_fts.session_id
+                    WHERE message_fts MATCH ?
+                """
+                params: list[Any] = [match_query]
+                if normalized_anchor:
+                    query_sql += " AND session_meta.workspace_anchor_dir = ?"
+                    params.append(normalized_anchor)
+                if normalized_session_id:
+                    query_sql += " AND message_fts.session_id = ?"
+                    params.append(normalized_session_id)
+                if normalized_exclude_session_id:
+                    query_sql += " AND message_fts.session_id != ?"
+                    params.append(normalized_exclude_session_id)
+                query_sql += " ORDER BY rank ASC, message_fts.message_index ASC LIMIT ?"
+                params.append(max_limit)
+                rows = conn.execute(query_sql, tuple(params)).fetchall()
             else:
                 like = f"%{normalized_query.lower()}%"
-                if session_id:
-                    rows = conn.execute(
-                        """
-                        SELECT session_id, message_index, role, content, updated_at, 0.0 AS rank
-                        FROM message_store
-                        WHERE session_id = ? AND lower(content) LIKE ?
-                        ORDER BY updated_at DESC, message_index DESC
-                        LIMIT ?
-                        """,
-                        (session_id, like, max_limit),
-                    ).fetchall()
-                else:
-                    rows = conn.execute(
-                        """
-                        SELECT session_id, message_index, role, content, updated_at, 0.0 AS rank
-                        FROM message_store
-                        WHERE lower(content) LIKE ?
-                        ORDER BY updated_at DESC, message_index DESC
-                        LIMIT ?
-                        """,
-                        (like, max_limit),
-                    ).fetchall()
+                query_sql = """
+                    SELECT
+                        message_store.session_id,
+                        message_store.message_index,
+                        message_store.role,
+                        message_store.content,
+                        message_store.updated_at,
+                        session_meta.workspace_dir,
+                        session_meta.workspace_anchor_dir,
+                        0.0 AS rank
+                    FROM message_store
+                    JOIN session_meta ON session_meta.session_id = message_store.session_id
+                    WHERE lower(message_store.content) LIKE ?
+                """
+                params = [like]
+                if normalized_anchor:
+                    query_sql += " AND session_meta.workspace_anchor_dir = ?"
+                    params.append(normalized_anchor)
+                if normalized_session_id:
+                    query_sql += " AND message_store.session_id = ?"
+                    params.append(normalized_session_id)
+                if normalized_exclude_session_id:
+                    query_sql += " AND message_store.session_id != ?"
+                    params.append(normalized_exclude_session_id)
+                query_sql += " ORDER BY message_store.updated_at DESC, message_store.message_index DESC LIMIT ?"
+                params.append(max_limit)
+                rows = conn.execute(query_sql, tuple(params)).fetchall()
 
         results: list[dict[str, Any]] = []
         for row in rows:
@@ -238,6 +295,8 @@ class SessionSearchIndex:
                     "content": content,
                     "snippet": _build_snippet(content, normalized_query),
                     "updated_at": _coerce_text(row["updated_at"]),
+                    "workspace_dir": _coerce_text(row["workspace_dir"]),
+                    "workspace_anchor_dir": _coerce_text(row["workspace_anchor_dir"]),
                     "score": float(row["rank"]),
                 }
             )

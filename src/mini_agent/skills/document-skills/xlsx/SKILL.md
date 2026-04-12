@@ -1,10 +1,34 @@
 ---
-name: xlsx
-description: "Comprehensive spreadsheet creation, editing, and analysis with support for formulas, formatting, data analysis, and visualization. When Claude needs to work with spreadsheets (.xlsx, .xlsm, .csv, .tsv, etc) for: (1) Creating new spreadsheets with formulas and formatting, (2) Reading or analyzing data, (3) Modify existing spreadsheets while preserving formulas, (4) Data analysis and visualization in spreadsheets, or (5) Recalculating formulas"
+name: minimax-xlsx
+description: "Create, read, analyze, edit, and validate Excel and spreadsheet files (.xlsx, .xlsm, .csv, .tsv). Supports new workbook creation, existing workbook editing with formula preservation, data analysis, and spreadsheet validation. Use when the user wants Excel output, financial models, formulas, tabular analysis, or spreadsheet formatting."
 license: Proprietary. LICENSE.txt has complete terms
 ---
 
-# Requirements for Outputs
+# MiniMax XLSX creation, editing, and analysis
+
+## Overview
+
+Use this skill whenever the task involves spreadsheet output or structured tabular work in Excel-compatible formats.
+
+This skill supports five main routes:
+
+- READ: inspect and analyze existing data
+- CREATE: build a new workbook from scratch
+- EDIT: modify an existing workbook while preserving formulas and structure
+- FIX: repair broken formulas or workbook structure
+- VALIDATE: check formulas and workbook integrity before delivery
+
+## Read / analyze first
+
+When the task is primarily to read, explain, or summarize an existing spreadsheet, start with `docling_parse` for a normalized workbook overview:
+
+```python
+docling_parse(path="file.xlsx", output_format="markdown")
+```
+
+Then continue with workbook-specific tools or pandas-based analysis only when you need schema-aware spreadsheet logic, formula inspection, or workbook-preserving edits.
+
+## Requirements for Outputs
 
 ## All Excel files
 

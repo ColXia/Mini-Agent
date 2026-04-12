@@ -54,6 +54,9 @@ async def test_single_main_profile_contract(monkeypatch: pytest.MonkeyPatch) -> 
     assert health.runtime.available_session_slots == 1
     assert health.runtime.team_saturation_rejections == 0
     assert health.runtime.team_workspace_conflict_rejections == 0
+    assert health.runtime.lifecycle_auto_resets == 0
+    assert health.runtime.session_reset_mode == "none"
+    assert health.runtime.session_idle_seconds >= 1
     assert health.runtime.main_workspace_dir
     assert health.runtime.workspace_application_required is True
 
@@ -81,6 +84,9 @@ async def test_team_profile_contract(monkeypatch: pytest.MonkeyPatch) -> None:
     assert health.runtime.available_session_slots == 2
     assert health.runtime.team_saturation_rejections == 0
     assert health.runtime.team_workspace_conflict_rejections == 0
+    assert health.runtime.lifecycle_auto_resets == 0
+    assert health.runtime.session_reset_mode == "none"
+    assert health.runtime.session_idle_seconds >= 1
     assert health.runtime.main_workspace_dir
     assert health.runtime.workspace_application_required is True
 

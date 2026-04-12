@@ -4,7 +4,9 @@ This module provides functionality to ensure only one instance
 of Mini-Agent is running at a time.
 """
 
+import locale
 import os
+import subprocess
 import sys
 from pathlib import Path
 from typing import Optional
@@ -74,6 +76,28 @@ class SingleInstanceManager:
         except Exception as e:
             print(f"Warning: Failed to create PID file: {e}")
 
+    @staticmethod
+    def _decode_process_output(value: bytes | str | None) -> str:
+        """Decode process output safely across Windows locale encodings."""
+        if value is None:
+            return ""
+        if isinstance(value, str):
+            return value
+        encodings = (
+            locale.getpreferredencoding(False),
+            "mbcs",
+            "utf-8",
+            "latin-1",
+        )
+        for encoding in encodings:
+            if not encoding:
+                continue
+            try:
+                return value.decode(encoding)
+            except Exception:
+                continue
+        return value.decode("utf-8", errors="replace")
+
     def _is_process_running(self, pid: int) -> bool:
         """Check if a process with given PID is running.
 
@@ -85,17 +109,17 @@ class SingleInstanceManager:
         """
         try:
             if sys.platform == "win32":
-                # Windows: use tasklist
-                import subprocess
-
                 result = subprocess.run(
                     ["tasklist", "/FI", f"PID eq {pid}"],
                     capture_output=True,
-                    text=True,
+                    text=False,
                     timeout=5,
+                    check=False,
                 )
-                # Check if PID appears in output
-                return str(pid) in result.stdout
+                stdout = result.stdout or b""
+                if isinstance(stdout, bytes):
+                    return str(pid).encode("ascii", errors="ignore") in stdout
+                return str(pid) in str(stdout or "")
             else:
                 # Unix/Linux: use os.kill with signal 0
                 os.kill(pid, 0)
@@ -120,16 +144,16 @@ class SingleInstanceManager:
 
         if sys.platform == "win32" and info["running"]:
             try:
-                import subprocess
-
                 result = subprocess.run(
                     ["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV"],
                     capture_output=True,
-                    text=True,
+                    text=False,
                     timeout=5,
+                    check=False,
                 )
                 # Parse CSV output
-                lines = result.stdout.strip().split("\n")
+                output_text = self._decode_process_output(result.stdout)
+                lines = output_text.strip().splitlines()
                 if len(lines) >= 2:
                     # Second line has the process info
                     parts = lines[1].split(",")

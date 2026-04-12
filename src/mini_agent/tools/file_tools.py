@@ -8,6 +8,20 @@ import tiktoken
 from .base import Tool, ToolResult
 
 
+def _resolve_workspace_path(workspace_dir: Path, path: str) -> Path:
+    raw_path = Path(path).expanduser()
+    candidate = raw_path if raw_path.is_absolute() else (workspace_dir / raw_path)
+    resolved_workspace = workspace_dir.resolve()
+    resolved_candidate = candidate.resolve(strict=False)
+    try:
+        resolved_candidate.relative_to(resolved_workspace)
+    except ValueError as exc:
+        raise PermissionError(
+            f"Path escapes workspace root: {path} (workspace: {resolved_workspace})"
+        ) from exc
+    return resolved_candidate
+
+
 def truncate_text_by_tokens(
     text: str,
     max_tokens: int,
@@ -108,10 +122,7 @@ class ReadTool(Tool):
     async def execute(self, path: str, offset: int | None = None, limit: int | None = None) -> ToolResult:
         """Execute read file."""
         try:
-            file_path = Path(path)
-            # Resolve relative paths relative to workspace_dir
-            if not file_path.is_absolute():
-                file_path = self.workspace_dir / file_path
+            file_path = _resolve_workspace_path(self.workspace_dir, path)
 
             if not file_path.exists():
                 return ToolResult(
@@ -195,10 +206,7 @@ class WriteTool(Tool):
     async def execute(self, path: str, content: str) -> ToolResult:
         """Execute write file."""
         try:
-            file_path = Path(path)
-            # Resolve relative paths relative to workspace_dir
-            if not file_path.is_absolute():
-                file_path = self.workspace_dir / file_path
+            file_path = _resolve_workspace_path(self.workspace_dir, path)
 
             # Create parent directories if they don't exist
             file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -256,10 +264,7 @@ class EditTool(Tool):
     async def execute(self, path: str, old_str: str, new_str: str) -> ToolResult:
         """Execute edit file."""
         try:
-            file_path = Path(path)
-            # Resolve relative paths relative to workspace_dir
-            if not file_path.is_absolute():
-                file_path = self.workspace_dir / file_path
+            file_path = _resolve_workspace_path(self.workspace_dir, path)
 
             if not file_path.exists():
                 return ToolResult(

@@ -53,6 +53,7 @@ mcp.json
 .env
 .env.*
 !.env.example
+!.env.local.example
 !*.env.example
 
 # Frontend build cache
@@ -61,6 +62,26 @@ mcp.json
 # Local runtime artifacts
 src/memory/*.md
 src/smoke_test*
+.mini-agent/
+.tmp-*/
+memory/
+MEMORY.md
+USER.md
+tmp_*.json
+delete.vbs
+delete2.vbs
+delete_enum.vbs
+delete_file.bat
+delete_file.ps1
+delete_fso.vbs
+delete_recycle.ps1
+delete_shell.vbs
+read_docx.py
+read_docx_temp.py
+read_docx_temp2.py
+recycle_bin.cs
+rename_delete.vbs
+runas_delete.ps1
 
 # test file
 demo.py

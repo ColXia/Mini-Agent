@@ -1,0 +1,717 @@
+{
+  "version": 1,
+  "commands": [
+    {
+      "name": "help",
+      "category": "Core",
+      "summary": "Show command help",
+      "surfaces": ["tui", "cli", "qq"],
+      "forms": ["help"],
+      "completion_tokens": ["help"],
+      "examples": {
+        "tui": ["help"],
+        "cli": ["help"],
+        "qq": ["help"]
+      }
+    },
+    {
+      "name": "clear",
+      "category": "Core",
+      "summary": "Clear local session state or local QQ cache",
+      "surfaces": ["tui", "cli", "qq"],
+      "forms": ["clear"],
+      "completion_tokens": ["clear"],
+      "examples": {
+        "tui": ["clear"],
+        "cli": ["clear"],
+        "qq": ["clear"]
+      }
+    },
+    {
+      "name": "exit",
+      "category": "Core",
+      "summary": "Exit the local terminal surface",
+      "surfaces": ["tui", "cli"],
+      "forms": {
+        "tui": ["exit"],
+        "cli": ["exit"]
+      },
+      "completion_tokens": {
+        "tui": ["exit", "quit", "q"],
+        "cli": ["exit", "quit", "q"]
+      },
+      "examples": {
+        "tui": ["exit"],
+        "cli": ["exit"]
+      }
+    },
+    {
+      "name": "history",
+      "category": "Core",
+      "summary": "Show message count in the current CLI session",
+      "surfaces": ["cli"],
+      "forms": ["history"],
+      "completion_tokens": ["history"],
+      "examples": ["history"]
+    },
+    {
+      "name": "stats",
+      "category": "Core",
+      "summary": "Show session statistics",
+      "surfaces": ["cli", "qq"],
+      "forms": {
+        "cli": ["stats"],
+        "qq": ["status"]
+      },
+      "completion_tokens": {
+        "cli": ["stats"],
+        "qq": ["status"]
+      },
+      "examples": {
+        "cli": ["stats"],
+        "qq": ["status"]
+      }
+    },
+    {
+      "name": "theme",
+      "category": "UI",
+      "summary": "Switch TUI theme mode",
+      "surfaces": ["tui"],
+      "forms": ["theme [toggle|dark|light]"],
+      "completion_tokens": ["theme", "theme toggle", "theme dark", "theme light"],
+      "examples": ["theme dark", "theme light"]
+    },
+    {
+      "name": "session",
+      "category": "Session",
+      "summary": "Manage runtime-backed sessions and QQ visibility",
+      "surfaces": ["tui", "qq"],
+      "forms": {
+        "tui": [
+          "session [new|next|prev|list|rename|delete|share|unshare]",
+          "session <n>",
+          "session rename [session_id] <new_title>",
+          "session delete [session_id]",
+          "session share [session_id]",
+          "session unshare [session_id]"
+        ],
+        "qq": [
+          "session",
+          "session <n>"
+        ]
+      },
+      "completion_tokens": {
+        "tui": [
+          "session",
+          "session new",
+          "session next",
+          "session prev",
+          "session list",
+          "session rename",
+          "session delete",
+          "session share",
+          "session unshare"
+        ],
+        "qq": [
+          "session"
+        ]
+      },
+      "examples": {
+        "tui": [
+          "session new",
+          "session 2",
+          "session share"
+        ],
+        "qq": [
+          "session",
+          "session 2"
+        ]
+      }
+    },
+    {
+      "name": "reset",
+      "category": "Session",
+      "summary": "Reset the bound shared session",
+      "surfaces": ["qq"],
+      "forms": ["reset"],
+      "completion_tokens": ["reset"],
+      "examples": ["reset"]
+    },
+    {
+      "name": "continue",
+      "category": "Session",
+      "summary": "Fetch the latest shared-session context",
+      "surfaces": ["qq"],
+      "forms": ["continue"],
+      "completion_tokens": ["continue"],
+      "examples": ["continue"]
+    },
+    {
+      "name": "workspace",
+      "category": "QQ Only",
+      "summary": "Change the default QQ workspace",
+      "surfaces": ["qq"],
+      "forms": ["workspace <path>"],
+      "completion_tokens": ["workspace"],
+      "examples": ["workspace D:/file/Mini-Agent"]
+    },
+    {
+      "name": "dryrun",
+      "category": "QQ Only",
+      "summary": "Toggle QQ dry-run forwarding",
+      "surfaces": ["qq"],
+      "forms": ["dryrun <on|off>"],
+      "completion_tokens": ["dryrun", "dryrun on", "dryrun off"],
+      "examples": ["dryrun on", "dryrun off"]
+    },
+    {
+      "name": "ping",
+      "category": "QQ Only",
+      "summary": "Check whether the QQ bot is alive",
+      "surfaces": ["qq"],
+      "forms": ["ping"],
+      "completion_tokens": ["ping"],
+      "examples": ["ping"]
+    },
+    {
+      "name": "activity",
+      "category": "UI",
+      "summary": "Toggle TUI activity block visibility",
+      "surfaces": ["tui"],
+      "forms": ["activity [toggle|expand|collapse]"],
+      "completion_tokens": ["activity", "activity toggle", "activity expand", "activity collapse"],
+      "examples": ["activity expand", "activity collapse"]
+    },
+    {
+      "name": "command",
+      "category": "UI",
+      "summary": "Toggle TUI command block visibility",
+      "surfaces": ["tui"],
+      "forms": ["command [toggle|expand|collapse]"],
+      "completion_tokens": ["command", "command toggle", "command expand", "command collapse"],
+      "examples": ["command expand", "command collapse"]
+    },
+    {
+      "name": "context",
+      "category": "Context",
+      "summary": "Inspect or update prepared-context policy",
+      "surfaces": ["tui", "cli", "qq"],
+      "forms": [
+        "context [show|stats|include|exclude|budget|reset]",
+        "context show [brief|full]",
+        "context stats",
+        "context include <source...>",
+        "context exclude <source...>",
+        "context budget <max_items> [max_total_chars] [max_items_per_source]",
+        "context reset"
+      ],
+      "completion_tokens": [
+        "context",
+        "context show",
+        "context show brief",
+        "context show full",
+        "context stats",
+        "context include",
+        "context exclude",
+        "context budget",
+        "context reset"
+      ],
+      "examples": {
+        "tui": [
+          "context show brief",
+          "context include knowledge_base workspace_memory",
+          "context reset"
+        ],
+        "cli": [
+          "context show brief",
+          "context stats",
+          "context reset"
+        ],
+        "qq": [
+          "context show brief",
+          "context include knowledge_base",
+          "context reset"
+        ]
+      }
+    },
+    {
+      "name": "memory",
+      "category": "Context",
+      "summary": "Inspect or control memory diagnostics",
+      "surfaces": ["tui", "cli", "qq"],
+      "forms": [
+        "memory [status|show|list|overview|consolidated|profile|notes|daily|export|shared|refresh|runtime|promote|save]",
+        "memory show [brief|full|<selector>]",
+        "memory list",
+        "memory overview",
+        "memory consolidated [show|search]",
+        "memory consolidated search <query>",
+        "memory profile [query]",
+        "memory notes [query]",
+        "memory daily <YYYY-MM-DD>",
+        "memory export [jsonl|markdown]",
+        "memory shared [list|show|clear]",
+        "memory shared show <selector>",
+        "memory shared clear",
+        "memory runtime",
+        "memory refresh",
+        "memory promote [shared|note|profile] <selector>",
+        "memory save [note|profile] <text>"
+      ],
+      "completion_tokens": [
+        "memory",
+        "memory status",
+        "memory show",
+        "memory show brief",
+        "memory show full",
+        "memory show latest",
+        "memory list",
+        "memory overview",
+        "memory consolidated",
+        "memory consolidated search",
+        "memory profile",
+        "memory notes",
+        "memory daily",
+        "memory export",
+        "memory export jsonl",
+        "memory export markdown",
+        "memory shared",
+        "memory shared list",
+        "memory shared show",
+        "memory shared clear",
+        "memory runtime",
+        "memory refresh",
+        "memory promote",
+        "memory promote shared",
+        "memory promote note",
+        "memory promote profile",
+        "memory save",
+        "memory save note",
+        "memory save profile"
+      ],
+      "examples": {
+        "tui": [
+          "memory list",
+          "memory show latest",
+          "memory overview",
+          "memory consolidated",
+          "memory consolidated search routing",
+          "memory profile",
+          "memory notes",
+          "memory daily 2026-04-10",
+          "memory export markdown",
+          "memory shared list",
+          "memory shared show latest",
+          "memory promote shared latest",
+          "memory promote note latest",
+          "memory save note confirmed conclusion"
+        ],
+        "cli": [
+          "memory show brief",
+          "memory show latest",
+          "memory overview",
+          "memory consolidated",
+          "memory consolidated search approvals",
+          "memory profile Chinese replies",
+          "memory notes kb_confirmed",
+          "memory daily 2026-04-10",
+          "memory export jsonl",
+          "memory shared list",
+          "memory promote shared latest",
+          "memory promote note 1",
+          "memory save profile User prefers Chinese replies"
+        ],
+        "qq": [
+          "memory list",
+          "memory show latest",
+          "memory overview",
+          "memory consolidated",
+          "memory consolidated search routing",
+          "memory profile",
+          "memory notes routing",
+          "memory daily 2026-04-10",
+          "memory export markdown",
+          "memory shared list",
+          "memory promote shared latest",
+          "memory promote note latest",
+          "memory save note Confirmed: this workspace KB conclusion still needs manual review"
+        ]
+      }
+    },
+    {
+      "name": "kb",
+      "category": "Context",
+      "summary": "Toggle the explicit knowledge-base tool",
+      "surfaces": ["tui", "cli"],
+      "forms": ["kb [on|off|status]"],
+      "completion_tokens": ["kb", "kb on", "kb off", "kb status"],
+      "examples": {
+        "tui": ["kb status", "kb on"],
+        "cli": ["kb status", "kb off"]
+      }
+    },
+    {
+      "name": "skill",
+      "category": "Workflow",
+      "summary": "Inspect discovered skills for the current workspace",
+      "surfaces": ["tui", "cli", "qq"],
+        "forms": {
+          "all": [
+          "skill [list|active|show|search|mode|enable|disable|reset|refresh|install|uninstall|rollback]",
+          "skill list",
+          "skill active",
+          "skill show <skill_name>",
+          "skill install <path_or_url>",
+          "skill uninstall <skill_name>",
+          "skill rollback <skill_name>",
+          "skill search <query>",
+          "skill mode <all|allowlist>",
+          "skill enable <skill_name>",
+          "skill disable <skill_name>",
+          "skill reset",
+          "skill refresh"
+        ]
+      },
+        "completion_tokens": {
+          "all": [
+          "skill",
+          "skill list",
+          "skill active",
+          "skill show",
+          "skill install",
+          "skill uninstall",
+          "skill rollback",
+          "skill search",
+          "skill mode",
+          "skill mode all",
+          "skill mode allowlist",
+          "skill enable",
+          "skill disable",
+          "skill reset",
+          "skill refresh"
+        ]
+      },
+        "examples": {
+          "tui": [
+            "skill list",
+            "skill active",
+            "skill show doc-coauthoring",
+            "skill install .mini-agent/skills/repo-helper",
+            "skill install https://example.com/repo-helper.zip",
+            "skill uninstall repo-helper",
+            "skill rollback repo-helper",
+            "skill search proposal",
+            "skill mode allowlist",
+            "skill enable doc-coauthoring",
+          "skill disable foundry-helper",
+          "skill reset",
+          "skill refresh"
+        ],
+          "cli": [
+            "skill list",
+            "skill active",
+            "skill show doc-coauthoring",
+            "skill install .mini-agent/skills/repo-helper",
+            "skill install https://example.com/repo-helper.zip",
+            "skill uninstall repo-helper",
+            "skill rollback repo-helper",
+            "skill search foundry",
+            "skill mode all",
+            "skill enable doc-coauthoring",
+          "skill disable foundry-helper",
+          "skill reset",
+          "skill refresh"
+        ],
+          "qq": [
+            "skill list",
+            "skill active",
+            "skill show doc-coauthoring",
+            "skill install C:/skills/repo-helper",
+            "skill uninstall repo-helper",
+            "skill rollback repo-helper",
+            "skill search foundry",
+            "skill mode allowlist",
+            "skill enable doc-coauthoring",
+          "skill disable foundry-helper",
+          "skill reset",
+          "skill refresh"
+        ]
+      }
+    },
+    {
+      "name": "mcp",
+      "category": "Context",
+      "summary": "Inspect configured MCP servers and reload MCP tool bindings",
+      "surfaces": ["tui", "cli", "qq"],
+      "forms": {
+        "all": [
+          "mcp [status|list|reload]",
+          "mcp status",
+          "mcp list",
+          "mcp reload"
+        ]
+      },
+      "completion_tokens": {
+        "all": [
+          "mcp",
+          "mcp status",
+          "mcp list",
+          "mcp reload"
+        ]
+      },
+      "examples": {
+        "tui": [
+          "mcp status",
+          "mcp list",
+          "mcp reload"
+        ],
+        "cli": [
+          "mcp status",
+          "mcp list",
+          "mcp reload"
+        ],
+        "qq": [
+          "mcp status",
+          "mcp list",
+          "mcp reload"
+        ]
+      }
+    },
+    {
+      "name": "sandbox",
+      "category": "Security",
+      "summary": "Show the active sandbox and execution isolation status",
+      "surfaces": ["tui", "cli"],
+      "forms": {
+        "all": [
+          "sandbox status",
+          "sandbox [status]"
+        ]
+      },
+      "completion_tokens": {
+        "all": [
+          "sandbox",
+          "sandbox status"
+        ]
+      },
+      "examples": {
+        "tui": [
+          "sandbox status"
+        ],
+        "cli": [
+          "sandbox status"
+        ]
+      }
+    },
+    {
+      "name": "model",
+      "category": "Model",
+      "summary": "Inspect or switch models for the current surface/session",
+      "surfaces": ["tui", "cli", "qq"],
+      "forms": {
+        "tui": [
+          "model [list|next|prev|apply|discover|refresh|filter]",
+          "model use <provider_id> <model_id>",
+          "model filter <keyword|clear>",
+          "model limit [show|list|clear] [custom|preset] <provider_id> <model_id>"
+        ],
+        "cli": [
+          "model [show|list|use]",
+          "model show",
+          "model list",
+          "model use <provider_id> <model_id>"
+        ],
+        "qq": [
+          "model [show|list|use]",
+          "model show",
+          "model list",
+          "model use <provider_id> <model_id>"
+        ]
+      },
+      "completion_tokens": {
+        "tui": [
+          "model",
+          "model list",
+          "model next",
+          "model prev",
+          "model apply",
+          "model discover",
+          "model refresh",
+          "model use",
+          "model filter",
+          "model limit",
+          "model limit show",
+          "model limit list",
+          "model limit clear"
+        ],
+        "cli": [
+          "model",
+          "model show",
+          "model list",
+          "model use"
+        ],
+        "qq": [
+          "model",
+          "model show",
+          "model list",
+          "model use"
+        ]
+      },
+      "examples": {
+        "tui": [
+          "model list",
+          "model use maas astron-code-latest",
+          "model limit list"
+        ],
+        "cli": [
+          "model show",
+          "model list",
+          "model use maas astron-code-latest"
+        ],
+        "qq": [
+          "model show",
+          "model list",
+          "model use openai gpt-5.4"
+        ]
+      }
+    },
+    {
+      "name": "tasks",
+      "category": "Workflow",
+      "summary": "Show tracked tasks for the current TUI session",
+      "surfaces": ["tui"],
+      "forms": ["tasks [list]"],
+      "completion_tokens": ["tasks", "tasks list"],
+      "examples": ["tasks list"]
+    },
+    {
+      "name": "workflow",
+      "category": "Workflow",
+      "summary": "Run the minimal workflow pipeline",
+      "surfaces": ["tui", "cli"],
+      "forms": ["workflow run <objective>"],
+      "completion_tokens": ["workflow", "workflow run"],
+      "examples": {
+        "tui": ["workflow run Fix failing tests"],
+        "cli": ["workflow run Summarize the current repo state"]
+      }
+    },
+    {
+      "name": "approve",
+      "category": "Control",
+      "summary": "Approve a pending tool call",
+      "surfaces": ["tui", "qq"],
+      "forms": ["approve [token]"],
+      "completion_tokens": ["approve"],
+      "examples": {
+        "tui": ["approve"],
+        "qq": ["approve approval-1"]
+      }
+    },
+    {
+      "name": "plan",
+      "category": "Security",
+      "summary": "Switch the current session to plan mode",
+      "surfaces": ["tui", "qq"],
+      "forms": ["plan"],
+      "completion_tokens": ["plan"],
+      "examples": {
+        "tui": ["plan"],
+        "qq": ["plan"]
+      }
+    },
+    {
+      "name": "build",
+      "category": "Security",
+      "summary": "Switch the current session to build mode",
+      "surfaces": ["tui", "qq"],
+      "forms": ["build"],
+      "completion_tokens": ["build"],
+      "examples": {
+        "tui": ["build"],
+        "qq": ["build"]
+      }
+    },
+    {
+      "name": "default",
+      "category": "Security",
+      "summary": "Switch the current session to default access",
+      "surfaces": ["tui", "qq"],
+      "forms": ["default"],
+      "completion_tokens": ["default"],
+      "examples": {
+        "tui": ["default"],
+        "qq": ["default"]
+      }
+    },
+    {
+      "name": "full_access",
+      "category": "Security",
+      "summary": "Switch the current session to full-access",
+      "surfaces": ["tui", "qq"],
+      "forms": ["full-access"],
+      "completion_tokens": {
+        "tui": ["full-access", "fill-access"],
+        "qq": ["full-access", "fill-access"]
+      },
+      "examples": {
+        "tui": ["full-access"],
+        "qq": ["full-access"]
+      }
+    },
+    {
+      "name": "deny",
+      "category": "Control",
+      "summary": "Deny a pending tool call",
+      "surfaces": ["tui", "qq"],
+      "forms": ["deny [token]"],
+      "completion_tokens": ["deny"],
+      "examples": {
+        "tui": ["deny approval-1"],
+        "qq": ["deny approval-1"]
+      }
+    },
+    {
+      "name": "compact",
+      "category": "Control",
+      "summary": "Compact the current context window",
+      "surfaces": ["tui", "cli", "qq"],
+      "forms": ["compact [reason]"],
+      "completion_tokens": ["compact"],
+      "examples": {
+        "tui": ["compact keep latest tool outputs"],
+        "cli": ["compact keep latest context"],
+        "qq": ["compact keep latest context"]
+      }
+    },
+    {
+      "name": "drop_memories",
+      "category": "Control",
+      "summary": "Drop older context and keep the freshest turn",
+      "surfaces": ["tui", "cli", "qq"],
+      "forms": ["drop_memories [reason]"],
+      "completion_tokens": {
+        "tui": ["drop_memories", "drop-memories"],
+        "cli": ["drop_memories"],
+        "qq": ["drop_memories", "drop-memories"]
+      },
+      "examples": {
+        "tui": ["drop_memories clear older context"],
+        "cli": ["drop_memories keep latest turn"],
+        "qq": ["drop_memories clear older context"]
+      }
+    },
+    {
+      "name": "cancel",
+      "category": "Control",
+      "summary": "Cancel the running turn",
+      "surfaces": ["tui", "qq"],
+      "forms": ["cancel"],
+      "completion_tokens": ["cancel"],
+      "examples": {
+        "tui": ["cancel"],
+        "qq": ["cancel"]
+      }
+    }
+  ]
+}

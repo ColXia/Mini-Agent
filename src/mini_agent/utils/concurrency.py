@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
@@ -61,7 +62,8 @@ class AsyncConnectionPool(Generic[T]):
     async def _create_connection(self) -> PooledConnection[T]:
         """Create a new connection."""
         now = time.time()
-        conn = await self.factory() if asyncio.iscoroutinefunction(self.factory) else self.factory()
+        created = self.factory()
+        conn = await created if inspect.isawaitable(created) else created
         pooled = PooledConnection(
             connection=conn,
             created_at=now,
@@ -115,11 +117,12 @@ class AsyncConnectionPool(Generic[T]):
         """Close all connections."""
         async with self._lock:
             for pooled in self._pool:
-                if hasattr(pooled.connection, "close"):
-                    if asyncio.iscoroutinefunction(pooled.connection.close):
-                        await pooled.connection.close()
-                    else:
-                        pooled.connection.close()
+                close_fn = getattr(pooled.connection, "close", None)
+                if close_fn is None:
+                    continue
+                closed = close_fn()
+                if inspect.isawaitable(closed):
+                    await closed
             self._pool.clear()
             self._stats = PoolStats()
 
@@ -225,10 +228,8 @@ class RequestBatcher(Generic[T, R]):
             # Execute batch outside lock
             payloads = [req.payload for req in batch]
             try:
-                if asyncio.iscoroutinefunction(self.executor):
-                    results = await self.executor(payloads)
-                else:
-                    results = self.executor(payloads)
+                executed = self.executor(payloads)
+                results = await executed if inspect.isawaitable(executed) else executed
 
                 # Set results
                 for i, req in enumerate(batch):

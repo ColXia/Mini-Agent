@@ -111,6 +111,98 @@ def test_studio_provider_validation_error_returns_400(_catalog_path):
         assert "invalid provider payload" in bad.json()["detail"]
 
 
+def test_studio_models_contract_merges_custom_and_preset(monkeypatch, _catalog_path):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-openai-test")
+
+    from mini_agent.model_manager.model_registry_service import ModelRegistryService
+
+    def _fake_discover_models(self, *, provider_type, api_key, api_base):
+        if str(provider_type.value) == "openai":
+            return [
+                {"model_id": "gpt-5.4", "display_name": "GPT-5.4", "context_window": 1_050_000},
+                {"model_id": "gpt-5.3", "display_name": "GPT-5.3", "context_window": 400_000},
+            ], "gpt-5.4"
+        return [{"model_id": "default-model", "display_name": "default-model"}], "default-model"
+
+    monkeypatch.setattr(ModelRegistryService, "_discover_models", _fake_discover_models)
+
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/v1/ops/providers",
+            json={
+                "name": "Custom Router",
+                "api_type": "openai",
+                "api_base": "https://custom.openai.example.com/v1",
+                "api_key": "sk-custom-1234",
+                "models": ["custom-model-1"],
+                "enabled": True,
+                "priority": 9,
+                "timeout": 45,
+                "headers": {},
+            },
+        )
+        assert created.status_code == 200
+
+        listed = client.get("/api/v1/ops/models")
+        assert listed.status_code == 200
+        items = listed.json()["items"]
+        assert len(items) >= 2
+        assert items[0]["source"] == "custom"
+        openai_item = next(
+            item for item in items if item["source"] == "preset" and item["provider_id"] == "openai"
+        )
+        assert openai_item["models"][0]["context_window"] == 1_050_000
+
+        discover = client.post(
+            "/api/v1/ops/models/discover",
+            json={"source": "preset", "provider_id": "openai"},
+        )
+        assert discover.status_code == 200
+        assert discover.json()["default_model_id"] == "gpt-5.4"
+        assert discover.json()["models"][0]["context_window"] == 1_050_000
+
+        select = client.patch(
+            "/api/v1/ops/models/selection",
+            json={
+                "source": "custom",
+                "provider_id": "custom-router",
+                "model_id": "custom-model-1",
+            },
+        )
+        assert select.status_code == 200
+        assert select.json()["default_model_id"] == "custom-model-1"
+
+
+def test_studio_provider_model_discovery_contract(monkeypatch):
+    from apps.agent_studio_gateway import studio_router
+
+    monkeypatch.setattr(
+        studio_router._STUDIO_OPS_USE_CASES,
+        "discover_provider_models",
+        lambda payload: {
+            "latest_model_id": "model-b",
+            "models": [
+                {"model_id": "model-a", "display_name": "model-a", "is_default": False},
+                {"model_id": "model-b", "display_name": "model-b", "is_default": True},
+            ],
+        },
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/ops/providers/model-discovery",
+            json={
+                "api_type": "openai",
+                "api_base": "https://api.openai.example.com/v1",
+                "api_key": "sk-openai-test",
+            },
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["latest_model_id"] == "model-b"
+        assert [item["model_id"] for item in payload["models"]] == ["model-a", "model-b"]
+
+
 def test_studio_memory_summary_search_and_daily(tmp_path):
     workspace_dir = tmp_path / "workspace"
     workspace_dir.mkdir(parents=True, exist_ok=True)
@@ -169,6 +261,22 @@ def test_studio_runtime_diagnostics_contract():
         assert isinstance(payload.get("main_workspace_dir"), (str, type(None)))
 
 
+def test_studio_routing_diagnostics_contract():
+    with TestClient(app) as client:
+        _ = client.post(
+            "/api/v1/agent/chat",
+            json={"message": "hello routing", "dry_run": True},
+        )
+        response = client.get("/api/v1/ops/diagnostics/routing")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["total_resolutions"] >= 0
+        assert payload["cache_hits"] >= 0
+        assert payload["fallback_resolutions"] >= 0
+        assert isinstance(payload["matched_scope_counts"], dict)
+        assert isinstance(payload["matched_agent_counts"], dict)
+
+
 def test_studio_auth_token_required_when_configured(monkeypatch, tmp_path):
     monkeypatch.setenv("MINI_AGENT_STUDIO_API_KEYS", "studio-token")
     catalog_path = (tmp_path / "providers.json").resolve()
@@ -186,6 +294,8 @@ def test_studio_auth_token_required_when_configured(monkeypatch, tmp_path):
 
         runtime_unauthorized = client.get("/api/v1/ops/diagnostics/runtime")
         assert runtime_unauthorized.status_code == 401
+        routing_unauthorized = client.get("/api/v1/ops/diagnostics/routing")
+        assert routing_unauthorized.status_code == 401
 
         ok_by_bearer = client.get(
             "/api/v1/ops/providers",
@@ -199,6 +309,11 @@ def test_studio_auth_token_required_when_configured(monkeypatch, tmp_path):
             headers={"Authorization": "Bearer studio-token"},
         )
         assert runtime_by_bearer.status_code == 200
+        routing_by_bearer = client.get(
+            "/api/v1/ops/diagnostics/routing",
+            headers={"Authorization": "Bearer studio-token"},
+        )
+        assert routing_by_bearer.status_code == 200
 
         ok_by_api_key = client.get(
             "/api/v1/ops/providers",
@@ -212,6 +327,11 @@ def test_studio_auth_token_required_when_configured(monkeypatch, tmp_path):
             headers={"x-api-key": "studio-token"},
         )
         assert runtime_by_api_key.status_code == 200
+        routing_by_api_key = client.get(
+            "/api/v1/ops/diagnostics/routing",
+            headers={"x-api-key": "studio-token"},
+        )
+        assert routing_by_api_key.status_code == 200
 
 
 def test_studio_path_boundaries_reject_external_targets(tmp_path):

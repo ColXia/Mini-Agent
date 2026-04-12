@@ -12,6 +12,10 @@ from typing import Any
 from fastapi import HTTPException
 
 from mini_agent.interfaces import (
+    StudioModelDiscoverRequest,
+    StudioModelListResponse,
+    StudioModelProviderSummary,
+    StudioModelSelectionRequest,
     StudioMemoryDailyResponse,
     StudioMemoryNote,
     StudioMemorySearchResponse,
@@ -19,16 +23,22 @@ from mini_agent.interfaces import (
     StudioProviderDeleteResponse,
     StudioProviderHealthResponse,
     StudioProviderListResponse,
+    StudioProviderModelDiscoveryRequest,
+    StudioProviderModelDiscoveryResponse,
+    StudioProviderModelSummary,
     StudioProviderSummary,
     StudioProviderUpsertRequest,
 )
+from mini_agent.memory.service import MemoryService
 from mini_agent.model_manager import (
     get_circuit_breaker_registry,
     get_health_monitor,
     normalize_provider_catalog,
     normalize_provider_config,
 )
-from mini_agent.tools.note_tool import MarkdownMemoryStore, MemoryNote
+from mini_agent.model_manager.model_registry_service import ModelRegistryService
+from mini_agent.model_manager.model_discovery import ModelDiscoveryService, ProviderType
+from mini_agent.tools.note_tool import MemoryNote
 
 
 _DAY_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -51,6 +61,82 @@ class StudioOpsUseCases:
             items=items,
         )
 
+    def list_models(self, *, catalog_path: str | None) -> StudioModelListResponse:
+        resolved_path = self._resolve_provider_catalog_path(catalog_path)
+        service = ModelRegistryService(catalog_path=resolved_path)
+        items = service.list_registry()
+        return StudioModelListResponse(
+            items=[
+                StudioModelProviderSummary.model_validate(item)
+                for item in items
+            ]
+        )
+
+    def discover_models(
+        self,
+        *,
+        payload: StudioModelDiscoverRequest,
+        catalog_path: str | None,
+    ) -> StudioModelProviderSummary:
+        resolved_path = self._resolve_provider_catalog_path(catalog_path)
+        service = ModelRegistryService(catalog_path=resolved_path)
+        try:
+            item = service.discover_models(
+                source=payload.source,
+                provider_id=payload.provider_id,
+            )
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=400, detail=f"failed to discover models: {exc}") from exc
+        return StudioModelProviderSummary.model_validate(item)
+
+    def select_model(
+        self,
+        *,
+        payload: StudioModelSelectionRequest,
+        catalog_path: str | None,
+    ) -> StudioModelProviderSummary:
+        resolved_path = self._resolve_provider_catalog_path(catalog_path)
+        service = ModelRegistryService(catalog_path=resolved_path)
+        try:
+            item = service.select_model(
+                source=payload.source,
+                provider_id=payload.provider_id,
+                model_id=payload.model_id,
+            )
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=400, detail=f"failed to select model: {exc}") from exc
+        return StudioModelProviderSummary.model_validate(item)
+
+    def discover_provider_models(
+        self,
+        *,
+        payload: StudioProviderModelDiscoveryRequest,
+    ) -> StudioProviderModelDiscoveryResponse:
+        try:
+            discovered, latest = self._discover_models_for_provider_payload(
+                api_type=str(payload.api_type),
+                api_base=str(payload.api_base),
+                api_key=str(payload.api_key),
+            )
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(
+                status_code=400,
+                detail=f"failed to discover models for provider setup: {exc}",
+            ) from exc
+        if not discovered:
+            raise HTTPException(status_code=400, detail="no models discovered")
+        return StudioProviderModelDiscoveryResponse(
+            latest_model_id=latest,
+            models=[
+                StudioProviderModelSummary(
+                    model_id=model_id,
+                    display_name=model_id,
+                    is_default=bool(latest and model_id == latest),
+                )
+                for model_id in discovered
+            ],
+        )
+
     def create_provider(
         self,
         *,
@@ -60,7 +146,9 @@ class StudioOpsUseCases:
         resolved_path = self._resolve_provider_catalog_path(catalog_path)
         providers = self._load_provider_catalog(resolved_path)
         try:
-            provider = normalize_provider_config(payload.model_dump())
+            provider = normalize_provider_config(
+                self._prepare_provider_payload(payload)
+            )
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(status_code=400, detail=f"invalid provider payload: {exc}") from exc
 
@@ -95,7 +183,7 @@ class StudioOpsUseCases:
         if target not in existing_ids:
             raise HTTPException(status_code=404, detail=f"provider not found: {provider_id}")
 
-        update_payload = payload.model_dump()
+        update_payload = self._prepare_provider_payload(payload)
         update_payload["id"] = target
         try:
             updated = normalize_provider_config(update_payload)
@@ -176,18 +264,16 @@ class StudioOpsUseCases:
 
     def get_memory_summary(self, *, workspace_dir: str | None) -> StudioMemorySummaryResponse:
         resolved_workspace = self._resolve_workspace_dir(workspace_dir)
-        store = MarkdownMemoryStore(memory_root=str(resolved_workspace))
-        notes = store.load_notes()
-        daily_files = sorted(path.name for path in store.daily_dir.glob("*.md"))
-        categories = sorted({note.category for note in notes})
+        memory = MemoryService(resolved_workspace)
+        summary = memory.summary()
         return StudioMemorySummaryResponse(
-            workspace_dir=str(resolved_workspace),
-            memory_root=str(store.memory_root),
-            long_term_file=str(store.long_term_file),
-            daily_dir=str(store.daily_dir),
-            daily_files=daily_files,
-            notes_count=len(notes),
-            categories=categories,
+            workspace_dir=summary.workspace_dir,
+            memory_root=summary.memory_root,
+            long_term_file=summary.long_term_file,
+            daily_dir=summary.daily_dir,
+            daily_files=summary.daily_files,
+            notes_count=summary.notes_count,
+            categories=summary.categories,
         )
 
     def search_memory(
@@ -198,15 +284,14 @@ class StudioOpsUseCases:
         workspace_dir: str | None,
     ) -> StudioMemorySearchResponse:
         resolved_workspace = self._resolve_workspace_dir(workspace_dir)
-        store = MarkdownMemoryStore(memory_root=str(resolved_workspace))
-        notes = store.load_notes()
-        matches = self._search_notes(notes, query=query, limit=limit)
+        memory = MemoryService(resolved_workspace)
+        matches = memory.search_notes(query=query, limit=limit)
         return StudioMemorySearchResponse(
             workspace_dir=str(resolved_workspace),
             query=query,
             limit=limit,
             total=len(matches),
-            items=[self._note_to_dict(store, note) for note in matches],
+            items=[self._note_to_dict(memory, note) for note in matches],
         )
 
     def get_memory_daily(
@@ -220,21 +305,18 @@ class StudioOpsUseCases:
             raise HTTPException(status_code=400, detail="day must be YYYY-MM-DD.")
 
         resolved_workspace = self._resolve_workspace_dir(workspace_dir)
-        store = MarkdownMemoryStore(memory_root=str(resolved_workspace))
-        daily_path = store.daily_dir / f"{normalized_day}.md"
-        if not daily_path.exists():
-            raise HTTPException(status_code=404, detail=f"daily memory file not found: {normalized_day}")
-
-        content = daily_path.read_text(encoding="utf-8")
-        notes = [note for note in store.load_notes() if note.path.resolve() == daily_path.resolve()]
-        notes.sort(key=self._note_sort_key, reverse=True)
+        memory = MemoryService(resolved_workspace)
+        try:
+            snapshot = memory.daily_snapshot(day=normalized_day)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
         return StudioMemoryDailyResponse(
-            workspace_dir=str(resolved_workspace),
-            day=normalized_day,
-            path=str(daily_path),
-            note_count=len(notes),
-            content=content,
-            items=[self._note_to_dict(store, note) for note in notes],
+            workspace_dir=snapshot.workspace_dir,
+            day=snapshot.day,
+            path=snapshot.path,
+            note_count=snapshot.note_count,
+            content=snapshot.content,
+            items=[self._note_to_dict(memory, note) for note in snapshot.notes],
         )
 
     def _load_allowed_roots(self) -> tuple[Path, ...]:
@@ -302,6 +384,157 @@ class StudioOpsUseCases:
         return list(catalog.providers)
 
     @staticmethod
+    def _run_coroutine_sync(coro: Any) -> Any:
+        try:
+            import asyncio
+
+            asyncio.get_running_loop()
+        except RuntimeError:
+            import asyncio
+
+            return asyncio.run(coro)
+
+        result: dict[str, Any] = {}
+        error: dict[str, Exception] = {}
+
+        def _runner() -> None:
+            import asyncio
+
+            try:
+                result["value"] = asyncio.run(coro)
+            except Exception as exc:  # pragma: no cover - defensive
+                error["value"] = exc
+
+        import threading
+
+        thread = threading.Thread(target=_runner, daemon=True)
+        thread.start()
+        thread.join()
+        if "value" in error:
+            raise error["value"]
+        return result.get("value")
+
+    @staticmethod
+    def _to_discovery_provider_type(api_type: str) -> ProviderType:
+        normalized = " ".join((api_type or "").strip().split()).lower()
+        if normalized == "openai":
+            return ProviderType.OPENAI
+        if normalized == "anthropic":
+            return ProviderType.ANTHROPIC
+        if normalized == "gemini":
+            return ProviderType.GEMINI
+        if normalized == "minimax":
+            return ProviderType.MINIMAX
+        return ProviderType.OPENAI
+
+    @staticmethod
+    def _build_models_endpoint(api_base: str) -> str:
+        base = api_base.rstrip("/")
+        if base.endswith("/models"):
+            return base
+        return f"{base}/models"
+
+    def _discover_models_for_provider_payload(
+        self,
+        *,
+        api_type: str,
+        api_base: str,
+        api_key: str,
+    ) -> tuple[list[str], str | None]:
+        service = ModelDiscoveryService()
+        provider_type = self._to_discovery_provider_type(api_type)
+        endpoint = self._build_models_endpoint(api_base)
+        import asyncio
+
+        result = self._run_coroutine_sync(
+            asyncio.wait_for(
+                service.discover_models(
+                    provider=provider_type,
+                    api_key=api_key,
+                    api_base=endpoint,
+                    use_cache=False,
+                ),
+                timeout=15.0,
+            )
+        )
+        models = [
+            item.id
+            for item in result.available_models
+            if isinstance(item.id, str) and item.id.strip()
+        ]
+        deduped: list[str] = []
+        seen: set[str] = set()
+        for model_id in models:
+            lowered = model_id.lower()
+            if lowered in seen:
+                continue
+            seen.add(lowered)
+            deduped.append(model_id)
+        latest = result.latest_base_model.id if result.latest_base_model else None
+        return deduped, latest
+
+    def _prepare_provider_payload(self, payload: StudioProviderUpsertRequest) -> dict[str, Any]:
+        prepared = payload.model_dump()
+        model_id = self._normalize_text(payload.model_id)
+        model_display_name = self._normalize_text(payload.model_display_name)
+
+        models = [self._normalize_text(item) for item in prepared.get("models", [])]
+        models = [item for item in models if item]
+        model_display_names = {
+            self._normalize_text(str(key)): self._normalize_text(str(value))
+            for key, value in prepared.get("model_display_names", {}).items()
+            if self._normalize_text(str(key)) and self._normalize_text(str(value))
+        }
+
+        if model_id:
+            models = [model_id, *[item for item in models if item != model_id]]
+            if model_display_name:
+                model_display_names[model_id] = model_display_name
+
+        if not models and payload.auto_discover_models:
+            discovered, latest = self._discover_models_for_provider_payload(
+                api_type=str(payload.api_type),
+                api_base=str(payload.api_base),
+                api_key=str(payload.api_key),
+            )
+            if not discovered:
+                raise HTTPException(
+                    status_code=400,
+                    detail="no models discovered; provider not created",
+                )
+            selected = self._normalize_text(payload.selected_model_id)
+            if not selected:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"models discovered ({len(discovered)} available, latest={latest or '-'}) "
+                        "but no selected_model_id provided; "
+                        "provider not created"
+                    ),
+                )
+            if selected not in discovered:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"selected_model_id '{selected}' is not in discovered models",
+                )
+            models = [selected, *[item for item in discovered if item != selected]]
+            model_display_names = {item: item for item in models}
+
+        if not models:
+            raise HTTPException(
+                status_code=400,
+                detail="provider requires at least one model; provider not created",
+            )
+
+        prepared["models"] = models
+        prepared["model_display_names"] = model_display_names
+        prepared.pop("model_id", None)
+        prepared.pop("model_display_name", None)
+        prepared.pop("auto_discover_models", None)
+        prepared.pop("selected_model_id", None)
+        return prepared
+
+    @staticmethod
     def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp_path = path.with_suffix(path.suffix + ".tmp")
@@ -323,6 +556,7 @@ class StudioOpsUseCases:
             api_base=provider.api_base,
             api_key_masked=str(redacted.get("api_key", "")),
             models=list(provider.models),
+            model_display_names=dict(provider.model_display_names),
             enabled=bool(provider.enabled),
             priority=int(provider.priority),
             timeout=int(provider.timeout),
@@ -336,12 +570,12 @@ class StudioOpsUseCases:
         )
 
     @staticmethod
-    def _note_to_dict(store: MarkdownMemoryStore, note: MemoryNote) -> StudioMemoryNote:
+    def _note_to_dict(memory: MemoryService, note: MemoryNote) -> StudioMemoryNote:
         return StudioMemoryNote(
             timestamp=note.timestamp,
             category=note.category,
             content=note.content,
-            path=store.relative_path(note.path),
+            path=memory.relative_path(note.path),
         )
 
     @staticmethod

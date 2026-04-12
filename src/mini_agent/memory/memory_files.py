@@ -20,6 +20,23 @@ class MemoryFileLayout:
     memory_file: Path | None
 
 
+def resolve_workspace_root(workspace_dir: str | Path) -> Path:
+    """Resolve the explicit workspace root without inheriting parent anchors."""
+    return Path(workspace_dir).expanduser().resolve()
+
+
+def resolve_workspace_memory_layout(workspace_dir: str | Path) -> MemoryFileLayout:
+    """Resolve memory files owned by the explicit workspace root."""
+    workspace_root = resolve_workspace_root(workspace_dir)
+    gemini_candidate = workspace_root / "GEMINI.md"
+    memory_candidate = workspace_root / "MEMORY.md"
+    return MemoryFileLayout(
+        anchor_dir=workspace_root,
+        gemini_file=gemini_candidate if gemini_candidate.exists() else None,
+        memory_file=memory_candidate if memory_candidate.exists() else None,
+    )
+
+
 def discover_memory_layout(start_dir: str | Path) -> MemoryFileLayout:
     """Discover GEMINI.md and MEMORY.md by walking from cwd to root."""
     current = Path(start_dir).expanduser().resolve()

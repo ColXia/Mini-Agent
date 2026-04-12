@@ -4,7 +4,9 @@ This module provides utilities for calculating visible width of text in terminal
 handling ANSI escape codes, emoji, and East Asian characters correctly.
 """
 
+import os
 import re
+import sys
 import unicodedata
 
 # Compile regex once at module level for performance
@@ -13,6 +15,25 @@ ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*m")
 # Unicode ranges for emoji
 EMOJI_START = 0x1F300
 EMOJI_END = 0x1FAFF
+
+
+def supports_unicode_box_art(stream: object | None = None) -> bool:
+    """Return whether the current terminal can safely render Unicode box art.
+
+    On Windows, code pages such as GBK/CP936 often accept the write call but still
+    render box-drawing glyphs as mojibake. Prefer ASCII unless stdout is clearly
+    UTF-8 capable.
+    """
+
+    target = stream or sys.stdout
+    encoding = str(getattr(target, "encoding", "") or "").strip().lower().replace("_", "-")
+    if not encoding:
+        return os.name != "nt"
+    if encoding in {"utf-8", "utf8", "cp65001"} or encoding.startswith("utf-"):
+        return True
+    if os.name == "nt":
+        return False
+    return True
 
 
 def calculate_display_width(text: str) -> int:

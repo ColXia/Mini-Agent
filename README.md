@@ -9,7 +9,7 @@ This project comes packed with features designed for a robust and intelligent ag
 *   ✅ **Full Agent Execution Loop**: A complete and reliable foundation with a basic toolset for file system and shell operations.
 *   ✅ **Persistent Memory**: An active **Session Note Tool** ensures the agent retains key information across multiple sessions.
 *   ✅ **Intelligent Context Management**: Automatically summarizes conversation history to handle contexts up to a configurable token limit, enabling infinitely long tasks.
-*   ✅ **Claude Skills Integration**: Comes with 15 professional skills for documents, design, testing, and development.
+*   ✅ **Built-in Skills**: Comes with professional skills for documents, design, testing, and development.
 *   ✅ **MCP Tool Integration**: Natively supports MCP for tools like knowledge graph access and web search.
 *   ✅ **Comprehensive Logging**: Detailed logs for every request, response, and tool execution for easy debugging.
 *   ✅ **Clean & Simple Design**: A beautiful CLI and a codebase that is easy to understand, making it the perfect starting point for building advanced agents.
@@ -23,7 +23,6 @@ This project comes packed with features designed for a robust and intelligent ag
     - [2. Choose Your Usage Mode](#2-choose-your-usage-mode)
       - [🚀 Quick Start Mode (Recommended for Beginners)](#-quick-start-mode-recommended-for-beginners)
       - [🔧 Development Mode](#-development-mode)
-  - [ACP \& Zed Editor Integration(optional)](#acp--zed-editor-integrationoptional)
   - [Usage Examples](#usage-examples)
     - [Task Execution](#task-execution)
     - [Using a Claude Skill (e.g., PDF Generation)](#using-a-claude-skill-eg-pdf-generation)
@@ -158,7 +157,7 @@ uv sync
 # Or install required packages:
 # pip install tiktoken pyyaml httpx pydantic requests prompt-toolkit mcp
 
-# 4. Initialize Claude Skills (Optional)
+# 4. Initialize Skills Catalog (Optional)
 git submodule update --init --recursive
 
 # 5. Copy config template
@@ -208,34 +207,6 @@ mini-agent --workspace /path/to/your/project
 > 📖 For more development guidance, see [Development Guide](docs/DEVELOPMENT_GUIDE.md)
 
 > 📖 For more production deployment guidance, see [Production Guide](docs/PRODUCTION_GUIDE.md)
-
-## ACP & Zed Editor Integration(optional)
-
-Mini Agent supports the [Agent Communication Protocol (ACP)](https://github.com/modelcontextprotocol/protocol) for integration with code editors like Zed.
-
-**Setup in Zed Editor:**
-
-1. Install Mini Agent in development mode or as a tool
-2. Add to your Zed `settings.json`:
-
-```json
-{
-  "agent_servers": {
-    "mini-agent": {
-      "command": "/path/to/mini-agent-acp"
-    }
-  }
-}
-```
-
-The command path should be:
-- If installed via `uv tool install`: Use the output of `which mini-agent-acp`
-- If in development mode: `./mini_agent/acp/server.py`
-
-**Usage:**
-- Open Zed's agent panel with `Ctrl+Shift+P` → "Agent: Toggle Panel"
-- Select "mini-agent" from the agent dropdown
-- Start conversations with Mini Agent directly in your editor
 
 ## Usage Examples
 
@@ -336,7 +307,7 @@ This project is licensed under the [MIT License](LICENSE).
 - MiniMax API: https://platform.minimax.io/docs
 - MiniMax-M2: https://github.com/MiniMax-AI/MiniMax-M2
 - Anthropic API: https://docs.anthropic.com/claude/reference
-- Claude Skills: https://github.com/anthropics/skills
+- Skills reference: https://github.com/anthropics/skills
 - MCP Servers: https://github.com/modelcontextprotocol/servers
 
 ---

@@ -5,9 +5,43 @@ Provides unified configuration loading and management functionality
 
 import os
 from pathlib import Path
+import subprocess
+import sys
 
+from dotenv import load_dotenv
 import yaml
 from pydantic import BaseModel, Field
+
+
+def _resolve_env_reference(value: str | None) -> str | None:
+    """Resolve simple environment-variable references in config values."""
+    if not isinstance(value, str):
+        return value
+
+    trimmed = value.strip()
+    if trimmed.startswith("${") and trimmed.endswith("}"):
+        return os.getenv(trimmed[2:-1].strip(), value)
+    if trimmed.startswith("$") and len(trimmed) > 1:
+        return os.getenv(trimmed[1:].strip(), value)
+    return value
+
+
+def _is_unresolved_env_reference(value: str | None) -> bool:
+    """Check whether a string still looks like an unresolved env reference."""
+    if not isinstance(value, str):
+        return False
+    trimmed = value.strip()
+    return (trimmed.startswith("${") and trimmed.endswith("}")) or (
+        trimmed.startswith("$") and len(trimmed) > 1
+    )
+
+
+OFFICIAL_PRESET_ENV_KEYS = (
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "GEMINI_API_KEY",
+    "MINIMAX_API_KEY",
+)
 
 
 class RetryConfig(BaseModel):
@@ -54,6 +88,7 @@ class ToolsConfig(BaseModel):
     enable_file_tools: bool = True
     enable_bash: bool = True
     enable_note: bool = True
+    enable_knowledge_base: bool = True
 
     # Skills
     enable_skills: bool = True
@@ -68,9 +103,15 @@ class ToolsConfig(BaseModel):
 class SecurityConfig(BaseModel):
     """Runtime safety policy configuration."""
 
-    approval_profile: str = "auto-edit"  # suggest | auto-edit | full-auto
+    approval_profile: str = "build"  # plan | build
+    access_level: str = "default"  # default | full-access
     sandbox_mode: str | None = None  # workspace | unrestricted
     elevated_exec: str | None = None  # deny | require_approval | allow
+    network_mode: str | None = None  # allow_all | deny_all | allowlist | blocklist
+    network_allow_domains: list[str] = Field(default_factory=list)
+    network_block_domains: list[str] = Field(default_factory=list)
+    sandbox_max_processes: int | None = 32
+    sandbox_max_process_memory_mb: int | None = 2048
     tool_allow: list[str] = Field(default_factory=list)
     tool_exclude: list[str] = Field(default_factory=list)
 
@@ -96,17 +137,160 @@ class Config(BaseModel):
     observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
 
     @classmethod
-    def load(cls) -> "Config":
+    def load(cls, *, allow_interactive_setup: bool = True) -> "Config":
         """Load configuration from the default search path."""
         config_path = cls.get_default_config_path()
         if not config_path.exists():
             raise FileNotFoundError(
                 "Configuration file not found. Run scripts/setup-config.sh or place config.yaml in mini_agent/config/."
             )
-        return cls.from_yaml(config_path)
+        return cls.from_yaml(config_path, allow_interactive_setup=allow_interactive_setup)
+
+    @staticmethod
+    def load_local_env_files(config_path: str | Path | None = None) -> None:
+        """Load repository-local env files without overriding existing environment.
+
+        Supported local file is .env.local for development-only secrets such as
+        API keys that should not be committed. Priority remains:
+        system environment variables > .env.local.
+        """
+        candidates: list[Path] = []
+        seen: set[Path] = set()
+
+        if config_path is not None:
+            config_dir = Path(config_path).resolve().parent
+            for name in (".env.local",):
+                candidates.append(config_dir / name)
+
+        cwd = Path.cwd().resolve()
+        for name in (".env.local",):
+            candidates.append(cwd / name)
+
+        for candidate in candidates:
+            if candidate in seen or not candidate.exists():
+                continue
+            load_dotenv(candidate, override=False)
+            seen.add(candidate)
+
+    @staticmethod
+    def _preset_bootstrap_marker() -> Path:
+        return Path.home() / ".mini-agent" / "state" / "preset_key_bootstrap.done"
+
+    @staticmethod
+    def _has_any_preset_key() -> bool:
+        placeholders = {
+            "YOUR_API_KEY_HERE",
+            "YOUR_OPENAI_API_KEY_HERE",
+            "YOUR_ANTHROPIC_API_KEY_HERE",
+            "YOUR_GEMINI_API_KEY_HERE",
+            "YOUR_MINIMAX_API_KEY_HERE",
+            "your_api_key",
+            "your-api-key",
+            "sk-...",
+            "sk-ant-...",
+            "sk-cp-xxxxx",
+        }
+        for env_key in OFFICIAL_PRESET_ENV_KEYS:
+            value = os.getenv(env_key)
+            if not value:
+                continue
+            trimmed = value.strip()
+            if (
+                trimmed
+                and trimmed not in placeholders
+                and not _is_unresolved_env_reference(trimmed)
+            ):
+                return True
+        return False
+
+    @staticmethod
+    def _write_env_local_key(env_key: str, api_key: str) -> None:
+        env_local = Path.cwd().resolve() / ".env.local"
+        existing_lines: list[str] = []
+        if env_local.exists():
+            existing_lines = env_local.read_text(encoding="utf-8").splitlines()
+
+        replaced = False
+        updated_lines: list[str] = []
+        for line in existing_lines:
+            if line.strip().startswith(f"{env_key}="):
+                updated_lines.append(f"{env_key}={api_key}")
+                replaced = True
+            else:
+                updated_lines.append(line)
+        if not replaced:
+            if updated_lines and updated_lines[-1].strip():
+                updated_lines.append("")
+            updated_lines.append(f"{env_key}={api_key}")
+
+        content = "\n".join(updated_lines).rstrip() + "\n"
+        env_local.write_text(content, encoding="utf-8")
 
     @classmethod
-    def from_yaml(cls, config_path: str | Path) -> "Config":
+    def _run_first_launch_preset_key_setup(cls) -> None:
+        marker = cls._preset_bootstrap_marker()
+        if marker.exists():
+            return
+
+        if cls._has_any_preset_key():
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            marker.write_text("done\n", encoding="utf-8")
+            return
+
+        if not (sys.stdin.isatty() and sys.stdout.isatty()):
+            return
+
+        print("\nNo preset provider API keys were found.")
+        print("First-run setup (only shown once):")
+        print("  1. Input a key and set it as system environment variable")
+        print("  2. Input a key and save it to .env.local")
+        print("  3. Skip")
+        choice = input("Select [1/2/3]: ").strip()
+        if choice not in {"1", "2", "3"}:
+            choice = "3"
+
+        if choice in {"1", "2"}:
+            print("Providers:")
+            print("  openai -> OPENAI_API_KEY")
+            print("  anthropic -> ANTHROPIC_API_KEY")
+            print("  gemini -> GEMINI_API_KEY")
+            print("  minimax -> MINIMAX_API_KEY")
+            provider_choice = input("Provider [openai/anthropic/gemini/minimax]: ").strip().lower()
+            env_key_map = {
+                "openai": "OPENAI_API_KEY",
+                "anthropic": "ANTHROPIC_API_KEY",
+                "gemini": "GEMINI_API_KEY",
+                "minimax": "MINIMAX_API_KEY",
+            }
+            env_key = env_key_map.get(provider_choice)
+            if env_key:
+                api_key = input(f"Enter {env_key}: ").strip()
+                if api_key:
+                    if choice == "1":
+                        os.environ[env_key] = api_key
+                        if os.name == "nt":
+                            try:
+                                subprocess.run(
+                                    ["setx", env_key, api_key],
+                                    check=False,
+                                    stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL,
+                                )
+                            except Exception:
+                                pass
+                    else:
+                        cls._write_env_local_key(env_key, api_key)
+
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text("done\n", encoding="utf-8")
+
+    @classmethod
+    def from_yaml(
+        cls,
+        config_path: str | Path,
+        *,
+        allow_interactive_setup: bool = True,
+    ) -> "Config":
         """Load configuration from YAML file
 
         Args:
@@ -124,6 +308,8 @@ class Config(BaseModel):
         if not config_path.exists():
             raise FileNotFoundError(f"Configuration file does not exist: {config_path}")
 
+        cls.load_local_env_files(config_path)
+
         with open(config_path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
 
@@ -132,10 +318,10 @@ class Config(BaseModel):
 
         # Parse LLM configuration
         # Priority: config.yaml > preset environment variables > error
-        configured_api_key = data.get("api_key")
-        configured_api_base = data.get("api_base")
-        configured_model = data.get("model")
-        configured_provider = data.get("provider")
+        configured_api_key = _resolve_env_reference(data.get("api_key"))
+        configured_api_base = _resolve_env_reference(data.get("api_base"))
+        configured_model = _resolve_env_reference(data.get("model"))
+        configured_provider = _resolve_env_reference(data.get("provider"))
 
         placeholder_api_keys = {
             "YOUR_API_KEY_HERE",
@@ -148,6 +334,7 @@ class Config(BaseModel):
         has_valid_config = (
             configured_api_key
             and configured_api_key not in placeholder_api_keys
+            and not _is_unresolved_env_reference(configured_api_key)
             and configured_model
         )
 
@@ -164,18 +351,22 @@ class Config(BaseModel):
             )
 
             preset = get_first_available_preset()
+            if not preset and allow_interactive_setup:
+                cls._run_first_launch_preset_key_setup()
+                cls.load_local_env_files(config_path)
+                preset = get_first_available_preset()
             if preset:
                 api_key = preset["api_key"]
                 api_base = preset["api_base"]
-                model = preset["models"][0]  # Use first (default) model
+                model = preset.get("model") or preset["models"][0]
                 provider = preset["api_type"]
             else:
                 # No valid configuration found
                 raise ValueError(
-                    "No valid LLM configuration found. Please either:\n"
+                    "No available API keys found. Please either:\n"
                     "  1. Set environment variable: OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, or MINIMAX_API_KEY\n"
-                    "  2. Configure providers using: mini-agent provider add\n"
-                    "  3. Update config.yaml with valid api_key and model"
+                    "  2. Add a local fallback key in .env.local\n"
+                    "  3. Update config.yaml with a valid api_key and model"
                 )
 
         # Parse retry configuration
@@ -190,9 +381,9 @@ class Config(BaseModel):
 
         llm_config = LLMConfig(
             api_key=api_key,
-            api_base=data.get("api_base", "https://api.minimax.io"),
-            model=data.get("model", "MiniMax-M2.5"),
-            provider=data.get("provider", "anthropic"),
+            api_base=api_base,
+            model=model,
+            provider=provider,
             retry=retry_config,
         )
 
@@ -219,6 +410,7 @@ class Config(BaseModel):
             enable_file_tools=tools_data.get("enable_file_tools", True),
             enable_bash=tools_data.get("enable_bash", True),
             enable_note=tools_data.get("enable_note", True),
+            enable_knowledge_base=tools_data.get("enable_knowledge_base", True),
             enable_skills=tools_data.get("enable_skills", True),
             skills_dir=tools_data.get("skills_dir", "./skills"),
             enable_mcp=tools_data.get("enable_mcp", True),
@@ -228,9 +420,13 @@ class Config(BaseModel):
 
         security_data = data.get("security", {})
         security_config = SecurityConfig(
-            approval_profile=security_data.get("approval_profile", "auto-edit"),
+            approval_profile=security_data.get("approval_profile", "build"),
+            access_level=security_data.get("access_level", "default"),
             sandbox_mode=security_data.get("sandbox_mode"),
             elevated_exec=security_data.get("elevated_exec"),
+            network_mode=security_data.get("network_mode"),
+            network_allow_domains=security_data.get("network_allow_domains", []),
+            network_block_domains=security_data.get("network_block_domains", []),
             tool_allow=security_data.get("tool_allow", []),
             tool_exclude=security_data.get("tool_exclude", []),
         )

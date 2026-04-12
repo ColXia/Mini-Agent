@@ -1,8 +1,8 @@
 # Mini-Agent 文档索引
 
-> **最后更新**: 2026-04-07
-> **当前阶段**: P20 收口验证完成
-> **文档版本**: v2.0
+> **最后更新**: 2026-04-08
+> **当前阶段**: TUI 主入口真实使用修边角阶段
+> **文档版本**: v2.1
 
 ---
 
@@ -21,8 +21,16 @@
 |------|------|------|
 | [DEVELOPMENT_INDEX.md](./DEVELOPMENT_INDEX.md) | 开发索引（已发布） | ✅ 活跃 |
 | [REFACTOR_TASKS.md](./REFACTOR_TASKS.md) | 重构任务清单 | ✅ 活跃 |
+| [P29_SESSION_BOUNDARY_AUDIT_2026-04-12.md](./P29_SESSION_BOUNDARY_AUDIT_2026-04-12.md) | P29 session boundary audit | ✅ active |
+| [P29_SESSION_HARD_REFACTOR_PLAN.md](./P29_SESSION_HARD_REFACTOR_PLAN.md) | P29 session hard-refactor plan | ✅ active |
+| [P30_SURFACE_SESSION_ARCHITECTURE_CORRECTION_2026-04-12.md](./P30_SURFACE_SESSION_ARCHITECTURE_CORRECTION_2026-04-12.md) | Surface/session architecture correction | ? active |
 | [TRANSFORMATION_PLAN.md](./TRANSFORMATION_PLAN.md) | 深度改造方案 v2 | ✅ 活跃 |
 | [P18_HARD_REFACTOR_EXECUTION_PLAN.md](./P18_HARD_REFACTOR_EXECUTION_PLAN.md) | P18 硬重构执行计划 | ✅ 活跃 |
+
+### 终端当前主线
+| 文档 | 说明 | 状态 |
+|------|------|------|
+| [P23_TERMINAL_REAL_USE_READINESS.md](./P23_TERMINAL_REAL_USE_READINESS.md) | 终端真实使用门禁、清单与走查入口 | ✅ 活跃 |
 
 ### API 与契约
 | 文档 | 说明 | 状态 |
@@ -65,6 +73,9 @@
 ├── docs/
 │   ├── DEVELOPMENT_INDEX.md              # 开发索引
 │   ├── REFACTOR_TASKS.md                 # 重构任务
+│   ├── P29_SESSION_BOUNDARY_AUDIT_2026-04-12.md
+│   ├── P29_SESSION_HARD_REFACTOR_PLAN.md
+?   ??? P30_SURFACE_SESSION_ARCHITECTURE_CORRECTION_2026-04-12.md
 │   ├── TRANSFORMATION_PLAN.md            # 改造方案
 │   ├── P18_HARD_REFACTOR_EXECUTION_PLAN.md
 │   ├── API_V1_CONTRACT_SKELETON.md       # API 契约
@@ -169,3 +180,19 @@
 - P19 weekly readiness template: [P19_WEEKLY_RELEASE_READINESS_TEMPLATE.md](./P19_WEEKLY_RELEASE_READINESS_TEMPLATE.md)
 - GitHub upload scope: [GITHUB_UPLOAD_SCOPE_2026-04-07.md](./GITHUB_UPLOAD_SCOPE_2026-04-07.md)
 - Cross-device handoff: [CROSS_DEVICE_HANDOFF_2026-04-07.md](./CROSS_DEVICE_HANDOFF_2026-04-07.md)
+
+## 2026-04-07 Phase Update
+
+- Current phase: `P20` detailed development phase (active).
+- Focus: feature refinement, end-to-end stabilization, and full-regression readiness.
+
+## 2026-04-07 P23 Addendum
+
+- Agent-core detailed plan: [P23_AGENT_CORE_DETAILED_PLAN.md](./P23_AGENT_CORE_DETAILED_PLAN.md)
+- Agent-core task plan: [P23_AGENT_CORE_TASK_PLAN.md](./P23_AGENT_CORE_TASK_PLAN.md)
+
+## 2026-04-08 Terminal Readiness Addendum
+
+- Terminal real-use readiness: [P23_TERMINAL_REAL_USE_READINESS.md](./P23_TERMINAL_REAL_USE_READINESS.md)
+- One-command gate script: `scripts/terminal_readiness_gate.py`
+- QQ/TUI shared-session manual runbook: [P23_QQ_TUI_SHARED_SESSION_RUNBOOK.md](./P23_QQ_TUI_SHARED_SESSION_RUNBOOK.md)

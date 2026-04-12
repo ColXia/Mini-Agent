@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Optional
 
-from mini_agent.memory.memory_files import discover_memory_layout
+from mini_agent.memory.memory_files import resolve_workspace_memory_layout
 from mini_agent.schema import Message
 from mini_agent.session import SessionPersistence
 
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class SessionState:
-    """Session state for gateway/ACP/CLI shared session management."""
+    """Session state for gateway/CLI shared session management."""
 
     session_id: str
     workspace_dir: Path
@@ -569,6 +569,8 @@ class SessionStore:
         query: str,
         limit: int = 20,
         session_id: str | None = None,
+        workspace_anchor_dir: str | None = None,
+        exclude_session_id: str | None = None,
         include_inactive: bool = True,
     ) -> dict[str, Any]:
         active_ids: set[str]
@@ -580,6 +582,8 @@ class SessionStore:
             query=query,
             limit=limit,
             session_id=session_id,
+            workspace_anchor_dir=workspace_anchor_dir,
+            exclude_session_id=exclude_session_id,
         )
         if not include_inactive:
             results = [item for item in results if str(item.get("session_id", "")) in active_ids]
@@ -616,7 +620,7 @@ class SessionStore:
         if resolved_workspace is None:
             resolved_workspace = Path.cwd().resolve()
 
-        layout = discover_memory_layout(resolved_workspace)
+        layout = resolve_workspace_memory_layout(resolved_workspace)
         memory_file = layout.memory_file or (layout.anchor_dir / "MEMORY.md")
         payload = self._persistence.search_relevant_memory(
             query=query,

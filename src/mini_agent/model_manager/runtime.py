@@ -17,7 +17,6 @@ from mini_agent.model_manager.provider import (
     ProviderAPIType,
     ProviderCatalog,
     ProviderConfig,
-    normalize_provider_catalog,
 )
 from mini_agent.schema import LLMProvider
 
@@ -44,6 +43,14 @@ def _to_runtime_provider(api_type: ProviderAPIType) -> LLMProvider | None:
     if api_type == ProviderAPIType.OPENAI:
         return LLMProvider.OPENAI
     return None
+
+
+def _runtime_catalog_provider_id(*, source: str, provider_id: str) -> str:
+    normalized_source = _normalize_text(source).lower()
+    normalized_provider_id = _normalize_text(provider_id)
+    if normalized_source == "preset":
+        return f"preset-{normalized_provider_id}"
+    return normalized_provider_id
 
 
 def _fallback_provider(value: str | None) -> LLMProvider:
@@ -77,6 +84,29 @@ def _build_config_fallback_provider(config: Any) -> ProviderConfig:
     )
 
 
+def _provider_model_context_window(provider: ProviderConfig, model_id: str) -> int | None:
+    try:
+        value = int(provider.model_context_windows.get(model_id, 0))
+    except Exception:
+        return None
+    return value if value > 0 else None
+
+
+def _provider_model_learned_token_limit(provider: ProviderConfig, model_id: str) -> int | None:
+    try:
+        value = int(provider.model_learned_token_limits.get(model_id, 0))
+    except Exception:
+        return None
+    return value if value > 0 else None
+
+
+def _effective_provider_model_token_limit(provider: ProviderConfig, model_id: str) -> int | None:
+    learned = _provider_model_learned_token_limit(provider, model_id)
+    if learned is not None:
+        return learned
+    return _provider_model_context_window(provider, model_id)
+
+
 def _load_catalog_payload(path: Path) -> dict[str, Any] | list[dict[str, Any]] | None:
     if not path.exists() or not path.is_file():
         return None
@@ -94,7 +124,8 @@ def _resolve_catalog_path(catalog_path: str | Path | None) -> Path | None:
 
     Priority:
     1. Explicit catalog_path parameter
-    2. Default: ~/.mini-agent/providers.json
+    2. Environment: MINI_AGENT_PROVIDER_CATALOG_PATH
+    3. Default: ~/.mini-agent/providers.json
 
     Args:
         catalog_path: Optional explicit catalog path
@@ -107,6 +138,10 @@ def _resolve_catalog_path(catalog_path: str | Path | None) -> Path | None:
     )
     if explicit_path:
         return Path(explicit_path).expanduser().resolve()
+
+    env_path = _normalize_text(os.getenv("MINI_AGENT_PROVIDER_CATALOG_PATH"))
+    if env_path:
+        return Path(env_path).expanduser().resolve()
 
     # Default catalog path
     default_path = Path.home() / ".mini-agent" / "providers.json"
@@ -129,6 +164,9 @@ class RoutedLLMSettings:
     catalog_path: str | None = None
     breaker_state: str | None = None
     breaker_allowed: bool | None = None
+    context_window: int | None = None
+    learned_token_limit: int | None = None
+    token_limit: int | None = None
 
 
 @dataclass(frozen=True)
@@ -182,6 +220,7 @@ def _build_config_fallback_settings(
         model=str(requested_model or config.llm.model),
         requested_model=requested_model,
         catalog_path=catalog_path,
+        token_limit=80_000,
     )
 
 
@@ -192,32 +231,11 @@ def resolve_provider_catalog(
     supported_api_types: set[ProviderAPIType] | None = None,
 ) -> ProviderCatalogResolution:
     """Resolve provider list from catalog path or fallback runtime config."""
+    from mini_agent.model_manager.model_registry_service import ModelRegistryService
+
     resolved_path = _resolve_catalog_path(catalog_path)
-    if resolved_path is None:
-        return ProviderCatalogResolution(
-            source="config_fallback",
-            catalog_path=None,
-            providers=[_build_config_fallback_provider(config)],
-        )
-
-    payload = _load_catalog_payload(resolved_path)
-    if payload is None:
-        return ProviderCatalogResolution(
-            source="config_fallback",
-            catalog_path=str(resolved_path),
-            providers=[_build_config_fallback_provider(config)],
-        )
-
-    try:
-        catalog = normalize_provider_catalog(payload)
-    except Exception:
-        return ProviderCatalogResolution(
-            source="config_fallback",
-            catalog_path=str(resolved_path),
-            providers=[_build_config_fallback_provider(config)],
-        )
-
-    providers = [provider for provider in catalog.providers if provider.enabled]
+    service = ModelRegistryService(catalog_path=resolved_path)
+    providers = [provider for provider in service.runtime_provider_catalog().providers if provider.enabled]
     if supported_api_types is not None:
         providers = [
             provider
@@ -227,12 +245,12 @@ def resolve_provider_catalog(
     if not providers:
         return ProviderCatalogResolution(
             source="config_fallback",
-            catalog_path=str(resolved_path),
+            catalog_path=str(service.catalog_path),
             providers=[_build_config_fallback_provider(config)],
         )
     return ProviderCatalogResolution(
         source="provider_catalog",
-        catalog_path=str(resolved_path),
+        catalog_path=str(service.catalog_path),
         providers=providers,
     )
 
@@ -309,6 +327,18 @@ def resolve_routed_llm_candidates(
             catalog_path=catalog.catalog_path,
             breaker_state=decision.state.value,
             breaker_allowed=decision.allowed,
+            context_window=_provider_model_context_window(
+                route.provider,
+                route.mapping.selected_model,
+            ),
+            learned_token_limit=_provider_model_learned_token_limit(
+                route.provider,
+                route.mapping.selected_model,
+            ),
+            token_limit=_effective_provider_model_token_limit(
+                route.provider,
+                route.mapping.selected_model,
+            ),
         )
         if decision.allowed:
             allowed_candidates.append(candidate)
@@ -324,6 +354,75 @@ def resolve_routed_llm_candidates(
             config, requested_model=requested_model, catalog_path=catalog.catalog_path
         )
     ]
+
+
+def resolve_pinned_llm_candidate(
+    config: Any,
+    *,
+    provider_source: str,
+    provider_id: str,
+    model_id: str | None = None,
+    catalog_path: str | Path | None = None,
+) -> RoutedLLMSettings:
+    """Resolve one exact provider/model route for session-scoped selection."""
+    from mini_agent.model_manager.model_registry_service import ModelRegistryService
+
+    requested_provider_id = _normalize_text(provider_id)
+    requested_source = _normalize_text(provider_source).lower()
+    if requested_source not in {"custom", "preset"}:
+        raise ValueError(f"unsupported provider source: {provider_source}")
+    if not requested_provider_id:
+        raise ValueError("provider_id must not be empty")
+
+    requested_model = _normalize_text(model_id or str(config.llm.model))
+    if not requested_model:
+        raise ValueError("model_id must not be empty")
+
+    resolved_path = _resolve_catalog_path(catalog_path)
+    service = ModelRegistryService(catalog_path=resolved_path)
+    runtime_provider_id = _runtime_catalog_provider_id(
+        source=requested_source,
+        provider_id=requested_provider_id,
+    )
+    provider = next(
+        (
+            item
+            for item in service.runtime_provider_catalog().providers
+            if item.enabled and item.id == runtime_provider_id
+        ),
+        None,
+    )
+    if provider is None:
+        raise ValueError(f"provider not configured: {requested_provider_id}")
+
+    runtime_provider = _to_runtime_provider(provider.api_type)
+    if runtime_provider is None:
+        raise ValueError(
+            f"provider '{requested_provider_id}' is not supported in terminal runtime"
+        )
+    if requested_model not in provider.models:
+        raise ValueError(
+            f"model '{requested_model}' is not available in provider '{requested_provider_id}'"
+        )
+
+    decision = get_circuit_breaker_registry().should_allow(provider.id)
+    return RoutedLLMSettings(
+        source="provider_catalog",
+        provider=runtime_provider,
+        api_key=provider.api_key,
+        api_base=provider.api_base,
+        model=requested_model,
+        provider_id=provider.id,
+        provider_name=provider.name,
+        mapping_mode="exact",
+        requested_model=requested_model,
+        catalog_path=str(service.catalog_path),
+        breaker_state=decision.state.value,
+        breaker_allowed=decision.allowed,
+        context_window=_provider_model_context_window(provider, requested_model),
+        learned_token_limit=_provider_model_learned_token_limit(provider, requested_model),
+        token_limit=_effective_provider_model_token_limit(provider, requested_model),
+    )
 
 
 def resolve_routed_llm_settings(

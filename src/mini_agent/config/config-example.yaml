@@ -45,8 +45,9 @@ tools:
   enable_file_tools: true  # File read/write/edit tools (ReadTool, WriteTool, EditTool)
   enable_bash: true        # Bash command execution tool
   enable_note: true        # Session note tool (SessionNoteTool)
+  enable_knowledge_base: true  # Explicit KB/RAG query tool (knowledge_base_query)
   
-  # Claude Skills
+  # Built-in / workspace skills
   enable_skills: true      # Enable Skills
   skills_dir: "./skills"   # Skills directory path
   
@@ -62,12 +63,28 @@ tools:
 
 # ===== Security Policy Configuration =====
 security:
-  # Runtime approval profile: suggest | auto-edit | full-auto
-  approval_profile: "auto-edit"
-  # Optional override: workspace | unrestricted
+  # Execution mode:
+  # - plan: read-first analysis mode; blocks shell and workspace mutations
+  # - build: normal working mode for coding and tool use
+  approval_profile: "build"
+  # Access level:
+  # - default: workspace sandbox + approval for elevated host commands
+  # - full-access: unrestricted sandbox + no approval gate
+  access_level: "default"
+  # Optional low-level override: workspace | unrestricted
   sandbox_mode: "workspace"
-  # Optional override: deny | require_approval | allow
+  # Optional low-level override: deny | require_approval | allow
   elevated_exec: "require_approval"
+  # Optional sandbox network policy: allow_all | deny_all | allowlist | blocklist
+  network_mode: "allow_all"
+  # Used when network_mode=allowlist
+  network_allow_domains: []
+  # Used when network_mode=blocklist
+  network_block_domains: []
+  # Windows workspace sandbox only: conservative native child-process cap (0/null = disable)
+  sandbox_max_processes: 32
+  # Windows workspace sandbox only: per-process memory cap in MB (0/null = disable)
+  sandbox_max_process_memory_mb: 2048
   # Optional explicit allowlist (empty = allow all unless excluded)
   tool_allow: []
   # Optional explicit denylist

@@ -1,10 +1,6 @@
-"""
-Test Skill Tool
+"""Tests for skill tools."""
 
-Tests for skill tools after Progressive Disclosure optimization:
-- Only GetSkillTool remains (ListSkillsTool and UseSkillTool removed)
-- Tests verify the single-tool approach
-"""
+from __future__ import annotations
 
 import tempfile
 from pathlib import Path
@@ -15,8 +11,7 @@ from mini_agent.tools.skill_loader import SkillLoader
 from mini_agent.tools.skill_tool import GetSkillTool, create_skill_tools
 
 
-def create_test_skill(skill_dir: Path, name: str, description: str, content: str):
-    """Create a test skill"""
+def create_test_skill(skill_dir: Path, name: str, description: str, content: str) -> None:
     skill_file = skill_dir / "SKILL.md"
     skill_content = f"""---
 name: {name}
@@ -30,9 +25,7 @@ description: {description}
 
 @pytest.fixture
 def skill_loader():
-    """Create a loader with test skills"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Create test skills
         for i in range(2):
             skill_dir = Path(tmpdir) / f"test-skill-{i}"
             skill_dir.mkdir()
@@ -50,7 +43,6 @@ def skill_loader():
 
 @pytest.mark.asyncio
 async def test_get_skill_tool(skill_loader):
-    """Test GetSkillTool"""
     tool = GetSkillTool(skill_loader)
 
     result = await tool.execute(skill_name="test-skill-0")
@@ -63,49 +55,206 @@ async def test_get_skill_tool(skill_loader):
 
 @pytest.mark.asyncio
 async def test_get_skill_tool_nonexistent(skill_loader):
-    """Test getting non-existent skill"""
     tool = GetSkillTool(skill_loader)
 
     result = await tool.execute(skill_name="nonexistent-skill")
 
-    assert not result.success
-    assert "不存在" in result.error or "not exist" in result.error.lower()
+    assert result.success is False
+    assert "not exist" in (result.error or "").lower()
 
 
-def test_create_skill_tools_returns_single_tool(skill_loader):
-    """Test that create_skill_tools only returns GetSkillTool after optimization"""
+def test_create_skill_tools_returns_single_tool_without_workspace_target():
     with tempfile.TemporaryDirectory() as tmpdir:
         skill_dir = Path(tmpdir) / "test-skill"
         skill_dir.mkdir()
-        create_test_skill(
-            skill_dir, "test-skill", "Test skill", "Test content"
-        )
+        create_test_skill(skill_dir, "test-skill", "Test skill", "Test content")
 
         tools, loader = create_skill_tools(tmpdir)
 
-        # Should only have one tool now (GetSkillTool)
         assert len(tools) == 1
         assert isinstance(tools[0], GetSkillTool)
         assert loader is not None
 
 
-def test_tool_count_optimization():
-    """Verify Progressive Disclosure optimization: 3 tools -> 1 tool"""
+def test_create_skill_tools_stays_silent_for_terminal_surfaces(capsys):
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Create a simple test skill
+        skill_dir = Path(tmpdir) / "test-skill"
+        skill_dir.mkdir()
+        create_test_skill(skill_dir, "test-skill", "Test skill", "Test content")
+
+        create_skill_tools(tmpdir)
+
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err == ""
+
+
+def test_tool_count_optimization_without_workspace_target():
+    with tempfile.TemporaryDirectory() as tmpdir:
         skill_dir = Path(tmpdir) / "simple-skill"
         skill_dir.mkdir()
-        create_test_skill(
-            skill_dir, "simple-skill", "Simple test", "Content"
-        )
+        create_test_skill(skill_dir, "simple-skill", "Simple test", "Content")
 
         tools, _ = create_skill_tools(tmpdir)
 
-        # After optimization, should only have 1 tool (GetSkillTool)
-        # Before optimization, we had 3 tools (ListSkillsTool, GetSkillTool, UseSkillTool)
         assert len(tools) == 1
+        assert tools[0].name == "get_skill"
+        assert "load the full instructions" in tools[0].description.lower()
 
-        # Verify it's GetSkillTool
-        tool = tools[0]
-        assert tool.name == "get_skill"
-        assert "get complete content" in tool.description.lower() or "获取" in tool.description
+
+def test_get_skill_tool_description_requires_loading_before_relying(skill_loader):
+    tool = GetSkillTool(skill_loader)
+
+    assert "before relying on a skill" in tool.description
+    assert "routing hint" in tool.description
+
+
+@pytest.mark.asyncio
+async def test_install_skill_tool_creates_workspace_skill(tmp_path: Path):
+    builtin_dir = tmp_path / "builtin-skills"
+    builtin_dir.mkdir()
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+
+    tools, loader = create_skill_tools(
+        str(builtin_dir),
+        workspace_dir=str(workspace_dir),
+    )
+    install_tool = next(tool for tool in tools if tool.name == "install_skill")
+
+    result = await install_tool.execute(
+        skill_name="repo-helper",
+        description="Workspace helper",
+        instructions="Use this skill for repo-specific tasks.",
+    )
+
+    assert result.success is True
+    installed_path = workspace_dir / ".mini-agent" / "skills" / "repo-helper" / "SKILL.md"
+    assert installed_path.exists()
+    assert "Installed skill: repo-helper" in result.content
+    assert loader.get_skill("repo-helper") is not None
+    ledger_path = workspace_dir / ".mini-agent" / "skill_sources.json"
+    assert ledger_path.exists()
+    assert "Ledger:" in result.content
+
+
+@pytest.mark.asyncio
+async def test_install_skill_from_path_tool_imports_existing_skill(tmp_path: Path):
+    builtin_dir = tmp_path / "builtin-skills"
+    builtin_dir.mkdir()
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+    source_dir = tmp_path / "source-skill"
+    source_dir.mkdir()
+    create_test_skill(
+        source_dir,
+        "external-helper",
+        "External helper",
+        "Use this skill for imported workflow help.",
+    )
+
+    tools, loader = create_skill_tools(
+        str(builtin_dir),
+        workspace_dir=str(workspace_dir),
+    )
+    install_tool = next(tool for tool in tools if tool.name == "install_skill_from_path")
+
+    result = await install_tool.execute(path=str(source_dir))
+
+    assert result.success is True
+    installed_path = workspace_dir / ".mini-agent" / "skills" / "external-helper" / "SKILL.md"
+    assert installed_path.exists()
+    assert "Installed skill: external-helper" in result.content
+    assert "Source: directory" in result.content
+    assert loader.get_skill("external-helper") is not None
+    ledger_path = workspace_dir / ".mini-agent" / "skill_sources.json"
+    assert ledger_path.exists()
+    assert "external-helper" in ledger_path.read_text(encoding="utf-8")
+
+
+def test_create_skill_tools_includes_install_tool_when_workspace_target_exists(tmp_path: Path):
+    builtin_dir = tmp_path / "builtin-skills"
+    builtin_dir.mkdir()
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+
+    tools, loader = create_skill_tools(
+        str(builtin_dir),
+        workspace_dir=str(workspace_dir),
+    )
+
+    assert loader is not None
+    assert [tool.name for tool in tools] == [
+        "get_skill",
+        "install_skill",
+        "install_skill_from_path",
+        "uninstall_skill",
+        "rollback_skill",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_uninstall_skill_tool_removes_workspace_skill(tmp_path: Path):
+    builtin_dir = tmp_path / "builtin-skills"
+    builtin_dir.mkdir()
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+
+    tools, loader = create_skill_tools(
+        str(builtin_dir),
+        workspace_dir=str(workspace_dir),
+    )
+    install_tool = next(tool for tool in tools if tool.name == "install_skill")
+    uninstall_tool = next(tool for tool in tools if tool.name == "uninstall_skill")
+
+    install_result = await install_tool.execute(
+        skill_name="repo-helper",
+        description="Workspace helper",
+        instructions="Use this skill for repo-specific tasks.",
+    )
+    assert install_result.success is True
+
+    uninstall_result = await uninstall_tool.execute(skill_name="repo-helper")
+
+    assert uninstall_result.success is True
+    assert "Uninstalled skill: repo-helper" in uninstall_result.content
+    assert "Backup:" in uninstall_result.content
+    assert loader.get_skill("repo-helper") is None
+    installed_path = workspace_dir / ".mini-agent" / "skills" / "repo-helper"
+    assert installed_path.exists() is False
+
+
+@pytest.mark.asyncio
+async def test_rollback_skill_tool_restores_latest_backup(tmp_path: Path):
+    builtin_dir = tmp_path / "builtin-skills"
+    builtin_dir.mkdir()
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+
+    tools, loader = create_skill_tools(
+        str(builtin_dir),
+        workspace_dir=str(workspace_dir),
+    )
+    install_tool = next(tool for tool in tools if tool.name == "install_skill")
+    uninstall_tool = next(tool for tool in tools if tool.name == "uninstall_skill")
+    rollback_tool = next(tool for tool in tools if tool.name == "rollback_skill")
+
+    install_result = await install_tool.execute(
+        skill_name="repo-helper",
+        description="Workspace helper",
+        instructions="Use this skill for repo-specific tasks.",
+    )
+    assert install_result.success is True
+
+    uninstall_result = await uninstall_tool.execute(skill_name="repo-helper")
+    assert uninstall_result.success is True
+    assert loader.get_skill("repo-helper") is None
+
+    rollback_result = await rollback_tool.execute(skill_name="repo-helper")
+
+    assert rollback_result.success is True
+    assert "Rolled back skill: repo-helper" in rollback_result.content
+    assert "Backup:" in rollback_result.content
+    restored_skill = loader.get_skill("repo-helper")
+    assert restored_skill is not None
+    assert "repo-specific tasks" in restored_skill.instructions

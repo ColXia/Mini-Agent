@@ -18,6 +18,11 @@ from mini_agent.agent_core.skills import (
     SkillRequirements,
     SkillSource,
     SkillTier1Metadata,
+    WorkspaceSkillInstallResult,
+    WorkspaceSkillInstaller,
+    WorkspaceSkillPolicyStore,
+    WorkspaceSkillRuntimeBridge,
+    parse_skill_markdown,
     parse_skill_requirements,
 )
 from mini_agent.agent_core.cron import (
@@ -98,6 +103,23 @@ from mini_agent.agent_core.self_improve import (
     SkillEvolutionRecord,
     SkillPerformanceMetrics,
 )
+from mini_agent.agent_core.kernel import (
+    AgentKernelBuildOptions,
+    build_agent_kernel,
+)
+from mini_agent.turn_context import (
+    ConsolidatedMemoryTurnContextProvider,
+    MCPToolCatalogTurnContextProvider,
+    RuntimeTurnContext,
+    SkillCatalogTurnContextProvider,
+    TurnContextItem,
+    TurnContextProvider,
+    WorkspaceMemoryContextProvider,
+    coerce_runtime_turn_context,
+    format_turn_context_block,
+    normalize_turn_context_items,
+    summarize_turn_context_items,
+)
 
 __all__ = [
     "BindingScope",
@@ -116,6 +138,11 @@ __all__ = [
     "SkillTier1Metadata",
     "AgentSkillLoader",
     "AgentSkillRuntimeBridge",
+    "WorkspaceSkillInstaller",
+    "WorkspaceSkillInstallResult",
+    "parse_skill_markdown",
+    "WorkspaceSkillPolicyStore",
+    "WorkspaceSkillRuntimeBridge",
     "DeliveryMode",
     "DeliveryConfig",
     "DeliveryPayload",
@@ -182,4 +209,17 @@ __all__ = [
     "SelfImprovingSkillEngine",
     "SkillEvolutionRecord",
     "SkillPerformanceMetrics",
+    "AgentKernelBuildOptions",
+    "build_agent_kernel",
+    "ConsolidatedMemoryTurnContextProvider",
+    "MCPToolCatalogTurnContextProvider",
+    "RuntimeTurnContext",
+    "SkillCatalogTurnContextProvider",
+    "TurnContextItem",
+    "TurnContextProvider",
+    "WorkspaceMemoryContextProvider",
+    "coerce_runtime_turn_context",
+    "format_turn_context_block",
+    "normalize_turn_context_items",
+    "summarize_turn_context_items",
 ]

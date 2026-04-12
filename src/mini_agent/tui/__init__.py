@@ -1,0 +1,5 @@
+"""Mini-Agent full-screen TUI entrypoints."""
+
+from .app import run_tui
+
+__all__ = ["run_tui"]

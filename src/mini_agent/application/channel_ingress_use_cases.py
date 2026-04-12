@@ -69,6 +69,10 @@ class ChannelIngressUseCases:
                 session_id=request.session_id,
                 workspace_dir=request.workspace_dir,
                 dry_run=request.dry_run,
+                surface=request.channel_type,
+                channel_type=request.channel_type,
+                conversation_id=request.conversation_id,
+                sender_id=request.sender_id,
             )
         )
         return ChannelMessageResponse(

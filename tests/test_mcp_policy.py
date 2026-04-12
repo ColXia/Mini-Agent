@@ -2,10 +2,13 @@
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from mini_agent.tools.mcp.discovery import discover_servers
+from mini_agent.tools.mcp.executor import MCPTool
+from mini_agent.tools.mcp.naming import mcp_tool_alias
 from mini_agent.tools.mcp.registry import MCPServerConnection
 from mini_agent.tools.mcp_loader import load_mcp_tools_async
 
@@ -115,8 +118,87 @@ def test_resource_tools_registration_helpers(tmp_path: Path):
 
     tools = connection._resource_tools(_FakeSessionWithResources(), execute_timeout=10.0)
     tool_names = [tool.name for tool in tools]
-    assert "my_server_list_resources" in tool_names
-    assert "my_server_read_resource" in tool_names
+    assert mcp_tool_alias("my-server", "list_resources") in tool_names
+    assert mcp_tool_alias("my-server", "read_resource") in tool_names
 
     no_tools = connection._resource_tools(_FakeSessionWithoutResources(), execute_timeout=10.0)
     assert no_tools == []
+
+
+class _FakeCallSession:
+    async def call_tool(self, name: str, arguments: dict | None = None):
+        _ = arguments
+        return SimpleNamespace(content=[SimpleNamespace(text=f"called:{name}")], isError=False)
+
+
+@pytest.mark.asyncio
+async def test_load_mcp_tools_namespaces_same_remote_tool_across_servers(monkeypatch):
+    from mini_agent.tools.mcp import registry as mcp_registry
+
+    definitions = [
+        SimpleNamespace(
+            name="alpha",
+            connection_type="stdio",
+            command="npx",
+            args=[],
+            env={},
+            url=None,
+            headers={},
+            connect_timeout=None,
+            execute_timeout=None,
+            sse_read_timeout=None,
+            policy=SimpleNamespace(enable_resources=False),
+        ),
+        SimpleNamespace(
+            name="alpha",
+            connection_type="stdio",
+            command="uvx",
+            args=[],
+            env={},
+            url=None,
+            headers={},
+            connect_timeout=None,
+            execute_timeout=None,
+            sse_read_timeout=None,
+            policy=SimpleNamespace(enable_resources=False),
+        ),
+    ]
+
+    class _FakeConnection:
+        def __init__(self, *, name: str, **kwargs):  # noqa: ANN003
+            _ = kwargs
+            self.name = name
+            self.tools: list[MCPTool] = []
+
+        async def connect(self, *, reserved_aliases=None) -> bool:
+            alias = mcp_registry.reserve_mcp_tool_alias(
+                self.name,
+                "search",
+                reserved_aliases,
+            )
+            self.tools = [
+                MCPTool(
+                    server_name=self.name,
+                    remote_name="search",
+                    description="Search docs.",
+                    parameters={},
+                    session=_FakeCallSession(),
+                    execute_timeout=10.0,
+                    expose_name=alias,
+                )
+            ]
+            return True
+
+    monkeypatch.setattr(
+        mcp_registry,
+        "discover_servers",
+        lambda config_path: (Path(config_path), definitions),
+    )
+    monkeypatch.setattr(mcp_registry, "MCPServerConnection", _FakeConnection)
+
+    tools = await load_mcp_tools_async("mcp.json")
+    assert [tool.name for tool in tools] == [
+        mcp_tool_alias("alpha", "search"),
+        f"{mcp_tool_alias('alpha', 'search')}_2",
+    ]
+    assert [getattr(tool, "remote_name", "") for tool in tools] == ["search", "search"]

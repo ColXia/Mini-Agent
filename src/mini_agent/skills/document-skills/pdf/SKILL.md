@@ -1,16 +1,32 @@
 ---
-name: pdf
-description: Comprehensive PDF manipulation toolkit for extracting text and tables, creating new PDFs, merging/splitting documents, and handling forms. When Claude needs to fill in a PDF form or programmatically process, generate, or analyze PDF documents at scale.
+name: minimax-pdf
+description: "Design-aware PDF creation, form filling, document extraction, and reformatting. Supports generating polished PDFs, filling existing PDF form fields, extracting text and tables, and turning source content into print-ready PDF output. Use when the user wants a client-ready PDF, a filled PDF form, or a styled PDF deliverable where appearance matters."
 license: Proprietary. LICENSE.txt has complete terms
 ---
 
-# PDF Processing Guide
+# MiniMax PDF processing and generation
 
 ## Overview
 
-This guide covers essential PDF processing operations using Python libraries and command-line tools. For advanced features, JavaScript libraries, and detailed examples, see reference.md. If you need to fill out a PDF form, read forms.md and follow its instructions.
+This skill covers three common PDF routes:
+
+- CREATE: generate a new PDF deliverable from content
+- FILL: inspect and fill an existing PDF form
+- REFORMAT: take existing content and turn it into a cleaner, more presentation-ready PDF
+
+It also supports extraction, table reading, merging, splitting, and command-line PDF tooling. For advanced features, JavaScript libraries, and detailed examples, see `reference.md`. If you need to fill out a PDF form, read `forms.md` and follow its instructions.
 
 ## Quick Start
+
+### Read / analyze first
+
+When the task starts with "read this PDF", "extract text/tables", or "understand what's inside this document", use `docling_parse` first to get normalized content before dropping into lower-level PDF tooling:
+
+```python
+docling_parse(path="document.pdf", output_format="markdown")
+```
+
+Then use the specialized PDF scripts below only if the task requires form filling, page/image operations, table extraction tuning, merging/splitting, or print-oriented PDF generation.
 
 ```python
 from pypdf import PdfReader, PdfWriter

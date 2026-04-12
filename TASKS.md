@@ -1,8 +1,9 @@
 # Mini-Agent 开发任务表
 
-> **最后更新**: 2026-04-07
-> **当前阶段**: P20 OpenWebUI 定位收敛（已完成）
-> **下一阶段**: 基于使用反馈决定是否深度集成
+> **最后更新**: 2026-04-08
+> **当前阶段**: TUI 主入口真实使用修边角阶段（进行中）
+> **当前主线**: `mini-agent --mode tui` 日常使用 + 实际问题闭环修复
+> **暂停范围**: WebUI 主线开发
 
 > **参考项目目录**: `C:\Users\Conli\AI开源项目`
 > **用途**: 对照实现 / 快速跳转
@@ -12,10 +13,12 @@
 
 ## 📋 当前状态
 
-- **测试状态**: 317 passed, 30 deselected
+- **测试状态**: 511 passed, 16 skipped
 - **架构状态**: 单主机架构，无兼容层
 - **API 版本**: v1 (`/api/v1/*`)
 - **运行时**: 单一主代理运行时
+- **终端状态**: `TUI/CLI/Headless` 主链已打通，真实 headless 冒烟已通过
+- **当前开发方式**: 以 TUI 为主入口持续使用，按真实使用中暴露的问题滚动修边角
 
 ---
 
@@ -191,6 +194,57 @@
 - [x] 保持 OpenWebUI adapter 的可运行性与兼容验证。
 - [x] 不新增主业务依赖到 OpenWebUI 专属接口。
 - [x] 根据使用反馈再决定是否做深度集成。
+
+### P21 终端交互重构（进行中 🔄）
+
+#### 目标原则
+- TUI/CLI 主线优先：暂停 WebUI 主线开发，聚焦终端交互闭环。
+- 对齐开源优秀体验：参考 opencode 的终端交互风格，建设全屏化 TUI。
+- 统一能力入口：会话管理、模型切换、命令执行在一个终端界面内完成。
+- 无兼容壳：直接新增独立 TUI 子系统，不保留旧交互壳层作为主路径。
+
+#### P21.1 独立 TUI 子系统基线（当前迭代）
+- [x] 新增 `mini-agent tui` 子命令入口（独立于 `mini-agent cli`）。
+- [x] 新增全屏 TUI 布局骨架（会话栏/对话栏/模型栏 + 底部输入区）。
+- [x] 新增命令面板（Ctrl+K）与主题切换（F2）基础交互。
+- [x] 接入模型注册服务（按供应商展示模型，支持发现/切换）。
+- [x] 会话基线能力（新建/切换/列表）与消息发送链路打通。
+
+#### P21.2 交互能力收敛（下一迭代）
+- [x] 完善命令体系（补全、帮助、错误提示、可视化反馈）。
+- [x] 完善会话体验（重命名、删除、持久化、恢复）。
+- [x] 完善模型体验（默认模型可视化、供应商筛选、快捷切换）。
+- [x] 优化流式输出与中断控制（类 opencode 的运行中反馈与取消）。
+- [x] 补齐 TUI 专项测试与回归门禁。
+
+#### P21.3 统一终端入口（当前迭代）
+- [x] 入口策略改为单命令自动分流：`mini-agent` 默认终端模式（TTY -> TUI，非 TTY/`--prompt` -> Headless）。
+- [x] 增加显式模式开关：`--mode [auto|tui|cli|headless]`，保留 `cli`/`tui` 子命令作为强制入口。
+- [x] 增加 Headless 参数：`--prompt` 与 `--output-format [text|json|stream-json]`（脚本与 CI 友好）。
+- [x] 将 Studio API Host 改为显式子命令 `serve`，避免与默认终端入口冲突。
+- [x] 补齐统一入口测试（自动分流、模式强制、headless 输出契约）。
+
+#### P21.4 多 Surface 会话接管（当前迭代）
+- [x] QQ Bot 与 TUI 共享同一主会话，不再分裂为远端/本地两套上下文。
+- [x] Gateway 会话摘要增加来源面、当前活动面、远端绑定信息与最近消息接口。
+- [x] QQ Bot 增加 `/continue`，支持离开终端后远端拉取最近 10 条上下文。
+- [x] TUI 逐步转为 operator console，可查看并接管 QQ 来源任务。
+- [x] 所有能力均复用现有 `channel -> gateway -> runtime` 主链，不新增平行消息栈。
+
+#### P21.5 Session 真源统一硬重构（已完成 ✅）
+- [x] 删除 “TUI 本地 session / gateway session / 旧 session store” 三套并存结构，统一以 runtime session 为唯一真源。
+- [x] TUI 改为纯 runtime 客户端：启动、列出、新建、重命名、删除、切换、发消息全部走 gateway/runtime。
+- [x] runtime 改为可承载多 session，不再把 `single_main` 误实现成“只能有一个可用会话”。
+- [x] `share/unshare` 收敛为“是否暴露给 QQ 等远端 surface 可见”的可见性开关，不再做导入、导出、接管、同步。
+- [x] QQ 侧改为 `conversation -> session_id` 绑定，只消费被暴露的 runtime session，不再维护独立 session 副本。
+- [x] 删除 `import/export/takeover/sync` 这类补丁式 session 兼容语义，收口成统一 session API。
+- [x] TUI 本地状态文件仅保留 UI 视图缓存，不再持久化会话正文、agent message 副本、任务恢复副本。
+
+**本轮改造原则**:
+- session 内容、消息、上下文、模型、审批、记忆状态只允许 runtime 持有和持久化。
+- TUI/QQ/CLI 都只是 surface，不再拥有自己的 session 真源。
+- `share` 的定义只保留“让远端 surface 可发现/可绑定”，不再承担同步/迁移职责。
+- 不保留兼容壳；能硬切的链路直接硬切。
 
 ---
 

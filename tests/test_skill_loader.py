@@ -152,9 +152,9 @@ Even more content to make this realistic.
 """ * 3  # Make it substantial
 
         skills_data = [
-            ("pdf", "PDF manipulation toolkit", long_content),
-            ("docx", "Document creation tool", long_content),
-            ("canvas-design", "Canvas design tool", long_content),
+            ("minimax-pdf", "MiniMax PDF workflow", long_content),
+            ("minimax-docx", "MiniMax DOCX workflow", long_content),
+            ("frontend-dev", "Production frontend development workflow", long_content),
         ]
 
         for name, desc, content in skills_data:
@@ -169,11 +169,11 @@ Even more content to make this realistic.
         metadata_prompt = loader.get_skills_metadata_prompt()
 
         # Should contain skill names and descriptions
-        assert "pdf" in metadata_prompt
-        assert "docx" in metadata_prompt
-        assert "canvas-design" in metadata_prompt
-        assert "PDF manipulation toolkit" in metadata_prompt
-        assert "Document creation tool" in metadata_prompt
+        assert "minimax-pdf" in metadata_prompt
+        assert "minimax-docx" in metadata_prompt
+        assert "frontend-dev" in metadata_prompt
+        assert "MiniMax PDF workflow" in metadata_prompt
+        assert "MiniMax DOCX workflow" in metadata_prompt
 
         # Should contain Progressive Disclosure explanation
         assert "Available Skills" in metadata_prompt

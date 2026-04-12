@@ -300,3 +300,6 @@ class OpenAIClient(LLMClientBase):
 
         # Parse and return response
         return self._parse_response(response)
+
+    async def close(self) -> None:
+        await self.client.close()

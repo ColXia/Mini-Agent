@@ -369,12 +369,17 @@ class SessionPersistence:
         query: str,
         limit: int = 20,
         session_id: str | None = None,
+        workspace_anchor_dir: str | None = None,
+        exclude_session_id: str | None = None,
     ) -> list[dict[str, Any]]:
         safe_session_id = _sanitize_session_id(session_id) if session_id else None
+        safe_exclude_session_id = _sanitize_session_id(exclude_session_id) if exclude_session_id else None
         return self._session_search.search(
             query=query,
             limit=limit,
             session_id=safe_session_id,
+            workspace_anchor_dir=workspace_anchor_dir,
+            exclude_session_id=safe_exclude_session_id,
         )
 
     def session_search_stats(self) -> dict[str, Any]:
@@ -387,6 +392,8 @@ class SessionPersistence:
         memory_file: Path | str,
         top_k: int = 5,
         stale_after_days: int = 30,
+        workspace_anchor_dir: str | None = None,
+        exclude_session_id: str | None = None,
     ) -> dict[str, Any]:
         from mini_agent.memory.relevance import ConsolidatedMemoryRelevanceRetriever
 
@@ -398,5 +405,7 @@ class SessionPersistence:
             support_lookup=lambda side_query, side_limit: self.search_sessions(
                 query=side_query,
                 limit=side_limit,
+                workspace_anchor_dir=workspace_anchor_dir,
+                exclude_session_id=exclude_session_id,
             ),
         )

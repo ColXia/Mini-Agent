@@ -26,3 +26,18 @@ def test_classify_provider_error_cancelled_blocks_failover():
     assert classified.reason == "cancelled_by_user"
     assert classified.retryable is False
     assert classified.failover_allowed is False
+
+
+def test_classify_provider_error_detects_context_window_overflow_details():
+    classified = classify_provider_error(
+        RuntimeError(
+            "This model's maximum context length is 128000 tokens. "
+            "However, your messages resulted in 140253 tokens."
+        )
+    )
+    assert classified.category == "non_retryable"
+    assert classified.reason == "context_window_exceeded"
+    assert classified.retryable is False
+    assert classified.failover_allowed is False
+    assert classified.context_window_limit == 128000
+    assert classified.requested_tokens == 140253

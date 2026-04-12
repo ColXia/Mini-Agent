@@ -295,3 +295,10 @@ class AnthropicClient(LLMClientBase):
 
         # Parse and return response
         return self._parse_response(response)
+
+    async def close(self) -> None:
+        close_method = getattr(self.client, "close", None)
+        if callable(close_method):
+            result = close_method()
+            if hasattr(result, "__await__"):
+                await result

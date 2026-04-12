@@ -1,5 +1,7 @@
 # Development Guide
 
+> Phase update (2026-04-07): Mini-Agent is now in the detailed development phase (`P20`).
+
 ## Table of Contents
 
 - [Development Guide](#development-guide)

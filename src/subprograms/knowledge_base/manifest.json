@@ -1,7 +1,7 @@
 {
   "name": "knowledge-base",
   "version": "0.1.0",
-  "description": "MaxKB query and ingestion service for Mini-Agent",
+  "description": "Built-in lightweight knowledge-base query and ingestion service for Mini-Agent",
   "enabled": true,
   "entry_point": "subprograms.knowledge_base.main:main",
   "router_module": "subprograms.knowledge_base.gateway.router:router",

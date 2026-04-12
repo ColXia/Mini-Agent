@@ -9,12 +9,18 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query
 
 from mini_agent.application import StudioOpsUseCases
 from mini_agent.interfaces import (
+    StudioModelDiscoverRequest,
+    StudioModelListResponse,
+    StudioModelProviderSummary,
+    StudioModelSelectionRequest,
     StudioMemoryDailyResponse,
     StudioMemorySearchResponse,
     StudioMemorySummaryResponse,
     StudioProviderDeleteResponse,
     StudioProviderHealthResponse,
     StudioProviderListResponse,
+    StudioProviderModelDiscoveryRequest,
+    StudioProviderModelDiscoveryResponse,
     StudioProviderSummary,
     StudioProviderUpsertRequest,
 )
@@ -65,6 +71,34 @@ router = APIRouter(
 @router.get("/providers", response_model=StudioProviderListResponse)
 async def list_studio_providers(catalog_path: str | None = Query(None)) -> StudioProviderListResponse:
     return _STUDIO_OPS_USE_CASES.list_providers(catalog_path)
+
+
+@router.get("/models", response_model=StudioModelListResponse)
+async def list_studio_models(catalog_path: str | None = Query(None)) -> StudioModelListResponse:
+    return _STUDIO_OPS_USE_CASES.list_models(catalog_path=catalog_path)
+
+
+@router.post("/models/discover", response_model=StudioModelProviderSummary)
+async def discover_studio_models(
+    payload: StudioModelDiscoverRequest,
+    catalog_path: str | None = Query(None),
+) -> StudioModelProviderSummary:
+    return _STUDIO_OPS_USE_CASES.discover_models(payload=payload, catalog_path=catalog_path)
+
+
+@router.patch("/models/selection", response_model=StudioModelProviderSummary)
+async def select_studio_model(
+    payload: StudioModelSelectionRequest,
+    catalog_path: str | None = Query(None),
+) -> StudioModelProviderSummary:
+    return _STUDIO_OPS_USE_CASES.select_model(payload=payload, catalog_path=catalog_path)
+
+
+@router.post("/providers/model-discovery", response_model=StudioProviderModelDiscoveryResponse)
+async def discover_provider_models_for_setup(
+    payload: StudioProviderModelDiscoveryRequest,
+) -> StudioProviderModelDiscoveryResponse:
+    return _STUDIO_OPS_USE_CASES.discover_provider_models(payload=payload)
 
 
 @router.post("/providers", response_model=StudioProviderSummary)

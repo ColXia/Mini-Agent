@@ -2,21 +2,11 @@
 
 from __future__ import annotations
 
-import re
 from typing import Iterable
 
 from mini_agent.code_agent.tools import DeclarativeTool, DeclarativeToolAttributes, ToolBuilder, ToolKind
 from mini_agent.tools.base import Tool, ToolResult
-
-
-def _slug(value: str) -> str:
-    normalized = re.sub(r"[^a-zA-Z0-9_]+", "_", value.strip().lower())
-    return normalized.strip("_") or "mcp"
-
-
-def mcp_tool_alias(server_name: str, tool_name: str) -> str:
-    """Build deterministic namespaced alias for MCP-exposed tools."""
-    return f"mcp_{_slug(server_name)}_{_slug(tool_name)}"
+from mini_agent.tools.mcp.naming import mcp_tool_alias
 
 
 def infer_mcp_tool_attributes(tool_name: str) -> DeclarativeToolAttributes:

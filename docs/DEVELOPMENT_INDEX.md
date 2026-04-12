@@ -1,13 +1,14 @@
 # Development Index (Published)
 
 > **状态**: ✅ 活跃
-> **最后更新**: 2026-04-07
+> **最后更新**: 2026-04-08
 > **维护者**: Mini-Agent Core Refactor
 > **文档索引**: [DOCS_INDEX.md](./DOCS_INDEX.md)
 
 > Note (P18 hard refactor): entries under old phases may reference deleted legacy modules for historical traceability only.
 > Current runtime architecture is single-host v1 (`apps/agent_studio_gateway/main.py` + `/api/v1/*`).
 > Stage normalization (2026-04-07): P18 closeout baseline frozen; P19 kickoff + Stage-C docs + ops alerting + adoption tracking/target-bands/delta slices landed.
+> Phase update (2026-04-08): terminal-first unified entry is landed; Mini-Agent is now in TUI-first real-use refinement mode, with WebUI remaining paused.
 
 ## 1. Navigation
 - Refactor plan: `docs/REFACTOR_TASKS.md`
@@ -26,6 +27,16 @@
 - P19 weekly readiness template: `docs/P19_WEEKLY_RELEASE_READINESS_TEMPLATE.md`
 - GitHub upload scope (2026-04-07): `docs/GITHUB_UPLOAD_SCOPE_2026-04-07.md`
 - Cross-device handoff (2026-04-07): `docs/CROSS_DEVICE_HANDOFF_2026-04-07.md`
+- Anti-duplication system inventory (2026-04-07): `docs/ANTI_DUPLICATION_REPORT_2026-04-07.md`
+- Terminal real-use readiness gate (2026-04-08): `docs/P23_TERMINAL_REAL_USE_READINESS.md`
+- Real-use command acceptance checklist (2026-04-10): `docs/P24_REAL_USE_COMMAND_ACCEPTANCE_CHECKLIST.md`
+- Memory core consolidation plan (2026-04-09): `docs/P25_MEMORY_CORE_TASK_PLAN.md`
+- Memoria runtime assessment (2026-04-10): `docs/P25_MEMORIA_RUNTIME_ASSESSMENT.md`
+- Memory + RAG + workspace architecture report (2026-04-10): `docs/P26_MEMORY_RAG_WORKSPACE_ARCHITECTURE_REPORT.md`
+- Memory runtime implementation plan (2026-04-10): `docs/P26_MEMORY_RUNTIME_TASK_PLAN.md`
+- Session boundary audit (2026-04-12): `docs/P29_SESSION_BOUNDARY_AUDIT_2026-04-12.md`
+- Session hard-refactor plan (2026-04-12): `docs/P29_SESSION_HARD_REFACTOR_PLAN.md`
+- Surface/session architecture correction (2026-04-12): `docs/P30_SURFACE_SESSION_ARCHITECTURE_CORRECTION_2026-04-12.md`
 - Transformation plan (v2): `docs/TRANSFORMATION_PLAN.md`
 - Transformation plan (mini guardrails): `docs/TRANSFORMATION_PLAN_LITE_ADDENDUM.md`
 - OSS mapping index: `docs/OSS_REFERENCE_INDEX.md`
@@ -39,7 +50,7 @@
 - `P3`: done (session kernel persistence + retention + migration landed)
 - `P4`: done (ACP states + gateway lock/auth + conversation binding landed)
 - `P5`: done (MCP modular split + policy/resources + profile sync + atomic writes)
-- `P6`: done (runtime policy + approval profiles + security audit command)
+- `P6`: done (runtime policy + execution/access modes + security audit command)
 - `P7`: done (plugin capability boundaries + markdown memory split + hybrid retrieval)
 - `P8`: done (structured run events + replay logs + doctor + startup self-check)
 - `P9`: done (retention/rotation + observability APIs + deep doctor probe + export/guardrails)
@@ -52,7 +63,115 @@
 - `P16`: done (T4.1-T4.4 landed)
 - `P17+`: done (T5.1/T5.2/T5.3 hardening + deployment follow-up validations completed on 2026-04-07)
 - `P18`: done (hard refactor completed; baseline frozen for single-host v1 on 2026-04-07)
-- `P19`: active (kickoff+stage-C docs delivered on 2026-04-07: runtime diagnostics, team-mode session guardrails, matrix baseline, ops diagnostics API/view, promotion checklist policy, saturation/conflict counters, operator runbook, rollout announcement + support FAQ, ops alert policy + Studio alert mapping, Stage-C KPI tracking/canary cadence/weekly readiness template + report script, runtime snapshot trend aggregation + env target bands + weekly delta + mode-split + remediation hints + JSON summary artifact, CI handoff with optional secret-backed advisory no-dry-run path + deterministic artifact gate + optional strict weekly review path)
+- `P19`: done (rollout preparation baseline completed on 2026-04-07; documentation and operator guardrails landed)
+- `P20`: done (OpenWebUI positioning convergence completed; retained as optional adapter path)
+- `P21`: done (terminal interaction refactor and unified terminal entry landed)
+- `P24`: active (TUI-first real-use refinement and bugfix polishing loop)
+- `P25`: active (memory-core consolidation entered strengthening phase after unified service + runtime wiring landed)
+- `P26`: active (global/workspace memory boundary correction and runtime-memory architecture landing)
+- `P29`: active (session boundary audit completed; hard-refactor implementation planning is now active)
+
+Latest stage sync:
+- `2026-04-11`: Windows sandbox hardening is paused at the current sufficient-for-demo baseline.
+- `2026-04-11`: active execution focus returns to P24 demo-baseline acceptance across `TUI / CLI / QQ / gateway`.
+- `2026-04-12`: session work is temporarily re-anchored to P29 boundary repair after the latest unification bug exposed multi-owner session semantics and surface/runtime coupling.
+
+## 3. Active Plan: P22 Core Agent Minimal (Started 2026-04-07)
+
+Goal: keep Mini-Agent lightweight, while landing the minimum core capabilities required by terminal-first agent products (extracted-src/codex/gemini-cli/opencode style), without pursuing full parity.
+
+Scope (current implementation focus):
+- [x] P22.1 Wire `code_agent` submission loop into real runtime path (TUI + CLI + headless landed).
+- [x] P22.2 Add minimal task lifecycle (`queued/running/completed/cancelled`) and `/tasks` visibility in terminal UX (TUI landed).
+- [x] P22.3 Make interrupt robust at runtime boundaries (turn-level + tool-level best-effort hard stop; foreground `bash` interrupt landed).
+- [x] P22.4 Ensure model switch takes effect deterministically (invalidate/rebuild active agent sessions).
+- [x] P22.5 Add one minimal workflow orchestration entry (`research -> implement -> verify`) using existing coordinator baseline (TUI/CLI `/workflow` landed).
+- [x] P22.6 Integrate unified `agent-core` kernel bootstrap (shared build path for CLI/TUI/Gateway; remove duplicate bootstrap wiring).
+
+Delivery principles:
+- Minimal viable architecture, no compatibility shell.
+- Test-first for each milestone (unit + focused integration).
+- TUI/CLI first; WebUI remains paused.
+
+## 4. Active Plan: P23 Agent-Core Hard Wiring (Started 2026-04-07)
+
+Goal: keep Mini-Agent lightweight while turning existing `agent_core` modules into real runtime capabilities through direct wiring, with no compatibility shell.
+
+Primary docs:
+- `docs/P23_AGENT_CORE_DETAILED_PLAN.md`
+- `docs/P23_AGENT_CORE_TASK_PLAN.md`
+
+Milestones:
+- [x] P23.1 Wire `agent_core.session.lifecycle` into gateway runtime manager and diagnostics.
+- [x] P23.2 Align CLI/TUI session reuse/reset semantics with the same lifecycle policy.
+- [x] P23.3 Wire minimal delegation path into main runtime.
+- [x] P23.4 Wire routing resolver into main runtime.
+- [x] P23.5 Stability/performance convergence and regression hardening.
+
+## 5. Current Operating Mode (2026-04-08)
+
+Goal: treat TUI as the primary daily-use surface and drive the next iteration loop from real usage findings, not speculative UI work.
+
+Current execution rules:
+- TUI/CLI first; WebUI remains paused.
+- Prefer validating changes through real TUI interaction before adding more abstraction.
+- Keep internal runtime noise out of the main chat view unless it directly helps the operator.
+- Every TUI polish change should leave behind one of: focused test, scripted checklist, or walkthrough evidence.
+
+Evidence already landed:
+- terminal gate: `python scripts/terminal_readiness_gate.py`
+- live headless smoke: `python scripts/terminal_readiness_gate.py --run-live-headless`
+- scripted TUI checklist: `python scripts/tui_manual_checklist.py`
+- prompt_toolkit walkthrough: `python scripts/tui_interaction_walkthrough.py`
+
+## 6. Active Plan: P25 Memory Core Consolidation (Started 2026-04-09)
+
+Goal: consolidate the already-landed memory slices into one coherent memory core that can support future RAG, tools, skills, memory automation, and MCP-aware runtime context without introducing a second parallel memory stack.
+
+Primary doc:
+- `docs/P25_MEMORY_CORE_TASK_PLAN.md`
+
+Current code-level inventory:
+- markdown note memory is already landed and runtime-usable
+- user/profile memory is already landed via `USER.md`
+- session transcript search is already landed via SQLite/FTS5
+- consolidated memory retrieval and two-phase consolidation are already landed
+- `MemoriaEngine` exists as a baseline primitive but is not yet the main runtime memory orchestrator
+- `memory_manager` router is now mounted into gateway, while Studio Ops keeps its own memory operator surface
+
+Completed integration slice:
+- [x] P25.1 Add one unified `MemoryService` entry point
+- [x] P25.2 Rewire turn-context providers to the unified memory service
+- [x] P25.3 Rewire Studio Ops memory flows to the unified memory service
+- [x] P25.4 Rewire memory-manager router to the unified memory service
+- [x] P25.5 Add focused tests and verify no behavioral regression on existing memory paths
+
+Current strengthening slice:
+- [x] P25.6 Add conservative automatic post-turn memory writeback in the shared `Agent.run_turn` path
+- [x] P25.7 Suppress duplicate auto-write only when explicit memory tools succeeded, and backfill automatically when they failed
+- [x] P25.8 Mount the existing `memory_manager` router into gateway at `/api/memory/*`, while keeping Studio Ops memory under `/api/v1/ops/memory/*`
+- [x] P25.9 Evaluate `MemoriaEngine` and keep it as a lower-level primitive for now; do not create a second runtime memory subsystem during P25
+
+## 7. Active Plan: P26 Memory Runtime Architecture (Started 2026-04-10)
+
+Goal: turn the P26 architecture report into a real runtime path for global durable memory, workspace durable memory, future session-aware task memory, and explicit RAG ownership.
+
+Primary docs:
+- `docs/P26_MEMORY_RAG_WORKSPACE_ARCHITECTURE_REPORT.md`
+- `docs/P26_MEMORY_RUNTIME_TASK_PLAN.md`
+
+Current implementation state:
+- [x] P26.1 Correct the global-vs-workspace durable memory boundary
+- [x] P26.2 Add a real `user_profile` turn-context provider backed by global durable memory
+- [x] P26.3 Add workspace-aware session-search turn-context retrieval
+- [x] P26.4 Add consolidated-memory refresh / promotion policy
+- [x] P26.5 Add persisted workspace runtime `MemoriaEngine` with session namespaces
+- [x] P26.6 Add operator-facing memory diagnostics and `/memory` controls across gateway/TUI/CLI
+- [x] P26.7 Harden `reset/delete/clear` semantics so session runtime task memory is cleared consistently across gateway/TUI/CLI
+- [x] P26.8 Add snapshot/import/export parity for session-scoped runtime task memory across gateway/TUI share flows
+- [x] P26.9 Add merge-safe snapshot/import/export portability for workspace-shared runtime task memory
+- [x] P26.10 Add workspace-shared candidate/promotion policy and `/memory promote shared`
+- [x] P26.11 Add retrieval gating so workspace-shared runtime memory remains supplemental
 
 ## 15. P12+ Deep Transformation (Planned)
 
@@ -327,16 +446,16 @@ Mini principle in execution: capability strong, architecture lean (not capabilit
   - tests:
     - `tests/test_docling_parse_tool.py`
     - `tests/test_document_parser_router.py`
-- [x] T4.2: MaxKB integration
+- [x] T4.2: Knowledge-base integration
   - tool baseline:
-    - `mini_agent/tools/maxkb_query.py`
+    - `mini_agent/tools/knowledge_base.py`
     - `mini_agent/tools/__init__.py`
   - knowledge-base subprogram baseline:
     - `subprograms/knowledge_base/manifest.json`
     - `subprograms/knowledge_base/main.py`
     - `subprograms/knowledge_base/gateway/router.py`
   - tests:
-    - `tests/test_maxkb_query_tool.py`
+    - `tests/test_knowledge_base_tool.py`
     - `tests/test_knowledge_base_router.py`
 - [x] T4.3: Web search tool
   - tool baseline:
@@ -513,10 +632,10 @@ Mini principle in execution: capability strong, architecture lean (not capabilit
 - [x] Add three-layer runtime policy model
   - `mini_agent/security/policy.py`
   - layers: sandbox/tool/elevated
-- [x] Add approval profiles (`suggest`, `auto-edit`, `full-auto`)
+- [x] Add runtime execution/access modes (`plan` / `build`, `default` / `full-access`)
   - config: `mini_agent/config.py` + `mini_agent/config/config*.yaml`
   - runtime wiring: `mini_agent/runtime/tooling.py`, `mini_agent/tools/bash_tool.py`
-  - CLI/ACP wiring: `mini_agent/cli.py`, `mini_agent/cli_interactive.py`, `mini_agent/acp/__init__.py`
+  - CLI wiring: `mini_agent/cli.py`, `mini_agent/cli_interactive.py`
 - [x] Add security audit command and risk report
   - command: `mini-agent security-audit`
   - implementation: `mini_agent/security/audit.py`

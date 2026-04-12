@@ -11,6 +11,7 @@ from mini_agent.tools.base import ToolResult
 
 
 InvocationExecutor = Callable[[dict[str, Any]], ToolResult | Awaitable[ToolResult]]
+_INTERNAL_ARGUMENT_PREFIX = "_mini_agent_"
 
 
 def _is_instance_of_type(value: Any, schema_type: str) -> bool:
@@ -114,7 +115,12 @@ class ToolInvocation:
     attributes: DeclarativeToolAttributes = field(default_factory=DeclarativeToolAttributes)
 
     def validate(self) -> bool:
-        _validate_schema_value(self.schema, self.arguments, self.tool_name)
+        public_arguments = {
+            key: value
+            for key, value in self.arguments.items()
+            if not str(key).startswith(_INTERNAL_ARGUMENT_PREFIX)
+        }
+        _validate_schema_value(self.schema, public_arguments, self.tool_name)
         return True
 
     def should_confirm_execute(self) -> bool:

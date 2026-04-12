@@ -433,3 +433,22 @@ logger.debug(f"工具结果: {result.content[:200]}")
 ```
 
 
+
+## 2026-04-07 Phase Update
+
+- Current phase: P20 detailed development phase (active).
+- Development focus: feature refinement, integration stabilization, and full-regression readiness.
+
+## 2026-04-08 Terminal-First Update
+
+- 当前开发状态已切换为：`TUI` 主入口真实使用修边角阶段。
+- 终端主链（`TUI/CLI/Headless`）当前要求：
+  - 全量回归保持通过。
+  - 优先用真实 TUI 操作暴露问题，再做定点修复。
+  - WebUI 继续暂停，不作为当前开发主路径。
+- 推荐验证顺序：
+  - `python scripts/terminal_readiness_gate.py`
+  - `python scripts/terminal_readiness_gate.py --run-live-headless`
+  - `python scripts/tui_manual_checklist.py`
+  - `python scripts/tui_interaction_walkthrough.py`
+
