@@ -272,7 +272,7 @@
 
 - **详细任务清单**: `docs/REFACTOR_TASKS.md`
 - **深度改造方案**: `docs/TRANSFORMATION_PLAN.md`
-- **P18 执行计划**: `docs/P18_HARD_REFACTOR_EXECUTION_PLAN.md`
+- **当前执行计划**: `docs/P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md`
 - **API 契约**: `docs/API_V1_CONTRACT_SKELETON.md`
 - **开发习惯**: `HABITS.md`
 - **文档索引**: `docs/DOCS_INDEX.md`

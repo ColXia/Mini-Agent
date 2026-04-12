@@ -1,10 +1,7 @@
-# Mini Agent Configuration Setup Script for Windows
-# This script helps you set up Mini Agent configuration files
+# Mini-Agent configuration bootstrap for local repo usage on Windows.
 
-# Error handling
 $ErrorActionPreference = "Stop"
 
-# Colors for output
 function Write-ColorOutput {
     param(
         [string]$Message,
@@ -23,102 +20,82 @@ function Write-ColorOutput {
     Write-Host $Message -ForegroundColor $colorMap[$Color]
 }
 
-# Configuration directory
-$CONFIG_DIR = Join-Path $env:USERPROFILE ".mini-agent\config"
+function Copy-TemplateIfMissing {
+    param(
+        [string]$Source,
+        [string]$Destination,
+        [string]$Label
+    )
 
-Write-ColorOutput "==================================================" -Color "Cyan"
-Write-ColorOutput "   Mini Agent Configuration Setup" -Color "Cyan"
-Write-ColorOutput "==================================================" -Color "Cyan"
-Write-Host ""
+    if (!(Test-Path $Source)) {
+        Write-ColorOutput "   [WARN] Missing template: $Label" -Color "Yellow"
+        return
+    }
 
-# Step 1: Create config directory
-Write-ColorOutput "[1/2] Creating configuration directory..." -Color "Blue"
+    if (Test-Path $Destination) {
+        Write-ColorOutput "   [SKIP] Exists: $Destination" -Color "Yellow"
+        return
+    }
 
-if (Test-Path $CONFIG_DIR) {
-    # Auto backup existing config
-    $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-    $BACKUP_DIR = Join-Path $env:USERPROFILE ".mini-agent\config.backup.$timestamp"
-    Write-ColorOutput "   Configuration directory exists, backing up to:" -Color "Yellow"
-    Write-ColorOutput "   $BACKUP_DIR" -Color "Yellow"
-    Copy-Item -Path $CONFIG_DIR -Destination $BACKUP_DIR -Recurse
-    Write-ColorOutput "   [OK] Backup created" -Color "Green"
-} else {
-    New-Item -Path $CONFIG_DIR -ItemType Directory -Force | Out-Null
-    Write-ColorOutput "   [OK] Created: $CONFIG_DIR" -Color "Green"
+    Copy-Item -LiteralPath $Source -Destination $Destination
+    Write-ColorOutput "   [OK] Created: $Destination" -Color "Green"
 }
 
-# Step 2: Download configuration files from GitHub
-Write-ColorOutput "[2/2] Downloading configuration files..." -Color "Blue"
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$repoRoot = Resolve-Path (Join-Path $scriptDir "..")
+$packageConfigDir = Join-Path $repoRoot "src\mini_agent\config"
+$userConfigDir = Join-Path $env:USERPROFILE ".mini-agent\config"
+$repoEnvExample = Join-Path $repoRoot ".env.local.example"
+$repoEnvLocal = Join-Path $repoRoot ".env.local"
 
-$FILES_COPIED = 0
-$GITHUB_RAW_URL = "https://raw.githubusercontent.com/MiniMax-AI/Mini-Agent/main/mini_agent/config"
-
-# Download config-example.yaml as config.yaml
-try {
-    $configUrl = "$GITHUB_RAW_URL/config-example.yaml"
-    $configPath = Join-Path $CONFIG_DIR "config.yaml"
-    Invoke-WebRequest -Uri $configUrl -OutFile $configPath -UseBasicParsing
-    Write-ColorOutput "   [OK] Downloaded: config.yaml" -Color "Green"
-    $FILES_COPIED++
-} catch {
-    Write-ColorOutput "   [ERROR] Failed to download: config.yaml" -Color "Red"
-}
-
-# Download mcp-example.json as mcp.json
-try {
-    $mcpUrl = "$GITHUB_RAW_URL/mcp-example.json"
-    $mcpPath = Join-Path $CONFIG_DIR "mcp.json"
-    Invoke-WebRequest -Uri $mcpUrl -OutFile $mcpPath -UseBasicParsing
-    Write-ColorOutput "   [OK] Downloaded: mcp.json" -Color "Green"
-    $FILES_COPIED++
-} catch {
-    # Optional file
-}
-
-# Download system_prompt.md
-try {
-    $promptUrl = "$GITHUB_RAW_URL/system_prompt.md"
-    $promptPath = Join-Path $CONFIG_DIR "system_prompt.md"
-    Invoke-WebRequest -Uri $promptUrl -OutFile $promptPath -UseBasicParsing
-    Write-ColorOutput "   [OK] Downloaded: system_prompt.md" -Color "Green"
-    $FILES_COPIED++
-} catch {
-    # Optional file
-}
-
-if ($FILES_COPIED -eq 0) {
-    Write-ColorOutput "   [ERROR] Failed to download configuration files" -Color "Red"
-    Write-ColorOutput "   Please check your internet connection" -Color "Yellow"
+if (!(Test-Path $packageConfigDir)) {
+    Write-ColorOutput "[ERROR] Cannot find src\\mini_agent\\config under repo root." -Color "Red"
     exit 1
 }
 
-Write-ColorOutput "   [OK] Configuration files ready" -Color "Green"
+Write-ColorOutput "==================================================" -Color "Cyan"
+Write-ColorOutput "   Mini-Agent Local Config Bootstrap" -Color "Cyan"
+Write-ColorOutput "==================================================" -Color "Cyan"
+Write-Host ""
+
+Write-ColorOutput "[1/2] Ensuring user config directory..." -Color "Blue"
+New-Item -Path $userConfigDir -ItemType Directory -Force | Out-Null
+Write-ColorOutput "   [OK] Ready: $userConfigDir" -Color "Green"
+Write-Host ""
+
+Write-ColorOutput "[2/2] Copying local templates if missing..." -Color "Blue"
+Copy-TemplateIfMissing -Source (Join-Path $packageConfigDir "config-example.yaml") -Destination (Join-Path $userConfigDir "config.yaml") -Label "config.yaml"
+Copy-TemplateIfMissing -Source (Join-Path $packageConfigDir "mcp-example.json") -Destination (Join-Path $userConfigDir "mcp.json") -Label "mcp.json"
+Copy-TemplateIfMissing -Source (Join-Path $packageConfigDir "system_prompt.md") -Destination (Join-Path $userConfigDir "system_prompt.md") -Label "system_prompt.md"
 
 Write-Host ""
 Write-ColorOutput "==================================================" -Color "Green"
-Write-ColorOutput "   Setup Complete!" -Color "Green"
+Write-ColorOutput "   Local Bootstrap Complete" -Color "Green"
 Write-ColorOutput "==================================================" -Color "Green"
 Write-Host ""
-Write-Host "Configuration files location:"
-Write-ColorOutput "  $CONFIG_DIR" -Color "Cyan"
+Write-Host "User config directory:"
+Write-ColorOutput "  $userConfigDir" -Color "Cyan"
 Write-Host ""
-Write-Host "Files:"
-Get-ChildItem $CONFIG_DIR -ErrorAction SilentlyContinue | ForEach-Object {
-    Write-Host "   $($_.Name)"
+Write-Host "Preset provider keys:"
+Write-ColorOutput "  OPENAI_API_KEY" -Color "Green"
+Write-ColorOutput "  ANTHROPIC_API_KEY" -Color "Green"
+Write-ColorOutput "  GEMINI_API_KEY" -Color "Green"
+Write-ColorOutput "  MINIMAX_API_KEY" -Color "Green"
+Write-Host ""
+Write-Host "Current behavior:"
+Write-Host "  - Runtime checks system environment variables first."
+Write-Host "  - Repo-local fallback is .env.local."
+Write-Host "  - .env.local.example is a template only and is not loaded."
+Write-Host ""
+
+if ((Test-Path $repoEnvExample) -and !(Test-Path $repoEnvLocal)) {
+    Write-Host "Optional repo-local secret file:"
+    Write-ColorOutput "  Copy-Item `"$repoEnvExample`" `"$repoEnvLocal`"" -Color "Green"
+    Write-Host ""
 }
-Write-Host ""
-Write-ColorOutput "Next Steps:" -Color "Yellow"
-Write-Host ""
-Write-ColorOutput "1. Install Mini Agent:" -Color "Yellow"
-Write-ColorOutput "   pipx install git+https://github.com/MiniMax-AI/Mini-Agent.git" -Color "Green"
-Write-Host ""
-Write-ColorOutput "2. Configure your API Key:" -Color "Yellow"
-Write-Host "   Edit config.yaml and add your MiniMax API Key:"
-Write-ColorOutput "   notepad $CONFIG_DIR\config.yaml" -Color "Green"
-Write-ColorOutput "   code $CONFIG_DIR\config.yaml" -Color "Green"
-Write-Host ""
-Write-ColorOutput "3. Start using Mini Agent:" -Color "Yellow"
-Write-ColorOutput "   mini-agent                              # Use current directory" -Color "Green"
-Write-ColorOutput "   mini-agent --workspace C:\path\to\project # Specify workspace" -Color "Green"
-Write-ColorOutput "   mini-agent --help                      # Show help" -Color "Green"
-Write-Host ""
+
+Write-Host "Useful commands:"
+Write-ColorOutput "  uv run mini" -Color "Green"
+Write-ColorOutput "  uv run mini tui" -Color "Green"
+Write-ColorOutput "  uv run mini qq" -Color "Green"
+Write-ColorOutput "  uv run mini-agent doctor" -Color "Green"

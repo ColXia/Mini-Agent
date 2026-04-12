@@ -88,8 +88,8 @@ async def test_build_agent_kernel_uses_unified_routing_and_tool_init(monkeypatch
 
     monkeypatch.setattr("mini_agent.agent_core.kernel.resolve_routed_llm_candidates", _fake_routes)
 
-    async def _fake_init_tools(*, config, workspace_dir, approval_profile_override):
-        _ = config
+    async def _fake_init_tools(*, config, workspace_dir, approval_profile_override, access_level_override=None):
+        _ = (config, access_level_override)
         captured["workspace_dir"] = str(workspace_dir)
         captured["approval_profile_override"] = approval_profile_override
         catalog_loader = SimpleNamespace(list_tier1=lambda eligible_only=False: [])
@@ -138,8 +138,8 @@ async def test_build_agent_kernel_appends_skill_metadata_when_placeholder_absent
         lambda config, *, requested_model=None, catalog_path=None: _single_route(),
     )
 
-    async def _fake_init_tools(*, config, workspace_dir, approval_profile_override):
-        _ = (config, workspace_dir, approval_profile_override)
+    async def _fake_init_tools(*, config, workspace_dir, approval_profile_override, access_level_override=None):
+        _ = (config, workspace_dir, approval_profile_override, access_level_override)
         loader = SimpleNamespace(get_skills_metadata_prompt=lambda: "SKILL_BLOCK")
         return [_DummyTool()], loader
 
@@ -167,8 +167,8 @@ async def test_build_agent_kernel_uses_pinned_provider_route_when_requested(
         lambda config, *, requested_model=None, catalog_path=None: _single_route("should-not-be-used"),
     )
 
-    async def _fake_init_tools(*, config, workspace_dir, approval_profile_override):
-        _ = (config, workspace_dir, approval_profile_override)
+    async def _fake_init_tools(*, config, workspace_dir, approval_profile_override, access_level_override=None):
+        _ = (config, workspace_dir, approval_profile_override, access_level_override)
         loader = SimpleNamespace(get_skills_metadata_prompt=lambda: "")
         return [_DummyTool()], loader
 
@@ -206,8 +206,8 @@ async def test_build_agent_kernel_can_disable_interactive_setup(monkeypatch, tmp
         lambda config, *, requested_model=None, catalog_path=None: _single_route(),
     )
 
-    async def _fake_init_tools(*, config, workspace_dir, approval_profile_override):
-        _ = (config, workspace_dir, approval_profile_override)
+    async def _fake_init_tools(*, config, workspace_dir, approval_profile_override, access_level_override=None):
+        _ = (config, workspace_dir, approval_profile_override, access_level_override)
         return [_DummyTool()], None
 
     monkeypatch.setattr("mini_agent.agent_core.kernel.initialize_agent_tools", _fake_init_tools)
@@ -232,8 +232,8 @@ async def test_build_agent_kernel_can_suppress_background_output(monkeypatch, tm
         lambda config, *, requested_model=None, catalog_path=None: _single_route(),
     )
 
-    async def _fake_init_tools(*, config, workspace_dir, approval_profile_override):
-        _ = (config, workspace_dir, approval_profile_override)
+    async def _fake_init_tools(*, config, workspace_dir, approval_profile_override, access_level_override=None):
+        _ = (config, workspace_dir, approval_profile_override, access_level_override)
         print("noisy bootstrap output")
         return [_DummyTool()], None
 
@@ -270,8 +270,8 @@ async def test_build_agent_kernel_uses_route_token_limit_for_agent_budget(
         ),
     )
 
-    async def _fake_init_tools(*, config, workspace_dir, approval_profile_override):
-        _ = (config, workspace_dir, approval_profile_override)
+    async def _fake_init_tools(*, config, workspace_dir, approval_profile_override, access_level_override=None):
+        _ = (config, workspace_dir, approval_profile_override, access_level_override)
         return [_DummyTool()], None
 
     monkeypatch.setattr("mini_agent.agent_core.kernel.initialize_agent_tools", _fake_init_tools)

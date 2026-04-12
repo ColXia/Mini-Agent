@@ -2,6 +2,61 @@
 
 ## 2026-04-12
 
+- Completed the repo hygiene and active-documentation cleanup slice.
+- Documentation changes:
+  - rewrote `README.md` to reflect the actual terminal-first repo contract
+  - added root `README_CN.md`
+  - rewrote `docs/ARCHITECTURE.md`
+  - rewrote `docs/DEVELOPMENT_GUIDE.md`
+  - rewrote `docs/DEVELOPMENT_GUIDE_CN.md`
+  - rewrote `docs/DOCS_INDEX.md`
+  - updated `docs/archive/README.md`
+- Historical-doc moves:
+  - archived old devlogs, handoff/upload notes, documentation reorg report, and legacy `docs/README_CN.md`
+- Repo hygiene changes:
+  - removed obsolete `.gitmodules`
+  - cleaned ignored root probe files and generated cache/debug directories from the working tree
+  - removed 24 stray `src/test_*` probe/data files that had been mixed into the source tree
+  - cleaned `src/**/__pycache__/` interpreter cache directories
+  - cleaned remaining non-venv `__pycache__/` directories under repo-owned paths
+- Script and test hygiene changes:
+  - rewrote `scripts/setup-config.ps1` and `scripts/setup-config.sh` to use local repo templates instead of old GitHub download/bootstrap behavior
+  - updated `scripts/test_stable.py` to run from repo root
+  - updated legacy live/integration tests to resolve config assets via `Config.find_config_file(...)` instead of hard-coded `mini_agent/config/*` paths
+  - updated Studio bootstrap error text to describe current config search paths more accurately
+  - converted `src/mini_agent/commands/__init__.py` to lazy exports to remove a circular-import failure exposed by stable-suite collection
+  - isolated `tests/test_security_policy.py` and `tests/test_security_audit.py` from ambient `MINI_AGENT_*` env vars
+- Additional documentation cleanup:
+  - rewrote `docs/CONTRIBUTING.md`
+  - rewrote `docs/CONTRIBUTING_CN.md` and corrected its readable encoding
+  - archived corrupted legacy `docs/DIRECTORY_STRUCTURE.md` to `docs/archive/DIRECTORY_STRUCTURE_legacy_2026-04-12.md`
+- Config-path clarification:
+  - updated `src/mini_agent/config.py` to prefer `src/mini_agent/config/*` in development mode while keeping legacy `mini_agent/config/*` fallback
+  - updated `src/mini_agent/config/config-example.yaml` comments to match the real search order
+- Verification:
+  - `uv run mini-agent --help`
+  - `uv run pytest tests/test_markdown_links.py -q`
+  - `uv run pytest tests/test_config_local_env.py tests/test_preset_providers.py -q`
+  - `uv run pytest tests/test_agent.py tests/test_llm.py tests/test_llm_clients.py tests/test_integration.py tests/test_mcp.py -q`
+  - `uv run pytest tests/test_agent_core_kernel.py tests/test_security_policy.py tests/test_security_audit.py -q`
+  - `uv run python scripts/test_stable.py`
+  - result: help OK, `1 passed`, `8 passed`, `29 passed, 15 skipped`, `21 passed`, `819 passed, 32 deselected`
+- One issue surfaced and was fixed in-flight:
+  - `pyproject.toml` was briefly saved with UTF-8 BOM, which broke `uv` editable build parsing
+  - rewrote the file without BOM and reran verification successfully
+
+- Started repo hygiene and documentation consolidation.
+- Completed the first audit pass across:
+  - repository root
+  - `docs/`
+  - runtime entrypoints
+  - provider/config loading
+  - ignored local artifacts
+- Confirmed the main cleanup themes for this slice:
+  - fix active docs that still describe old upstream/submodule/config behavior
+  - archive one-off historical docs that no longer belong in the active docs surface
+  - remove ignored probe/cache/temp files from the working tree
+
 - Locked the next architecture-correction documentation slice for the session refactor:
   - `docs/P30_SURFACE_SESSION_ARCHITECTURE_CORRECTION_2026-04-12.md`
   - `docs/P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md`
@@ -1479,3 +1534,58 @@
   - `uv run mini --help`
   - `uv run mini qq status`
   - result: command catalog green, unified entry help available, runtime stack status shortcut available
+
+- Completed repo hygiene pass 3 for scripts/docs/generated residue:
+  - archived stale launchers into `scripts/archive/`
+    - `run_agent_studio.ps1`
+    - `run_qqbot_channel.ps1`
+    - `run_wechat_channel.ps1`
+    - `run_release_gate_openwebui.ps1`
+  - added `scripts/README.md` and `scripts/archive/README.md` so active helpers and legacy helpers are clearly separated
+  - archived stale Studio quickstart doc to `docs/archive/agent_studio_quickstart_zh-CN_legacy_2026-04-12.md`
+  - cleaned local generated residue:
+    - repo-owned `__pycache__`
+    - `src/apps/agent_studio/node_modules`
+    - `src/apps/qqbot_channel/node_modules`
+    - `src/apps/qqbot_channel/runtime.log`
+  - corrected active documentation to current paths and entrypoints (`src/...`, `uv run mini-agent stack up`, `scripts/start_runtime_stack.ps1`, direct `release_gate.py` usage)
+- Verification:
+  - `uv run pytest tests/test_markdown_links.py -q`
+  - result: `1 passed`
+  - `uv run python scripts/test_stable.py`
+  - result: `819 passed, 32 deselected`
+
+- Completed repo hygiene pass 4 for phase-doc archiving and script layering:
+  - moved completed `P18/P19` phase docs from `docs/` root into `docs/archive/`
+  - updated `docs/DOCS_INDEX.md`, `docs/DEVELOPMENT_INDEX.md`, and `docs/REFACTOR_TASKS.md` so active navigation now centers on current `P30` execution docs while preserving archive links
+  - updated `docs/MINIAGENT_DEV_HABIT_LEDGER.md` and `TASKS.md` so “active phase doc” references now point to `docs/P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md`
+  - created `scripts/ci/` for release-gate / promotion / rollout-reporting scripts
+  - moved into `scripts/ci/`:
+    - `release_gate.py`
+    - `release_promotion_checklist.py`
+    - `check_deterministic_gate_artifact.py`
+    - `open_webui_verify.py`
+    - `open_webui_smoke.py`
+    - `studio_ops_smoke.py`
+    - `p19_runtime_matrix.py`
+    - `p19_weekly_rollout_review.py`
+  - added `scripts/ci/README.md` and updated `scripts/README.md`
+  - updated CI workflow, active docs, and internal script-to-script references to the new `scripts/ci/...` paths
+- Verification:
+  - `uv run pytest tests/test_markdown_links.py -q`
+  - result: `1 passed`
+  - `uv run python scripts/ci/release_gate.py --help`
+  - `uv run python scripts/ci/release_promotion_checklist.py --help`
+  - `uv run python scripts/ci/open_webui_verify.py --help`
+  - `uv run python scripts/test_stable.py`
+  - result: `819 passed, 32 deselected`
+
+- Completed final root-doc slimming pass:
+  - archived:
+    - `docs/ANTI_DUPLICATION_REPORT_2026-04-07.md`
+    - `docs/EXTERNAL_OSS_INDEX.md`
+    - `docs/MODEL_DISCOVERY_INTEGRATION.md`
+  - updated remaining active indexes so they only point to archive copies where needed
+- Verification:
+  - `uv run pytest tests/test_markdown_links.py -q`
+  - result: `1 passed`

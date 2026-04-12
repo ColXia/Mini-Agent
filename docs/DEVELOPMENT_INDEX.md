@@ -1,33 +1,34 @@
 # Development Index (Published)
 
 > **状态**: ✅ 活跃
-> **最后更新**: 2026-04-08
+> **最后更新**: 2026-04-12
 > **维护者**: Mini-Agent Core Refactor
 > **文档索引**: [DOCS_INDEX.md](./DOCS_INDEX.md)
 
 > Note (P18 hard refactor): entries under old phases may reference deleted legacy modules for historical traceability only.
-> Current runtime architecture is single-host v1 (`apps/agent_studio_gateway/main.py` + `/api/v1/*`).
+> Current runtime architecture is single-host v1 (`src/apps/agent_studio_gateway/main.py` + `/api/v1/*`).
 > Stage normalization (2026-04-07): P18 closeout baseline frozen; P19 kickoff + Stage-C docs + ops alerting + adoption tracking/target-bands/delta slices landed.
-> Phase update (2026-04-08): terminal-first unified entry is landed; Mini-Agent is now in TUI-first real-use refinement mode, with WebUI remaining paused.
+> Phase update (2026-04-12): terminal-first remains the active delivery path; README/dev guides were realigned to the actual repo contract and historical docs were moved into archive where appropriate.
 
 ## 1. Navigation
 - Refactor plan: `docs/REFACTOR_TASKS.md`
-- Active hard-refactor execution plan: `docs/P18_HARD_REFACTOR_EXECUTION_PLAN.md`
+- Current execution anchor: `docs/P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md`
 - Dev habit and mistake ledger: `docs/MINIAGENT_DEV_HABIT_LEDGER.md`
 - API v1 contract skeleton: `docs/API_V1_CONTRACT_SKELETON.md`
-- Route deletion backlog: `docs/P18_ROUTE_DELETION_BACKLOG.md`
-- P18 closeout baseline evidence: `docs/P18_CLOSEOUT_BASELINE_2026-04-07.md`
-- P19 rollout prep contract: `docs/P19_AGENT_TEAM_ROLLOUT_CONTRACT.md`
-- P19 operator runbook: `docs/P19_TEAM_MODE_OPERATOR_RUNBOOK.md`
-- P19 rollout announcement: `docs/P19_TEAM_MODE_ROLLOUT_ANNOUNCEMENT.md`
-- P19 support FAQ: `docs/P19_TEAM_MODE_SUPPORT_FAQ.md`
-- P19 ops alert policy: `docs/P19_TEAM_MODE_ALERT_POLICY.md`
-- P19 Stage-C adoption tracking: `docs/P19_STAGEC_ADOPTION_TRACKING.md`
-- P19 canary cadence: `docs/P19_TEAM_MODE_CANARY_CADENCE.md`
-- P19 weekly readiness template: `docs/P19_WEEKLY_RELEASE_READINESS_TEMPLATE.md`
-- GitHub upload scope (2026-04-07): `docs/GITHUB_UPLOAD_SCOPE_2026-04-07.md`
-- Cross-device handoff (2026-04-07): `docs/CROSS_DEVICE_HANDOFF_2026-04-07.md`
-- Anti-duplication system inventory (2026-04-07): `docs/ANTI_DUPLICATION_REPORT_2026-04-07.md`
+- Archived P18 route deletion backlog: `docs/archive/P18_ROUTE_DELETION_BACKLOG.md`
+- Archived P18 closeout baseline evidence: `docs/archive/P18_CLOSEOUT_BASELINE_2026-04-07.md`
+- Archived P18 hard-refactor execution plan: `docs/archive/P18_HARD_REFACTOR_EXECUTION_PLAN.md`
+- Archived P19 rollout prep contract: `docs/archive/P19_AGENT_TEAM_ROLLOUT_CONTRACT.md`
+- Archived P19 operator runbook: `docs/archive/P19_TEAM_MODE_OPERATOR_RUNBOOK.md`
+- Archived P19 rollout announcement: `docs/archive/P19_TEAM_MODE_ROLLOUT_ANNOUNCEMENT.md`
+- Archived P19 support FAQ: `docs/archive/P19_TEAM_MODE_SUPPORT_FAQ.md`
+- Archived P19 ops alert policy: `docs/archive/P19_TEAM_MODE_ALERT_POLICY.md`
+- Archived P19 Stage-C adoption tracking: `docs/archive/P19_STAGEC_ADOPTION_TRACKING.md`
+- Archived P19 canary cadence: `docs/archive/P19_TEAM_MODE_CANARY_CADENCE.md`
+- Archived P19 weekly readiness template: `docs/archive/P19_WEEKLY_RELEASE_READINESS_TEMPLATE.md`
+- Archived GitHub upload scope (2026-04-07): `docs/archive/GITHUB_UPLOAD_SCOPE_2026-04-07.md`
+- Archived cross-device handoff (2026-04-07): `docs/archive/CROSS_DEVICE_HANDOFF_2026-04-07.md`
+- Archived anti-duplication system inventory (2026-04-07): `docs/archive/ANTI_DUPLICATION_REPORT_2026-04-07.md`
 - Terminal real-use readiness gate (2026-04-08): `docs/P23_TERMINAL_REAL_USE_READINESS.md`
 - Real-use command acceptance checklist (2026-04-10): `docs/P24_REAL_USE_COMMAND_ACCEPTANCE_CHECKLIST.md`
 - Memory core consolidation plan (2026-04-09): `docs/P25_MEMORY_CORE_TASK_PLAN.md`
@@ -41,7 +42,7 @@
 - Transformation plan (v2): `docs/TRANSFORMATION_PLAN.md`
 - Transformation plan (mini guardrails): `docs/TRANSFORMATION_PLAN_LITE_ADDENDUM.md`
 - OSS mapping index: `docs/OSS_REFERENCE_INDEX.md`
-- External OSS index bridge: `docs/EXTERNAL_OSS_INDEX.md`
+- Archived external OSS index bridge: `docs/archive/EXTERNAL_OSS_INDEX.md`
 - Runtime boundary notes: `docs/RUNTIME_FLOW.md`
 
 ## 2. Current Phase Status
@@ -489,66 +490,69 @@ Mini principle in execution: capability strong, architecture lean (not capabilit
     - `tests/test_open_webui_adapter.py`
     - `tests/test_open_webui_main.py`
   - hardening slice:
-    - `scripts/open_webui_smoke.py` (real-endpoint smoke runner)
+    - `scripts/ci/open_webui_smoke.py` (real-endpoint smoke runner)
     - `apps/open_webui/main.py` (`/health` guardrail diagnostics)
     - `apps/open_webui/README_zh-CN.md` (deployment guardrails + smoke run)
     - `apps/open_webui/.env.example` (primary key/adapter key consistency note)
 - [x] T5.2: Agent Studio enhancement
   - gateway contract baseline:
-    - `apps/agent_studio_gateway/main.py`
-    - `apps/agent_studio_gateway/studio_router.py`
+    - `src/apps/agent_studio_gateway/main.py`
+    - `src/apps/agent_studio_gateway/studio_router.py`
   - studio frontend baseline:
-    - `apps/agent_studio/src/App.tsx`
-    - `apps/agent_studio/src/components/StudioOpsMode.tsx`
-    - `apps/agent_studio/src/api/*`
-    - `apps/agent_studio/src/types.ts`
-    - `apps/agent_studio/src/styles.css`
+    - `src/apps/agent_studio/src/App.tsx`
+    - `src/apps/agent_studio/src/components/StudioOpsMode.tsx`
+    - `src/apps/agent_studio/src/api/*`
+    - `src/apps/agent_studio/src/types.ts`
+    - `src/apps/agent_studio/src/styles.css`
   - tests:
     - `tests/test_agent_studio_gateway_studio_router.py`
   - hardening slice:
-    - `apps/agent_studio_gateway/studio_router.py` (route auth + path boundary checks)
-    - `scripts/studio_ops_smoke.py` (real-endpoint studio contract smoke runner)
-    - `apps/agent_studio/src/api/client.ts` (`VITE_STUDIO_API_KEY` header injection)
+    - `src/apps/agent_studio_gateway/studio_router.py` (route auth + path boundary checks)
+    - `scripts/ci/studio_ops_smoke.py` (real-endpoint studio contract smoke runner)
+    - `src/apps/agent_studio/src/api/client.ts` (`VITE_STUDIO_API_KEY` header injection)
     - `tests/test_agent_studio_gateway_studio_router.py` (auth + boundary coverage)
 - [x] T5.3: QQ/WeChat channel completion
   - shared channel contract update:
-    - `channels/types/src/index.ts`
+    - `src/channels/types/src/index.ts`
   - QQ channel completion:
-    - `channels/qqbot/src/channel.ts`
-    - `channels/qqbot/src/gateway_client.ts`
-    - `channels/qqbot/src/session_store.ts`
-    - `channels/qqbot/src/index.ts`
-    - `channels/qqbot/package.json`
-    - `channels/qqbot/.env.example`
+    - `src/channels/qqbot/src/channel.ts`
+    - `src/channels/qqbot/src/gateway_client.ts`
+    - `src/channels/qqbot/src/session_store.ts`
+    - `src/channels/qqbot/src/index.ts`
+    - `src/channels/qqbot/package.json`
+    - `src/channels/qqbot/.env.example`
   - WeChat channel baseline:
-    - `channels/wechat/manifest.json`
-    - `channels/wechat/package.json`
-    - `channels/wechat/tsconfig.json`
-    - `channels/wechat/.env.example`
-    - `channels/wechat/src/channel.ts`
-    - `channels/wechat/src/gateway_client.ts`
-    - `channels/wechat/src/session_store.ts`
-    - `channels/wechat/src/index.ts`
-  - channel run scripts:
-    - `scripts/run_qqbot_channel.ps1`
-    - `scripts/run_wechat_channel.ps1`
+    - `src/channels/wechat/manifest.json`
+    - `src/channels/wechat/package.json`
+    - `src/channels/wechat/tsconfig.json`
+    - `src/channels/wechat/.env.example`
+    - `src/channels/wechat/src/channel.ts`
+    - `src/channels/wechat/src/gateway_client.ts`
+    - `src/channels/wechat/src/session_store.ts`
+    - `src/channels/wechat/src/index.ts`
+  - channel run scripts at that stage:
+    - `scripts/archive/run_qqbot_channel.ps1`
+    - `scripts/archive/run_wechat_channel.ps1`
+  - current maintained local entry:
+    - `uv run mini-agent stack up`
+    - `scripts/start_runtime_stack.ps1`
   - tests:
     - `tests/test_gateway_routers.py` (conversation binding sender split coverage)
   - hardening slice:
-    - `channels/qqbot/src/channel.ts` (workspace boundary, inbound guardrail, smoke helper)
-    - `channels/qqbot/src/gateway_client.ts` (`Authorization` passthrough)
-    - `channels/qqbot/src/index.ts` (guardrail env wiring)
-    - `channels/qqbot/src/smoke_runner.ts` (QQ synthetic message smoke runner)
-    - `channels/qqbot/.env.example` (gateway auth + guardrail envs)
-    - `channels/wechat/src/channel.ts` (timestamp/body-size/dedupe/workspace guardrails)
-    - `channels/wechat/src/gateway_client.ts` (`Authorization` passthrough)
-    - `channels/wechat/src/index.ts` (guardrail env wiring)
-    - `channels/wechat/.env.example` (gateway auth + guardrail envs)
+    - `src/channels/qqbot/src/channel.ts` (workspace boundary, inbound guardrail, smoke helper)
+    - `src/channels/qqbot/src/gateway_client.ts` (`Authorization` passthrough)
+    - `src/channels/qqbot/src/index.ts` (guardrail env wiring)
+    - `src/channels/qqbot/src/smoke_runner.ts` (QQ synthetic message smoke runner)
+    - `src/channels/qqbot/.env.example` (gateway auth + guardrail envs)
+    - `src/channels/wechat/src/channel.ts` (timestamp/body-size/dedupe/workspace guardrails)
+    - `src/channels/wechat/src/gateway_client.ts` (`Authorization` passthrough)
+    - `src/channels/wechat/src/index.ts` (guardrail env wiring)
+    - `src/channels/wechat/.env.example` (gateway auth + guardrail envs)
     - `scripts/qq_wechat_smoke.py` (real message flow smoke runner)
   - hardening validations:
-    - `npm run build --prefix channels/types`
-    - `npm run build --prefix channels/qqbot`
-    - `npm run build --prefix channels/wechat`
+    - `npm run build --prefix src/channels/types`
+    - `npm run build --prefix src/channels/qqbot`
+    - `npm run build --prefix src/channels/wechat`
     - `python scripts/qq_wechat_smoke.py`
     - `python scripts/test_stable.py`
 
@@ -599,7 +603,7 @@ Mini principle in execution: capability strong, architecture lean (not capabilit
   - `gateway/core/app.py`
 - [x] Add token auth mode for non-local access
   - `gateway/security/auth.py`
-  - `gateway/core/app.py`, `apps/agent_studio_gateway/main.py`
+  - `gateway/core/app.py`, `src/apps/agent_studio_gateway/main.py`
 - [x] Add conversation-to-session binding model
   - `mini_agent/session/binding.py`
   - `gateway/routers/chat.py`
@@ -636,7 +640,7 @@ Mini principle in execution: capability strong, architecture lean (not capabilit
   - `mini_agent/security/policy.py`
   - layers: sandbox/tool/elevated
 - [x] Add runtime execution/access modes (`plan` / `build`, `default` / `full-access`)
-  - config: `mini_agent/config.py` + `mini_agent/config/config*.yaml`
+  - config: `src/mini_agent/config.py` + `src/mini_agent/config/config*.yaml`
   - runtime wiring: `mini_agent/runtime/tooling.py`, `mini_agent/tools/bash_tool.py`
   - CLI wiring: `mini_agent/cli.py`, `mini_agent/cli_interactive.py`
 - [x] Add security audit command and risk report
@@ -663,12 +667,12 @@ Mini principle in execution: capability strong, architecture lean (not capabilit
 ## 10. Verification Commands
 ```bash
 pytest -q tests/test_open_webui_adapter.py tests/test_open_webui_main.py
-python scripts/open_webui_smoke.py --adapter-base-url http://127.0.0.1:8010 --api-key <token> --dry-run
+python scripts/ci/open_webui_smoke.py --adapter-base-url http://127.0.0.1:8010 --api-key <token> --dry-run
 pytest -q tests/test_agent_studio_gateway_studio_router.py
-python scripts/studio_ops_smoke.py --base-url http://127.0.0.1:8008 --token <studio-token> --expect-auth
-npm run build --prefix channels/types
-npm run build --prefix channels/qqbot
-npm run build --prefix channels/wechat
+python scripts/ci/studio_ops_smoke.py --base-url http://127.0.0.1:8008 --token <studio-token> --expect-auth
+npm run build --prefix src/channels/types
+npm run build --prefix src/channels/qqbot
+npm run build --prefix src/channels/wechat
 python scripts/qq_wechat_smoke.py
 python scripts/test_stable.py
 pytest -q tests/test_code_agent_sandbox.py tests/test_code_agent_loop.py tests/test_request_rectifier.py tests/test_gateway_routers.py
@@ -723,8 +727,8 @@ mini-agent prune-export-jobs --path ~/.mini-agent/log --max-age-hours 0 --max-jo
 
 ### P9.1 Run-event retention and rotation
 - [x] Add retention policy configuration
-  - `mini_agent/config.py`
-  - `mini_agent/config/config.yaml`, `mini_agent/config/config-example.yaml`
+  - `src/mini_agent/config.py`
+  - `src/mini_agent/config/config.yaml`, `src/mini_agent/config/config-example.yaml`
   - keys: `observability.log_dir`, `event_log_*`
 - [x] Add run-log pruning implementation and command
   - `mini_agent/logger.py` (`EventLogRetentionPolicy`, `prune_logs`)
@@ -887,7 +891,7 @@ mini-agent prune-export-jobs --path ~/.mini-agent/log --max-age-hours 0 --max-jo
   - events: `step.tool_calls_truncated`, `step.completed`
   - implementation: `mini_agent/agent.py`
 - [x] Wire policy config through runtime entry points
-  - config schema + YAML: `mini_agent/config.py`, `mini_agent/config/config.yaml`, `mini_agent/config/config-example.yaml`
+  - config schema + YAML: `src/mini_agent/config.py`, `src/mini_agent/config/config.yaml`, `src/mini_agent/config/config-example.yaml`
   - runtime wiring: `mini_agent/cli_interactive.py`, `gateway/routers/chat.py`, `mini_agent/acp/__init__.py`
 - [x] Add deterministic unit coverage for budget behavior
   - tests: `tests/test_agent_execution_policy.py`
@@ -1023,3 +1027,4 @@ mini-agent prune-export-jobs --path ~/.mini-agent/log --max-age-hours 0 --max-jo
   - implementation: `gateway/routers/observability.py`
 - [x] Add gateway router coverage for P11.13 fields
   - tests: `tests/test_gateway_routers.py`
+

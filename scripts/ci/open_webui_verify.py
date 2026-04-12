@@ -9,7 +9,7 @@ import subprocess
 import sys
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _run(cmd: list[str]) -> None:
@@ -31,7 +31,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--run-smoke",
         action="store_true",
-        help="Run scripts/open_webui_smoke.py after unit tests.",
+        help="Run scripts/ci/open_webui_smoke.py after unit tests.",
     )
     parser.add_argument(
         "--adapter-base-url",
@@ -82,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.run_smoke:
         cmd = [
             sys.executable,
-            "scripts/open_webui_smoke.py",
+            "scripts/ci/open_webui_smoke.py",
             "--adapter-base-url",
             args.adapter_base_url,
             "--timeout",

@@ -12,7 +12,7 @@ Scope: Hard-refactor execution constraints, mistake prevention, and operational 
 
 | ID | Habit | Constraint | Verification |
 | --- | --- | --- | --- |
-| H-01 | Single source of truth for architecture | All changes must map to active phase doc (`P18_HARD_REFACTOR_EXECUTION_PLAN.md`) | PR checklist + task link |
+| H-01 | Single source of truth for architecture | All changes must map to active phase doc (`P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md`) | PR checklist + task link |
 | H-02 | No compatibility shell | Any fallback/legacy adapter is blocked unless explicitly approved | Code review gate |
 | H-03 | Contract-first API change | Router changes require DTO/contract update first | Contract test |
 | H-04 | One frontend + one backend in dev | Repeated startup must fail fast with PID/port message | Startup script guard |

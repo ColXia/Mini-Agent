@@ -19,6 +19,16 @@ from mini_agent.tools.bash_tool import BashTool
 from mini_agent.tools.file_tools import ReadTool, WriteTool
 
 
+@pytest.fixture(autouse=True)
+def _clear_runtime_policy_env(monkeypatch):
+    for name in (
+        "MINI_AGENT_APPROVAL_PROFILE",
+        "MINI_AGENT_AGENT_MODE",
+        "MINI_AGENT_ACCESS_LEVEL",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+
 def _make_config(security: SecurityConfig | None = None) -> Config:
     return Config(
         llm=LLMConfig(api_key="test-key"),

@@ -1,315 +1,178 @@
-# Mini Agent
+﻿# Mini-Agent
 
 English | [中文](./README_CN.md)
 
-**Mini Agent** is a minimal yet professional demo project that showcases the best practices for building agents with the MiniMax M2.5 model. Leveraging an Anthropic-compatible API, it fully supports interleaved thinking to unlock M2's powerful reasoning capabilities for long, complex tasks.
+Mini-Agent is a terminal-first agent platform focused on real TUI / CLI / headless usage.
+It combines a shared session-runtime core with provider/model management, memory and RAG wiring,
+bundled skills, MCP integration, and an optional gateway + QQ channel workflow.
 
-This project comes packed with features designed for a robust and intelligent agent development experience:
+## Current Status
 
-*   ✅ **Full Agent Execution Loop**: A complete and reliable foundation with a basic toolset for file system and shell operations.
-*   ✅ **Persistent Memory**: An active **Session Note Tool** ensures the agent retains key information across multiple sessions.
-*   ✅ **Intelligent Context Management**: Automatically summarizes conversation history to handle contexts up to a configurable token limit, enabling infinitely long tasks.
-*   ✅ **Built-in Skills**: Comes with professional skills for documents, design, testing, and development.
-*   ✅ **MCP Tool Integration**: Natively supports MCP for tools like knowledge graph access and web search.
-*   ✅ **Comprehensive Logging**: Detailed logs for every request, response, and tool execution for easy debugging.
-*   ✅ **Clean & Simple Design**: A beautiful CLI and a codebase that is easy to understand, making it the perfect starting point for building advanced agents.
+- Primary surfaces: `TUI`, `CLI`, `headless`
+- Optional runtime stack: gateway + QQ bot
+- WebUI: paused as the primary development target
+- Current architecture direction: session-centric refactor (`P30`)
 
-## Table of Contents
+## Dependency vs Reference
 
-- [Mini Agent](#mini-agent)
-  - [Table of Contents](#table-of-contents)
-  - [Quick Start](#quick-start)
-    - [1. Get API Key](#1-get-api-key)
-    - [2. Choose Your Usage Mode](#2-choose-your-usage-mode)
-      - [🚀 Quick Start Mode (Recommended for Beginners)](#-quick-start-mode-recommended-for-beginners)
-      - [🔧 Development Mode](#-development-mode)
-  - [Usage Examples](#usage-examples)
-    - [Task Execution](#task-execution)
-    - [Using a Claude Skill (e.g., PDF Generation)](#using-a-claude-skill-eg-pdf-generation)
-    - [Web Search \& Summarization (MCP Tool)](#web-search--summarization-mcp-tool)
-  - [Testing](#testing)
-    - [Quick Run](#quick-run)
-    - [Test Coverage](#test-coverage)
-  - [Troubleshooting](#troubleshooting)
-    - [SSL Certificate Error](#ssl-certificate-error)
-    - [Module Not Found Error](#module-not-found-error)
-  - [Related Documentation](#related-documentation)
-  - [Community](#community)
-  - [Contributing](#contributing)
-  - [License](#license)
-  - [References](#references)
+### Real runtime dependencies
+
+Mini-Agent currently depends on:
+
+- `Python >= 3.10`
+- `uv` for environment and command execution
+- Python packages declared in [pyproject.toml](./pyproject.toml), including:
+  - `pydantic`
+  - `pyyaml`
+  - `httpx`
+  - `requests`
+  - `mcp`
+  - `tiktoken`
+  - `prompt-toolkit`
+  - `openai`
+  - `anthropic`
+  - `fastapi`
+  - `uvicorn`
+  - `python-dotenv`
+- Optional Node.js dependencies for the QQ channel app in [`src/apps/qqbot_channel/package.json`](./src/apps/qqbot_channel/package.json):
+  - `dotenv`
+  - `qq-official-bot`
+
+### Bundled, not external dependencies
+
+These are shipped in-repo and do not require `git submodule` setup:
+
+- bundled skills under [`src/mini_agent/skills`](./src/mini_agent/skills)
+- project scripts under [`scripts/`](./scripts)
+- tests under [`tests/`](./tests)
+
+### Reference projects only
+
+The project studies and borrows ideas from external agent projects, but does not directly depend on them at runtime.
+These are references, not install-time dependencies:
+
+- `codex`
+- `gemini-cli`
+- `opencode`
+- local `extracted-src` comparisons
+
+See [`docs/OSS_REFERENCE_INDEX.md`](./docs/OSS_REFERENCE_INDEX.md) for the actual mapping.
 
 ## Quick Start
 
-### 1. Get API Key
-
-MiniMax provides both global and China platforms. Choose based on your network environment:
-
-| Version    | Platform                                                       | API Base                   |
-| ---------- | -------------------------------------------------------------- | -------------------------- |
-| **Global** | [https://platform.minimax.io](https://platform.minimax.io)     | `https://api.minimax.io`   |
-| **China**  | [https://platform.minimaxi.com](https://platform.minimaxi.com) | `https://api.minimaxi.com` |
-
-**Steps to get API Key:**
-1. Visit the corresponding platform to register and login
-2. Go to **Account Management > API Keys**
-3. Click **"Create New Key"**
-4. Copy and save it securely (key is only shown once)
-
-> 💡 **Tip**: Remember the API Base address corresponding to your chosen platform, you'll need it for configuration
-
-### 2. Choose Your Usage Mode
-
-**Prerequisites: Install uv**
-
-Both usage modes require uv. If you don't have it installed:
+### 1. Clone and install
 
 ```bash
-# macOS/Linux/WSL
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Windows (PowerShell)
-python -m pip install --user pipx
-python -m pipx ensurepath
-# Restart PowerShell after installation
-
-# After installation, restart your terminal or run:
-source ~/.bashrc  # or ~/.zshrc (macOS/Linux)
-```
-
-We offer two usage modes - choose based on your needs:
-
-#### 🚀 Quick Start Mode (Recommended for Beginners)
-
-Perfect for users who want to quickly try Mini Agent without cloning the repository or modifying code.
-
-**Installation:**
-
-```bash
-# 1. Install directly from GitHub
-uv tool install git+https://github.com/MiniMax-AI/Mini-Agent.git
-
-# 2. Run setup script (automatically creates config files)
-# macOS/Linux:
-curl -fsSL https://raw.githubusercontent.com/MiniMax-AI/Mini-Agent/main/scripts/setup-config.sh | bash
-
-# Windows (PowerShell):
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/MiniMax-AI/Mini-Agent/main/scripts/setup-config.ps1" -OutFile "$env:TEMP\setup-config.ps1"
-powershell -ExecutionPolicy Bypass -File "$env:TEMP\setup-config.ps1"
-```
-
-> 💡 **Tip**: If you want to develop locally or modify code, use "Development Mode" below
-
-**Configuration:**
-
-The setup script creates config files in `~/.mini-agent/config/`. Edit the config file:
-
-```bash
-# Edit config file
-nano ~/.mini-agent/config/config.yaml
-```
-
-Fill in your API Key and corresponding API Base:
-
-```yaml
-api_key: "YOUR_API_KEY_HERE"          # API Key from step 1
-api_base: "https://api.minimax.io"  # Global
-# api_base: "https://api.minimaxi.com"  # China
-model: "MiniMax-M2.5"
-```
-
-**Start Using:**
-
-```bash
-mini-agent                                    # Use current directory as workspace
-mini-agent --workspace /path/to/your/project  # Specify workspace directory
-mini-agent --version                          # Check version
-
-# Management commands
-uv tool upgrade mini-agent                    # Upgrade to latest version
-uv tool uninstall mini-agent                  # Uninstall if needed
-uv tool list                                  # View all installed tools
-```
-
-#### 🔧 Development Mode
-
-For developers who need to modify code, add features, or debug.
-
-**Installation & Configuration:**
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/MiniMax-AI/Mini-Agent.git
+git clone https://github.com/ColXia/Mini-Agent.git
 cd Mini-Agent
-
-# 2. Install uv (if you haven't)
-# macOS/Linux:
-curl -LsSf https://astral.sh/uv/install.sh | sh
-# Windows (PowerShell):
-irm https://astral.sh/uv/install.ps1 | iex
-# Restart terminal after installation
-
-# 3. Sync dependencies
 uv sync
-
-# Alternative: Install dependencies manually (if not using uv)
-# pip install -r requirements.txt
-# Or install required packages:
-# pip install tiktoken pyyaml httpx pydantic requests prompt-toolkit mcp
-
-# 4. Initialize Skills Catalog (Optional)
-git submodule update --init --recursive
-
-# 5. Copy config template
 ```
 
-**macOS/Linux:**
-```bash
-cp mini_agent/config/config-example.yaml mini_agent/config/config.yaml
-```
+### 2. Configure provider keys
 
-**Windows:**
-```powershell
-Copy-Item mini_agent\config\config-example.yaml mini_agent\config\config.yaml
+Preset providers read official environment variable names first, then `.env.local`.
 
-# 6. Edit config file
-vim mini_agent/config/config.yaml  # Or use your preferred editor
-```
+Supported preset keys:
 
-Fill in your API Key and corresponding API Base:
+- `OPENAI_API_KEY`
+- `ANTHROPIC_API_KEY`
+- `GEMINI_API_KEY`
+- `MINIMAX_API_KEY`
 
-```yaml
-api_key: "YOUR_API_KEY_HERE"          # API Key from step 1
-api_base: "https://api.minimax.io"  # Global
-# api_base: "https://api.minimaxi.com"  # China
-model: "MiniMax-M2.5"
-max_steps: 100
-workspace_dir: "./workspace"
-```
-
-> 📖 Full configuration guide: See [config-example.yaml](mini_agent/config/config-example.yaml)
-
-**Run Methods:**
-
-Choose your preferred run method:
+Local development fallback:
 
 ```bash
-# Method 1: Run as module directly (good for debugging)
-uv run python -m mini_agent.cli
-
-# Method 2: Install in editable mode (recommended)
-uv tool install -e .
-# After installation, run from anywhere and code changes take effect immediately
-mini-agent
-mini-agent --workspace /path/to/your/project
+cp .env.local.example .env.local
 ```
 
-> 📖 For more development guidance, see [Development Guide](docs/DEVELOPMENT_GUIDE.md)
+Then fill in only the keys you actually use.
 
-> 📖 For more production deployment guidance, see [Production Guide](docs/PRODUCTION_GUIDE.md)
+Priority is:
 
-## Usage Examples
+1. system environment variables
+2. local `.env.local`
 
-Here are a few examples of what Mini Agent can do.
+### 3. Run Mini-Agent
 
-### Task Execution
+```bash
+uv run mini
+```
 
-*In this demo, the agent is asked to create a simple, beautiful webpage and display it in the browser, showcasing the basic tool-use loop.*
+Useful entrypoints:
 
-![Demo GIF 1: Basic Task Execution](docs/assets/demo1-task-execution.gif "Basic Task Execution Demo")
+```bash
+uv run mini-agent --mode tui
+uv run mini-agent --mode cli
+uv run mini-agent --prompt "hello"
+uv run mini-agent serve --port 8008
+uv run mini-agent stack up
+uv run mini qq
+```
 
-### Using a Claude Skill (e.g., PDF Generation)
+## Model and Provider Setup
 
-*Here, the agent leverages a Claude Skill to create a professional document (like a PDF or DOCX) based on the user's request, demonstrating its advanced capabilities.*
+Preset providers:
 
-![Demo GIF 2: Claude Skill Usage](docs/assets/demo2-claude-skill.gif "Claude Skill Usage Demo")
+- discovered from official API key env vars
+- can auto-discover available model lists
+- support switching in `/model` or the TUI `models` panel
 
-### Web Search & Summarization (MCP Tool)
+Custom providers:
 
-*This demo shows the agent using its web search tool to find up-to-date information online and summarize it for the user.*
+- persisted to `~/.mini-agent/providers.json`
+- configured through `provider add` / Studio ops flows
+- shown above preset providers in the unified model registry
 
-![Demo GIF 3: Web Search](docs/assets/demo3-web-search.gif "Web Search Demo")
+Useful commands:
+
+```bash
+uv run mini-agent provider list
+uv run mini-agent provider add --help
+uv run mini-agent models --list-presets
+uv run mini-agent models minimax --latest
+```
+
+## Repository Layout
+
+```text
+src/mini_agent/                 Core runtime, commands, TUI, agent, memory, models
+src/apps/agent_studio_gateway/  Gateway / API host
+src/apps/qqbot_channel/         Optional QQ bot channel app
+scripts/                        Walkthroughs, smoke scripts, maintenance helpers
+tests/                          Automated test suite
+docs/                           Active and archived project documentation
+workspace/                      Runtime output and local test artifacts
+```
+
+## Skills and MCP
+
+- Builtin skills are bundled in-repo under [`src/mini_agent/skills`](./src/mini_agent/skills)
+- Workspace/custom skills are managed through `/skill ...` commands
+- MCP support is integrated through the runtime and command surfaces
+- Common project docs for this area:
+  - [`docs/P28_BUILTIN_SKILL_REALIGNMENT_PLAN.md`](./docs/P28_BUILTIN_SKILL_REALIGNMENT_PLAN.md)
+  - [`src/mini_agent/skills/README.md`](./src/mini_agent/skills/README.md)
 
 ## Testing
 
-The project includes comprehensive test cases covering unit tests, functional tests, and integration tests.
-
-### Quick Run
-
 ```bash
-# Run all tests
-pytest tests/ -v
-
-# Run core functionality tests
-pytest tests/test_agent.py tests/test_note_tool.py -v
+uv run pytest
+uv run pytest tests/test_markdown_links.py -q
+uv run mini-agent --help
+uv run mini-agent doctor
 ```
 
-### Test Coverage
+## Related Docs
 
-- ✅ **Unit Tests** - Tool classes, LLM client
-- ✅ **Functional Tests** - Session Note Tool, MCP loading
-- ✅ **Integration Tests** - Agent end-to-end execution
-- ✅ **External Services** - Git MCP Server loading
+- [`docs/DOCS_INDEX.md`](./docs/DOCS_INDEX.md)
+- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)
+- [`docs/DEVELOPMENT_GUIDE.md`](./docs/DEVELOPMENT_GUIDE.md)
+- [`docs/DEVELOPMENT_GUIDE_CN.md`](./docs/DEVELOPMENT_GUIDE_CN.md)
+- [`docs/DEVELOPMENT_INDEX.md`](./docs/DEVELOPMENT_INDEX.md)
+- [`docs/OSS_REFERENCE_INDEX.md`](./docs/OSS_REFERENCE_INDEX.md)
 
+## Notes
 
-## Troubleshooting
-
-### SSL Certificate Error
-
-If you encounter `[SSL: CERTIFICATE_VERIFY_FAILED]` error:
-
-**Quick fix for testing** (modify `mini_agent/llm.py`):
-```python
-# Line 50: Add verify=False to AsyncClient
-async with httpx.AsyncClient(timeout=120.0, verify=False) as client:
-```
-
-**Production solution**:
-```bash
-# Update certificates
-pip install --upgrade certifi
-
-# Or configure system proxy/certificates
-```
-
-### Module Not Found Error
-
-Make sure you're running from the project directory:
-```bash
-cd Mini-Agent
-python -m mini_agent.cli
-```
-
-## Related Documentation
-
-- [Development Guide](docs/DEVELOPMENT_GUIDE.md) - Detailed development and configuration guidance
-- [Production Guide](docs/PRODUCTION_GUIDE.md) - Best practices for production deployment
-
-## Community
-
-Join the MiniMax official community to get help, share ideas, and stay updated:
-
-- **WeChat Group**: Scan the QR code on [Contact Us](https://platform.minimaxi.com/docs/faq/contact-us) page to join
-
-## Contributing
-
-Issues and Pull Requests are welcome!
-
-- [Contributing Guide](CONTRIBUTING.md) - How to contribute
-- [Code of Conduct](CODE_OF_CONDUCT.md) - Community guidelines
-
-## License
-
-This project is licensed under the [MIT License](LICENSE).
-
-## References
-
-- MiniMax API: https://platform.minimax.io/docs
-- MiniMax-M2: https://github.com/MiniMax-AI/MiniMax-M2
-- Anthropic API: https://docs.anthropic.com/claude/reference
-- Skills reference: https://github.com/anthropics/skills
-- MCP Servers: https://github.com/modelcontextprotocol/servers
-
----
-
-**⭐ If this project helps you, please give it a Star!**
+- The old `git submodule`-based skill setup is no longer the current project path.
+- The old `config.yaml`-only README flow is outdated; env vars + `.env.local` are the active preset-provider path.
+- Historical docs and old devlogs are kept under [`docs/archive/`](./docs/archive/).

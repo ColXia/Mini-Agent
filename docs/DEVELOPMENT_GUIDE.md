@@ -1,420 +1,208 @@
-# Development Guide
+﻿# Development Guide
 
-> Phase update (2026-04-07): Mini-Agent is now in the detailed development phase (`P20`).
+> Status: active
+> Last updated: 2026-04-12
+> Current mode: terminal-first (`TUI / CLI / headless`)
 
-## Table of Contents
+## 1. What This Guide Covers
 
-- [Development Guide](#development-guide)
-  - [Table of Contents](#table-of-contents)
-  - [1. Project Architecture](#1-project-architecture)
-  - [2. Basic Usage](#2-basic-usage)
-    - [2.1 Interactive Commands](#21-interactive-commands)
-    - [2.2 Integrated MCP Tools](#22-integrated-mcp-tools)
-      - [Memory - Knowledge Graph Memory System](#memory---knowledge-graph-memory-system)
-      - [MiniMax Search - Web Search and Browse](#minimax-search---web-search-and-browse)
-  - [3. Extended Abilities](#3-extended-abilities)
-    - [3.1 Adding Custom Tools](#31-adding-custom-tools)
-      - [Steps](#steps)
-      - [Example](#example)
-    - [3.2 Adding MCP Tools](#32-adding-mcp-tools)
-    - [3.3 Customizing Note Storage](#33-customizing-note-storage)
-    - [3.4 Initialize Claude Skills (Recommended)](#34-initialize-claude-skills-recommended)
-    - [3.5 Adding a New Skill](#35-adding-a-new-skill)
-    - [3.6 Customizing System Prompt](#36-customizing-system-prompt)
-      - [What You Can Customize](#what-you-can-customize)
-  - [4. Troubleshooting](#4-troubleshooting)
-    - [4.1 Common Issues](#41-common-issues)
-      - [API Key Configuration Error](#api-key-configuration-error)
-      - [Dependency Installation Failure](#dependency-installation-failure)
-      - [MCP Tool Loading Failure](#mcp-tool-loading-failure)
-    - [4.2 Debugging Tips](#42-debugging-tips)
-      - [Enable Verbose Logging](#enable-verbose-logging)
-      - [Using the Python Debugger](#using-the-python-debugger)
-      - [Inspecting Tool Calls](#inspecting-tool-calls)
+This guide describes the current development reality of Mini-Agent.
+It intentionally avoids the older upstream/demo setup language that no longer matches the repo.
 
----
+Use this guide for:
 
-## 1. Project Architecture
+- local setup
+- command entrypoints
+- provider/model configuration
+- skill and MCP development boundaries
+- test and repo hygiene expectations
 
-```
-mini-agent/
-├── mini_agent/              # Core source code
-│   ├── agent.py             # Main agent loop
-│   ├── llm.py               # LLM client
-│   ├── cli.py               # Command-line interface
-│   ├── config.py            # Configuration loading
-│   ├── tools/               # Tool implementations (file, bash, MCP, skills, etc.)
-│   └── skills/              # Claude Skills (submodule)
-├── tests/                   # Test code
-├── docs/                    # Documentation
-├── workspace/               # Working directory
-└── pyproject.toml           # Project configuration
-```
+## 2. Current Architecture Snapshot
 
-## 2. Basic Usage
+Mini-Agent currently has three important layers for daily development:
 
-### 2.1 Interactive Commands
+1. Surface layer
+- TUI
+- CLI
+- headless terminal execution
+- optional QQ channel
 
-When running the agent in interactive mode (`mini-agent`), the following commands are available:
+2. Application / runtime layer
+- session application services
+- command execution services
+- runtime orchestration
+- gateway use cases
 
-| Command                | Description                                                 |
-| ---------------------- | ----------------------------------------------------------- |
-| `/exit`, `/quit`, `/q` | Exit the agent and display session statistics               |
-| `/help`                | Display help information and available commands             |
-| `/clear`               | Clear message history and start a new session               |
-| `/history`             | Show the current session message count                      |
-| `/stats`               | Display session statistics (steps, tool calls, tokens used) |
+3. Core capability layer
+- agent core
+- model manager
+- memory
+- RAG
+- skills
+- MCP
+- session persistence / projection
 
-### 2.2 Integrated MCP Tools
+The active architecture rule is:
 
-This project comes with pre-configured MCP (Model Context Protocol) tools that extend the agent's capabilities:
+- `Session` is the source of truth
+- surfaces operate sessions
+- channels do not own sessions
 
-#### Memory - Knowledge Graph Memory System
+See [`docs/P30_SURFACE_SESSION_ARCHITECTURE_CORRECTION_2026-04-12.md`](./P30_SURFACE_SESSION_ARCHITECTURE_CORRECTION_2026-04-12.md).
 
-**Function**: Provides long-term memory storage and retrieval based on graph database
+## 3. Repository Layout
 
-**Status**: Enabled by default (`disabled: false`)
-
-**Configuration**: No API Key required, works out of the box
-
-**Capabilities**:
-- Store and retrieve information across sessions
-- Build knowledge graphs from conversations
-- Semantic search through stored memories
-
----
-
-#### MiniMax Search - Web Search and Browse
-
-**Function**: Provides three powerful tools:
-- `search` - Web search capability
-- `parallel_search` - Execute multiple searches simultaneously
-- `browse` - Intelligent web browsing and content extraction
-
-**Status**: Disabled by default, needs configuration to enable
-
-**Configuration Example**
-
-```json
-{
-  "mcpServers": {
-    "minimax_search": {
-      "disabled": false,
-      "env": {
-        "JINA_API_KEY": "your-jina-api-key",
-        "SERPER_API_KEY": "your-serper-api-key",
-        "MINIMAX_TOKEN": "your-minimax-token"
-      }
-    }
-  }
-}
+```text
+src/mini_agent/                 core runtime, TUI, CLI, commands, memory, models
+src/apps/agent_studio_gateway/  gateway / API host
+src/apps/qqbot_channel/         optional QQ bot channel app
+scripts/                        smoke, walkthrough, release, maintenance scripts
+tests/                          automated test suite
+docs/                           active documentation and archive
+workspace/                      local outputs, smoke artifacts, caches
 ```
 
-## 3. Extended Abilities
+Notes:
 
-### 3.1 Adding Custom Tools
+- bundled skills live under [`../src/mini_agent/skills`](../src/mini_agent/skills)
+- the project uses `src/` layout; do not document it as `mini_agent/` root layout anymore
+- old `git submodule`-based skill setup is no longer the current repo contract
 
-#### Steps
+## 4. Local Setup
 
-1.  Create a new tool file under `mini_agent/tools/`.
-2.  Inherit from the `Tool` base class.
-3.  Implement the required properties and methods.
-4.  Register the tool during Agent initialization.
-
-#### Example
-
-```python
-# mini_agent/tools/my_tool.py
-from mini_agent.tools.base import Tool, ToolResult
-from typing import Dict, Any
-
-class MyTool(Tool):
-    @property
-    def name(self) -> str:
-        """A unique name for the tool."""
-        return "my_tool"
-    
-    @property
-    def description(self) -> str:
-        """A description for the LLM to understand the tool's purpose."""
-        return "My custom tool for doing something useful"
-    
-    @property
-    def parameters(self) -> Dict[str, Any]:
-        """Parameter schema in JSON Schema format."""
-        return {
-            "type": "object",
-            "properties": {
-                "param1": {
-                    "type": "string",
-                    "description": "First parameter"
-                },
-                "param2": {
-                    "type": "integer",
-                    "description": "Second parameter",
-                    "default": 10
-                }
-            },
-            "required": ["param1"]
-        }
-    
-    async def execute(self, param1: str, param2: int = 10) -> ToolResult:
-        """
-        The main logic of the tool.
-        
-        Args:
-            param1: The first parameter.
-            param2: The second parameter, with a default value.
-        
-        Returns:
-            A ToolResult object.
-        """
-        try:
-            # Implement your logic here
-            result = f"Processed {param1} with param2={param2}"
-            
-            return ToolResult(
-                success=True,
-                content=result
-            )
-        except Exception as e:
-            return ToolResult(
-                success=False,
-                content=f"Error: {str(e)}"
-            )
-
-# In cli.py or agent initialization code
-from mini_agent.tools.my_tool import MyTool
-
-# Add the new tool when creating the Agent
-tools = [
-    ReadTool(workspace_dir),
-    WriteTool(workspace_dir),
-    MyTool(),  # Add your custom tool
-]
-
-agent = Agent(
-    llm=llm,
-    tools=tools,
-    max_steps=50
-)
-```
-
-### 3.2 Adding MCP Tools
-
-Edit `mcp.json` to add a new MCP Server:
-
-```json
-{
-  "mcpServers": {
-    "my_custom_mcp": {
-      "description": "My custom MCP server",
-      "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "@my-org/my-mcp-server"],
-      "env": {
-        "API_KEY": "your-api-key"
-      },
-      "disabled": false,
-      "notes": {
-        "description": "This is a custom MCP server.",
-        "api_key_url": "https://example.com/api-keys"
-      }
-    }
-  }
-}
-```
-
-### 3.3 Customizing Note Storage
-
-To replace the storage backend for the `SessionNoteTool`:
-
-```python
-# Current implementation: markdown memory split
-class SessionNoteTool:
-    def __init__(self, memory_root: str = "./workspace"):
-        self.long_term_file = Path(memory_root) / "MEMORY.md"
-        self.daily_dir = Path(memory_root) / "memory"
-
-    async def execute(self, content: str, category: str = "general", scope: str = "both"):
-        # Write to MEMORY.md and/or memory/YYYY-MM-DD.md
-        ...
-
-# Example extension: PostgreSQL
-class PostgresNoteTool(Tool):
-    def __init__(self, db_url: str):
-        self.db = PostgresDB(db_url)
-    
-    async def _save_notes(self, notes: List[Dict]):
-        await self.db.execute(
-            "INSERT INTO notes (content, category, timestamp) VALUES ($1, $2, $3)",
-            notes
-        )
-
-# Example extension: Vector Database
-class MilvusNoteTool(Tool):
-    def __init__(self, milvus_host: str):
-        self.vector_db = MilvusClient(host=milvus_host)
-    
-    async def _save_notes(self, notes: List[Dict]):
-        # Generate embeddings
-        embeddings = await self.get_embeddings([n["content"] for n in notes])
-        
-        # Store in the vector database
-        await self.vector_db.insert(
-            collection="agent_notes",
-            data=notes,
-            embeddings=embeddings
-        )
-```
-
-### 3.4 Initialize Claude Skills (Recommended) 
-
-This project integrates Claude's official skills repository via git submodule. Initialize it after first clone:
+### Required
 
 ```bash
-# Initialize submodule
-git submodule update --init --recursive
+uv sync
 ```
 
-Skills provide 20+ professional capabilities, making the Agent work like a professional:
+### Provider keys
 
-- 📄 **Document Processing**: Create and edit PDF, DOCX, XLSX, PPTX
-- 🎨 **Design Creation**: Generate artwork, posters, GIF animations
-- 🧪 **Development & Testing**: Web automation testing (Playwright), MCP server development
-- 🏢 **Enterprise Applications**: Internal communication, brand guidelines, theme customization
+Preset providers read these official env vars:
 
-✨ **This is one of the core highlights of this project.** For details, see the "Configure Skills" section below.
+- `OPENAI_API_KEY`
+- `ANTHROPIC_API_KEY`
+- `GEMINI_API_KEY`
+- `MINIMAX_API_KEY`
 
-**More information:**
+Local fallback file:
 
-- [Claude Skills Official Documentation](https://docs.claude.com/zh-CN/docs/agents-and-tools/agent-skills)
-- [Anthropic Blog: Equipping agents for the real world](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills)
+- `.env.local`
 
-### 3.5 Adding a New Skill
+Template only:
 
-Create a custom Skill:
+- `.env.local.example`
+- this file is not loaded by the program
+
+### Optional channel dependency
+
+If you use the QQ channel app, install its Node.js dependencies:
 
 ```bash
-# Create a new skill directory under skills/
-mkdir skills/my-custom-skill
-cd skills/my-custom-skill
-
-# Create the SKILL.md file
-cat > SKILL.md << 'EOF'
----
-name: my-custom-skill
-description: My custom skill for handling specific tasks.
----
-
-# Overview
-
-This skill provides the following capabilities:
-- Capability 1
-- Capability 2
-
-# Usage
-
-1. Step one...
-2. Step two...
-
-# Best Practices
-
-- Practice 1
-- Practice 2
-
-# FAQ
-
-Q: Question 1
-A: Answer 1
+cd src/apps/qqbot_channel
+npm install
 ```
 
-The new Skill will be automatically loaded and recognized by the Agent.
+## 5. Main Commands
 
-### 3.6 Customizing System Prompt
-
-The system prompt (`system_prompt.md`) defines the Agent's behavior, capabilities, and working guidelines. You can customize it to tailor the Agent for specific use cases.
-
-#### What You Can Customize
-
-1. **Core Capabilities**: Add or modify tool descriptions
-2. **Working Guidelines**: Define custom workflows and best practices
-3. **Domain-Specific Knowledge**: Add expertise in specific areas
-4. **Communication Style**: Adjust how the Agent interacts with users
-5. **Task Priorities**: Set preferences for how tasks should be approached
-
-After modifying `system_prompt.md`, be sure to restart the Agent to apply changes
-
-## 4. Troubleshooting
-
-### 4.1 Common Issues
-
-#### API Key Configuration Error
+Unified terminal entry:
 
 ```bash
-# Error message
-Error: Invalid API key
-
-# Solution
-1. Check that the API key in `config.yaml` is correct.
-2. Ensure there are no extra spaces or quotes.
-3. Verify that the API key has not expired.
+uv run mini
+uv run mini-agent
 ```
 
-#### Dependency Installation Failure
+Useful modes:
 
 ```bash
-# Error message
-uv sync failed
-
-# Solution
-1. Update uv to the latest version: `uv self update`
-2. Clear the cache: `uv cache clean`
-3. Try syncing again: `uv sync`
+uv run mini-agent --mode tui
+uv run mini-agent --mode cli
+uv run mini-agent --prompt "hello"
 ```
 
-#### MCP Tool Loading Failure
+Gateway and channel flows:
 
 ```bash
-# Error message
-Failed to load MCP server
-
-# Solution
-1. Check the configuration in `mcp.json` is correct.
-2. Ensure Node.js is installed (required for most MCP tools).
-3. Verify that any required API keys are configured.
-4. View detailed logs: `pytest tests/test_mcp.py -v -s`
+uv run mini-agent serve --port 8008
+uv run mini-agent stack up
+uv run mini qq
 ```
 
-### 4.2 Debugging Tips
+Provider and model operations:
 
-#### Enable Verbose Logging
-
-```python
-# At the beginning of cli.py or a test file
-import logging
-
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+```bash
+uv run mini-agent provider list
+uv run mini-agent provider add --help
+uv run mini-agent models --list-presets
+uv run mini-agent models minimax --latest
 ```
 
-#### Using the Python Debugger
+Diagnostics:
 
-```python
-# Set a breakpoint in your code
-import pdb; pdb.set_trace()
-
-# Or use ipdb for a better experience
-import ipdb; ipdb.set_trace()
+```bash
+uv run mini-agent doctor
+uv run mini-agent security-audit
 ```
 
-#### Inspecting Tool Calls
+## 6. Providers and Models
 
-```python
-# Add logging in the Agent to see tool interactions
-logger.debug(f"Tool call: {tool_call.name}")
-logger.debug(f"Tool arguments: {tool_call.arguments}")
-logger.debug(f"Tool result: {result.content[:200]}")
+### Preset providers
+
+Preset providers are activated from environment variables or `.env.local`.
+They are not defined through git submodules or external skill repos.
+
+### Custom providers
+
+Custom providers are persisted to:
+
+- `~/.mini-agent/providers.json`
+
+They are managed through the unified model registry and surfaced in TUI / CLI / gateway.
+
+## 7. Skills and MCP
+
+### Skills
+
+Builtin skills are bundled in-repo:
+
+- [`../src/mini_agent/skills`](../src/mini_agent/skills)
+- [`../src/mini_agent/skills/README.md`](../src/mini_agent/skills/README.md)
+
+Do not describe them as "Claude Skills via git submodule".
+That is now historical documentation drift.
+
+### MCP
+
+MCP is integrated through runtime configuration and command surfaces.
+The exact MCP servers available in a local run depend on the local MCP config and installed tools.
+
+## 8. Testing
+
+Typical commands:
+
+```bash
+uv run pytest
+uv run pytest tests/test_markdown_links.py -q
+uv run pytest tests/test_command_execution_service.py -q
 ```
+
+Keep test assets inside `tests/`.
+Keep executable probes and walkthrough runners inside `scripts/`.
+Do not leave one-off local probes in the repo root.
+
+## 9. Repo Hygiene Rules
+
+- move historical docs to `docs/archive/`
+- keep active docs in `docs/`
+- keep real tests in `tests/`
+- keep reusable runners in `scripts/`
+- clean ignored probe files and cache directories from the worktree regularly
+- do not document reference projects as runtime dependencies
+
+## 10. Related Docs
+
+- [`./DEVELOPMENT_INDEX.md`](./DEVELOPMENT_INDEX.md)
+- [`./DOCS_INDEX.md`](./DOCS_INDEX.md)
+- [`./P28_BUILTIN_SKILL_REALIGNMENT_PLAN.md`](./P28_BUILTIN_SKILL_REALIGNMENT_PLAN.md)
+- [`./P29_SESSION_BOUNDARY_AUDIT_2026-04-12.md`](./P29_SESSION_BOUNDARY_AUDIT_2026-04-12.md)
+- [`./P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md`](./P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md)

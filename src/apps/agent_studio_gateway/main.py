@@ -371,7 +371,11 @@ def _format_agent_bootstrap_error(exc: Exception) -> HTTPException:
             "or local .env.local fallback."
         )
     elif "Configuration file not found" in raw:
-        detail = "Mini-Agent bootstrap failed: missing configuration file config.yaml."
+        detail = (
+            "Mini-Agent bootstrap failed: configuration assets were not found. "
+            "Expected config.yaml in src/mini_agent/config/, ~/.mini-agent/config/, "
+            "or the installed package config directory."
+        )
     else:
         detail = f"Mini-Agent bootstrap failed: {raw}"
     return HTTPException(status_code=503, detail=detail)

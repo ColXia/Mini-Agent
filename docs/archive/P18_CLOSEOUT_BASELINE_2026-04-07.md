@@ -1,4 +1,4 @@
-# P18 Closeout Baseline (2026-04-07)
+﻿# P18 Closeout Baseline (2026-04-07)
 
 > Status: active baseline
 > Last updated: 2026-04-07
@@ -8,7 +8,7 @@
 
 Freeze a reproducible regression baseline for the post-P18 architecture:
 
-- single backend host (`apps/agent_studio_gateway/main.py`)
+- single backend host (`src/apps/agent_studio_gateway/main.py`)
 - API contract on `/api/v1/*`
 - Studio Ops + OpenWebUI adapter compatibility
 
@@ -32,10 +32,16 @@ python scripts/release_gate.py --start-local-gateway --studio-token studio-smoke
 
 ## 4. Optional Extended Gate (No-Dry-Run)
 
-Extended command (includes real OpenWebUI no-dry-run smoke):
+Extended command (includes real OpenWebUI no-dry-run smoke; replaces the later-archived helper script):
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run_release_gate_openwebui.ps1
+python scripts/release_gate.py `
+  --start-local-gateway `
+  --openwebui-run-smoke `
+  --openwebui-no-dry-run `
+  --openwebui-adapter-base-url http://127.0.0.1:8010 `
+  --openwebui-api-key mini-agent-openwebui-token `
+  --studio-token studio-smoke-token
 ```
 
 Recent evidence:
@@ -49,3 +55,4 @@ Recent evidence:
 Interpretation:
 
 - no-dry-run failures are currently treated as external-path volatility, not local contract regression, when deterministic gate remains PASS.
+

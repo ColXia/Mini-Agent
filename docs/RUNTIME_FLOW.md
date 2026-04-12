@@ -82,8 +82,8 @@ Updated: 2026-04-06
    - preferred provider first, then global fallback providers
    - error classification (`mini_agent/model_manager/error_classifier.py`) drives failover behavior
    - per-attempt success/failure updates health monitor + breaker stats
-6. Runtime entrypoints (`mini_agent/cli_interactive.py`, `apps/agent_studio_gateway/main.py`, `mini_agent/acp/__init__.py`) build `FailoverLLMClient` with the candidate chain.
-7. Studio Ops APIs (`apps/agent_studio_gateway/studio_router.py`) expose:
+6. Runtime entrypoints (`mini_agent/cli_interactive.py`, `src/apps/agent_studio_gateway/main.py`, `mini_agent/acp/__init__.py`) build `FailoverLLMClient` with the candidate chain.
+7. Studio Ops APIs (`src/apps/agent_studio_gateway/studio_router.py`) expose:
    - `GET /api/v1/ops/providers`
    - `GET /api/v1/ops/providers/{provider_id}/health`
    - `GET /api/v1/system/health`
@@ -386,12 +386,12 @@ Updated: 2026-04-06
      - `guardrail_warnings`
    - warnings cover auth-disabled adapter, non-local gateway without gateway token, model list mismatch, and timeout risk.
 8. Real-endpoint smoke path:
-   - script: `scripts/open_webui_smoke.py`
+   - script: `scripts/ci/open_webui_smoke.py`
    - verifies `/health`, `/v1/models`, non-stream + stream completions, and same-conversation session continuity.
 
 ## Agent Studio Ops Flow (P17 T5.2)
 1. Gateway contract mounting:
-   - `apps/agent_studio_gateway/main.py` mounts `studio_router` under `/api/v1/ops/*`.
+   - `src/apps/agent_studio_gateway/main.py` mounts `studio_router` under `/api/v1/ops/*`.
 2. Studio auth boundary:
    - route-level auth is controlled by `MINI_AGENT_STUDIO_API_KEYS`.
    - when token list is non-empty, `/api/v1/ops/*` requires:
@@ -425,28 +425,29 @@ Updated: 2026-04-06
      - `GET /api/v1/ops/memory/daily/{day}`
    - daily endpoint validates `YYYY-MM-DD` and returns explicit `400`/`404` on invalid or missing targets.
 6. Studio frontend contract usage:
-   - mode registration: `studio_ops` in `apps/agent_studio/src/App.tsx`
-   - UI implementation: `apps/agent_studio/src/components/StudioOpsMode.tsx`
-   - typed API clients: `apps/agent_studio/src/api/*`
-   - provider/memory contract types: `apps/agent_studio/src/types.ts`
+   - mode registration: `studio_ops` in `src/apps/agent_studio/src/App.tsx`
+   - UI implementation: `src/apps/agent_studio/src/components/StudioOpsMode.tsx`
+   - typed API clients: `src/apps/agent_studio/src/api/*`
+   - provider/memory contract types: `src/apps/agent_studio/src/types.ts`
    - optional studio auth header from `VITE_STUDIO_API_KEY`.
 7. Real-endpoint smoke path:
-   - script: `scripts/studio_ops_smoke.py`
+   - script: `scripts/ci/studio_ops_smoke.py`
    - verifies auth boundary, provider CRUD/health, memory summary/search/daily, and external path rejection.
 
 ## QQ/WeChat Channel Flow (P17 T5.3)
 1. Shared channel-to-gateway contract:
-   - `channels/types/src/index.ts` extends `ChatRequest` with:
+   - `src/channels/types/src/index.ts` extends `ChatRequest` with:
      - `channel_type`
      - `conversation_id`
      - `sender_id`
      - optional `metadata`
    - gateway chat endpoint uses these fields for conversation binding (`channel|conversation|sender`).
-2. QQ channel runtime path:
-   - entry: `channels/qqbot/src/index.ts`
-   - core channel: `channels/qqbot/src/channel.ts`
-   - gateway client: `channels/qqbot/src/gateway_client.ts`
-   - session persistence: `channels/qqbot/src/session_store.ts` (`.qqbot_sessions.json`)
+2. QQ channel source/runtime path:
+   - reusable source package: `src/channels/qqbot/src/index.ts`
+   - core channel: `src/channels/qqbot/src/channel.ts`
+   - gateway client: `src/channels/qqbot/src/gateway_client.ts`
+   - session persistence: `src/channels/qqbot/src/session_store.ts` (`.qqbot_sessions.json`)
+   - runtime app/orchestration: `src/apps/qqbot_channel/` via `uv run mini-agent stack up` or `scripts/start_runtime_stack.ps1`
    - gateway auth passthrough:
      - optional `Authorization: Bearer <token>` from `QQBOT_GATEWAY_AUTH_TOKEN` or `MINI_AGENT_GATEWAY_AUTH_TOKEN`
    - message handling:
@@ -455,11 +456,11 @@ Updated: 2026-04-06
      - inbound message truncation guardrail (`QQBOT_MAX_MESSAGE_CHARS`)
      - `/workspace` path boundary enforcement (`QQBOT_ALLOWED_WORKSPACE_ROOTS`)
      - command set (`/help`, `/status`, `/workspace`, `/dryrun`, `/reset`, `/clear`, `/ping`)
-3. WeChat channel runtime path:
-   - entry: `channels/wechat/src/index.ts`
-   - core channel: `channels/wechat/src/channel.ts`
-   - gateway client: `channels/wechat/src/gateway_client.ts`
-   - session persistence: `channels/wechat/src/session_store.ts` (`.wechat_sessions.json`)
+3. WeChat channel source path:
+   - entry: `src/channels/wechat/src/index.ts`
+   - core channel: `src/channels/wechat/src/channel.ts`
+   - gateway client: `src/channels/wechat/src/gateway_client.ts`
+   - session persistence: `src/channels/wechat/src/session_store.ts` (`.wechat_sessions.json`)
    - gateway auth passthrough:
      - optional `Authorization: Bearer <token>` from `WECHAT_GATEWAY_AUTH_TOKEN` or `MINI_AGENT_GATEWAY_AUTH_TOKEN`
    - webhook flow:
@@ -472,10 +473,10 @@ Updated: 2026-04-06
      - inbound/outbound truncation guardrails (`WECHAT_MAX_MESSAGE_CHARS`, `WECHAT_MAX_RESPONSE_CHARS`)
      - `/workspace` path boundary enforcement (`WECHAT_ALLOWED_WORKSPACE_ROOTS`)
    - command path mirrors QQ command set for consistent operations.
-4. Channel startup scripts:
-   - QQ: `scripts/run_qqbot_channel.ps1`
-   - WeChat: `scripts/run_wechat_channel.ps1`
-   - scripts ensure local dependency install/build before launch.
+4. Channel startup status:
+   - maintained local orchestrator: `uv run mini-agent stack up` or `scripts/start_runtime_stack.ps1`
+   - legacy per-channel PowerShell launchers were archived to `scripts/archive/`
+   - current terminal-first runtime maintains the QQ stack path; WeChat remains source-level integration code unless the channel runtime is revived
 5. Real-endpoint smoke path:
    - script: `scripts/qq_wechat_smoke.py`
    - validates:

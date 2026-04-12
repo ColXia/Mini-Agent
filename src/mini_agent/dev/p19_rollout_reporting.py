@@ -1,4 +1,4 @@
-﻿"""P19 rollout weekly KPI aggregation and report rendering helpers."""
+"""P19 rollout weekly KPI aggregation and report rendering helpers."""
 
 from __future__ import annotations
 
@@ -612,9 +612,9 @@ def build_target_remediation_hints(*, summary: WeeklyRolloutSummary, target_prof
         if row.status != "ATTENTION":
             continue
         if row.kpi == "Matrix pass rate":
-            hints.append("Re-run `scripts/p19_runtime_matrix.py` and block rollout expansion until matrix PASS rate recovers.")
+            hints.append("Re-run `scripts/ci/p19_runtime_matrix.py` and block rollout expansion until matrix PASS rate recovers.")
         elif row.kpi == "Deterministic gate pass rate":
-            hints.append("Run deterministic gate triage (`scripts/release_gate.py`) and fix blockers before next promotion decision.")
+            hints.append("Run deterministic gate triage (`scripts/ci/release_gate.py`) and fix blockers before next promotion decision.")
         elif row.kpi == "Promotion READY rate":
             hints.append("Review promotion checklist reports and close mandatory FAIL items before rollout changes.")
         elif row.kpi == "Advisory WARN/FAIL count":

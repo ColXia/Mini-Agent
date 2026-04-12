@@ -1,34 +1,35 @@
 # Mini-Agent Refactor Tasks (OSS Adopt Plan)
 
 > **状态**: ✅ 活跃
-> **最后更新**: 2026-04-07
-> **当前阶段**: P18 硬重构已完成
+> **最后更新**: 2026-04-12
+> **当前阶段**: P30 surface/session correction 继续推进
 > **文档索引**: [DOCS_INDEX.md](./DOCS_INDEX.md)
 
 > Note (P18 hard refactor): historical phase records keep old module paths for traceability.
-> Active runtime path is single-host v1 only (`apps/agent_studio_gateway/main.py`, `/api/v1/*`).
+> Active runtime path is single-host v1 only (`src/apps/agent_studio_gateway/main.py`, `/api/v1/*`).
 > Stage normalization (2026-04-07): P18 closeout baseline frozen; P19 kickoff + Stage-C docs + ops alerting slices landed.
 
 ## Index
 - OSS implementation index: `docs/OSS_REFERENCE_INDEX.md`
 - Published development index: `docs/DEVELOPMENT_INDEX.md`
-- Active hard-refactor execution plan: `docs/P18_HARD_REFACTOR_EXECUTION_PLAN.md`
+- Current execution anchor: `docs/P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md`
 - Dev habit and mistake ledger: `docs/MINIAGENT_DEV_HABIT_LEDGER.md`
 - API v1 contract skeleton: `docs/API_V1_CONTRACT_SKELETON.md`
-- Route deletion backlog: `docs/P18_ROUTE_DELETION_BACKLOG.md`
-- P18 closeout baseline evidence: `docs/P18_CLOSEOUT_BASELINE_2026-04-07.md`
-- P19 rollout prep contract: `docs/P19_AGENT_TEAM_ROLLOUT_CONTRACT.md`
-- P19 team-mode alert policy: `docs/P19_TEAM_MODE_ALERT_POLICY.md`
-- P19 Stage-C adoption tracking: `docs/P19_STAGEC_ADOPTION_TRACKING.md`
-- P19 canary cadence: `docs/P19_TEAM_MODE_CANARY_CADENCE.md`
-- P19 weekly readiness template: `docs/P19_WEEKLY_RELEASE_READINESS_TEMPLATE.md`
-- GitHub upload scope (2026-04-07): `docs/GITHUB_UPLOAD_SCOPE_2026-04-07.md`
-- Cross-device handoff (2026-04-07): `docs/CROSS_DEVICE_HANDOFF_2026-04-07.md`
+- Archived P18 route deletion backlog: `docs/archive/P18_ROUTE_DELETION_BACKLOG.md`
+- Archived P18 closeout baseline evidence: `docs/archive/P18_CLOSEOUT_BASELINE_2026-04-07.md`
+- Archived P18 hard-refactor execution plan: `docs/archive/P18_HARD_REFACTOR_EXECUTION_PLAN.md`
+- Archived P19 rollout prep contract: `docs/archive/P19_AGENT_TEAM_ROLLOUT_CONTRACT.md`
+- Archived P19 team-mode alert policy: `docs/archive/P19_TEAM_MODE_ALERT_POLICY.md`
+- Archived P19 Stage-C adoption tracking: `docs/archive/P19_STAGEC_ADOPTION_TRACKING.md`
+- Archived P19 canary cadence: `docs/archive/P19_TEAM_MODE_CANARY_CADENCE.md`
+- Archived P19 weekly readiness template: `docs/archive/P19_WEEKLY_RELEASE_READINESS_TEMPLATE.md`
+- Archived GitHub upload scope (2026-04-07): `docs/archive/GITHUB_UPLOAD_SCOPE_2026-04-07.md`
+- Archived cross-device handoff (2026-04-07): `docs/archive/CROSS_DEVICE_HANDOFF_2026-04-07.md`
 - Session boundary audit (2026-04-12): `docs/P29_SESSION_BOUNDARY_AUDIT_2026-04-12.md`
 - Session hard-refactor plan (2026-04-12): `docs/P29_SESSION_HARD_REFACTOR_PLAN.md`
 - Transformation plan (v2): `docs/TRANSFORMATION_PLAN.md`
 - Transformation guardrails (mini): `docs/TRANSFORMATION_PLAN_LITE_ADDENDUM.md`
-- External OSS index bridge: `docs/EXTERNAL_OSS_INDEX.md`
+- Archived external OSS index bridge: `docs/archive/EXTERNAL_OSS_INDEX.md`
 
 Mini execution contract:
 - `Mini` = full-strength core capabilities with lean architecture.
@@ -48,8 +49,8 @@ Mini execution contract:
 | Persistent session + resume + retention | OpenClaw + Gemini + Codex SDK | Direct (Now) | M | M | High | `mini_agent/core/*`, `gateway/routers/sessions.py`, `mini_agent/cli_interactive.py`, `mini_agent/acp/*` |
 | Session pruning/compaction triggers | OpenClaw | Borrow (Mid) | M | M | High | `mini_agent/agent.py`, new `mini_agent/session/pruning.py` |
 | ACP session lifecycle and binding model | OpenClaw ACP + Gemini ACP | Direct (Now) | M | M | High | `mini_agent/acp/__init__.py`, ACP state layer |
-| Gateway singleton lock + pairing/auth guard | OpenClaw gateway-lock/pairing/security | Direct (Now) | M | H | High | `gateway/core/app.py`, `apps/agent_studio_gateway/main.py`, `gateway/security/*` |
-| MCP config normalization (stdio/http/sse), allow/deny/trust | Gemini MCP + CC Switch | Direct (Now) | M | M | High | `mini_agent/tools/mcp_loader.py`, `mini_agent/config.py`, `mini_agent/config/mcp*.json` |
+| Gateway singleton lock + pairing/auth guard | OpenClaw gateway-lock/pairing/security | Direct (Now) | M | H | High | `gateway/core/app.py`, `src/apps/agent_studio_gateway/main.py`, `gateway/security/*` |
+| MCP config normalization (stdio/http/sse), allow/deny/trust | Gemini MCP + CC Switch | Direct (Now) | M | M | High | `mini_agent/tools/mcp_loader.py`, `src/mini_agent/config.py`, `src/mini_agent/config/mcp*.json` |
 | MCP cross-client import/export mapping | CC Switch | Borrow (Mid) | M | M | Med | new `mini_agent/tools/mcp_profile_sync.py` |
 | Sandbox + approval layered policy | OpenClaw + Codex | Borrow (Mid) | L | H | High | `mini_agent/tools/bash_tool.py`, runtime policy layer, CLI/ACP config |
 | Plugin capability registry (provider/channel/tool/hook) | OpenClaw plugin internals | Direct (Now) | L | H | Med | `mini_agent/plugins/*` |
@@ -127,7 +128,7 @@ Mini execution contract:
 
 ## P9 Observability Hardening and API Exposure
 - [x] Add run-event retention and rotation policy for long-running deployments.
-  - config: `mini_agent/config.py` + `mini_agent/config/config*.yaml` (`observability.*`)
+  - config: `src/mini_agent/config.py` + `src/mini_agent/config/config*.yaml` (`observability.*`)
   - logger retention: `mini_agent/logger.py` (`EventLogRetentionPolicy`, `prune_logs`)
   - runtime wiring: `mini_agent/cli_interactive.py`, `gateway/routers/chat.py`, `mini_agent/acp/__init__.py`
   - command: `mini-agent prune-logs`
@@ -722,7 +723,7 @@ Mini execution contract:
     - `apps/open_webui/main.py`
     - `apps/open_webui/README_zh-CN.md`
     - `apps/open_webui/.env.example`
-    - `scripts/open_webui_smoke.py`
+    - `scripts/ci/open_webui_smoke.py`
   - capabilities:
     - `/health` reports deployment guardrail diagnostics (`guardrail_warning_count`, `guardrail_warnings`)
     - startup emits guardrail warnings for risky deployment config
@@ -732,13 +733,13 @@ Mini execution contract:
     - `tests/test_open_webui_main.py`
 - [x] Add Agent Studio ops enhancement baseline with provider/memory management contracts (P17 T5.2).
   - core implementation:
-    - `apps/agent_studio_gateway/main.py`
-    - `apps/agent_studio_gateway/studio_router.py`
-    - `apps/agent_studio/src/App.tsx`
-    - `apps/agent_studio/src/components/StudioOpsMode.tsx`
-    - `apps/agent_studio/src/api/*`
-    - `apps/agent_studio/src/types.ts`
-    - `apps/agent_studio/src/styles.css`
+    - `src/apps/agent_studio_gateway/main.py`
+    - `src/apps/agent_studio_gateway/studio_router.py`
+    - `src/apps/agent_studio/src/App.tsx`
+    - `src/apps/agent_studio/src/components/StudioOpsMode.tsx`
+    - `src/apps/agent_studio/src/api/*`
+    - `src/apps/agent_studio/src/types.ts`
+    - `src/apps/agent_studio/src/styles.css`
   - capabilities:
     - `/api/v1/ops/providers` CRUD + `/api/v1/ops/providers/{provider_id}/health` contract path
     - provider catalog normalization and atomic persistence
@@ -748,9 +749,9 @@ Mini execution contract:
     - `tests/test_agent_studio_gateway_studio_router.py`
 - [x] Add Agent Studio ops hardening slice with auth boundaries and smoke checks (P17 T5.2 hardening).
   - core implementation:
-    - `apps/agent_studio_gateway/studio_router.py`
-    - `scripts/studio_ops_smoke.py`
-    - `apps/agent_studio/src/api/*`
+    - `src/apps/agent_studio_gateway/studio_router.py`
+    - `scripts/ci/studio_ops_smoke.py`
+    - `src/apps/agent_studio/src/api/*`
   - capabilities:
     - route-level auth for `/api/v1/ops/*` via bearer or `x-api-key` (`MINI_AGENT_STUDIO_API_KEYS`)
     - allowed-root boundary enforcement for `workspace_dir` and `catalog_path`
@@ -760,39 +761,40 @@ Mini execution contract:
     - `tests/test_agent_studio_gateway_studio_router.py`
 - [x] Add QQ/WeChat channel completion baseline with session-binding contracts (P17 T5.3).
   - core implementation:
-    - `channels/types/src/index.ts`
-    - `channels/qqbot/src/channel.ts`
-    - `channels/qqbot/src/gateway_client.ts`
-    - `channels/qqbot/src/session_store.ts`
-    - `channels/qqbot/src/index.ts`
-    - `channels/qqbot/package.json`
-    - `channels/wechat/manifest.json`
-    - `channels/wechat/package.json`
-    - `channels/wechat/tsconfig.json`
-    - `channels/wechat/.env.example`
-    - `channels/wechat/src/channel.ts`
-    - `channels/wechat/src/gateway_client.ts`
-    - `channels/wechat/src/session_store.ts`
-    - `channels/wechat/src/index.ts`
-    - `scripts/run_qqbot_channel.ps1`
-    - `scripts/run_wechat_channel.ps1`
+    - `src/channels/types/src/index.ts`
+    - `src/channels/qqbot/src/channel.ts`
+    - `src/channels/qqbot/src/gateway_client.ts`
+    - `src/channels/qqbot/src/session_store.ts`
+    - `src/channels/qqbot/src/index.ts`
+    - `src/channels/qqbot/package.json`
+    - `src/channels/wechat/manifest.json`
+    - `src/channels/wechat/package.json`
+    - `src/channels/wechat/tsconfig.json`
+    - `src/channels/wechat/.env.example`
+    - `src/channels/wechat/src/channel.ts`
+    - `src/channels/wechat/src/gateway_client.ts`
+    - `src/channels/wechat/src/session_store.ts`
+    - `src/channels/wechat/src/index.ts`
+    - `scripts/archive/run_qqbot_channel.ps1`
+    - `scripts/archive/run_wechat_channel.ps1`
   - capabilities:
     - QQ channel forwards `channel_type/conversation_id/sender_id` to Gateway and supports attachment-aware prompt wrapping
     - QQ and WeChat channels use lightweight file-backed session stores for restart-safe continuity
     - WeChat webhook channel implements signature verification, XML text/media intake, and Gateway roundtrip replies
+    - later terminal-first consolidation replaced per-channel launchers with `uv run mini-agent stack up` / `scripts/start_runtime_stack.ps1`
   - tests:
     - `tests/test_gateway_routers.py` (sender-specific conversation binding coverage)
 - [x] Add QQ/WeChat hardening slice with delivery guardrails and live smoke checks (P17 T5.3 hardening).
   - core implementation:
-    - `channels/qqbot/src/channel.ts`
-    - `channels/qqbot/src/gateway_client.ts`
-    - `channels/qqbot/src/index.ts`
-    - `channels/qqbot/src/smoke_runner.ts`
-    - `channels/qqbot/.env.example`
-    - `channels/wechat/src/channel.ts`
-    - `channels/wechat/src/gateway_client.ts`
-    - `channels/wechat/src/index.ts`
-    - `channels/wechat/.env.example`
+    - `src/channels/qqbot/src/channel.ts`
+    - `src/channels/qqbot/src/gateway_client.ts`
+    - `src/channels/qqbot/src/index.ts`
+    - `src/channels/qqbot/src/smoke_runner.ts`
+    - `src/channels/qqbot/.env.example`
+    - `src/channels/wechat/src/channel.ts`
+    - `src/channels/wechat/src/gateway_client.ts`
+    - `src/channels/wechat/src/index.ts`
+    - `src/channels/wechat/.env.example`
     - `scripts/qq_wechat_smoke.py`
   - capabilities:
     - gateway token passthrough for QQ/WeChat channel clients (`Authorization` bearer forwarding)
@@ -890,7 +892,7 @@ Mini execution contract:
 - [x] P18.7 Hard delete legacy paths (no compatibility shell retained)
 - [x] P18.8 Validation gate and release readiness
 
-Details and execution order: `docs/P18_HARD_REFACTOR_EXECUTION_PLAN.md`
+Details and execution order: `docs/archive/P18_HARD_REFACTOR_EXECUTION_PLAN.md`
 
 ## P19 Agent-Team Rollout (Kickoff)
 
@@ -915,7 +917,7 @@ Details and execution order: `docs/P18_HARD_REFACTOR_EXECUTION_PLAN.md`
   - tests:
     - `tests/test_p19_runtime_matrix.py`
   - runner:
-    - `scripts/p19_runtime_matrix.py`
+    - `scripts/ci/p19_runtime_matrix.py`
   - latest report:
     - `workspace/p19_matrix/p19_runtime_matrix_20260407T050342Z.md` (`overall: PASS`)
 - [x] Expose team-mode runtime counters in Studio Ops/API diagnostics views.
@@ -926,13 +928,13 @@ Details and execution order: `docs/P18_HARD_REFACTOR_EXECUTION_PLAN.md`
     - `src/apps/agent_studio/src/api/ops.ts`
     - `src/apps/agent_studio/src/components/StudioOpsMode.tsx`
   - smoke:
-    - `scripts/studio_ops_smoke.py` (`[3/8] runtime diagnostics`)
+    - `scripts/ci/studio_ops_smoke.py` (`[3/8] runtime diagnostics`)
 - [x] Define and enforce release promotion checklist policy.
   - policy:
     - deterministic gate = mandatory (blocking)
     - OpenWebUI no-dry-run = advisory (non-blocking, tracked)
   - implementation:
-    - `scripts/release_promotion_checklist.py`
+    - `scripts/ci/release_promotion_checklist.py`
     - `src/mini_agent/dev/release_promotion_checklist.py`
   - tests:
     - `tests/test_release_promotion_checklist.py`
@@ -948,7 +950,7 @@ Details and execution order: `docs/P18_HARD_REFACTOR_EXECUTION_PLAN.md`
     - `src/mini_agent/interfaces/system.py`
     - `src/apps/agent_studio/src/types.ts`
     - `src/apps/agent_studio/src/components/StudioOpsMode.tsx`
-    - `scripts/studio_ops_smoke.py`
+    - `scripts/ci/studio_ops_smoke.py`
   - tests:
     - `tests/test_main_agent_gateway_use_cases.py`
     - `tests/test_agent_studio_gateway_api_v1.py`
@@ -958,7 +960,7 @@ Details and execution order: `docs/P18_HARD_REFACTOR_EXECUTION_PLAN.md`
     - `workspace/release_gate/release_gate_deterministic_20260407T055638Z.md` (`Overall: PASS`)
 - [x] Team-mode operator runbook: publish enable/rollback steps and smoke recipe for `single_main` <-> `team`.
   - doc:
-    - `docs/P19_TEAM_MODE_OPERATOR_RUNBOOK.md`
+    - `docs/archive/P19_TEAM_MODE_OPERATOR_RUNBOOK.md`
   - includes:
     - mode switch envs (`MINI_AGENT_RUNTIME_MODE`, `MINI_AGENT_MAIN_WORKSPACE`, `MINI_AGENT_TEAM_MAX_AGENTS`)
     - rollback steps to `single_main`
@@ -973,9 +975,9 @@ Details and execution order: `docs/P18_HARD_REFACTOR_EXECUTION_PLAN.md`
     - `run_weekly_rollout_review_strict` (optional bool)
   - checklist command paths:
     - deterministic + advisory (when requested + `OPENWEBUI_ADVISORY_API_KEY` exists):
-      - `python scripts/release_promotion_checklist.py --studio-token studio-release-handoff-token --advisory-api-key "$OPENWEBUI_ADVISORY_API_KEY" --advisory-adapter-base-url "${{ inputs.advisory_adapter_base_url }}" --advisory-timeout "${{ inputs.advisory_timeout }}"`
+      - `python scripts/ci/release_promotion_checklist.py --studio-token studio-release-handoff-token --advisory-api-key "$OPENWEBUI_ADVISORY_API_KEY" --advisory-adapter-base-url "${{ inputs.advisory_adapter_base_url }}" --advisory-timeout "${{ inputs.advisory_timeout }}"`
     - deterministic-only fallback (default or missing advisory secret):
-      - `python scripts/release_promotion_checklist.py --studio-token studio-release-handoff-token --skip-advisory`
+      - `python scripts/ci/release_promotion_checklist.py --studio-token studio-release-handoff-token --skip-advisory`
   - artifact upload:
     - `workspace/release_promotion/release_promotion_*.md`
     - `workspace/release_gate/release_gate_deterministic_*.md`
@@ -986,11 +988,11 @@ Details and execution order: `docs/P18_HARD_REFACTOR_EXECUTION_PLAN.md`
     - `workspace/p19_rollout/p19_weekly_rollout_*.json` (strict weekly path)
     - `workspace/release_gate/openwebui_adapter_ci.log` (advisory path)
   - optional strict weekly review path:
-    - run matrix: `python scripts/p19_runtime_matrix.py`
-    - run strict review: `python scripts/p19_weekly_rollout_review.py --window-days 7 --target-profile stage --strict --strict-targets`
+    - run matrix: `python scripts/ci/p19_runtime_matrix.py`
+    - run strict review: `python scripts/ci/p19_weekly_rollout_review.py --window-days 7 --target-profile stage --strict --strict-targets`
 - [x] Promotion policy hardening: add dedicated CI check failing on missing deterministic gate artifact.
   - script:
-    - `scripts/check_deterministic_gate_artifact.py`
+    - `scripts/ci/check_deterministic_gate_artifact.py`
   - validation module:
     - `src/mini_agent/dev/deterministic_gate_artifact.py`
   - tests:
@@ -999,13 +1001,13 @@ Details and execution order: `docs/P18_HARD_REFACTOR_EXECUTION_PLAN.md`
     - `Validate Deterministic Gate Artifact (Required)` in `.github/workflows/ci.yml`
 - [x] Stage-C docs: publish external-facing team-mode rollout announcement and support FAQ.
   - docs:
-    - `docs/P19_TEAM_MODE_ROLLOUT_ANNOUNCEMENT.md`
-    - `docs/P19_TEAM_MODE_SUPPORT_FAQ.md`
+    - `docs/archive/P19_TEAM_MODE_ROLLOUT_ANNOUNCEMENT.md`
+    - `docs/archive/P19_TEAM_MODE_SUPPORT_FAQ.md`
   - linked operator guidance:
-    - `docs/P19_TEAM_MODE_OPERATOR_RUNBOOK.md`
+    - `docs/archive/P19_TEAM_MODE_OPERATOR_RUNBOOK.md`
 - [x] Ops alerting policy: define thresholds and operator actions for team-mode diagnostics counters.
   - policy doc:
-    - `docs/P19_TEAM_MODE_ALERT_POLICY.md`
+    - `docs/archive/P19_TEAM_MODE_ALERT_POLICY.md`
   - Studio Ops UI mapping:
     - `src/apps/agent_studio/src/components/StudioOpsMode.tsx`
     - `src/apps/agent_studio/src/styles.css`
@@ -1017,28 +1019,28 @@ Details and execution order: `docs/P18_HARD_REFACTOR_EXECUTION_PLAN.md`
     - `team_workspace_conflict_rejections` >= 1 -> warning, >= 3 -> critical
 - [x] Stage-C adoption tracking: define rollout KPI dashboard and weekly review checklist.
   - docs:
-    - `docs/P19_STAGEC_ADOPTION_TRACKING.md`
+    - `docs/archive/P19_STAGEC_ADOPTION_TRACKING.md`
   - automation/helper:
-    - `scripts/p19_weekly_rollout_review.py`
+    - `scripts/ci/p19_weekly_rollout_review.py`
     - `src/mini_agent/dev/p19_rollout_reporting.py`
   - tests:
     - `tests/test_p19_rollout_reporting.py`
 - [x] Team-mode canary cadence: formalize recurring `single_main` vs `team` matrix + deterministic gate review checkpoints.
   - doc:
-    - `docs/P19_TEAM_MODE_CANARY_CADENCE.md`
+    - `docs/archive/P19_TEAM_MODE_CANARY_CADENCE.md`
   - daily command bundle:
-    - `python scripts/p19_runtime_matrix.py`
-    - `python scripts/release_gate.py --start-local-gateway --studio-token studio-smoke-token`
-    - `python scripts/check_deterministic_gate_artifact.py`
+    - `python scripts/ci/p19_runtime_matrix.py`
+    - `python scripts/ci/release_gate.py --start-local-gateway --studio-token studio-smoke-token`
+    - `python scripts/ci/check_deterministic_gate_artifact.py`
 - [x] Release readiness reporting: add weekly summary template for deterministic/advisory gate outcomes and rollback decision log.
   - template:
-    - `docs/P19_WEEKLY_RELEASE_READINESS_TEMPLATE.md`
+    - `docs/archive/P19_WEEKLY_RELEASE_READINESS_TEMPLATE.md`
   - generated weekly report now includes rollback decision log section:
-    - `scripts/p19_weekly_rollout_review.py`
+    - `scripts/ci/p19_weekly_rollout_review.py`
 - [x] Runtime counter trend snapshots: aggregate saturation/conflict counters into weekly rollout report.
   - runtime snapshot artifact source:
-    - `scripts/studio_ops_smoke.py` (`--runtime-report-file`)
-    - `scripts/release_gate.py` (auto-wires snapshot output)
+    - `scripts/ci/studio_ops_smoke.py` (`--runtime-report-file`)
+    - `scripts/ci/release_gate.py` (auto-wires snapshot output)
   - aggregation:
     - `src/mini_agent/dev/p19_rollout_reporting.py`
   - surfaced in weekly report:
@@ -1047,15 +1049,15 @@ Details and execution order: `docs/P18_HARD_REFACTOR_EXECUTION_PLAN.md`
   - implementation:
     - `src/mini_agent/dev/p19_rollout_reporting.py` (`RolloutTargetBands`, `evaluate_target_bands`)
   - CLI:
-    - `scripts/p19_weekly_rollout_review.py --target-profile <dev|stage|prod>`
+    - `scripts/ci/p19_weekly_rollout_review.py --target-profile <dev|stage|prod>`
   - docs:
-    - `docs/P19_STAGEC_ADOPTION_TRACKING.md`
+    - `docs/archive/P19_STAGEC_ADOPTION_TRACKING.md`
 - [x] Weekly delta section: compare current KPI window against previous window for faster triage.
   - weekly report section:
     - `## Weekly Delta vs Previous Window`
   - implementation:
     - `src/mini_agent/dev/p19_rollout_reporting.py`
-    - `scripts/p19_weekly_rollout_review.py`
+    - `scripts/ci/p19_weekly_rollout_review.py`
   - CI strict weekly path updated:
     - `.github/workflows/ci.yml` (`--target-profile stage --strict --strict-targets`)
 - [x] Runtime mode-split trend: expose single_main vs team counter view in weekly report.
@@ -1070,7 +1072,7 @@ Details and execution order: `docs/P18_HARD_REFACTOR_EXECUTION_PLAN.md`
     - `src/mini_agent/dev/p19_rollout_reporting.py` (`build_target_remediation_hints`)
 - [x] Machine-readable weekly summary artifact: emit JSON alongside markdown weekly report.
   - script:
-    - `scripts/p19_weekly_rollout_review.py` (`--json-report-file`)
+    - `scripts/ci/p19_weekly_rollout_review.py` (`--json-report-file`)
   - payload builder:
     - `src/mini_agent/dev/p19_rollout_reporting.py` (`build_weekly_rollout_payload`)
   - CI artifact upload:
@@ -1121,3 +1123,4 @@ Details and execution order: `docs/P18_HARD_REFACTOR_EXECUTION_PLAN.md`
 | Multi-platform messaging | QQ + WeChat only |
 | Feature flags / telemetry / session replay | Enterprise overhead |
 | Voice transcription | Requires STT model, extra cost |
+

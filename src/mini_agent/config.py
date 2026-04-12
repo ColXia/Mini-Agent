@@ -142,7 +142,7 @@ class Config(BaseModel):
         config_path = cls.get_default_config_path()
         if not config_path.exists():
             raise FileNotFoundError(
-                "Configuration file not found. Run scripts/setup-config.sh or place config.yaml in mini_agent/config/."
+                "Configuration file not found. Place config.yaml in src/mini_agent/config/ (preferred) or ~/.mini-agent/config/."
             )
         return cls.from_yaml(config_path, allow_interactive_setup=allow_interactive_setup)
 
@@ -470,9 +470,10 @@ class Config(BaseModel):
         """Find configuration file with priority order
 
         Search for config file in the following order of priority:
-        1) mini_agent/config/{filename} in current directory (development mode)
-        2) ~/.mini-agent/config/{filename} in user home directory
-        3) {package}/mini_agent/config/{filename} in package installation directory
+        1) src/mini_agent/config/{filename} in current directory (preferred dev mode)
+        2) mini_agent/config/{filename} in current directory (legacy dev mode)
+        3) ~/.mini-agent/config/{filename} in user home directory
+        4) {package}/config/{filename} in package installation directory
 
         Args:
             filename: Configuration file name (e.g., "config.yaml", "mcp.json", "system_prompt.md")
@@ -480,17 +481,22 @@ class Config(BaseModel):
         Returns:
             Path to found config file, or None if not found
         """
-        # Priority 1: Development mode - current directory's config/ subdirectory
+        # Priority 1: Preferred src-layout development path
+        src_dev_config = Path.cwd() / "src" / "mini_agent" / "config" / filename
+        if src_dev_config.exists():
+            return src_dev_config
+
+        # Priority 2: Legacy development mode path
         dev_config = Path.cwd() / "mini_agent" / "config" / filename
         if dev_config.exists():
             return dev_config
 
-        # Priority 2: User config directory
+        # Priority 3: User config directory
         user_config = Path.home() / ".mini-agent" / "config" / filename
         if user_config.exists():
             return user_config
 
-        # Priority 3: Package installation directory's config/ subdirectory
+        # Priority 4: Package installation directory's config/ subdirectory
         package_config = cls.get_package_dir() / "config" / filename
         if package_config.exists():
             return package_config

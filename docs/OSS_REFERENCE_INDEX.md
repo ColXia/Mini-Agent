@@ -111,7 +111,7 @@ This index maps concrete upstream implementations to Mini-Agent refactor targets
 | Gateway single-entry architecture | `C:/Users/Conli/ai开源项目/openclaw-main/docs/concepts/architecture.md` | `gateway/core/*`, gateway runtime boundary |
 | Session route model (DM/group/cron) | `C:/Users/Conli/ai开源项目/openclaw-main/docs/concepts/session.md` | unified session key rules in `mini_agent/core/session.py` |
 | Session maintenance and pruning policy | `C:/Users/Conli/ai开源项目/openclaw-main/docs/concepts/session-pruning.md` | `mini_agent/agent.py` pruning hook + retention policy |
-| Gateway lock singleton | `C:/Users/Conli/ai开源项目/openclaw-main/docs/gateway/gateway-lock.md` | gateway startup lock in `apps/agent_studio_gateway/main.py` |
+| Gateway lock singleton | `C:/Users/Conli/ai开源项目/openclaw-main/docs/gateway/gateway-lock.md` | gateway startup lock in `src/apps/agent_studio_gateway/main.py` |
 | Pairing and trust boundary | `C:/Users/Conli/ai开源项目/openclaw-main/docs/gateway/pairing.md` | channel/session access control layer |
 | Sandbox/tool/elevated layered policy | `C:/Users/Conli/ai开源项目/openclaw-main/docs/gateway/sandbox-vs-tool-policy-vs-elevated.md` | runtime policy engine (`tools` + approvals) |
 | Sandbox backends and scope | `C:/Users/Conli/ai开源项目/openclaw-main/docs/gateway/sandboxing.md` | future sandbox config model in `mini_agent/config.py` |

@@ -70,7 +70,7 @@ This track is a hard refactor.
 - [x] Move Studio Ops router input/output models into interface DTOs (`mini_agent/interfaces/ops.py`).
 - [x] Move main-agent router orchestration to application use-cases (`mini_agent/application/main_agent_gateway_use_cases.py`).
 - [x] Move remaining router input/output models into interface DTOs.
-- [x] Remove direct infra calls from remaining routers (`apps/agent_studio_gateway/studio_router.py` -> `mini_agent/application/studio_ops_use_cases.py`).
+- [x] Remove direct infra calls from remaining routers (`src/apps/agent_studio_gateway/studio_router.py` -> `mini_agent/application/studio_ops_use_cases.py`).
 - [x] Add contract tests for interface DTO stability.
 
 ## P18.2 Main-Agent Runtime Consolidation
@@ -98,7 +98,7 @@ This track is a hard refactor.
 ## P18.5 Frontend Refactor to Contract Client
 
 - [x] Replace mixed API calls with single typed client layer.
-- [x] Split UI modules by domain: workspace/novel/ops/channel (`apps/agent_studio/src/features/*`, `apps/agent_studio/src/components/ChannelMode.tsx`, `apps/agent_studio/src/api/*`).
+- [x] Split UI modules by domain: workspace/novel/ops/channel (`src/apps/agent_studio/src/features/*`, `src/apps/agent_studio/src/components/ChannelMode.tsx`, `src/apps/agent_studio/src/api/*`).
 - [x] Remove state coupling and implicit endpoint assumptions (`useWorkspaceChat` hook + domain API modules).
 - [x] Add frontend contract smoke tests against `/api/v1/*` (`tests/test_agent_studio_frontend_contract_client.py`).
 

@@ -7,6 +7,19 @@ from mini_agent.config import AgentConfig, Config, LLMConfig, SecurityConfig, To
 from mini_agent.security.audit import run_security_audit
 
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _clear_runtime_policy_env(monkeypatch):
+    for name in (
+        "MINI_AGENT_APPROVAL_PROFILE",
+        "MINI_AGENT_AGENT_MODE",
+        "MINI_AGENT_ACCESS_LEVEL",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+
 def _make_config(mcp_path: Path, security: SecurityConfig) -> Config:
     return Config(
         llm=LLMConfig(api_key="test-key"),

@@ -51,7 +51,7 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools]
 include-package-data = true
 
-# Include skills directory (git submodule) as package data
+# Include bundled skills directory as package data
 [tool.setuptools.package-data]
 mini_agent = ["skills/**/*"]
 
@@ -80,3 +80,4 @@ dev = [
     "pip>=25.3",
     "pipx>=1.8.0",
 ]
+

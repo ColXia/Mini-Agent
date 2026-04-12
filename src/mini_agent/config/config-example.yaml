@@ -1,9 +1,10 @@
 # Mini Agent Configuration Example
 # 
 # Configuration File Locations (in priority order):
-# 1) mini_agent/config/config.yaml - Development mode (current directory)
-# 2) ~/.mini-agent/config/config.yaml - User config directory
-# 3) <package>/mini_agent/config/config.yaml - Package installation directory
+# 1) src/mini_agent/config/config.yaml - Preferred development mode
+# 2) mini_agent/config/config.yaml - Legacy development mode
+# 3) ~/.mini-agent/config/config.yaml - User config directory
+# 4) <package>/config/config.yaml - Package installation directory
 #
 # To use this config:
 # - Copy this file to one of the above locations as config.yaml

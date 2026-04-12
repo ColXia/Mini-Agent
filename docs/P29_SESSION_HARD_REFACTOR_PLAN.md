@@ -399,7 +399,7 @@ Remove parallel QQ/session abstractions and define one active channel path.
 
 ### Tasks
 
-- explicitly declare `apps/qqbot_channel` as canonical or replace it with one consolidated alternative
+- explicitly declare `src/apps/qqbot_channel` as canonical or replace it with one consolidated alternative
 - archive or remove duplicate QQ/channel stacks
 - remove dead Python-side channel abstractions if they are no longer part of the active runtime
 - converge conversation-to-session binding onto one canonical owner

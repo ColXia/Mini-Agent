@@ -1,5 +1,82 @@
 # Findings
 
+## 2026-04-12 Repo Hygiene And Documentation Audit
+
+- The current root `README.md` is still an older upstream/demo-style document and no longer matches the real project surface:
+  - it still documents `config.yaml`-centric setup
+  - it still claims `git submodule update --init --recursive` is part of normal setup
+  - it still brands builtin skills as `Claude Skills`
+  - it links to `./README_CN.md`, but the repo currently has no root `README_CN.md`
+- The current runtime reality is different:
+  - terminal-first unified entry is `mini-agent` / `mini`
+  - runtime modes include `tui`, `cli`, `headless`, `serve`, `stack`, and `qq`
+  - preset providers are keyed by official env vars:
+    - `OPENAI_API_KEY`
+    - `ANTHROPIC_API_KEY`
+    - `GEMINI_API_KEY`
+    - `MINIMAX_API_KEY`
+  - local fallback is `.env.local`
+  - custom providers are persisted to `~/.mini-agent/providers.json`
+- The skills path is now bundled in-repo under `src/mini_agent/skills/`; it is not an actively used git submodule dependency.
+- `.gitmodules` still points to `https://github.com/anthropics/skills.git`, but `git submodule status` returns empty and the declared submodule path does not represent the current runtime layout.
+- `docs/DEVELOPMENT_GUIDE.md` and `docs/DEVELOPMENT_GUIDE_CN.md` still describe the old skill/submodule/config path model and should be treated as stale active docs until corrected.
+- `docs/README_CN.md` is also a stale duplicate of the old README track and no longer matches the current repo contract.
+- The repo root contains multiple ignored one-off probe files that are clearly not product assets:
+  - delete/recycle experiments (`delete*.vbs`, `delete*.ps1`, `recycle_bin.cs`, `rename_delete.vbs`, `runas_delete.ps1`)
+  - ad hoc DOCX probes (`read_docx*.py`)
+  - temporary TUI/model state dumps (`tmp_*.json`)
+  - `test.txt`
+- Those probe files are personal/local experiments, not reusable scripts:
+  - they contain hard-coded local machine paths
+  - they are already ignored in `.gitignore`
+  - they should be cleaned, not promoted into tracked `scripts/` or `tests/`
+- The repo also contains ignored cache and walkthrough residue that should be physically cleaned for hygiene:
+  - `tests/__pycache__/`
+  - `scripts/__pycache__/`
+  - `.ruff_cache/`
+  - `.tmp-*`
+  - temp acceptance/readiness outputs under `workspace/`
+- `src/` root also contained a second category of hygiene drift:
+  - 24 ad hoc `test_*` files mixed directly into the source tree
+  - contents were standalone streaming/file-I/O probe scripts plus sample input/output files
+  - they were not referenced by runtime code, docs, or repo tests
+  - they did not belong in `src/`, `tests/`, or `scripts/` in their current form and were safe to remove
+- `src/**/__pycache__/` directories were present across many runtime packages:
+  - these were interpreter cache artifacts, not source assets
+  - they should be physically cleaned during repo-hygiene passes
+- `scripts/setup-config.ps1` and `scripts/setup-config.sh` were not just slightly stale:
+  - they still downloaded templates from an old GitHub raw path
+  - they still documented the old `config.yaml`-centric onboarding flow as the primary path
+  - they did not reflect the current env-first preset-provider behavior
+- Several live/integration tests still encoded legacy path assumptions:
+  - direct reads from `mini_agent/config/config.yaml`
+  - direct reads from `mini_agent/config/system_prompt.md`
+  - direct MCP loads from `mini_agent/config/mcp.json`
+  - these tests worked only because `scripts/test_stable.py` changed the working directory to `src/`
+- Some active docs had a different class of hygiene problem:
+  - `docs/CONTRIBUTING.md` still used generic-but-misleading old fork/clone guidance and dead links
+  - `docs/CONTRIBUTING_CN.md` had become unreadable due to encoding corruption
+  - `docs/DIRECTORY_STRUCTURE.md` was also encoding-corrupted and no longer belonged in the active doc surface
+- After the second cleanup pass, the remaining hits for `git submodule` / `Claude Skills` in active docs are intentional historical clarifications, not setup instructions.
+- A deeper verification pass surfaced one structural import issue:
+  - importing `mini_agent.commands.mcp_support` first executed `mini_agent.commands.__init__`
+  - the package then eagerly imported `.execution`, which imported `skill_support`, which imported `runtime.tooling`
+  - `runtime.tooling` already imported `.mcp_support`, creating a circular import during stable-suite collection
+  - converting `mini_agent.commands` exports to lazy resolution removed that cycle cleanly
+- Stable-suite verification also exposed test isolation drift:
+  - security-policy tests were being affected by ambient `MINI_AGENT_APPROVAL_PROFILE`, `MINI_AGENT_AGENT_MODE`, and `MINI_AGENT_ACCESS_LEVEL`
+  - those tests validate explicit config objects, so they now clear runtime-policy env vars locally to stay deterministic
+- Some documents now look historical rather than active-operational:
+  - `docs/devlog_2026-04-05.md`
+  - `docs/devlog_2026-04-07.md`
+  - `docs/CROSS_DEVICE_HANDOFF_2026-04-07.md`
+  - `docs/GITHUB_UPLOAD_SCOPE_2026-04-07.md`
+  - likely `docs/DOCUMENTATION_REORG_REPORT.md`
+- A follow-up implementation detail surfaced during verification:
+  - rewriting `pyproject.toml` with PowerShell's default UTF-8 mode introduced a BOM
+  - `uv` / `tomllib` then failed to parse the file with `TOMLDecodeError: Invalid statement (at line 1, column 1)`
+  - writing the file back as UTF-8 without BOM fixed the build immediately
+
 ## 2026-04-12 P29.3e Local Skill Command Convergence
 
 - `skill` was the last large local operator command family still duplicated in both TUI and CLI.
@@ -1047,3 +1124,66 @@
 - A real-use integration test was worth adding now, before more automation expands:
   - personal workflow memory behavior is easy to misunderstand if only unit tests exist
   - `tests/test_memory_real_use_flow.py` now checks that workspace/session boundaries stay intact and KB-grounded facts still require explicit confirmation before durable promotion
+
+## 2026-04-12 Repo Hygiene Pass 3: Scripts / Docs / Generated Artifacts
+
+- After the `src/test_*` cleanup, the next hygiene risk was not code logic but stale entrypoints:
+  - `scripts/run_agent_studio.ps1` still pointed at pre-`src/` Studio paths
+  - `scripts/run_qqbot_channel.ps1` and `scripts/run_wechat_channel.ps1` still contained hard-coded personal filesystem paths
+  - `scripts/run_release_gate_openwebui.ps1` was no longer the maintained path and kept WebUI-era operator assumptions alive
+- The repo also still had local generated residue that could mislead future scans:
+  - `src/apps/agent_studio/node_modules`
+  - `src/apps/qqbot_channel/node_modules`
+  - `src/apps/qqbot_channel/runtime.log`
+  - repo-owned `__pycache__` directories
+- The clean fix was boundary clarification, not more wrappers:
+  - move obsolete launchers to `scripts/archive/`
+  - add `scripts/README.md` and `scripts/archive/README.md`
+  - archive the stale `docs/agent_studio_quickstart_zh-CN.md`
+  - update active docs to point at `uv run mini-agent stack up`, `scripts/start_runtime_stack.ps1`, and direct `python scripts/release_gate.py ...` usage
+- Documentation accuracy needed a second pass too:
+  - several active docs still used pre-`src/` path forms such as `apps/agent_studio_gateway/...` or `channels/qqbot/...`
+  - these were corrected where they are part of the active surface or active planning set, so current readers land on real files instead of historical tree layouts
+- Verification worth keeping in mind:
+  - `uv run pytest tests/test_markdown_links.py -q` -> `1 passed`
+  - `uv run python scripts/test_stable.py` -> `819 passed, 32 deselected`
+
+## 2026-04-12 Repo Hygiene Pass 4: Archive P18/P19 + Split CI Scripts
+
+- Root docs were still carrying a full completed-phase bundle from `P18/P19`:
+  - hard-refactor execution plan and route backlog
+  - closeout baseline evidence
+  - rollout contract, runbook, alerting, canary, FAQ, weekly template
+- Those files were still technically linked from active indexes, which made the root `docs/` surface look broader and more current than it really is.
+- The cleaner boundary was:
+  - keep `docs/` root centered on current terminal-first and `P29/P30` execution docs
+  - move completed `P18/P19` phase docs into `docs/archive/`
+  - update indexes so archived material remains discoverable but no longer impersonates active guidance
+- `scripts/` had a second discoverability problem:
+  - root mixed daily developer helpers with release-handoff / promotion / matrix scripts
+  - the directory looked “active” even when several files were only meaningful in CI or release workflows
+- The clean split for scripts is now:
+  - active operator/developer helpers stay in `scripts/`
+  - release/CI/reporting scripts move to `scripts/ci/`
+  - obsolete launchers stay in `scripts/archive/`
+- This keeps the repo surface honest:
+  - current execution anchor is `P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md`
+  - archived phase docs are still traceable
+  - CI-only scripts are still present, but they no longer crowd the day-to-day script surface
+- Verification:
+  - `uv run pytest tests/test_markdown_links.py -q` -> `1 passed`
+  - `uv run python scripts/ci/release_gate.py --help`
+  - `uv run python scripts/ci/release_promotion_checklist.py --help`
+  - `uv run python scripts/ci/open_webui_verify.py --help`
+  - `uv run python scripts/test_stable.py` -> `819 passed, 32 deselected`
+
+## 2026-04-12 Repo Hygiene Pass 5: Final Root-Docs Slimming
+
+- After the larger archive pass, a few obviously non-mainline docs were still sitting in `docs/` root:
+  - `ANTI_DUPLICATION_REPORT_2026-04-07.md`
+  - `EXTERNAL_OSS_INDEX.md`
+  - `MODEL_DISCOVERY_INTEGRATION.md`
+- These were either one-off analysis outputs or environment-specific reference aids, not current execution docs.
+- The right final cleanup was to archive them and keep only archive links from the remaining active indexes.
+- Verification:
+  - `uv run pytest tests/test_markdown_links.py -q` -> `1 passed`

@@ -208,7 +208,7 @@ In addition, there is an older Python-side channel abstraction:
 
 - `src/gateway/channels/base.py`
 
-The active stack manager points to `apps/qqbot_channel`, not `channels/qqbot`.
+The active stack manager points to `src/apps/qqbot_channel`, not `src/channels/qqbot`.
 
 Impact:
 

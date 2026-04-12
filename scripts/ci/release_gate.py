@@ -22,7 +22,7 @@ from urllib.parse import urlparse
 import requests
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 @dataclass(frozen=True)
@@ -267,7 +267,7 @@ def main(argv: list[str] | None = None) -> int:
             )
 
         if not args.skip_openwebui_verify:
-            cmd = [python_bin, "scripts/open_webui_verify.py"]
+            cmd = [python_bin, "scripts/ci/open_webui_verify.py"]
             if args.openwebui_run_smoke:
                 cmd.extend(["--run-smoke", "--adapter-base-url", args.openwebui_adapter_base_url, "--timeout", str(args.openwebui_timeout)])
                 if args.openwebui_api_key:
@@ -281,7 +281,7 @@ def main(argv: list[str] | None = None) -> int:
         if not args.skip_studio_ops_smoke:
             cmd = [
                 python_bin,
-                "scripts/studio_ops_smoke.py",
+                "scripts/ci/studio_ops_smoke.py",
                 "--base-url",
                 args.studio_base_url,
                 "--workspace-root",

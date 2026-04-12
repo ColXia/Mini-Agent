@@ -30,6 +30,15 @@ def _create_temp_mcp_config(config: dict) -> Path:
     return path
 
 
+def _resolve_mcp_config_path() -> Path:
+    mcp_config_path = Config.find_config_file("mcp.json")
+    if mcp_config_path is None:
+        mcp_config_path = Config.find_config_file("mcp-example.json")
+    if mcp_config_path is None:
+        pytest.skip("No MCP config found in active search paths")
+    return mcp_config_path
+
+
 @pytest.fixture(scope="module")
 def mcp_config():
     """Read MCP configuration."""
@@ -364,7 +373,7 @@ async def test_mcp_tools_loading():
 
     try:
         # Load MCP tools
-        tools = await load_mcp_tools_async("mini_agent/config/mcp.json")
+        tools = await load_mcp_tools_async(str(_resolve_mcp_config_path()))
 
         print(f"Loaded {len(tools)} MCP tools")
 
@@ -406,7 +415,7 @@ async def test_git_mcp_loading(mcp_config):
 
     try:
         # Load MCP tools
-        tools = await load_mcp_tools_async("mini_agent/config/mcp.json")
+        tools = await load_mcp_tools_async(str(_resolve_mcp_config_path()))
 
         print("\n鉁?Loaded successfully!")
         print("\n馃搳 Statistics:")
@@ -466,7 +475,7 @@ async def test_git_mcp_tool_availability():
     print("\n=== Testing Git MCP Tool Availability ===")
 
     try:
-        tools = await load_mcp_tools_async("mini_agent/config/mcp.json")
+        tools = await load_mcp_tools_async(str(_resolve_mcp_config_path()))
 
         if not tools:
             pytest.skip("No MCP tools loaded")
@@ -493,7 +502,7 @@ async def test_mcp_tool_execution():
     print("\n=== Testing MCP Tool Execution ===")
 
     try:
-        tools = await load_mcp_tools_async("mini_agent/config/mcp.json")
+        tools = await load_mcp_tools_async(str(_resolve_mcp_config_path()))
 
         if not tools:
             print("鈿狅笍  No MCP tools loaded, skipping execution test")

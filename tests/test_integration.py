@@ -24,6 +24,26 @@ pytestmark = [
 ]
 
 
+def _load_live_config() -> Config:
+    config_path = Config.find_config_file("config.yaml")
+    if config_path is None:
+        pytest.skip("config.yaml not found in active search paths")
+    return Config.from_yaml(config_path, allow_interactive_setup=False)
+
+
+def _load_system_prompt() -> str:
+    system_prompt_path = Config.find_config_file("system_prompt.md")
+    if system_prompt_path and system_prompt_path.exists():
+        return system_prompt_path.read_text(encoding="utf-8")
+    return "You are a helpful AI assistant."
+
+
+def _find_mcp_config() -> Path | None:
+    return Config.find_config_file("mcp.json") or Config.find_config_file(
+        "mcp-example.json"
+    )
+
+
 @pytest.mark.asyncio
 async def test_basic_agent_usage():
     """Test basic agent usage with file creation task.
@@ -35,12 +55,7 @@ async def test_basic_agent_usage():
     print("Integration Test: Basic Agent Usage")
     print("=" * 80)
 
-    # Load configuration
-    config_path = Path("mini_agent/config/config.yaml")
-    if not config_path.exists():
-        pytest.skip("config.yaml not found")
-
-    config = Config.from_yaml(config_path)
+    config = _load_live_config()
 
     # Check API key
     if not config.llm.api_key or config.llm.api_key == "YOUR_MINIMAX_API_KEY_HERE":
@@ -48,12 +63,7 @@ async def test_basic_agent_usage():
 
     # Use temporary workspace
     with tempfile.TemporaryDirectory() as workspace_dir:
-        # Load system prompt (Agent will auto-inject workspace info)
-        system_prompt_path = Path("mini_agent/config/system_prompt.md")
-        if system_prompt_path.exists():
-            system_prompt = system_prompt_path.read_text(encoding="utf-8")
-        else:
-            system_prompt = "You are a helpful AI assistant."
+        system_prompt = _load_system_prompt()
 
         # Initialize LLM client
         llm_client = LLMClient(
@@ -83,14 +93,15 @@ async def test_basic_agent_usage():
         try:
             # MCP tools are disabled by default to prevent test hangs
             # Enable specific MCP servers in mcp.json if needed
-            mcp_tools = await load_mcp_tools_async(
-                config_path="mini_agent/config/mcp.json"
-            )
+            mcp_tools = []
+            mcp_config_path = _find_mcp_config()
+            if mcp_config_path is not None:
+                mcp_tools = await load_mcp_tools_async(config_path=str(mcp_config_path))
             if mcp_tools:
                 print(f"✓ Loaded {len(mcp_tools)} MCP tools")
                 tools.extend(mcp_tools)
             else:
-                print("⚠️  No MCP tools configured (mcp.json is empty)")
+                print("⚠️  No MCP tools configured or enabled")
         except Exception as e:
             print(f"⚠️  MCP tools not loaded: {e}")
 
@@ -139,12 +150,7 @@ async def test_session_memory_demo():
     print("Integration Test: Session Memory Demo")
     print("=" * 80)
 
-    # Load config
-    config_path = Path("mini_agent/config/config.yaml")
-    if not config_path.exists():
-        pytest.skip("config.yaml not found")
-
-    config = Config.from_yaml(config_path)
+    config = _load_live_config()
 
     # Check API key
     if not config.llm.api_key or config.llm.api_key == "YOUR_MINIMAX_API_KEY_HERE":
@@ -259,7 +265,7 @@ async def main():
     print("=" * 80)
     print("Running Integration Tests")
     print("=" * 80)
-    print("\nNote: These tests require a valid MiniMax API key in config.yaml")
+    print("\nNote: These tests require a valid live provider config in active search paths.")
     print("These tests will actually call the LLM API and may take some time.\n")
 
     try:

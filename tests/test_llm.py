@@ -2,11 +2,10 @@
 
 import asyncio
 import os
-from pathlib import Path
-
 import pytest
 import yaml
 
+from mini_agent.config import Config
 from mini_agent.llm import LLMClient
 from mini_agent.schema import LLMProvider, Message
 
@@ -20,15 +19,21 @@ pytestmark = [
 ]
 
 
+def _load_raw_config() -> dict:
+    config_path = Config.find_config_file("config.yaml")
+    if config_path is None:
+        pytest.skip("config.yaml not found in active search paths")
+    with open(config_path, encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
 @pytest.mark.asyncio
 async def test_wrapper_anthropic_provider():
     """Test LLM wrapper with Anthropic provider."""
     print("\n=== Testing LLM Wrapper (Anthropic Provider) ===")
 
     # Load config
-    config_path = Path("mini_agent/config/config.yaml")
-    with open(config_path, encoding="utf-8") as f:
-        config = yaml.safe_load(f)
+    config = _load_raw_config()
 
     # Create client with Anthropic provider
     client = LLMClient(
@@ -73,9 +78,7 @@ async def test_wrapper_openai_provider():
     print("\n=== Testing LLM Wrapper (OpenAI Provider) ===")
 
     # Load config
-    config_path = Path("mini_agent/config/config.yaml")
-    with open(config_path, encoding="utf-8") as f:
-        config = yaml.safe_load(f)
+    config = _load_raw_config()
 
     # Create client with OpenAI provider
     client = LLMClient(
@@ -119,9 +122,7 @@ async def test_wrapper_default_provider():
     print("\n=== Testing LLM Wrapper (Default Provider) ===")
 
     # Load config
-    config_path = Path("mini_agent/config/config.yaml")
-    with open(config_path, encoding="utf-8") as f:
-        config = yaml.safe_load(f)
+    config = _load_raw_config()
 
     # Create client without specifying provider (should default to Anthropic)
     client = LLMClient(
@@ -140,9 +141,7 @@ async def test_wrapper_tool_calling():
     print("\n=== Testing LLM Wrapper Tool Calling ===")
 
     # Load config
-    config_path = Path("mini_agent/config/config.yaml")
-    with open(config_path, encoding="utf-8") as f:
-        config = yaml.safe_load(f)
+    config = _load_raw_config()
 
     # Create client with Anthropic provider
     client = LLMClient(
@@ -212,7 +211,7 @@ async def main():
     print("=" * 80)
     print("Running LLM Wrapper Tests")
     print("=" * 80)
-    print("\nNote: These tests require a valid MiniMax API key in config.yaml")
+    print("\nNote: These tests require a valid live provider config in active search paths.")
 
     results = []
 

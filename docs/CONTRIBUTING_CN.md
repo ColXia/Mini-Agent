@@ -1,201 +1,83 @@
-# 贡献指南
+﻿# 贡献指南
 
-感谢你对 Mini Agent 项目的兴趣！我们欢迎各种形式的贡献。
+当前仓库以终端优先的 Agent 项目方式开发。
 
-## 如何贡献
+## 提交前先看
 
-### 报告 Bug
+- 阅读 [README_CN.md](../README_CN.md) 和 [docs/DEVELOPMENT_GUIDE_CN.md](./DEVELOPMENT_GUIDE_CN.md)
+- 用 [docs/ARCHITECTURE.md](./ARCHITECTURE.md) 确认当前架构边界
+- `docs/archive/` 只作为历史参考，不作为当前实现依据
+- 当前主交互面是 `TUI / CLI / headless`，WebUI 处于暂停开发状态
 
-如果你发现了 bug，请创建一个 Issue 并包含以下信息：
+## 开始开发
 
-- **问题描述**：清晰描述问题
-- **复现步骤**：详细的复现步骤
-- **预期行为**：你期望发生什么
-- **实际行为**：实际发生了什么
-- **环境信息**：
-  - Python 版本
-  - 操作系统
-  - 相关依赖版本
-
-### 提出新功能
-
-如果你有新功能的想法，请先创建一个 Issue 讨论：
-
-- 描述功能的用途和价值
-- 说明预期的使用场景
-- 如果可能，提供设计思路
-
-### 提交代码
-
-#### 准备工作
-
-1. Fork 本仓库
-2. 克隆你的 fork：
+1. 克隆你要提交代码的仓库。
    ```bash
-   git clone https://github.com/MiniMax-AI/Mini-Agent mini-agent
+   git clone <your-fork-or-origin-url> mini-agent
    cd mini-agent
    ```
-
-3. 创建新分支：
-   ```bash
-   git checkout -b feature/your-feature-name
-   # 或
-   git checkout -b fix/your-bug-fix
-   ```
-
-4. 安装开发依赖：
+2. 安装依赖。
    ```bash
    uv sync
    ```
-
-#### 开发流程
-
-1. **编写代码**
-   - 遵循项目的代码风格（参考 [开发指南](docs/DEVELOPMENT.md#代码规范)）
-   - 添加必要的注释和文档字符串
-   - 保持代码简洁清晰
-
-2. **添加测试**
-   - 为新功能添加测试用例
-   - 确保所有测试通过：
-     ```bash
-     pytest tests/ -v
-     ```
-
-3. **更新文档**
-   - 如果添加了新功能，更新 README 或相关文档
-   - 保持文档与代码同步
-
-4. **提交更改**
-   - 使用清晰的提交消息：
-     ```bash
-     git commit -m "feat(tools): 添加新的文件搜索工具"
-     # 或
-     git commit -m "fix(agent): 修复工具调用错误处理"
-     ```
-   
-   - 提交消息格式：
-     - `feat`: 新功能
-     - `fix`: Bug 修复
-     - `docs`: 文档更新
-     - `style`: 代码格式调整
-     - `refactor`: 代码重构
-     - `test`: 测试相关
-     - `chore`: 构建或辅助工具
-
-5. **推送到你的 fork**
+3. 先做一轮最小验证。
    ```bash
-   git push origin feature/your-feature-name
+   uv run mini-agent --help
+   uv run pytest tests/test_markdown_links.py -q
    ```
 
-6. **创建 Pull Request**
-   - 在 GitHub 上创建 Pull Request
-   - 清楚描述你的更改
-   - 引用相关的 Issue（如果有）
+## 开发规则
 
-#### Pull Request 检查清单
+- 修改范围尽量聚焦，不要把清理、重构、功能开发混在一起而不说明原因
+- 除非确有兼容性要求，否则优先按当前真实运行路径实现，不要堆兼容壳
+- 运行行为或架构边界变更后，要同步更新文档
+- 活跃文档与历史文档要明确分层
+- 不要提交本地密钥、`.env.local`、运行时状态文件或 workspace 产物
 
-在提交 PR 之前，请确保：
+## 测试与脚本边界
 
-- [ ] 代码遵循项目规范
-- [ ] 所有测试通过
-- [ ] 添加了必要的测试
-- [ ] 更新了相关文档
-- [ ] 提交消息清晰明确
-- [ ] 没有不相关的更改
+- 自动化测试统一放在 `tests/`
+- 可复用辅助脚本统一放在 `scripts/`
+- 不要把一次性探针脚本和测试样例丢进 `src/` 或仓库根目录
+- 先跑最小相关测试，再按需要扩大验证范围
 
-### 代码审查
+示例：
 
-所有 Pull Request 需要经过代码审查：
-
-- 我们会尽快审查你的代码
-- 可能会要求一些修改
-- 请保持耐心并及时响应反馈
-- 审查通过后会被合并到主分支
-
-## 代码规范
-
-### Python 代码风格
-
-遵循 PEP 8 和 Google Python Style Guide：
-
-```python
-# 好的示例 ✅
-class MyClass:
-    """类的简短描述。
-    
-    详细描述...
-    """
-    
-    def my_method(self, param1: str, param2: int = 10) -> str:
-        """方法的简短描述。
-        
-        Args:
-            param1: 参数1的描述
-            param2: 参数2的描述
-        
-        Returns:
-            返回值的描述
-        """
-        pass
-
-# 不好的示例 ❌
-class myclass:  # 类名应该用 PascalCase
-    def MyMethod(self,param1,param2=10):  # 方法名应该用 snake_case
-        pass  # 缺少 docstring
+```bash
+uv run pytest tests/test_config_local_env.py tests/test_preset_providers.py -q
+uv run pytest tests/test_command_execution_service.py -q
+python scripts/test_stable.py
 ```
 
-### 类型注解
+## 文档同步
 
-使用 Python 类型注解：
+如果你的改动影响了行为或架构，请顺手检查这些文档是否需要更新：
 
-```python
-from typing import List, Dict, Optional
+- [README.md](../README.md)
+- [README_CN.md](../README_CN.md)
+- [docs/DOCS_INDEX.md](./DOCS_INDEX.md)
+- [docs/DEVELOPMENT_INDEX.md](./DEVELOPMENT_INDEX.md)
+- [docs/REFACTOR_TASKS.md](./REFACTOR_TASKS.md)
 
-async def process_messages(
-    messages: List[Dict[str, Any]],
-    max_tokens: Optional[int] = None
-) -> str:
-    """处理消息列表"""
-    pass
-```
+## Pull Request
 
-### 测试
+提交 PR 前请确认：
 
-- 为新功能编写测试
-- 保持测试简单清晰
-- 测试覆盖关键路径
+- 改动目标明确
+- 已运行与改动相关的测试
+- 文档在需要时已同步
+- 没有混入无关缓存、生成物和本地临时文件
+- 变更说明里同时写清“改了什么”和“为什么这样改”
 
-```python
-import pytest
-from mini_agent.tools.my_tool import MyTool
+## Commit 建议前缀
 
-@pytest.mark.asyncio
-async def test_my_tool():
-    """测试自定义工具"""
-    tool = MyTool()
-    result = await tool.execute(param="test")
-    assert result.success
-    assert "expected" in result.content
-```
+- `feat`：新功能
+- `fix`：缺陷修复
+- `refactor`：结构调整但不预期改变行为
+- `docs`：文档更新
+- `test`：测试相关修改
+- `chore`：维护和工具链修改
 
-## 社区准则
+## 有疑问时
 
-请遵守我们的[行为准则](CODE_OF_CONDUCT.md)，保持友好和尊重。
-
-## 问题和帮助
-
-如果有任何问题：
-
-- 查看 [README](README.md) 和 [文档](docs/)
-- 搜索现有的 Issues
-- 创建新的 Issue 提问
-
-## 许可证
-
-提交代码即表示你同意将代码以 [MIT License](LICENSE) 发布。
-
----
-
-再次感谢你的贡献！ 🎉
-
+优先核对当前代码和活跃文档，再决定实现方式，不要直接沿用历史文档里的旧模式。

@@ -1273,12 +1273,12 @@ Coordinator 模式: Research → Synthesis → Implementation
 
 **实现内容**:
 
-1. **QQ Bot** (`mini_agent/channels/qqbot/`)
+1. **QQ Bot** (`src/mini_agent/channels/qqbot.py`)
    - 消息收发
    - 媒体消息支持
    - 会话键映射
 
-2. **WeChat** (`mini_agent/channels/wechat/`)
+2. **WeChat** (`src/mini_agent/channels/wechat.py`)
    - 实现预留渠道
    - 消息收发
    - 会话键映射

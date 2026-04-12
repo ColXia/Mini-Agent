@@ -10,6 +10,7 @@ Flow:
 
 - OpenWebUI adapter is an optional compatibility entry only.
 - Main product flow remains Studio + Gateway `/api/v1/*`.
+- WebUI/OpenWebUI is currently paused as a primary surface in the terminal-first roadmap.
 - Do not couple main business logic to OpenWebUI-only endpoints.
 
 ## 1. Local Run (adapter only)
@@ -86,20 +87,29 @@ After adapter and gateway are up, run:
   --dry-run
 ```
 
-One-click full release gate (starts local adapter when needed):
+Unified release gate (the old PowerShell helper is archived under `scripts/archive/`):
 
 ```powershell
-.\scripts\run_release_gate_openwebui.ps1
+.\.venv\Scripts\python.exe .\scripts\release_gate.py `
+  --start-local-gateway `
+  --openwebui-run-smoke `
+  --openwebui-no-dry-run `
+  --openwebui-adapter-base-url http://127.0.0.1:8010 `
+  --openwebui-api-key mini-agent-openwebui-token `
+  --studio-token studio-smoke-token
 ```
 
 Common overrides:
 
 ```powershell
-.\scripts\run_release_gate_openwebui.ps1 `
-  -OpenWebUITimeout 300 `
-  -AdapterGatewayTimeout 300 `
-  -OpenWebUIApiKey mini-agent-openwebui-token `
-  -StudioToken studio-smoke-token
+.\.venv\Scripts\python.exe .\scripts\release_gate.py `
+  --start-local-gateway `
+  --openwebui-run-smoke `
+  --openwebui-no-dry-run `
+  --openwebui-adapter-base-url http://127.0.0.1:8010 `
+  --openwebui-api-key mini-agent-openwebui-token `
+  --openwebui-timeout 300 `
+  --studio-token studio-smoke-token
 ```
 
 Smoke check covers:

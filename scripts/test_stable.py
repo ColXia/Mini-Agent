@@ -19,8 +19,7 @@ def main() -> int:
         "-k",
         "not integration and not llm and not llm_clients",
     ]
-    # Run from src so tests that read mini_agent/config/* relative paths stay stable.
-    return subprocess.call(cmd, cwd=repo_root / "src")
+    return subprocess.call(cmd, cwd=repo_root)
 
 
 if __name__ == "__main__":

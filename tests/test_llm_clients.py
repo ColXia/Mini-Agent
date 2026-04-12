@@ -6,11 +6,10 @@ without going through the wrapper layer.
 
 import asyncio
 import os
-from pathlib import Path
-
 import pytest
 import yaml
 
+from mini_agent.config import Config
 from mini_agent.llm import AnthropicClient, OpenAIClient
 from mini_agent.retry import RetryConfig
 from mini_agent.schema import Message
@@ -26,8 +25,10 @@ pytestmark = [
 
 
 def load_config():
-    """Load config from config.yaml."""
-    config_path = Path("mini_agent/config/config.yaml")
+    """Load config from active search paths."""
+    config_path = Config.find_config_file("config.yaml")
+    if config_path is None:
+        pytest.skip("config.yaml not found in active search paths")
     with open(config_path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
@@ -319,7 +320,7 @@ async def main():
     print("=" * 80)
     print("Running LLM Client Tests")
     print("=" * 80)
-    print("\nNote: These tests require a valid MiniMax API key in config.yaml")
+    print("\nNote: These tests require a valid live provider config in active search paths.")
 
     results = []
 

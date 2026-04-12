@@ -3,8 +3,6 @@
 import asyncio
 import os
 import tempfile
-from pathlib import Path
-
 import pytest
 
 from mini_agent import LLMClient
@@ -22,25 +20,32 @@ pytestmark = [
 ]
 
 
+def _load_live_config() -> Config:
+    config_path = Config.find_config_file("config.yaml")
+    if config_path is None:
+        pytest.skip("config.yaml not found in active search paths")
+    return Config.from_yaml(config_path, allow_interactive_setup=False)
+
+
+def _load_system_prompt() -> str:
+    system_prompt_path = Config.find_config_file("system_prompt.md")
+    if system_prompt_path and system_prompt_path.exists():
+        return system_prompt_path.read_text(encoding="utf-8")
+    return "You are a helpful AI assistant that can use tools."
+
+
 @pytest.mark.asyncio
 async def test_agent_simple_task():
     """Test agent with a simple file creation task."""
     print("\n=== Testing Agent with Simple File Task ===")
 
-    # Load config
-    config_path = Path("mini_agent/config/config.yaml")
-    config = Config.from_yaml(config_path)
+    config = _load_live_config()
 
     # Create temp workspace
     with tempfile.TemporaryDirectory() as workspace_dir:
         print(f"Using workspace: {workspace_dir}")
 
-        # Load system prompt (Agent will auto-inject workspace info)
-        system_prompt_path = Path("mini_agent/config/system_prompt.md")
-        if system_prompt_path.exists():
-            system_prompt = system_prompt_path.read_text(encoding="utf-8")
-        else:
-            system_prompt = "You are a helpful AI assistant that can use tools."
+        system_prompt = _load_system_prompt()
 
         # Initialize LLM client
         llm_client = LLMClient(
@@ -109,20 +114,13 @@ async def test_agent_bash_task():
     """Test agent with a bash command task."""
     print("\n=== Testing Agent with Bash Task ===")
 
-    # Load config
-    config_path = Path("mini_agent/config/config.yaml")
-    config = Config.from_yaml(config_path)
+    config = _load_live_config()
 
     # Create temp workspace
     with tempfile.TemporaryDirectory() as workspace_dir:
         print(f"Using workspace: {workspace_dir}")
 
-        # Load system prompt (Agent will auto-inject workspace info)
-        system_prompt_path = Path("mini_agent/config/system_prompt.md")
-        if system_prompt_path.exists():
-            system_prompt = system_prompt_path.read_text(encoding="utf-8")
-        else:
-            system_prompt = "You are a helpful AI assistant that can use tools."
+        system_prompt = _load_system_prompt()
 
         # Initialize LLM client
         llm_client = LLMClient(
@@ -176,7 +174,7 @@ async def main():
     print("=" * 80)
     print("Running Agent Integration Tests")
     print("=" * 80)
-    print("\nNote: These tests require a valid MiniMax API key in config.yaml")
+    print("\nNote: These tests require a valid live provider config in active search paths.")
     print("These tests will actually call the LLM API and may take some time.\n")
 
     # Test simple file task

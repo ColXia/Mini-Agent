@@ -109,7 +109,7 @@ jobs:
         env:
           OPENWEBUI_ADVISORY_API_KEY: ${{ secrets.OPENWEBUI_ADVISORY_API_KEY }}
         run: |
-          python scripts/release_promotion_checklist.py \
+          python scripts/ci/release_promotion_checklist.py \
             --studio-token studio-release-handoff-token \
             --advisory-api-key "$OPENWEBUI_ADVISORY_API_KEY" \
             --advisory-adapter-base-url "${{ inputs.advisory_adapter_base_url }}" \
@@ -117,18 +117,18 @@ jobs:
 
       - name: Run Promotion Checklist (Deterministic Only)
         if: ${{ steps.advisory.outputs.enabled != 'true' }}
-        run: python scripts/release_promotion_checklist.py --studio-token studio-release-handoff-token --skip-advisory
+        run: python scripts/ci/release_promotion_checklist.py --studio-token studio-release-handoff-token --skip-advisory
 
       - name: Validate Deterministic Gate Artifact (Required)
-        run: python scripts/check_deterministic_gate_artifact.py
+        run: python scripts/ci/check_deterministic_gate_artifact.py
 
       - name: Run P19 Runtime Matrix (Strict Weekly Review)
         if: ${{ inputs.run_weekly_rollout_review_strict == true }}
-        run: python scripts/p19_runtime_matrix.py
+        run: python scripts/ci/p19_runtime_matrix.py
 
       - name: Run P19 Weekly Rollout Review (Strict)
         if: ${{ inputs.run_weekly_rollout_review_strict == true }}
-        run: python scripts/p19_weekly_rollout_review.py --window-days 7 --target-profile stage --strict --strict-targets
+        run: python scripts/ci/p19_weekly_rollout_review.py --window-days 7 --target-profile stage --strict --strict-targets
 
       - name: Stop OpenWebUI Adapter (Advisory)
         if: ${{ always() && steps.advisory.outputs.enabled == 'true' }}
