@@ -1,5 +1,53 @@
 # Task Plan
 
+## Current Execution Slice: P30 Surface / Session Refactor Task Planning (2026-04-12)
+
+### Why This Slice Is Next
+
+- the architectural correction in `P30` is now written, but still too high-level to steer implementation safely
+- after the latest discussion, the most important correction is explicit:
+  - sessions must not be cut apart by `CLI / TUI / WebUI / QQ`
+  - surfaces only operate sessions
+  - QQ is a channel adapter reusing shared semantics, not a session owner and not a TUI-owned subtype
+- before more refactor code starts, that correction needs to become an executable task plan
+
+### Scope
+
+- turn the P30 architecture correction into concrete implementation phases
+- define the next recommended execution order
+- sync `task_plan.md` and doc indexes so the refactor entry point is explicit
+
+### Out Of Scope
+
+- no production code changes in this slice
+- no runtime behavior changes
+- no new session surface features
+
+### Files In Scope
+
+- `docs/P30_SURFACE_SESSION_ARCHITECTURE_CORRECTION_2026-04-12.md`
+- `docs/P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md`
+- `task_plan.md`
+- `docs/DEVELOPMENT_INDEX.md`
+- `docs/DOCS_INDEX.md`
+
+### Execution Steps
+
+1. Convert the P30 architecture correction into concrete phases and acceptance criteria.
+2. Define the next recommended implementation order.
+3. Register the new task-plan doc in active indexes.
+4. Re-anchor `task_plan.md` so P30 is the next structural execution entry.
+
+### Acceptance Criteria
+
+- one executable P30 task-plan doc exists
+- `task_plan.md` points to the P30 execution track
+- development indexes expose the new refactor entry point
+
+### Status
+
+- completed
+
 ## Current Execution Slice: P29.3e Local Skill Command Convergence (2026-04-12)
 
 ### Why This Slice Is Next

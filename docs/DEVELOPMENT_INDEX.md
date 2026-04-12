@@ -37,6 +37,7 @@
 - Session boundary audit (2026-04-12): `docs/P29_SESSION_BOUNDARY_AUDIT_2026-04-12.md`
 - Session hard-refactor plan (2026-04-12): `docs/P29_SESSION_HARD_REFACTOR_PLAN.md`
 - Surface/session architecture correction (2026-04-12): `docs/P30_SURFACE_SESSION_ARCHITECTURE_CORRECTION_2026-04-12.md`
+- Surface/session executable refactor task plan (2026-04-12): `docs/P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md`
 - Transformation plan (v2): `docs/TRANSFORMATION_PLAN.md`
 - Transformation plan (mini guardrails): `docs/TRANSFORMATION_PLAN_LITE_ADDENDUM.md`
 - OSS mapping index: `docs/OSS_REFERENCE_INDEX.md`
@@ -70,11 +71,13 @@
 - `P25`: active (memory-core consolidation entered strengthening phase after unified service + runtime wiring landed)
 - `P26`: active (global/workspace memory boundary correction and runtime-memory architecture landing)
 - `P29`: active (session boundary audit completed; hard-refactor implementation planning is now active)
+- `P30`: active (surface/session architecture correction is locked; executable refactor plan is landed and the next code entry starts from `P30.1`)
 
 Latest stage sync:
 - `2026-04-11`: Windows sandbox hardening is paused at the current sufficient-for-demo baseline.
 - `2026-04-11`: active execution focus returns to P24 demo-baseline acceptance across `TUI / CLI / QQ / gateway`.
 - `2026-04-12`: session work is temporarily re-anchored to P29 boundary repair after the latest unification bug exposed multi-owner session semantics and surface/runtime coupling.
+- `2026-04-12`: architecture is now explicitly corrected at P30: sessions are core truth, while `CLI / TUI / WebUI / QQ` are surfaces/adapters only; execution should proceed from `docs/P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md`.
 
 ## 3. Active Plan: P22 Core Agent Minimal (Started 2026-04-07)
 

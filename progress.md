@@ -2,6 +2,20 @@
 
 ## 2026-04-12
 
+- Locked the next architecture-correction documentation slice for the session refactor:
+  - `docs/P30_SURFACE_SESSION_ARCHITECTURE_CORRECTION_2026-04-12.md`
+  - `docs/P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md`
+  - `task_plan.md`
+  - `docs/DEVELOPMENT_INDEX.md`
+  - `docs/DOCS_INDEX.md`
+- Recorded the corrected rule explicitly:
+  - `Session` is the single source of truth
+  - `CLI / TUI / WebUI / QQ` are surfaces or adapters operating that truth
+  - `QQ` is not a TUI-owned subtype and not a parallel session system
+- Re-anchored the project execution entry to `P30`:
+  - the next code-facing implementation slice should begin from `P30.1 Session Truth Boundary Lock`
+  - active indexes now expose both the architecture-correction doc and the executable task-plan doc
+
 - Landed the next P29.3 implementation slice: `P29.3e Local Skill Command Convergence`.
 - Extended the shared local operator command execution service with local `skill` semantics:
   - `src/mini_agent/commands/execution.py`
