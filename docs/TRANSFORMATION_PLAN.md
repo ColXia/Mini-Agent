@@ -1,4 +1,4 @@
-# Mini-Agent 深度改造方案书 v2
+﻿# Mini-Agent 深度改造方案书 v2
 
 > **状态**: ✅ 活跃
 > **创建日期**: 2026-04-05
@@ -1273,7 +1273,7 @@ Coordinator 模式: Research → Synthesis → Implementation
 
 **实现内容**:
 
-1. **QQ Bot** (`src/mini_agent/channels/qqbot.py`)
+1. **QQ Bot** (`src/apps/qqbot_channel/bot.mjs`)
    - 消息收发
    - 媒体消息支持
    - 会话键映射
@@ -1467,3 +1467,4 @@ Mini-Agent/
 ├── tests/
 └── pyproject.toml                 # 更新依赖
 ```
+

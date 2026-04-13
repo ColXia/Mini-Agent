@@ -8,7 +8,6 @@ from typing import Any
 
 from mini_agent.code_agent.sandbox import NetworkAccessMode, NetworkDomainPolicy, SandboxManager
 from mini_agent.code_agent.permissions import ApprovalEngine, PermissionDecision, PermissionPolicy, PermissionRule
-from mini_agent.code_agent.tools import ToolKind
 from mini_agent.commands.mcp_support import resolve_runtime_mcp_config_path
 from mini_agent.runtime.sandbox_state import collect_sandbox_diagnostics
 from mini_agent.security.policy import RuntimePolicyEngine
@@ -22,6 +21,79 @@ from mini_agent.turn_context import (
     UserProfileTurnContextProvider,
     WorkspaceMemoryContextProvider,
 )
+
+
+def _tool_names(tools: list[Any]) -> list[str]:
+    names: list[str] = []
+    seen: set[str] = set()
+    for tool in tools or []:
+        name = str(getattr(tool, "name", "") or "").strip()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        names.append(name)
+    return names
+
+
+def _format_bootstrap_error(exc: Exception) -> str:
+    return f"{type(exc).__name__}: {exc}"
+
+
+def _skill_runtime_diagnostics(
+    *,
+    enabled: bool,
+    builtin_dir: Path,
+    workspace_dir: Path | None,
+    skill_loader: Any,
+    skill_tools: list[Any],
+    active_tool_names: set[str],
+    error: str | None,
+) -> dict[str, Any]:
+    raw_loader = getattr(skill_loader, "loader", skill_loader)
+    catalog_count = 0
+    eligible_count = 0
+    active_skill_count = 0
+    if raw_loader is not None and hasattr(raw_loader, "list_tier1"):
+        try:
+            catalog_count = len(raw_loader.list_tier1(eligible_only=False))
+            eligible_count = len(raw_loader.list_tier1(eligible_only=True))
+        except Exception:
+            catalog_count = 0
+            eligible_count = 0
+    if skill_loader is not None and hasattr(skill_loader, "list_skills"):
+        try:
+            active_skill_count = len(skill_loader.list_skills())
+        except Exception:
+            active_skill_count = 0
+    return {
+        "enabled": enabled,
+        "builtin_dir": str(builtin_dir),
+        "workspace_dir": str(workspace_dir) if workspace_dir is not None else None,
+        "loader_ready": skill_loader is not None,
+        "catalog_count": catalog_count,
+        "eligible_count": eligible_count,
+        "active_skill_count": active_skill_count,
+        "tool_names": [name for name in _tool_names(skill_tools) if name in active_tool_names],
+        "error": error,
+    }
+
+
+def _mcp_runtime_diagnostics(
+    *,
+    enabled: bool,
+    config_path: Path | None,
+    mcp_tools: list[Any],
+    active_tool_names: set[str],
+    error: str | None,
+) -> dict[str, Any]:
+    active_names = [name for name in _tool_names(mcp_tools) if name in active_tool_names]
+    return {
+        "enabled": enabled,
+        "config_path": str(config_path) if config_path is not None else None,
+        "tool_count": len(active_names),
+        "tool_names": active_names,
+        "error": error,
+    }
 
 
 def build_workspace_sandbox_manager(
@@ -280,7 +352,7 @@ async def initialize_shared_tools(
     config,
     workspace_dir: Path | None = None,
     policy_engine: RuntimePolicyEngine | None = None,
-) -> tuple[list, Any]:
+) -> tuple[list, Any, dict[str, Any]]:
     """Initialize tools that are not tied to a single workspace (skills + MCP)."""
     from mini_agent.tools.mcp_loader import load_mcp_tools_async, set_mcp_timeout_config
     from mini_agent.tools.skill_tool import create_skill_tools
@@ -289,6 +361,11 @@ async def initialize_shared_tools(
     skill_loader = None
     builtin_skills_dir = resolve_builtin_skills_dir(config)
     workspace_skills_dir = resolve_workspace_skills_dir(workspace_dir)
+    skill_tools: list[Any] = []
+    mcp_tools: list[Any] = []
+    skill_error: str | None = None
+    mcp_error: str | None = None
+    mcp_config_path: Path | None = None
 
     if config.tools.enable_skills:
         try:
@@ -302,8 +379,8 @@ async def initialize_shared_tools(
                 workspace_dir=(str(workspace_dir) if workspace_dir is not None else None),
             )
             tools.extend(skill_tools)
-        except Exception:
-            pass
+        except Exception as exc:
+            skill_error = _format_bootstrap_error(exc)
 
     if config.tools.enable_mcp:
         try:
@@ -317,13 +394,36 @@ async def initialize_shared_tools(
             if mcp_config_path:
                 mcp_tools = await load_mcp_tools_async(str(mcp_config_path))
                 tools.extend(mcp_tools)
-        except Exception:
-            pass
+        except Exception as exc:
+            mcp_error = _format_bootstrap_error(exc)
 
     if policy_engine:
         tools = policy_engine.filter_tools(tools)
 
-    return tools, skill_loader
+    active_tool_names = set(_tool_names(tools))
+    diagnostics = {
+        "shared_tools": {
+            "count": len(_tool_names(tools)),
+            "tool_names": _tool_names(tools),
+        },
+        "skills": _skill_runtime_diagnostics(
+            enabled=bool(config.tools.enable_skills),
+            builtin_dir=builtin_skills_dir,
+            workspace_dir=workspace_skills_dir,
+            skill_loader=skill_loader,
+            skill_tools=skill_tools,
+            active_tool_names=active_tool_names,
+            error=skill_error,
+        ),
+        "mcp": _mcp_runtime_diagnostics(
+            enabled=bool(config.tools.enable_mcp),
+            config_path=mcp_config_path,
+            mcp_tools=mcp_tools,
+            active_tool_names=active_tool_names,
+            error=mcp_error,
+        ),
+    }
+    return tools, skill_loader, diagnostics
 
 
 async def initialize_agent_tools(
@@ -331,23 +431,36 @@ async def initialize_agent_tools(
     workspace_dir: Path,
     approval_profile_override: str | None = None,
     access_level_override: str | None = None,
-) -> tuple[list, Any]:
+) -> tuple[list, Any, dict[str, Any]]:
     """Initialize complete toolset for an agent session."""
     policy_engine = resolve_runtime_policy(
         config,
         approval_profile_override=approval_profile_override,
         access_level_override=access_level_override,
     )
-    tools: list = []
-    add_workspace_tools(tools, config, workspace_dir, policy_engine=policy_engine)
+    workspace_tools: list = []
+    add_workspace_tools(workspace_tools, config, workspace_dir, policy_engine=policy_engine)
 
-    shared_tools, skill_loader = await initialize_shared_tools(
+    shared_tools, skill_loader, shared_diagnostics = await initialize_shared_tools(
         config,
         workspace_dir=workspace_dir,
         policy_engine=policy_engine,
     )
-    tools.extend(shared_tools)
-    return tools, skill_loader
+    tools = [*workspace_tools, *shared_tools]
+    diagnostics = {
+        "workspace_tools": {
+            "count": len(_tool_names(workspace_tools)),
+            "tool_names": _tool_names(workspace_tools),
+        },
+        "shared_tools": dict(shared_diagnostics.get("shared_tools", {})),
+        "skills": dict(shared_diagnostics.get("skills", {})),
+        "mcp": dict(shared_diagnostics.get("mcp", {})),
+        "total_tools": {
+            "count": len(_tool_names(tools)),
+            "tool_names": _tool_names(tools),
+        },
+    }
+    return tools, skill_loader, diagnostics
 
 
 def apply_runtime_policy_to_agent(

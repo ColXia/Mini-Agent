@@ -18,7 +18,6 @@ import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from typing import Any
 import sys
@@ -28,15 +27,16 @@ SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from mini_agent.agent import TurnExecutionResult, TurnStopReason
-from mini_agent.application import MainAgentGatewayUseCases
-from mini_agent.interfaces import (
+from mini_agent.agent import TurnExecutionResult, TurnStopReason  # noqa: E402
+from mini_agent.application import MainAgentGatewayUseCases  # noqa: E402
+from mini_agent.interfaces import (  # noqa: E402
     MainAgentChatRequest,
     MainAgentSessionCancelRequest,
     MainAgentSessionControlRequest,
     MainAgentSessionModelSelectionRequest,
 )
-from mini_agent.runtime.main_agent_runtime_manager import MainAgentRuntimeManager
+from mini_agent.runtime.main_agent_runtime_manager import MainAgentRuntimeManager  # noqa: E402
+from mini_agent.runtime.session_snapshot_handler import RuntimeSessionSnapshotImportCommand  # noqa: E402
 
 
 @dataclass(frozen=True)
@@ -207,9 +207,11 @@ async def _import_runtime_session(
     resolved_workspace = use_cases._resolve_workspace_dir(workspace_dir)
     use_cases._runtime_manager.validate_workspace(resolved_workspace)
     session = await use_cases._runtime_manager.import_session_snapshot(
-        session_id=session_id,
-        workspace_dir=resolved_workspace,
-        **kwargs,
+        RuntimeSessionSnapshotImportCommand(
+            session_id=session_id,
+            workspace_dir=resolved_workspace,
+            **kwargs,
+        )
     )
     transcript = kwargs.get("transcript")
     recent_limit = max(50, len(transcript) if isinstance(transcript, list) else 0)
@@ -573,8 +575,8 @@ async def _check_shared_model_selection(root: Path) -> WalkthroughResult:
     _require(detail_after_select.pending_model_id is None, "pending model should be empty after immediate switch")
 
     managed_session = await use_cases._runtime_manager.get_or_create_session("sess-model", workspace)
-    managed_session.busy = True
-    managed_session.running_state = "qq request running"
+    managed_session.projection.busy = True
+    managed_session.projection.running_state = "qq request running"
     queued = await use_cases.update_session_model_selection(
         "sess-model",
         MainAgentSessionModelSelectionRequest(
@@ -594,8 +596,8 @@ async def _check_shared_model_selection(root: Path) -> WalkthroughResult:
     _require(detail_after_queue.selected_model_id == "gpt-5.3", "selected model should stay active while queued")
     _require(detail_after_queue.pending_model_id == "gpt-5.4", "pending model detail mismatch while queued")
 
-    managed_session.busy = False
-    managed_session.running_state = ""
+    managed_session.projection.busy = False
+    managed_session.projection.running_state = ""
     second = await use_cases.run_chat(
         MainAgentChatRequest(
             message="continue after queued switch",
@@ -744,7 +746,7 @@ async def _check_restart_recovery_snapshot(root: Path) -> WalkthroughResult:
         build_agent=_build_agent,
         storage_dir=storage_dir,
     )
-    use_cases_first = MainAgentGatewayUseCases(
+    _use_cases_first = MainAgentGatewayUseCases(
         runtime_manager=runtime_first,
         resolve_workspace_dir=_resolve_workspace_dir,
         to_utc_iso=_to_utc_iso,
@@ -848,7 +850,7 @@ async def _check_restart_recovery_snapshot(root: Path) -> WalkthroughResult:
     )
     _require(second.reply == "hooked:continue after interruption", "interrupted recovery continuation reply mismatch")
     managed_session = await use_cases_second._runtime_manager.get_or_create_session("sess-recovery", workspace)
-    captured_turn_context = getattr(managed_session.agent, "captured_turn_contexts", [])[-1]
+    captured_turn_context = getattr(managed_session.runtime.agent, "captured_turn_contexts", [])[-1]
     recovery_metadata = {}
     if isinstance(captured_turn_context, dict):
         metadata = captured_turn_context.get("metadata")

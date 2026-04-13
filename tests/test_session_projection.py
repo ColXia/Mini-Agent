@@ -4,8 +4,8 @@ from mini_agent.session import (
     SessionDetailProjection,
     SessionRecoveryProjection,
     SessionSummaryProjection,
-    TerminalSessionProjection,
 )
+from mini_agent.tui.session_projection import TerminalSessionProjection
 
 
 def test_session_summary_projection_round_trip_transport_payload() -> None:

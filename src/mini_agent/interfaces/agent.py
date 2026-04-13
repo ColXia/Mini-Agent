@@ -124,6 +124,16 @@ class MainAgentSessionCreateRequest(BaseModel):
     shared: bool = False
 
 
+class MainAgentSessionForkRequest(BaseModel):
+    """Request body for creating a derived child session from an existing session."""
+
+    title: str | None = None
+    surface: str | None = None
+    channel_type: str | None = None
+    conversation_id: str | None = None
+    sender_id: str | None = None
+
+
 class MainAgentSessionRenameRequest(BaseModel):
     """Request body for renaming an existing runtime-backed session."""
 
@@ -262,7 +272,7 @@ class MainAgentSessionSkillResponse(BaseModel):
 class MainAgentSessionModelSelectionRequest(BaseModel):
     """Request body for updating a shared session's session-scoped model selection."""
 
-    provider_source: str = Field(min_length=1)
+    provider_source: str | None = Field(default=None, min_length=1)
     provider_id: str = Field(min_length=1)
     model_id: str = Field(min_length=1)
     surface: str | None = None
@@ -330,4 +340,3 @@ class MainAgentSessionRuntimePolicyResponse(BaseModel):
     approval_profile: str
     access_level: str
     sandbox_diagnostics: dict[str, Any] = Field(default_factory=dict)
-

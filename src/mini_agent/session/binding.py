@@ -76,12 +76,16 @@ class ConversationBindingStore:
         binding_key: str,
         session_id: str,
         workspace_dir: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
     ) -> None:
         payload = self._load()
         bindings = payload.setdefault("bindings", {})
         bindings[binding_key] = {
             "binding_key": binding_key,
             "session_id": session_id,
+            "channel_type": channel_type or "",
+            "conversation_id": conversation_id or "",
             "workspace_dir": workspace_dir or "",
             "updated_at": _utc_now_iso(),
         }

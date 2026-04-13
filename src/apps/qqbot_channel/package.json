@@ -6,7 +6,8 @@
   "description": "QQ Official Bot bridge channel for Mini-Agent gateway",
   "scripts": {
     "start": "node ./bot.mjs",
-    "check": "node --check ./bot.mjs"
+    "check": "node --check ./bot.mjs && node --check ./smoke_runner.mjs && node --check ./guardrails.mjs && node --check ./gateway_io.mjs",
+    "smoke": "node ./smoke_runner.mjs"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

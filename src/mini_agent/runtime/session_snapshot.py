@@ -46,6 +46,11 @@ class RuntimeSessionImportRequest(BaseModel):
     pending_model_source: str | None = None
     pending_provider_id: str | None = None
     pending_model_id: str | None = None
+    lineage_parent_session_id: str | None = None
+    lineage_root_session_id: str | None = None
+    lineage_reason: str | None = None
+    lineage_created_at: str | None = None
+    lineage_metadata: dict[str, Any] = Field(default_factory=dict)
     pending_skill_reload: bool = False
     pending_skill_reload_reason: str | None = None
     context_policy: dict[str, Any] = Field(default_factory=dict)
@@ -61,4 +66,3 @@ class RuntimeSessionImportRequest(BaseModel):
 
 class RuntimeSessionSnapshot(RuntimeSessionImportRequest):
     """Serialized runtime session snapshot for runtime-managed persistence."""
-

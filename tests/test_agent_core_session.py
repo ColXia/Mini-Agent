@@ -9,6 +9,7 @@ import pytest
 from mini_agent.agent_core import (
     AgentSessionKey,
     AmbiguousSessionKeyError,
+    SessionLineageNode,
     SessionKeyError,
     SessionKeyIndex,
     SessionLifecycleManager,
@@ -106,3 +107,44 @@ def test_session_lineage_chain_and_cycle_guard():
             child_session_key="agent:a1:qq:group:300",
             reason="invalid",
         )
+
+
+def test_session_lineage_restore_node_can_upgrade_placeholder_parent() -> None:
+    base = _dt(2026, 1, 1, 10, 0)
+    store = SessionLineageStore()
+    store.restore_node(
+        SessionLineageNode(
+            session_key="child",
+            parent_session_key="parent",
+            reason="import",
+            created_utc=base,
+            metadata={"root_session_id": "root"},
+        )
+    )
+    store.restore_node(
+        SessionLineageNode(
+            session_key="parent",
+            parent_session_key="root",
+            reason="import",
+            created_utc=base,
+            metadata={"root_session_id": "root"},
+        )
+    )
+
+    chain = store.chain_to_root("child")
+    assert [node.session_key for node in chain] == ["child", "parent", "root"]
+    assert store.get("parent") is not None
+    assert store.get("parent").parent_session_key == "root"
+
+
+def test_session_lineage_remove_promotes_children() -> None:
+    store = SessionLineageStore()
+    store.add_root("root")
+    store.add_child(parent_session_key="root", child_session_key="child", reason="import")
+    store.add_child(parent_session_key="child", child_session_key="grandchild", reason="import")
+
+    assert store.remove("child") is True
+    assert store.get("child") is None
+    assert store.parent_of("grandchild") is None
+    assert store.get("grandchild") is not None
+    assert store.get("grandchild").reason == "root"

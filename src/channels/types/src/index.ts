@@ -35,9 +35,14 @@ export interface ChannelReply {
 }
 
 /**
- * Session state for channel-side session management.
+ * Transitional adapter-side cache for remote conversation continuity.
+ *
+ * Important:
+ * - this is not canonical session truth
+ * - true session ownership lives in shared application/runtime/session layers
+ * - remote adapters should gradually shrink this shape toward binding + preference metadata only
  */
-export interface SessionState {
+export interface RemoteConversationBindingState {
   /** Conversation identifier */
   conversation_id: string;
   /** Gateway session ID */
@@ -46,8 +51,6 @@ export interface SessionState {
   workspace_dir: string;
   /** Dry run mode */
   dry_run: boolean;
-  /** Additional metadata */
-  metadata?: Record<string, any>;
 }
 
 /**
@@ -113,21 +116,21 @@ export interface ChatResponse {
 }
 
 /**
- * Session store interface for channel-side session management.
+ * Conversation-binding store interface for channel-side remote continuity hints.
  */
-export interface ISessionStore {
+export interface IRemoteConversationBindingStore {
   /**
-   * Get session state for a conversation.
+   * Get binding state for a conversation.
    */
-  get(conversationId: string): Promise<SessionState | undefined>;
+  get(conversationId: string): Promise<RemoteConversationBindingState | undefined>;
 
   /**
-   * Save session state for a conversation.
+   * Save binding state for a conversation.
    */
-  set(conversationId: string, state: SessionState): Promise<void>;
+  set(conversationId: string, state: RemoteConversationBindingState): Promise<void>;
 
   /**
-   * Delete session state for a conversation.
+   * Delete binding state for a conversation.
    */
   delete(conversationId: string): Promise<void>;
 
@@ -169,9 +172,9 @@ export interface IChannel {
   readonly gatewayClient: IGatewayClient;
 
   /**
-   * Get the session store.
+   * Get the conversation binding store.
    */
-  readonly sessionStore: ISessionStore;
+  readonly conversationBindingStore: IRemoteConversationBindingStore;
 }
 
 /**

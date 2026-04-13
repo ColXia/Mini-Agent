@@ -5,13 +5,45 @@ import { fileURLToPath } from "node:url";
 
 import dotenv from "dotenv";
 import { Bot, ReceiverMode } from "qq-official-bot";
+import {
+  ensureWorkspaceInAllowed,
+  limitInboundMessage,
+  normalizeAllowedWorkspaceRoots,
+  normalizeInt,
+  parseCsvEnv,
+  splitLongText,
+} from "./guardrails.mjs";
+import {
+  gatewayRequest as performGatewayRequest,
+  iterateSseEvents,
+  safeJsonParse,
+} from "./gateway_io.mjs";
 
 dotenv.config();
 
 const gatewayBase = (process.env.MINI_AGENT_GATEWAY_BASE || "http://127.0.0.1:8008").replace(/\/+$/, "");
-const defaultWorkspace = process.env.QQBOT_DEFAULT_WORKSPACE || "C:/Users/Conli/Mini-Agent";
+const gatewayAuthToken = cleanText(
+  process.env.QQBOT_GATEWAY_AUTH_TOKEN || process.env.MINI_AGENT_GATEWAY_AUTH_TOKEN || ""
+);
+const allowedWorkspaceRoots = normalizeAllowedWorkspaceRoots(
+  parseCsvEnv(process.env.QQBOT_ALLOWED_WORKSPACE_ROOTS),
+  process.cwd()
+);
+const defaultWorkspace = (() => {
+  try {
+    return ensureWorkspaceInAllowed(
+      process.env.QQBOT_DEFAULT_WORKSPACE || process.cwd(),
+      allowedWorkspaceRoots
+    );
+  } catch (error) {
+    console.error(`[qqbot-channel] Invalid QQBOT_DEFAULT_WORKSPACE: ${String(error?.message || error)}`);
+    process.exit(1);
+  }
+})();
 const defaultDryRun = String(process.env.QQBOT_DEFAULT_DRY_RUN || "false").toLowerCase() === "true";
 const qqbotName = cleanText(process.env.QQBOT_NAME || "nyonyo") || "nyonyo";
+const maxMessageChars = normalizeInt(process.env.QQBOT_MAX_MESSAGE_CHARS, 12000, 512, 200000);
+const maxReplyChunkSize = normalizeInt(process.env.QQBOT_MAX_REPLY_CHUNK_SIZE, 1400, 200, 8000);
 
 const appid = process.env.QQBOT_APPID || "";
 const secret = process.env.QQBOT_SECRET || "";
@@ -37,7 +69,9 @@ if (!appid || !secret) {
   process.exit(1);
 }
 
-const sessions = new Map();
+// Channel-local convenience cache only.
+// This must not become a second remote session truth model.
+const conversationBindings = new Map();
 const seenEventIds = new Set();
 const logFile = path.resolve(process.cwd(), "runtime.log");
 const commandCatalogPath = fileURLToPath(new URL("../../mini_agent/commands/catalog.json", import.meta.url));
@@ -67,27 +101,22 @@ function getConversationKey(event) {
   );
 }
 
-function getSessionState(event) {
+function getConversationBindingState(event) {
   const key = getConversationKey(event);
-  if (!sessions.has(key)) {
-    sessions.set(key, {
-      key,
-      botName: qqbotName,
+  if (!conversationBindings.has(key)) {
+    conversationBindings.set(key, {
+      // Conversation identity for remote binding.
+      conversationId: key,
+      // Transitional binding hint only. Canonical remote binding now lives in shared app/session layers.
       sessionId: "",
+      // Remote delivery / selection preference.
       followLatest: true,
+      // Remote operator routing preferences, not session truth.
       workspaceDir: defaultWorkspace,
       dryRun: defaultDryRun
     });
   }
-  return sessions.get(key);
-}
-
-function safeJsonParse(text) {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
+  return conversationBindings.get(key);
 }
 
 function cleanText(value) {
@@ -381,83 +410,46 @@ function buildUnknownActionText(surface, commandName, action, fallback) {
 }
 
 async function gatewayRequest(path, options = {}) {
-  const response = await fetch(`${gatewayBase}${path}`, options);
-  if (!response.ok) {
-    const raw = await response.text();
-    const parsed = safeJsonParse(raw);
-    const detail = typeof parsed?.detail === "string" ? parsed.detail : raw;
-    throw new Error(`HTTP ${response.status}: ${detail || response.statusText}`);
-  }
-  return response;
+  return performGatewayRequest(gatewayBase, gatewayAuthToken, path, options);
 }
 
-function parseSseEventBlock(block) {
-  const normalized = String(block || "").replace(/\r/g, "");
-  if (!normalized.trim()) {
-    return null;
-  }
-  let event = "message";
-  const dataLines = [];
-  for (const line of normalized.split("\n")) {
-    if (line.startsWith("event:")) {
-      event = cleanText(line.slice(6)) || "message";
-      continue;
-    }
-    if (line.startsWith("data:")) {
-      dataLines.push(line.slice(5).trimStart());
-    }
-  }
-  const rawData = dataLines.join("\n");
+function qqSenderId(event) {
+  return String(event?.author?.id || event?.user_id || "").trim() || undefined;
+}
+
+function qqSessionMutationPayload(event, state, payload = {}) {
   return {
-    event,
-    data: safeJsonParse(rawData) || { raw: rawData }
+    ...payload,
+    surface: "qq",
+    channel_type: "qq",
+    conversation_id: state.conversationId,
+    sender_id: qqSenderId(event)
   };
 }
 
-async function* iterateSseEvents(response) {
-  if (!response?.body) {
-    throw new Error("Streaming response body is unavailable.");
+async function postSharedSessionEnvelope(event, state, suffix, payload, invalidMessage) {
+  if (!state.sessionId) {
+    await replySafe(event, "No shared session is currently bound.");
+    return null;
   }
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder("utf-8");
-  let buffer = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
-    let separatorIndex = buffer.indexOf("\n\n");
-    while (separatorIndex >= 0) {
-      const block = buffer.slice(0, separatorIndex);
-      buffer = buffer.slice(separatorIndex + 2);
-      const parsed = parseSseEventBlock(block);
-      if (parsed) {
-        yield parsed;
-      }
-      separatorIndex = buffer.indexOf("\n\n");
+  const response = await gatewayRequest(
+    `/api/v1/agent/sessions/${encodeURIComponent(state.sessionId)}/${suffix}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(qqSessionMutationPayload(event, state, payload))
     }
-    if (done) {
-      break;
-    }
+  );
+  const envelope = await response.json();
+  if (!envelope?.ok || !envelope?.data) {
+    throw new Error(invalidMessage);
   }
-  const finalBlock = parseSseEventBlock(buffer);
-  if (finalBlock) {
-    yield finalBlock;
-  }
+  return envelope.data;
 }
 
 function toBool(raw) {
   const value = String(raw || "").trim().toLowerCase();
   return value === "1" || value === "true" || value === "on" || value === "yes";
-}
-
-function splitLongText(text, maxChunk = 1400) {
-  if (text.length <= maxChunk) {
-    return [text];
-  }
-  const chunks = [];
-  for (let start = 0; start < text.length; start += maxChunk) {
-    chunks.push(text.slice(start, start + maxChunk));
-  }
-  return chunks;
 }
 
 function compactText(text, maxLength = 220) {
@@ -489,6 +481,17 @@ function formatRecentMessages(items) {
 
 function safeText(value) {
   return String(value || "").trim();
+}
+
+function gatewayErrorDetail(error) {
+  const raw = String(error?.message || error || "").trim();
+  if (!raw) {
+    return "Unknown gateway error.";
+  }
+  return raw
+    .replace(/^Error:\s*/i, "")
+    .replace(/^HTTP\s+\d+:\s*/i, "")
+    .trim() || raw;
 }
 
 function routeOwnership(detail) {
@@ -954,204 +957,106 @@ function formatSharedModelCatalog(items, currentDetail) {
 }
 
 async function controlSharedSession(event, state, action, reason) {
-  if (!state.sessionId) {
-    await replySafe(event, "No shared session is currently bound.");
-    return null;
-  }
-  const response = await gatewayRequest(
-    `/api/v1/agent/sessions/${encodeURIComponent(state.sessionId)}/control`,
+  return postSharedSessionEnvelope(
+    event,
+    state,
+    "control",
     {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action,
-        reason: safeText(reason) || undefined,
-        surface: "qq",
-        channel_type: "qq",
-        conversation_id: state.key,
-        sender_id: String(event.author?.id || event.user_id || "").trim() || undefined
-      })
-    }
+      action,
+      reason: safeText(reason) || undefined
+    },
+    "Invalid session control response from gateway"
   );
-  const envelope = await response.json();
-  if (!envelope?.ok || !envelope?.data) {
-    throw new Error("Invalid session control response from gateway");
-  }
-  return envelope.data;
 }
 
 async function updateSharedSessionModel(event, state, payload) {
-  if (!state.sessionId) {
-    await replySafe(event, "No shared session is currently bound.");
-    return null;
-  }
-  const response = await gatewayRequest(
-    `/api/v1/agent/sessions/${encodeURIComponent(state.sessionId)}/model`,
+  return postSharedSessionEnvelope(
+    event,
+    state,
+    "model",
     {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        provider_source: safeText(payload?.provider_source) || undefined,
-        provider_id: safeText(payload?.provider_id) || undefined,
-        model_id: safeText(payload?.model_id) || undefined,
-        surface: "qq",
-        channel_type: "qq",
-        conversation_id: state.key,
-        sender_id: String(event.author?.id || event.user_id || "").trim() || undefined
-      })
-    }
+      provider_source: safeText(payload?.provider_source) || undefined,
+      provider_id: safeText(payload?.provider_id) || undefined,
+      model_id: safeText(payload?.model_id) || undefined
+    },
+    "Invalid session model response from gateway"
   );
-  const envelope = await response.json();
-  if (!envelope?.ok || !envelope?.data) {
-    throw new Error("Invalid session model response from gateway");
-  }
-  return envelope.data;
 }
 
 async function updateSharedSessionContext(event, state, payload) {
-  if (!state.sessionId) {
-    await replySafe(event, "No shared session is currently bound.");
-    return null;
-  }
-  const response = await gatewayRequest(
-    `/api/v1/agent/sessions/${encodeURIComponent(state.sessionId)}/context`,
+  return postSharedSessionEnvelope(
+    event,
+    state,
+    "context",
     {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: safeText(payload?.action) || undefined,
-        sources: Array.isArray(payload?.sources) ? payload.sources : [],
-        max_items: payload?.max_items ?? null,
-        max_total_chars: payload?.max_total_chars ?? null,
-        max_items_per_source: payload?.max_items_per_source ?? null,
-        surface: "qq",
-        channel_type: "qq",
-        conversation_id: state.key,
-        sender_id: String(event.author?.id || event.user_id || "").trim() || undefined
-      })
-    }
+      action: safeText(payload?.action) || undefined,
+      sources: Array.isArray(payload?.sources) ? payload.sources : [],
+      max_items: payload?.max_items ?? null,
+      max_total_chars: payload?.max_total_chars ?? null,
+      max_items_per_source: payload?.max_items_per_source ?? null
+    },
+    "Invalid session context response from gateway"
   );
-  const envelope = await response.json();
-  if (!envelope?.ok || !envelope?.data) {
-    throw new Error("Invalid session context response from gateway");
-  }
-  return envelope.data;
 }
 
 async function manageSharedSessionMemory(event, state, payload) {
-  if (!state.sessionId) {
-    await replySafe(event, "No shared session is currently bound.");
-    return null;
-  }
-  const response = await gatewayRequest(
-    `/api/v1/agent/sessions/${encodeURIComponent(state.sessionId)}/memory`,
+  return postSharedSessionEnvelope(
+    event,
+    state,
+    "memory",
     {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: safeText(payload?.action) || undefined,
-        engram_id: safeText(payload?.engram_id) || undefined,
-        content: safeText(payload?.content) || undefined,
-        query: safeText(payload?.query) || undefined,
-        day: safeText(payload?.day) || undefined,
-        export_format: safeText(payload?.export_format) || undefined,
-        detail_mode: safeText(payload?.detail_mode) || undefined,
-        surface: "qq",
-        channel_type: "qq",
-        conversation_id: state.key,
-        sender_id: String(event.author?.id || event.user_id || "").trim() || undefined
-      })
-    }
+      action: safeText(payload?.action) || undefined,
+      engram_id: safeText(payload?.engram_id) || undefined,
+      content: safeText(payload?.content) || undefined,
+      query: safeText(payload?.query) || undefined,
+      day: safeText(payload?.day) || undefined,
+      export_format: safeText(payload?.export_format) || undefined,
+      detail_mode: safeText(payload?.detail_mode) || undefined
+    },
+    "Invalid session memory response from gateway"
   );
-  const envelope = await response.json();
-  if (!envelope?.ok || !envelope?.data) {
-    throw new Error("Invalid session memory response from gateway");
-  }
-  return envelope.data;
 }
 
 async function manageSharedSessionSkill(event, state, payload) {
-  if (!state.sessionId) {
-    await replySafe(event, "No shared session is currently bound.");
-    return null;
-  }
-  const response = await gatewayRequest(
-    `/api/v1/agent/sessions/${encodeURIComponent(state.sessionId)}/skill`,
+  return postSharedSessionEnvelope(
+    event,
+    state,
+    "skill",
     {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: safeText(payload?.action) || undefined,
-        skill_name: safeText(payload?.skill_name) || undefined,
-        path: safeText(payload?.path) || undefined,
-        query: safeText(payload?.query) || undefined,
-        mode: safeText(payload?.mode) || undefined,
-        surface: "qq",
-        channel_type: "qq",
-        conversation_id: state.key,
-        sender_id: String(event.author?.id || event.user_id || "").trim() || undefined
-      })
-    }
+      action: safeText(payload?.action) || undefined,
+      skill_name: safeText(payload?.skill_name) || undefined,
+      path: safeText(payload?.path) || undefined,
+      query: safeText(payload?.query) || undefined,
+      mode: safeText(payload?.mode) || undefined
+    },
+    "Invalid session skill response from gateway"
   );
-  const envelope = await response.json();
-  if (!envelope?.ok || !envelope?.data) {
-    throw new Error("Invalid session skill response from gateway");
-  }
-  return envelope.data;
 }
 
 async function resolveSharedSessionApproval(event, state, approved, token) {
-  if (!state.sessionId) {
-    await replySafe(event, "No shared session is currently bound.");
-    return null;
-  }
-  const response = await gatewayRequest(
-    `/api/v1/agent/sessions/${encodeURIComponent(state.sessionId)}/approval`,
+  return postSharedSessionEnvelope(
+    event,
+    state,
+    "approval",
     {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        approved: Boolean(approved),
-        token: safeText(token) || undefined,
-        surface: "qq",
-        channel_type: "qq",
-        conversation_id: state.key,
-        sender_id: String(event.author?.id || event.user_id || "").trim() || undefined
-      })
-    }
+      approved: Boolean(approved),
+      token: safeText(token) || undefined
+    },
+    "Invalid session approval response from gateway"
   );
-  const envelope = await response.json();
-  if (!envelope?.ok || !envelope?.data) {
-    throw new Error("Invalid session approval response from gateway");
-  }
-  return envelope.data;
 }
 
 async function updateSharedSessionRuntimePolicy(event, state, payload) {
-  if (!state.sessionId) {
-    await replySafe(event, "No shared session is currently bound.");
-    return null;
-  }
-  const response = await gatewayRequest(
-    `/api/v1/agent/sessions/${encodeURIComponent(state.sessionId)}/policy`,
+  return postSharedSessionEnvelope(
+    event,
+    state,
+    "policy",
     {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        approval_profile: safeText(payload?.approval_profile) || undefined,
-        access_level: safeText(payload?.access_level) || undefined,
-        surface: "qq",
-        channel_type: "qq",
-        conversation_id: state.key,
-        sender_id: String(event.author?.id || event.user_id || "").trim() || undefined
-      })
-    }
+      approval_profile: safeText(payload?.approval_profile) || undefined,
+      access_level: safeText(payload?.access_level) || undefined
+    },
+    "Invalid runtime policy response from gateway"
   );
-  const envelope = await response.json();
-  if (!envelope?.ok || !envelope?.data) {
-    throw new Error("Invalid runtime policy response from gateway");
-  }
-  return envelope.data;
 }
 
 function formatSharedSessionRuntimePolicyResult(data) {
@@ -1346,7 +1251,7 @@ function resolveSharedSessionSelector(items, selector) {
 }
 
 async function replySafe(event, text) {
-  const chunks = splitLongText(text || "");
+  const chunks = splitLongText(text || "", maxReplyChunkSize);
   for (const chunk of chunks) {
     if (typeof event.reply === "function") {
       await event.reply(chunk);
@@ -1372,7 +1277,7 @@ function invocationJoinedArgs(invocation, start = 0) {
   return invocationArgs(invocation).slice(start).join(" ").trim();
 }
 
-async function ensureSharedSessionBound(event, state) {
+async function ensureSharedSessionBound(event, state, { notifyWhenMissing = true } = {}) {
   try {
     const synced = await syncPreferredSharedSession(state);
     if (safeText(synced?.preferred?.session_id)) {
@@ -1384,7 +1289,9 @@ async function ensureSharedSessionBound(event, state) {
   if (state.sessionId) {
     return true;
   }
-  await replySafe(event, "No shared session is currently bound.");
+  if (notifyWhenMissing) {
+    await replySafe(event, "No shared session is currently bound.");
+  }
   return false;
 }
 
@@ -1393,7 +1300,7 @@ async function handleHelpCommand({ event }) {
 }
 
 async function handleStatusCommand({ event, state }) {
-  if (await ensureSharedSessionBound(event, state)) {
+  if (await ensureSharedSessionBound(event, state, { notifyWhenMissing: false })) {
     const detail = await fetchSharedSessionDetail(state.sessionId, 6);
     await replySafe(
       event,
@@ -1422,7 +1329,12 @@ async function handleWorkspaceCommand({ event, state, invocation }) {
     await replySafe(event, buildCommandUsageText("qq", "workspace", "Usage: /workspace <path>"));
     return;
   }
-  state.workspaceDir = value;
+  try {
+    state.workspaceDir = ensureWorkspaceInAllowed(value, allowedWorkspaceRoots);
+  } catch (error) {
+    await replySafe(event, `Workspace rejected: ${String(error?.message || error)}`);
+    return;
+  }
   state.sessionId = "";
   state.followLatest = true;
   await replySafe(event, `Workspace set to: ${state.workspaceDir}`);
@@ -1502,9 +1414,6 @@ async function handleSessionCommand({ event, state, invocation }) {
 }
 
 async function handleResetCommand({ event, state }) {
-  if (!(await ensureSharedSessionBound(event, state))) {
-    return;
-  }
   await gatewayRequest(`/api/v1/agent/sessions/${encodeURIComponent(state.sessionId)}/reset`, {
     method: "POST"
   });
@@ -1512,24 +1421,19 @@ async function handleResetCommand({ event, state }) {
 }
 
 async function handleCancelCommand({ event, state }) {
-  if (!(await ensureSharedSessionBound(event, state))) {
-    return;
-  }
   try {
     await gatewayRequest(`/api/v1/agent/sessions/${encodeURIComponent(state.sessionId)}/cancel`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        reason: "user_cancel",
-        surface: "qq",
-        channel_type: "qq",
-        conversation_id: state.key,
-        sender_id: String(event.author?.id || event.user_id || "").trim() || undefined
-      })
+      body: JSON.stringify(
+        qqSessionMutationPayload(event, state, {
+          reason: "user_cancel"
+        })
+      )
     });
   } catch (error) {
     if (String(error).includes("HTTP 409")) {
-      await replySafe(event, "No running turn to cancel.");
+      await replySafe(event, gatewayErrorDetail(error));
       return;
     }
     throw error;
@@ -1538,17 +1442,11 @@ async function handleCancelCommand({ event, state }) {
 }
 
 async function handleContinueCommand({ event, state }) {
-  if (!(await ensureSharedSessionBound(event, state))) {
-    return;
-  }
   const detail = await fetchSharedSessionDetail(state.sessionId, 10);
   await replySafe(event, formatSharedSessionRecovery(detail, { includeMessages: true }));
 }
 
 async function handleModelCommand({ event, state, invocation }) {
-  if (!(await ensureSharedSessionBound(event, state))) {
-    return;
-  }
   const args = invocationArgs(invocation);
   const action = safeText(args[0] || "").toLowerCase() || "show";
   if (action === "show") {
@@ -1579,28 +1477,7 @@ async function handleModelCommand({ event, state, invocation }) {
     }
     const providerId = safeText(args[1]);
     const modelId = safeText(args[2]);
-    const items = await fetchSharedModelCatalog();
-    const matches = items.filter((item) => safeText(item?.provider_id) === providerId);
-    if (!matches.length) {
-      await replySafe(event, `Provider not found: ${providerId}`);
-      return;
-    }
-    if (matches.length > 1) {
-      await replySafe(
-        event,
-        `Provider id is ambiguous: ${providerId}. Please rename providers to make ids unique.`
-      );
-      return;
-    }
-    const provider = matches[0];
-    const models = Array.isArray(provider?.models) ? provider.models : [];
-    const matchedModel = models.find((item) => safeText(item?.model_id) === modelId);
-    if (!matchedModel) {
-      await replySafe(event, `Model not found in ${providerId}: ${modelId}`);
-      return;
-    }
     const result = await updateSharedSessionModel(event, state, {
-      provider_source: safeText(provider?.source) || "custom",
       provider_id: providerId,
       model_id: modelId
     });
@@ -1610,13 +1487,13 @@ async function handleModelCommand({ event, state, invocation }) {
     if (Boolean(result?.queued)) {
       lines.push(
         `Queued model: ${formatModelIdentity(
-          pending || { source: safeText(provider?.source) || "custom", providerId, modelId }
+          pending || { source: safeText(result?.pending_model_source) || "custom", providerId, modelId }
         )}`
       );
     } else {
       lines.push(
         `Selected model: ${formatModelIdentity(
-          selected || { source: safeText(provider?.source) || "custom", providerId, modelId }
+          selected || { source: safeText(result?.selected_model_source) || "custom", providerId, modelId }
         )}`
       );
     }
@@ -1631,33 +1508,7 @@ async function handleModelCommand({ event, state, invocation }) {
 }
 
 async function handleApprovalCommand({ event, state, invocation }) {
-  if (!(await ensureSharedSessionBound(event, state))) {
-    return;
-  }
-  const detail = await fetchSharedSessionDetail(state.sessionId, 10);
-  const liveApprovals = pendingApprovals(detail);
-  if (!liveApprovals.length) {
-    const lostApprovals = recoveryPendingApprovals(detail);
-    if (lostApprovals.length) {
-      await replySafe(
-        event,
-        "Pending approval was lost after restart and cannot be resumed directly. Send a new message to continue with recovery context."
-      );
-      return;
-    }
-    await replySafe(event, "No pending approval request.");
-    return;
-  }
-  let resolvedToken = invocationJoinedArgs(invocation);
-  if (!resolvedToken) {
-    if (liveApprovals.length === 1) {
-      resolvedToken = safeText(liveApprovals[0].token);
-    } else {
-      const tokens = liveApprovals.map((item) => safeText(item.token)).filter(Boolean);
-      await replySafe(event, `Multiple approvals pending. Specify a token: ${tokens.join(", ")}`);
-      return;
-    }
-  }
+  const resolvedToken = invocationJoinedArgs(invocation) || undefined;
   try {
     const result = await resolveSharedSessionApproval(
       event,
@@ -1670,39 +1521,24 @@ async function handleApprovalCommand({ event, state, invocation }) {
       `${result.decision}: ${result.tool_name}\nsessionId: ${result.session_id}\ntoken: ${result.token}`
     );
   } catch (error) {
-    await replySafe(event, `Handle message failed: ${String(error)}`);
+    await replySafe(event, gatewayErrorDetail(error));
   }
 }
 
-async function handleRuntimePolicyCommand({ event, state, invocation }) {
-  if (!(await ensureSharedSessionBound(event, state))) {
-    return;
-  }
-  const commandName = invocation.name;
-  const payload = (() => {
-    if (commandName === "/plan") {
-      return { approval_profile: "plan" };
-    }
-    if (commandName === "/build") {
-      return { approval_profile: "build" };
-    }
-    if (commandName === "/default") {
-      return { access_level: "default" };
-    }
-    return { access_level: "full-access" };
-  })();
+async function handleRuntimePolicyCommand({ event, state, entry }) {
+  const payload =
+    entry?.runtimePolicyPayload && typeof entry.runtimePolicyPayload === "object"
+      ? entry.runtimePolicyPayload
+      : {};
   try {
     const result = await updateSharedSessionRuntimePolicy(event, state, payload);
     await replySafe(event, formatSharedSessionRuntimePolicyResult(result));
   } catch (error) {
-    await replySafe(event, `Handle message failed: ${String(error)}`);
+    await replySafe(event, gatewayErrorDetail(error));
   }
 }
 
 async function handleContextCommand({ event, state, invocation }) {
-  if (!(await ensureSharedSessionBound(event, state))) {
-    return;
-  }
   const args = invocationArgs(invocation);
   let action = safeText(args[0] || "").toLowerCase() || "show";
   if (action === "brief" || action === "full") {
@@ -1736,467 +1572,280 @@ async function handleContextCommand({ event, state, invocation }) {
     await replySafe(event, formatRemoteContextStats(detail));
     return;
   }
+  const usageText = buildCommandUsageText("qq", "context", { action });
+  const payload = {};
   if (action === "include" || action === "exclude") {
-    const sources = args.slice(1).map((item) => safeText(item)).filter(Boolean);
-    if (!sources.length) {
-      await replySafe(event, buildCommandUsageText("qq", "context", { action }));
-      return;
-    }
-    await updateSharedSessionContext(event, state, {
-      action,
-      sources
-    });
-    const detail = await fetchSharedSessionDetail(state.sessionId, 10);
-    await replySafe(
-      event,
-      [
-        `Context policy updated: ${contextPolicySummary(detail?.context_policy)}`,
-        "",
-        formatRemoteContextShow(detail, "brief")
-      ].join("\n")
-    );
-    return;
-  }
-  if (action === "budget") {
-    if (args.length < 2) {
-      await replySafe(
-        event,
-        buildCommandUsageText("qq", "context", { action: "budget" })
-      );
+    payload.action = action;
+    payload.sources = args.slice(1).map((item) => safeText(item)).filter(Boolean);
+  } else if (action === "budget") {
+    if (args.length > 4) {
+      await replySafe(event, usageText);
       return;
     }
     const maxItems = Number(args[1]);
-    const maxTotalChars = args.length >= 3 ? Number(args[2]) : null;
-    const maxItemsPerSource = args.length >= 4 ? Number(args[3]) : null;
-    if (
-      !Number.isFinite(maxItems) ||
-      (maxTotalChars !== null && !Number.isFinite(maxTotalChars)) ||
-      (maxItemsPerSource !== null && !Number.isFinite(maxItemsPerSource))
-    ) {
-      await replySafe(
-        event,
-        buildCommandUsageText("qq", "context", { action: "budget" })
-      );
-      return;
-    }
-    await updateSharedSessionContext(event, state, {
-      action: "budget",
-      max_items: Math.trunc(maxItems),
-      max_total_chars: maxTotalChars === null ? null : Math.trunc(maxTotalChars),
-      max_items_per_source: maxItemsPerSource === null ? null : Math.trunc(maxItemsPerSource)
-    });
-    const detail = await fetchSharedSessionDetail(state.sessionId, 10);
-    await replySafe(
-      event,
-      [
-        `Context budget updated: ${contextPolicySummary(detail?.context_policy)}`,
-        "",
-        formatRemoteContextShow(detail, "brief")
-      ].join("\n")
-    );
-    return;
-  }
-  if (action === "reset") {
+    const maxTotalChars = Number(args[2]);
+    const maxItemsPerSource = Number(args[3]);
+    payload.action = "budget";
+    payload.max_items = Number.isFinite(maxItems) && maxItems > 0 ? Math.trunc(maxItems) : undefined;
+    payload.max_total_chars =
+      Number.isFinite(maxTotalChars) && maxTotalChars > 0 ? Math.trunc(maxTotalChars) : undefined;
+    payload.max_items_per_source =
+      Number.isFinite(maxItemsPerSource) && maxItemsPerSource > 0
+        ? Math.trunc(maxItemsPerSource)
+        : undefined;
+  } else if (action === "reset") {
     if (args.length > 1) {
-      await replySafe(event, buildCommandUsageText("qq", "context", { action: "reset" }));
+      await replySafe(event, usageText);
       return;
     }
-    await updateSharedSessionContext(event, state, { action: "reset" });
+    payload.action = "reset";
+  } else {
+    await replySafe(
+      event,
+      buildUnknownActionText(
+        "qq",
+        "context",
+        action,
+        buildCommandUsageText("qq", "context")
+      )
+    );
+    return;
+  }
+
+  try {
+    await updateSharedSessionContext(event, state, payload);
     const detail = await fetchSharedSessionDetail(state.sessionId, 10);
+    const summaryLine =
+      action === "reset"
+        ? "Context policy reset to defaults."
+        : action === "budget"
+          ? `Context budget updated: ${contextPolicySummary(detail?.context_policy)}`
+          : `Context policy updated: ${contextPolicySummary(detail?.context_policy)}`;
     await replySafe(
       event,
       [
-        "Context policy reset to defaults.",
+        summaryLine,
         "",
         formatRemoteContextShow(detail, "brief")
       ].join("\n")
     );
-    return;
+  } catch (error) {
+    await replySafe(event, gatewayErrorDetail(error));
   }
-  await replySafe(
-    event,
-    buildUnknownActionText(
-      "qq",
-      "context",
-      action,
-      buildCommandUsageText("qq", "context")
-    )
-  );
 }
 
 async function handleMemoryCommand({ event, state, invocation }) {
-  if (!(await ensureSharedSessionBound(event, state))) {
-    return;
-  }
   const args = invocationArgs(invocation);
   let action = safeText(args[0] || "").toLowerCase() || "status";
   if (action === "brief" || action === "full") {
     action = "show";
   }
-  if (action === "status") {
+  const usageText = buildCommandUsageText("qq", "memory", { action });
+  const zeroArgDetailModes = new Map([
+    ["status", "brief"],
+    ["list", "full"],
+    ["overview", "full"],
+    ["runtime", "full"],
+    ["refresh", "full"],
+  ]);
+  const textQueryActions = new Set(["profile", "notes"]);
+  const payload = {};
+
+  if (zeroArgDetailModes.has(action)) {
     if (args.length > 1) {
-      await replySafe(event, buildCommandUsageText("qq", "memory", { action: "status" }));
+      await replySafe(event, usageText);
       return;
     }
-    const result = await manageSharedSessionMemory(event, state, {
-      action: "status",
-      detail_mode: "brief"
-    });
-    await replySafe(event, formatSharedSessionMemoryResult(result));
-    return;
-  }
-  if (action === "show") {
-    const firstArg = safeText(args[1] || "");
-    const loweredFirstArg = firstArg.toLowerCase();
-    const isDetailMode = loweredFirstArg === "brief" || loweredFirstArg === "full";
-    const detailMode = isDetailMode ? loweredFirstArg : "full";
-    const selector = !isDetailMode ? firstArg : "";
+    payload.action = action;
+    payload.detail_mode = zeroArgDetailModes.get(action);
+  } else if (action === "show") {
     if (args.length > 2) {
-      await replySafe(event, buildCommandUsageText("qq", "memory", { action: "show" }));
+      await replySafe(event, usageText);
       return;
     }
-    const result = await manageSharedSessionMemory(event, state, {
-      action: selector ? "session_show" : "show",
-      engram_id: selector || undefined,
-      detail_mode: detailMode
-    });
-    await replySafe(event, formatSharedSessionMemoryResult(result));
-    return;
-  }
-  if (action === "list" || action === "runtime") {
-    if (args.length > 1) {
-      await replySafe(event, buildCommandUsageText("qq", "memory", { action }));
+    const selectorOrMode = safeText(args[1]);
+    const normalizedSelectorOrMode = selectorOrMode.toLowerCase();
+    if (!selectorOrMode || normalizedSelectorOrMode === "brief" || normalizedSelectorOrMode === "full") {
+      payload.action = "show";
+      payload.detail_mode =
+        normalizedSelectorOrMode === "brief" || normalizedSelectorOrMode === "full"
+          ? normalizedSelectorOrMode
+          : "full";
+    } else {
+      payload.action = "session_show";
+      payload.engram_id = selectorOrMode;
+      payload.detail_mode = "full";
+    }
+  } else if (action === "export") {
+    if (args.length > 2) {
+      await replySafe(event, usageText);
       return;
     }
-    const result = await manageSharedSessionMemory(event, state, {
-      action,
-      detail_mode: "full"
-    });
-    await replySafe(event, formatSharedSessionMemoryResult(result));
-    return;
-  }
-  if (action === "overview") {
-    if (args.length > 1) {
-      await replySafe(event, buildCommandUsageText("qq", "memory", { action: "overview" }));
-      return;
-    }
-    const result = await manageSharedSessionMemory(event, state, {
-      action: "overview",
-      detail_mode: "full"
-    });
-    await replySafe(event, formatSharedSessionMemoryResult(result));
-    return;
-  }
-  if (action === "export") {
-    const exportFormat = safeText(args[1] || "").toLowerCase() || "jsonl";
-    if (args.length > 2 || !["jsonl", "markdown"].includes(exportFormat)) {
-      await replySafe(event, buildCommandUsageText("qq", "memory", { action: "export" }));
-      return;
-    }
-    const result = await manageSharedSessionMemory(event, state, {
-      action: "export",
-      export_format: exportFormat,
-      detail_mode: "full"
-    });
-    await replySafe(event, formatSharedSessionMemoryResult(result));
-    return;
-  }
-  if (action === "consolidated") {
+    payload.action = "export";
+    payload.export_format = safeText(args[1]).toLowerCase() || undefined;
+    payload.detail_mode = "full";
+  } else if (action === "consolidated") {
     const consolidatedAction = safeText(args[1] || "").toLowerCase() || "show";
     if (consolidatedAction === "show") {
       if (args.length > 2) {
-        await replySafe(event, buildCommandUsageText("qq", "memory", { action: "consolidated" }));
+        await replySafe(event, usageText);
         return;
       }
-      const result = await manageSharedSessionMemory(event, state, {
-        action: "consolidated_show",
-        detail_mode: "full"
-      });
-      await replySafe(event, formatSharedSessionMemoryResult(result));
+      payload.action = "consolidated_show";
+      payload.detail_mode = "full";
+    } else if (consolidatedAction === "search") {
+      payload.action = "consolidated_search";
+      payload.query = args.slice(2).join(" ").trim() || undefined;
+      payload.detail_mode = "full";
+    } else {
+      await replySafe(
+        event,
+        `Unknown memory consolidated action: ${consolidatedAction || "(empty)"}.\n${buildCommandUsageText("qq", "memory", {
+          action: "consolidated"
+        })}`
+      );
       return;
     }
-    if (consolidatedAction === "search") {
-      const query = args.slice(2).join(" ").trim();
-      if (!query) {
-        await replySafe(event, buildCommandUsageText("qq", "memory", { action: "consolidated" }));
-        return;
-      }
-      const result = await manageSharedSessionMemory(event, state, {
-        action: "consolidated_search",
-        query,
-        detail_mode: "full"
-      });
-      await replySafe(event, formatSharedSessionMemoryResult(result));
-      return;
-    }
-    await replySafe(
-      event,
-      `Unknown memory consolidated action: ${consolidatedAction || "(empty)"}.\n${buildCommandUsageText("qq", "memory", {
-        action: "consolidated"
-      })}`
-    );
-    return;
-  }
-  if (action === "profile") {
-    const query = args.slice(1).join(" ").trim();
-    const result = await manageSharedSessionMemory(event, state, {
-      action: "profile",
-      query: query || undefined,
-      detail_mode: "full"
-    });
-    await replySafe(event, formatSharedSessionMemoryResult(result));
-    return;
-  }
-  if (action === "notes") {
-    const query = args.slice(1).join(" ").trim();
-    const result = await manageSharedSessionMemory(event, state, {
-      action: "notes",
-      query: query || undefined,
-      detail_mode: "full"
-    });
-    await replySafe(event, formatSharedSessionMemoryResult(result));
-    return;
-  }
-  if (action === "daily") {
-    const day = safeText(args[1]);
-    if (args.length !== 2 || !day) {
-      await replySafe(event, buildCommandUsageText("qq", "memory", { action: "daily" }));
-      return;
-    }
-    const result = await manageSharedSessionMemory(event, state, {
-      action: "daily",
-      day,
-      detail_mode: "full"
-    });
-    await replySafe(event, formatSharedSessionMemoryResult(result));
-    return;
-  }
-  if (action === "shared") {
+  } else if (textQueryActions.has(action)) {
+    payload.action = action;
+    payload.query = args.slice(1).join(" ").trim() || undefined;
+    payload.detail_mode = "full";
+  } else if (action === "daily") {
+    payload.action = "daily";
+    payload.day = safeText(args[1]) || undefined;
+    payload.detail_mode = "full";
+  } else if (action === "shared") {
     const sharedAction = safeText(args[1] || "").toLowerCase() || "list";
-    const selector = safeText(args[2]);
-    if (sharedAction === "list") {
+    if (sharedAction === "list" || sharedAction === "clear") {
       if (args.length > 2) {
-        await replySafe(event, buildCommandUsageText("qq", "memory", { action: "shared" }));
+        await replySafe(event, usageText);
         return;
       }
-      const result = await manageSharedSessionMemory(event, state, {
-        action: "shared_list",
-        detail_mode: "full"
-      });
-      await replySafe(event, formatSharedSessionMemoryResult(result));
-      return;
-    }
-    if (sharedAction === "show") {
+      payload.action = sharedAction === "list" ? "shared_list" : "shared_clear";
+      payload.detail_mode = "full";
+    } else if (sharedAction === "show") {
       if (args.length > 3) {
-        await replySafe(event, buildCommandUsageText("qq", "memory", { action: "shared" }));
+        await replySafe(event, usageText);
         return;
       }
-      const result = await manageSharedSessionMemory(event, state, {
-        action: "shared_show",
-        engram_id: selector || undefined,
-        detail_mode: "full"
-      });
-      await replySafe(event, formatSharedSessionMemoryResult(result));
+      payload.action = "shared_show";
+      payload.engram_id = safeText(args[2]) || undefined;
+      payload.detail_mode = "full";
+    } else {
+      await replySafe(
+        event,
+        `Unknown memory shared action: ${sharedAction || "(empty)"}.\n${buildCommandUsageText("qq", "memory", {
+          action: "shared"
+        })}`
+      );
       return;
     }
-    if (sharedAction === "clear") {
-      if (args.length > 2) {
-        await replySafe(event, buildCommandUsageText("qq", "memory", { action: "shared" }));
-        return;
-      }
-      const result = await manageSharedSessionMemory(event, state, {
-        action: "shared_clear",
-        detail_mode: "full"
-      });
-      await replySafe(event, formatSharedSessionMemoryResult(result));
+  } else if (action === "promote") {
+    const target = safeText(args[1]).toLowerCase();
+    const promoteMap = new Map([
+      ["shared", "promote_shared"],
+      ["note", "promote_note"],
+      ["profile", "promote_profile"],
+    ]);
+    if (!promoteMap.has(target)) {
+      await replySafe(event, usageText);
       return;
     }
+    payload.action = promoteMap.get(target);
+    payload.engram_id = safeText(args[2]) || undefined;
+    payload.detail_mode = "full";
+  } else if (action === "save") {
+    const target = safeText(args[1]).toLowerCase();
+    const saveMap = new Map([
+      ["note", "save_note"],
+      ["profile", "save_profile"],
+    ]);
+    if (!saveMap.has(target)) {
+      await replySafe(event, usageText);
+      return;
+    }
+    payload.action = saveMap.get(target);
+    payload.content = args.slice(2).join(" ").trim() || undefined;
+    payload.detail_mode = "full";
+  } else {
     await replySafe(
       event,
-      `Unknown memory shared action: ${sharedAction || "(empty)"}.\n${buildCommandUsageText("qq", "memory", {
-        action: "shared"
-      })}`
+      buildUnknownActionText(
+        "qq",
+        "memory",
+        action,
+        buildCommandUsageText("qq", "memory")
+      )
     );
     return;
   }
-  if (action === "refresh") {
-    if (args.length > 1) {
-      await replySafe(event, buildCommandUsageText("qq", "memory", { action: "refresh" }));
-      return;
-    }
-    const result = await manageSharedSessionMemory(event, state, {
-      action: "refresh",
-      detail_mode: "full"
-    });
+
+  try {
+    const result = await manageSharedSessionMemory(event, state, payload);
     await replySafe(event, formatSharedSessionMemoryResult(result));
-    return;
+  } catch (error) {
+    await replySafe(event, gatewayErrorDetail(error));
   }
-  if (action === "promote") {
-    const target = safeText(args[1]).toLowerCase();
-    const selector = safeText(args[2]);
-    if (target !== "shared" && target !== "note" && target !== "profile") {
-      await replySafe(event, buildCommandUsageText("qq", "memory", { action: "promote" }));
-      return;
-    }
-    const result = await manageSharedSessionMemory(event, state, {
-      action:
-        target === "shared"
-          ? "promote_shared"
-          : target === "note"
-            ? "promote_note"
-            : "promote_profile",
-      engram_id: selector || undefined,
-      detail_mode: "full"
-    });
-    await replySafe(event, formatSharedSessionMemoryResult(result));
-    return;
-  }
-  if (action === "save") {
-    const target = safeText(args[1]).toLowerCase();
-    const content = args.slice(2).join(" ").trim();
-    if (target !== "note" && target !== "profile") {
-      await replySafe(event, buildCommandUsageText("qq", "memory", { action: "save" }));
-      return;
-    }
-    const result = await manageSharedSessionMemory(event, state, {
-      action: target === "note" ? "save_note" : "save_profile",
-      content: content || undefined,
-      detail_mode: "full"
-    });
-    await replySafe(event, formatSharedSessionMemoryResult(result));
-    return;
-  }
-  await replySafe(
-    event,
-    buildUnknownActionText(
-      "qq",
-      "memory",
-      action,
-      buildCommandUsageText("qq", "memory")
-    )
-  );
 }
 
 async function handleSkillCommand({ event, state, invocation }) {
-  if (!(await ensureSharedSessionBound(event, state))) {
-    return;
-  }
   const args = invocationArgs(invocation);
   const action = safeText(args[0] || "").toLowerCase() || "list";
-  if (action === "list") {
-    if (args.length > 1) {
-      await replySafe(event, buildCommandUsageText("qq", "skill", { action: "list" }));
-      return;
-    }
-    const result = await manageSharedSessionSkill(event, state, { action: "list" });
-    await replySafe(event, formatSharedSessionSkillResult(result));
+  const usageText = buildCommandUsageText("qq", "skill", { action });
+  const textValue = args.slice(1).join(" ").trim();
+  const zeroArgActions = new Set(["list", "active", "reset", "refresh"]);
+  const fieldByAction = new Map([
+    ["show", "skill_name"],
+    ["search", "query"],
+    ["install", "path"],
+    ["uninstall", "skill_name"],
+    ["rollback", "skill_name"],
+    ["enable", "skill_name"],
+    ["disable", "skill_name"],
+  ]);
+
+  if (zeroArgActions.has(action) && args.length > 1) {
+    await replySafe(event, usageText);
     return;
   }
-  if (action === "active") {
-    if (args.length > 1) {
-      await replySafe(event, buildCommandUsageText("qq", "skill", { action: "active" }));
-      return;
-    }
-    const result = await manageSharedSessionSkill(event, state, { action: "active" });
-    await replySafe(event, formatSharedSessionSkillResult(result));
+  if (action === "mode" && args.length > 2) {
+    await replySafe(event, usageText);
     return;
   }
-  if (action === "show") {
-    const skillName = args.slice(1).join(" ").trim();
-    if (!skillName) {
-      await replySafe(event, buildCommandUsageText("qq", "skill", { action: "show" }));
-      return;
-    }
-    const result = await manageSharedSessionSkill(event, state, {
-      action: "show",
-      skill_name: skillName
-    });
-    await replySafe(event, formatSharedSessionSkillResult(result));
+  if (!zeroArgActions.has(action) && action !== "mode" && !fieldByAction.has(action)) {
+    await replySafe(
+      event,
+      buildUnknownActionText("qq", "skill", action, buildCommandUsageText("qq", "skill"))
+    );
     return;
   }
-  if (action === "install") {
-    const path = args.slice(1).join(" ").trim();
-    if (!path) {
-      await replySafe(event, buildCommandUsageText("qq", "skill", { action: "install" }));
-      return;
-    }
-    const result = await manageSharedSessionSkill(event, state, {
-      action: "install",
-      path
-    });
-    await replySafe(event, formatSharedSessionSkillResult(result));
-    return;
-  }
-  if (action === "search") {
-    const query = args.slice(1).join(" ").trim();
-    if (!query) {
-      await replySafe(event, buildCommandUsageText("qq", "skill", { action: "search" }));
-      return;
-    }
-    const result = await manageSharedSessionSkill(event, state, {
-      action: "search",
-      query
-    });
-    await replySafe(event, formatSharedSessionSkillResult(result));
-    return;
+
+  const payload = { action };
+  const fieldName = fieldByAction.get(action);
+  if (fieldName) {
+    payload[fieldName] = textValue || undefined;
   }
   if (action === "mode") {
-    const mode = safeText(args[1]);
-    if (!mode || args.length > 2) {
-      await replySafe(event, buildCommandUsageText("qq", "skill", { action: "mode" }));
-      return;
-    }
-    const result = await manageSharedSessionSkill(event, state, {
-      action: "mode",
-      mode
-    });
-    await replySafe(event, formatSharedSessionSkillResult(result));
-    return;
+    payload.mode = safeText(args[1]) || undefined;
   }
-  if (action === "enable" || action === "disable") {
-    const skillName = args.slice(1).join(" ").trim();
-    if (!skillName) {
-      await replySafe(event, buildCommandUsageText("qq", "skill", { action }));
-      return;
-    }
-    const result = await manageSharedSessionSkill(event, state, {
-      action,
-      skill_name: skillName
-    });
+
+  try {
+    const result = await manageSharedSessionSkill(event, state, payload);
     await replySafe(event, formatSharedSessionSkillResult(result));
-    return;
+  } catch (error) {
+    await replySafe(event, gatewayErrorDetail(error));
   }
-  if (action === "reset") {
-    if (args.length > 1) {
-      await replySafe(event, buildCommandUsageText("qq", "skill", { action: "reset" }));
-      return;
-    }
-    const result = await manageSharedSessionSkill(event, state, { action: "reset" });
-    await replySafe(event, formatSharedSessionSkillResult(result));
-    return;
-  }
-  if (action === "refresh") {
-    if (args.length > 1) {
-      await replySafe(event, buildCommandUsageText("qq", "skill", { action: "refresh" }));
-      return;
-    }
-    const result = await manageSharedSessionSkill(event, state, { action: "refresh" });
-    await replySafe(event, formatSharedSessionSkillResult(result));
-    return;
-  }
-  await replySafe(
-    event,
-    buildUnknownActionText("qq", "skill", action, buildCommandUsageText("qq", "skill"))
-  );
 }
 
 async function handleMcpCommand({ event, state, invocation }) {
-  if (!(await ensureSharedSessionBound(event, state))) {
-    return;
-  }
   const args = invocationArgs(invocation);
   const action = safeText(args[0] || "").toLowerCase() || "status";
-  if (!["status", "list", "reload"].includes(action)) {
+  const mcpActionMap = new Map([
+    ["status", "mcp_status"],
+    ["list", "mcp_list"],
+    ["reload", "mcp_reload"],
+  ]);
+  if (!mcpActionMap.has(action)) {
     await replySafe(
       event,
       buildUnknownActionText("qq", "mcp", action, buildCommandUsageText("qq", "mcp"))
@@ -2208,22 +1857,17 @@ async function handleMcpCommand({ event, state, invocation }) {
     return;
   }
   try {
-    const result = await controlSharedSession(event, state, `mcp_${action}`);
+    const result = await controlSharedSession(event, state, mcpActionMap.get(action));
     if (result) {
       await replySafe(event, formatSessionControlResult(result));
     }
   } catch (error) {
-    const message = String(error);
-    if (action === "reload" && message.includes("HTTP 409")) {
-      await replySafe(event, "Session is busy. Wait for the current turn to finish first.");
-      return;
-    }
-    await replySafe(event, `MCP command failed: ${message}`);
+    await replySafe(event, gatewayErrorDetail(error));
   }
 }
 
-async function handleContextControlCommand({ event, state, invocation }) {
-  const action = invocation.name === "/compact" ? "compact" : "drop_memories";
+async function handleContextControlCommand({ event, state, invocation, entry }) {
+  const action = safeText(entry?.sessionControlAction) || "compact";
   const result = await controlSharedSession(event, state, action, invocationJoinedArgs(invocation));
   if (result) {
     await replySafe(event, formatSessionControlResult(result));
@@ -2231,34 +1875,86 @@ async function handleContextControlCommand({ event, state, invocation }) {
 }
 
 async function handleClearCommand({ event, state }) {
-  sessions.delete(state.key);
+  conversationBindings.delete(state.conversationId);
   await replySafe(event, "Local QQ conversation cache cleared.");
 }
 
+function qqCommandEntry(
+  handler,
+  {
+    requiresSharedSession = false,
+    runtimePolicyPayload = null,
+    sessionControlAction = "",
+  } = {}
+) {
+  return {
+    handler,
+    requiresSharedSession,
+    runtimePolicyPayload,
+    sessionControlAction,
+  };
+}
+
 const qqCommandHandlers = new Map([
-  ["/help", handleHelpCommand],
-  ["/status", handleStatusCommand],
-  ["/ping", handlePingCommand],
-  ["/workspace", handleWorkspaceCommand],
-  ["/dryrun", handleDryrunCommand],
-  ["/session", handleSessionCommand],
-  ["/reset", handleResetCommand],
-  ["/cancel", handleCancelCommand],
-  ["/continue", handleContinueCommand],
-  ["/model", handleModelCommand],
-  ["/approve", handleApprovalCommand],
-  ["/deny", handleApprovalCommand],
-  ["/plan", handleRuntimePolicyCommand],
-  ["/build", handleRuntimePolicyCommand],
-  ["/default", handleRuntimePolicyCommand],
-  ["/full_access", handleRuntimePolicyCommand],
-  ["/context", handleContextCommand],
-  ["/memory", handleMemoryCommand],
-  ["/skill", handleSkillCommand],
-  ["/mcp", handleMcpCommand],
-  ["/compact", handleContextControlCommand],
-  ["/drop_memories", handleContextControlCommand],
-  ["/clear", handleClearCommand],
+  ["/help", qqCommandEntry(handleHelpCommand)],
+  ["/status", qqCommandEntry(handleStatusCommand)],
+  ["/ping", qqCommandEntry(handlePingCommand)],
+  ["/workspace", qqCommandEntry(handleWorkspaceCommand)],
+  ["/dryrun", qqCommandEntry(handleDryrunCommand)],
+  ["/session", qqCommandEntry(handleSessionCommand)],
+  ["/reset", qqCommandEntry(handleResetCommand, { requiresSharedSession: true })],
+  ["/cancel", qqCommandEntry(handleCancelCommand, { requiresSharedSession: true })],
+  ["/continue", qqCommandEntry(handleContinueCommand, { requiresSharedSession: true })],
+  ["/model", qqCommandEntry(handleModelCommand, { requiresSharedSession: true })],
+  ["/approve", qqCommandEntry(handleApprovalCommand, { requiresSharedSession: true })],
+  ["/deny", qqCommandEntry(handleApprovalCommand, { requiresSharedSession: true })],
+  [
+    "/plan",
+    qqCommandEntry(handleRuntimePolicyCommand, {
+      requiresSharedSession: true,
+      runtimePolicyPayload: { approval_profile: "plan" },
+    })
+  ],
+  [
+    "/build",
+    qqCommandEntry(handleRuntimePolicyCommand, {
+      requiresSharedSession: true,
+      runtimePolicyPayload: { approval_profile: "build" },
+    })
+  ],
+  [
+    "/default",
+    qqCommandEntry(handleRuntimePolicyCommand, {
+      requiresSharedSession: true,
+      runtimePolicyPayload: { access_level: "default" },
+    })
+  ],
+  [
+    "/full_access",
+    qqCommandEntry(handleRuntimePolicyCommand, {
+      requiresSharedSession: true,
+      runtimePolicyPayload: { access_level: "full-access" },
+    })
+  ],
+  ["/context", qqCommandEntry(handleContextCommand, { requiresSharedSession: true })],
+  ["/memory", qqCommandEntry(handleMemoryCommand, { requiresSharedSession: true })],
+  ["/skill", qqCommandEntry(handleSkillCommand, { requiresSharedSession: true })],
+  ["/mcp", qqCommandEntry(handleMcpCommand, { requiresSharedSession: true })],
+  [
+    "/compact",
+    qqCommandEntry(handleContextControlCommand, {
+      requiresSharedSession: true,
+      sessionControlAction: "compact",
+    })
+  ],
+  [
+    "/drop_memories",
+    qqCommandEntry(handleContextControlCommand, {
+      requiresSharedSession: true,
+      sessionControlAction: "drop_memories",
+    })
+  ],
+  ["/clear", qqCommandEntry(handleClearCommand)],
 ]);
 
 async function handleCommand(event, state, rawText) {
@@ -2272,9 +1968,12 @@ async function handleCommand(event, state, rawText) {
     return false;
   }
   const normalizedCommand = invocation.name;
-  const handler = qqCommandHandlers.get(normalizedCommand);
-  if (handler) {
-    await handler({ event, state, invocation });
+  const entry = qqCommandHandlers.get(normalizedCommand);
+  if (entry) {
+    if (entry.requiresSharedSession && !(await ensureSharedSessionBound(event, state))) {
+      return true;
+    }
+    await entry.handler({ event, state, invocation, entry });
     return true;
   }
   const hint = suggestSharedCommandName(normalizedCommand, "qq", ["/status"]);
@@ -2297,7 +1996,7 @@ async function forwardMessage(event, state, rawText) {
   params.set("dry_run", String(Boolean(state.dryRun)));
   params.set("surface", "qq");
   params.set("channel_type", "qq");
-  params.set("conversation_id", state.key);
+  params.set("conversation_id", state.conversationId);
   const senderId = String(event.author?.id || event.user_id || "").trim();
   if (senderId) {
     params.set("sender_id", senderId);
@@ -2305,7 +2004,7 @@ async function forwardMessage(event, state, rawText) {
   if (state.sessionId) {
     params.set("session_id", state.sessionId);
   } else {
-    params.set("session_title_hint", safeText(state.botName) || qqbotName);
+    params.set("session_title_hint", qqbotName);
   }
 
   const response = await gatewayRequest(`/api/v1/agent/chat/stream?${params.toString()}`, {
@@ -2382,16 +2081,16 @@ async function handleIncomingEvent(event, eventName) {
     }
   }
 
-  const content = String(event.content || "").trim();
+  const content = limitInboundMessage(String(event.content || "").trim(), maxMessageChars);
   if (!content) {
     return;
   }
 
-  const state = getSessionState(event);
+  const state = getConversationBindingState(event);
   logLine("INFO", "Incoming message", {
     eventName,
     eventId,
-    key: state.key,
+    conversationId: state.conversationId,
     content
   });
 
@@ -2479,6 +2178,10 @@ logLine("INFO", "qqbot-channel booting", {
   mode: modeRaw,
   sandbox,
   gatewayBase,
+  gatewayAuth: Boolean(gatewayAuthToken),
+  allowedWorkspaceRoots,
+  maxMessageChars,
+  maxReplyChunkSize,
   intents
 });
 
@@ -2490,6 +2193,7 @@ bot
   .catch((error) => {
     logLine("ERROR", "qqbot-channel start failed", { error: String(error) });
   });
+
 
 
 

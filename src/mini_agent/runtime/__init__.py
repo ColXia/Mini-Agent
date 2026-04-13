@@ -28,6 +28,8 @@ _RUNTIME_EXPORTS = {
     "MainAgentRuntimeManager",
     "MainAgentRuntimeMode",
     "MainAgentRuntimePolicy",
+}
+_RUNTIME_STATE_EXPORTS = {
     "MainAgentSessionState",
 }
 _SESSION_EXPORTS = {
@@ -46,6 +48,9 @@ _TOOLING_EXPORTS = {
 def __getattr__(name: str) -> Any:
     if name in _RUNTIME_EXPORTS:
         module = import_module(".main_agent_runtime_manager", __name__)
+        return getattr(module, name)
+    if name in _RUNTIME_STATE_EXPORTS:
+        module = import_module(".session_state", __name__)
         return getattr(module, name)
     if name in _SESSION_EXPORTS:
         module = import_module(".session_lifecycle", __name__)

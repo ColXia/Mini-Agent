@@ -8,11 +8,12 @@
 > Note (P18 hard refactor): entries under old phases may reference deleted legacy modules for historical traceability only.
 > Current runtime architecture is single-host v1 (`src/apps/agent_studio_gateway/main.py` + `/api/v1/*`).
 > Stage normalization (2026-04-07): P18 closeout baseline frozen; P19 kickoff + Stage-C docs + ops alerting + adoption tracking/target-bands/delta slices landed.
-> Phase update (2026-04-12): terminal-first remains the active delivery path; README/dev guides were realigned to the actual repo contract and historical docs were moved into archive where appropriate.
+> Phase update (2026-04-12): terminal-first remains the active implementation focus, but the product entrance model is now explicitly `CLI / TUI / DesktopUI / Remote Interaction`; current remote delivery is `QQ` only, while `WeChat / Feishu` remain future extension targets; browser Studio is paused compatibility/prototype material and historical docs were moved into archive where appropriate.
 
 ## 1. Navigation
 - Refactor plan: `docs/REFACTOR_TASKS.md`
 - Current execution anchor: `docs/P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md`
+- Framework skeleton lock: `docs/FRAMEWORK_SKELETON.md`
 - Dev habit and mistake ledger: `docs/MINIAGENT_DEV_HABIT_LEDGER.md`
 - API v1 contract skeleton: `docs/API_V1_CONTRACT_SKELETON.md`
 - Archived P18 route deletion backlog: `docs/archive/P18_ROUTE_DELETION_BACKLOG.md`
@@ -39,6 +40,8 @@
 - Session hard-refactor plan (2026-04-12): `docs/P29_SESSION_HARD_REFACTOR_PLAN.md`
 - Surface/session architecture correction (2026-04-12): `docs/P30_SURFACE_SESSION_ARCHITECTURE_CORRECTION_2026-04-12.md`
 - Surface/session executable refactor task plan (2026-04-12): `docs/P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md`
+- Session truth boundary map (2026-04-13): `docs/P30_SESSION_TRUTH_BOUNDARY_MAP_2026-04-13.md`
+- DesktopUI(PySide6) decision + task plan (2026-04-13): `docs/P31_DESKTOPUI_PYSIDE6_TASK_PLAN_2026-04-13.md`
 - Transformation plan (v2): `docs/TRANSFORMATION_PLAN.md`
 - Transformation plan (mini guardrails): `docs/TRANSFORMATION_PLAN_LITE_ADDENDUM.md`
 - OSS mapping index: `docs/OSS_REFERENCE_INDEX.md`
@@ -72,13 +75,15 @@
 - `P25`: active (memory-core consolidation entered strengthening phase after unified service + runtime wiring landed)
 - `P26`: active (global/workspace memory boundary correction and runtime-memory architecture landing)
 - `P29`: active (session boundary audit completed; hard-refactor implementation planning is now active)
-- `P30`: active (surface/session architecture correction is locked; executable refactor plan is landed and the next code entry starts from `P30.1`)
+- `P30`: active (surface/session architecture correction is locked around the four-entrance model; executable refactor plan is landed and the next code entry starts from `P30.1`)
 
 Latest stage sync:
 - `2026-04-11`: Windows sandbox hardening is paused at the current sufficient-for-demo baseline.
 - `2026-04-11`: active execution focus returns to P24 demo-baseline acceptance across `TUI / CLI / QQ / gateway`.
 - `2026-04-12`: session work is temporarily re-anchored to P29 boundary repair after the latest unification bug exposed multi-owner session semantics and surface/runtime coupling.
-- `2026-04-12`: architecture is now explicitly corrected at P30: sessions are core truth, while `CLI / TUI / WebUI / QQ` are surfaces/adapters only; execution should proceed from `docs/P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md`.
+- `2026-04-12`: architecture is now explicitly corrected at P30: sessions are core truth, while the four user entrances are `CLI / TUI / DesktopUI / Remote Interaction`; concrete channels such as `QQ / WeChat / Feishu` belong under the remote entrance as thin adapters; execution should proceed from `docs/P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md`.
+- `2026-04-13`: framework skeleton is explicitly locked in `docs/FRAMEWORK_SKELETON.md`; future implementation should treat it as the repo/layer ownership guardrail before adding more surface or remote behavior.
+- `2026-04-13`: the third graphical mainline is now frozen as `DesktopUI(PySide6)` rather than browser-first `WebUI`; browser Studio remains paused compatibility/prototype material, and the next desktop implementation order is `thin application seam first -> reuse existing gateway transport -> build DesktopUI shell`.
 
 ## 3. Active Plan: P22 Core Agent Minimal (Started 2026-04-07)
 
@@ -515,12 +520,7 @@ Mini principle in execution: capability strong, architecture lean (not capabilit
   - shared channel contract update:
     - `src/channels/types/src/index.ts`
   - QQ channel completion:
-    - `src/channels/qqbot/src/channel.ts`
-    - `src/channels/qqbot/src/gateway_client.ts`
-    - `src/channels/qqbot/src/session_store.ts`
-    - `src/channels/qqbot/src/index.ts`
-    - `src/channels/qqbot/package.json`
-    - `src/channels/qqbot/.env.example`
+    - historical package baseline later consolidated into the app-path runtime under `src/apps/qqbot_channel/`
   - WeChat channel baseline:
     - `src/channels/wechat/manifest.json`
     - `src/channels/wechat/package.json`
@@ -528,7 +528,7 @@ Mini principle in execution: capability strong, architecture lean (not capabilit
     - `src/channels/wechat/.env.example`
     - `src/channels/wechat/src/channel.ts`
     - `src/channels/wechat/src/gateway_client.ts`
-    - `src/channels/wechat/src/session_store.ts`
+    - `src/channels/wechat/src/conversation_binding_store.ts`
     - `src/channels/wechat/src/index.ts`
   - channel run scripts at that stage:
     - `scripts/archive/run_qqbot_channel.ps1`
@@ -539,11 +539,12 @@ Mini principle in execution: capability strong, architecture lean (not capabilit
   - tests:
     - `tests/test_gateway_routers.py` (conversation binding sender split coverage)
   - hardening slice:
-    - `src/channels/qqbot/src/channel.ts` (workspace boundary, inbound guardrail, smoke helper)
-    - `src/channels/qqbot/src/gateway_client.ts` (`Authorization` passthrough)
-    - `src/channels/qqbot/src/index.ts` (guardrail env wiring)
-    - `src/channels/qqbot/src/smoke_runner.ts` (QQ synthetic message smoke runner)
-    - `src/channels/qqbot/.env.example` (gateway auth + guardrail envs)
+    - current QQ runtime path:
+      - `src/apps/qqbot_channel/bot.mjs`
+      - `src/apps/qqbot_channel/gateway_io.mjs`
+      - `src/apps/qqbot_channel/guardrails.mjs`
+      - `src/apps/qqbot_channel/smoke_runner.mjs`
+      - `src/apps/qqbot_channel/.env.example`
     - `src/channels/wechat/src/channel.ts` (timestamp/body-size/dedupe/workspace guardrails)
     - `src/channels/wechat/src/gateway_client.ts` (`Authorization` passthrough)
     - `src/channels/wechat/src/index.ts` (guardrail env wiring)
@@ -551,7 +552,8 @@ Mini principle in execution: capability strong, architecture lean (not capabilit
     - `scripts/qq_wechat_smoke.py` (real message flow smoke runner)
   - hardening validations:
     - `npm run build --prefix src/channels/types`
-    - `npm run build --prefix src/channels/qqbot`
+    - `npm run check --prefix src/apps/qqbot_channel`
+    - `npm run smoke --prefix src/apps/qqbot_channel`
     - `npm run build --prefix src/channels/wechat`
     - `python scripts/qq_wechat_smoke.py`
     - `python scripts/test_stable.py`
@@ -671,7 +673,8 @@ python scripts/ci/open_webui_smoke.py --adapter-base-url http://127.0.0.1:8010 -
 pytest -q tests/test_agent_studio_gateway_studio_router.py
 python scripts/ci/studio_ops_smoke.py --base-url http://127.0.0.1:8008 --token <studio-token> --expect-auth
 npm run build --prefix src/channels/types
-npm run build --prefix src/channels/qqbot
+npm run check --prefix src/apps/qqbot_channel
+npm run smoke --prefix src/apps/qqbot_channel
 npm run build --prefix src/channels/wechat
 python scripts/qq_wechat_smoke.py
 python scripts/test_stable.py

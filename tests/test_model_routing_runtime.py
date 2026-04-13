@@ -14,9 +14,11 @@ from mini_agent.config import (
     SecurityConfig,
     ToolsConfig,
 )
+from mini_agent.model_manager.preset_providers import PresetProvider, get_preset_provider_config
 from mini_agent.model_manager.runtime import (
     get_circuit_breaker_registry,
     reset_model_manager_runtime_state,
+    resolve_session_model_selection_identity,
     resolve_routed_llm_candidates,
     resolve_routed_llm_settings,
 )
@@ -157,3 +159,77 @@ def test_resolve_routed_llm_candidates_skip_open_breaker_provider(monkeypatch, t
 
     selected = resolve_routed_llm_settings(config, requested_model="claude")
     assert selected.provider_id == "openai-secondary"
+
+
+def test_resolve_session_model_selection_identity_infers_unique_custom_source(monkeypatch, tmp_path):
+    catalog_path = tmp_path / "providers.json"
+    catalog_path.write_text(
+        json.dumps(
+            {
+                "providers": [
+                    {
+                        "id": "maas",
+                        "name": "MaaS",
+                        "api_type": "openai",
+                        "api_base": "https://maas.example.com/v1",
+                        "api_key": "sk-maas",
+                        "models": ["astron-code-latest"],
+                        "enabled": True,
+                        "priority": 10,
+                    }
+                ]
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("MINI_AGENT_PROVIDER_CATALOG_PATH", str(catalog_path))
+    config = _make_config(provider="openai", model="astron-code-latest")
+
+    identity = resolve_session_model_selection_identity(
+        config,
+        provider_id="maas",
+        model_id="astron-code-latest",
+    )
+
+    assert identity == ("custom", "maas", "astron-code-latest")
+
+
+def test_resolve_session_model_selection_identity_rejects_ambiguous_source(monkeypatch, tmp_path):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-openai-preset")
+    preset = get_preset_provider_config(PresetProvider.OPENAI, use_latest_model=False)
+    assert preset is not None
+    shared_model = str(preset["model"])
+
+    catalog_path = tmp_path / "providers.json"
+    catalog_path.write_text(
+        json.dumps(
+            {
+                "providers": [
+                    {
+                        "id": "openai",
+                        "name": "OpenAI Mirror",
+                        "api_type": "openai",
+                        "api_base": "https://openai-mirror.example.com/v1",
+                        "api_key": "sk-openai-mirror",
+                        "models": [shared_model],
+                        "enabled": True,
+                        "priority": 10,
+                    }
+                ]
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("MINI_AGENT_PROVIDER_CATALOG_PATH", str(catalog_path))
+    config = _make_config(provider="openai", model=shared_model)
+
+    with pytest.raises(ValueError, match="ambiguous across sources"):
+        resolve_session_model_selection_identity(
+            config,
+            provider_id="openai",
+            model_id=shared_model,
+        )

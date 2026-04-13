@@ -5,9 +5,12 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from mini_agent.commands.execution import (
+    CommandExecutionResult,
+    CatalogModelUseRequest,
     LocalOperatorCommandService,
     McpReloadOutcome,
     parse_memory_show_target,
+    resolve_catalog_model_use_request,
 )
 from mini_agent.config import AgentConfig, Config, LLMConfig, ToolsConfig
 from mini_agent.memory.diagnostics import build_memory_diagnostics
@@ -241,6 +244,61 @@ def test_local_operator_command_service_reports_kb_busy_and_unknown_actions() ->
         assert "Unknown kb action" in unknown.details
 
     asyncio.run(_run())
+
+
+def test_resolve_catalog_model_use_request_builds_identity_and_errors() -> None:
+    providers = [
+        {
+            "source": "preset",
+            "provider_id": "openai",
+            "models": [
+                {"model_id": "gpt-5.4"},
+                {"model_id": "gpt-5.3"},
+            ],
+        },
+        {
+            "source": "custom",
+            "provider_id": "maas",
+            "models": [
+                {"model_id": "astron-code-latest"},
+            ],
+        },
+    ]
+
+    resolved = resolve_catalog_model_use_request(
+        surface="tui",
+        providers=providers,
+        args=["use", "openai", "gpt-5.4"],
+    )
+    assert isinstance(resolved, CatalogModelUseRequest)
+    assert resolved.identity == ("preset", "openai", "gpt-5.4")
+
+    usage = resolve_catalog_model_use_request(
+        surface="cli",
+        providers=providers,
+        args=["use"],
+    )
+    assert isinstance(usage, CommandExecutionResult)
+    assert usage.kind == "usage"
+    assert usage.details == "Usage: /model use <provider_id> <model_id>"
+
+    provider_missing = resolve_catalog_model_use_request(
+        surface="tui",
+        providers=providers,
+        args=["use", "missing", "gpt-5.4"],
+    )
+    assert isinstance(provider_missing, CommandExecutionResult)
+    assert provider_missing.summary == "provider not found"
+    assert provider_missing.status_text == "Provider not found: missing"
+
+    model_missing = resolve_catalog_model_use_request(
+        surface="cli",
+        providers=providers,
+        args=["use", "openai", "missing-model"],
+    )
+    assert isinstance(model_missing, CommandExecutionResult)
+    assert model_missing.summary == "model not found"
+    assert model_missing.details == "Model not found in openai: missing-model"
 
 
 def test_local_operator_command_service_builds_context_show_and_stats_results() -> None:

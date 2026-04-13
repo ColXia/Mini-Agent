@@ -1,27 +1,25 @@
 /**
- * Lightweight file-backed session store implementation.
+ * Lightweight file-backed conversation binding store for WeChat channel.
  */
 
 import * as fs from "fs";
 import * as path from "path";
-import { ISessionStore, SessionState } from "@mini-agent/channel-types";
+import {
+  IRemoteConversationBindingStore,
+  RemoteConversationBindingState,
+} from "@mini-agent/channel-types";
 
-export interface MemorySessionStoreOptions {
+export interface MemoryConversationBindingStoreOptions {
   filePath?: string;
 }
 
-/**
- * Session store with in-memory hot cache and JSON persistence.
- *
- * This keeps runtime logic small while preserving channel sessions across restarts.
- */
-export class MemorySessionStore implements ISessionStore {
-  private store: Map<string, SessionState> = new Map();
+export class MemoryConversationBindingStore implements IRemoteConversationBindingStore {
+  private store: Map<string, RemoteConversationBindingState> = new Map();
   private loaded = false;
   private filePath: string;
 
-  constructor(options: MemorySessionStoreOptions = {}) {
-    this.filePath = path.resolve(options.filePath || path.join(process.cwd(), ".qqbot_sessions.json"));
+  constructor(options: MemoryConversationBindingStoreOptions = {}) {
+    this.filePath = path.resolve(options.filePath || path.join(process.cwd(), ".wechat_sessions.json"));
   }
 
   private ensureLoaded(): void {
@@ -36,7 +34,9 @@ export class MemorySessionStore implements ISessionStore {
 
     try {
       const raw = fs.readFileSync(this.filePath, "utf8");
-      const payload = JSON.parse(raw) as { sessions?: Record<string, SessionState> };
+      const payload = JSON.parse(raw) as {
+        sessions?: Record<string, RemoteConversationBindingState>;
+      };
       const sessions = payload.sessions || {};
       for (const [conversationId, state] of Object.entries(sessions)) {
         if (state && typeof state === "object") {
@@ -44,7 +44,7 @@ export class MemorySessionStore implements ISessionStore {
         }
       }
     } catch {
-      // Keep running with empty store if the persistence file is invalid.
+      // Keep running with empty store if persisted session file is invalid.
     }
   }
 
@@ -52,7 +52,6 @@ export class MemorySessionStore implements ISessionStore {
     const payload = {
       sessions: Object.fromEntries(this.store.entries()),
     };
-
     const dir = path.dirname(this.filePath);
     fs.mkdirSync(dir, { recursive: true });
 
@@ -61,12 +60,12 @@ export class MemorySessionStore implements ISessionStore {
     fs.renameSync(tmpPath, this.filePath);
   }
 
-  async get(conversationId: string): Promise<SessionState | undefined> {
+  async get(conversationId: string): Promise<RemoteConversationBindingState | undefined> {
     this.ensureLoaded();
     return this.store.get(conversationId);
   }
 
-  async set(conversationId: string, state: SessionState): Promise<void> {
+  async set(conversationId: string, state: RemoteConversationBindingState): Promise<void> {
     this.ensureLoaded();
     this.store.set(conversationId, state);
     this.persist();
@@ -83,20 +82,9 @@ export class MemorySessionStore implements ISessionStore {
     return this.store.has(conversationId);
   }
 
-  /**
-   * Clear all sessions.
-   */
   clear(): void {
     this.ensureLoaded();
     this.store.clear();
     this.persist();
-  }
-
-  /**
-   * Get the number of sessions.
-   */
-  get size(): number {
-    this.ensureLoaded();
-    return this.store.size;
   }
 }

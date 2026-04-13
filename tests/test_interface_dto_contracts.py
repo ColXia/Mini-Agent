@@ -219,7 +219,6 @@ def test_main_agent_session_contracts() -> None:
         "result",
     }
     assert _required_fields(MainAgentSessionModelSelectionRequest) == {
-        "provider_source",
         "provider_id",
         "model_id",
     }

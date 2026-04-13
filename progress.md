@@ -1,6 +1,2092 @@
 # Progress
 
+## 2026-04-13
+
+- Landed the first real `P31.2` seam correction for DesktopUI preparation.
+- Canonical shared interaction owner is now `MainAgentSurfaceService` instead of only `MainAgentGatewayUseCases`.
+- Landed surface-neutral chat-flow types:
+  - `SurfaceChatExecutionRequest`
+  - `SurfaceChatExecutionResult`
+  - `SurfaceChatStreamEvent`
+  - `SurfaceChatFlowHandler`
+- Landed surface-neutral execution helper naming:
+  - `AgentTurnExecutionHandler`
+  - `AgentRouteExecutionHandler`
+- Updated gateway composition root:
+  - [main.py](d:\file\Mini-Agent\src\apps\agent_studio_gateway\main.py) now builds and resolves `_main_agent_surface_service()`
+  - gateway route handlers continue to act as transport translation only
+- Kept thin compatibility aliases in the application layer where they reduce immediate repo/test churn while preserving the new canonical dependency direction.
+- Added focused regression coverage:
+  - [test_main_agent_gateway_use_cases.py](d:\file\Mini-Agent\tests\test_main_agent_gateway_use_cases.py)
+    - verifies `MainAgentSurfaceService` is the canonical service behind the older alias
+- Verification:
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py tests/test_tui_gateway_client.py tests/test_channel_ingress_use_cases.py tests/test_session_remote_service.py -q`
+  - result: `103 passed`
+  - `uv run pytest tests/test_interaction_request_adapter.py tests/test_session_service.py -q`
+  - result: `7 passed`
+  - `uv run ruff check src/mini_agent/application/__init__.py src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/application/gateway_chat_flow_handler.py src/mini_agent/application/gateway_agent_execution_handler.py src/mini_agent/application/gateway_route_execution_handler.py src/mini_agent/application/interaction_request_adapter.py src/apps/agent_studio_gateway/main.py tests/test_main_agent_gateway_use_cases.py`
+  - result: all green
+
+- Froze the next graphical-mainline direction as `DesktopUI(PySide6)` instead of browser-first `WebUI`.
+- Recorded the architecture correction across planning docs:
+  - third maintained entrance is now `DesktopUI`
+  - browser `WebUI` is paused as compatibility/prototype material
+  - active remote implementation scope remains `QQ` only
+- Reached the implementation-order conclusion for desktop delivery:
+  - do not rewrite the gateway first
+  - do not start DesktopUI directly on top of gateway-owned orchestration names either
+  - first land one thin `application service seam`
+  - then build DesktopUI on top of the existing local gateway transport
+- Added the detailed execution anchor:
+  - [P31_DESKTOPUI_PYSIDE6_TASK_PLAN_2026-04-13.md](d:\file\Mini-Agent\docs\P31_DESKTOPUI_PYSIDE6_TASK_PLAN_2026-04-13.md)
+- Synced:
+  - [ARCHITECTURE.md](d:\file\Mini-Agent\docs\ARCHITECTURE.md)
+  - [FRAMEWORK_SKELETON.md](d:\file\Mini-Agent\docs\FRAMEWORK_SKELETON.md)
+  - [task_plan.md](d:\file\Mini-Agent\task_plan.md)
+  - [findings.md](d:\file\Mini-Agent\findings.md)
+
+- Closed the current `P30.5` line to a natural stopping point instead of forcing more cuts for their own sake:
+  - shared interaction binding is now converged across request shaping, runtime live-state writes, and the remaining low-level guardrail
+  - there is no longer an active production caller outside tests still depending on the old direct `resolve_interaction_surface(...)` pattern
+- Synced a planning correction immediately after the hotspot review:
+  - `WeChat` is not part of the current actual implementation plan
+  - it should remain only a future extension target
+- Decision after correction:
+  - treat `P30.5` as near-closed for now
+  - keep `Remote Interaction` architecturally defined at the entrance level
+  - document active remote delivery as `QQ` only
+  - keep `WeChat / Feishu` as future extension targets rather than active execution slices
+
+- Added one more small `P30.5` guardrail after the deeper runtime convergence cut:
+  - [interaction_surface.py](d:\file\Mini-Agent\src\mini_agent\runtime\interaction_surface.py) now treats
+    `resolve_interaction_surface(surface=None, channel_type=\"qqbot\")`
+    as concrete remote `qq`
+  - this means the low-level surface resolver itself no longer keeps the old mismatch where:
+    - entrance classification was already remote
+    - but the returned `surface` field still reflected the legacy fallback
+- Result:
+  - current production paths stay unchanged because they already route through shared interaction binding
+  - future direct callers of `resolve_interaction_surface(...)` now get the safer remote result by default
+- Added focused coverage:
+  - [test_interaction_surface.py](d:\file\Mini-Agent\tests\test_interaction_surface.py)
+    - direct `surface=None, channel_type=\"qqbot\"` regression case
+- Verification:
+  - `uv run pytest tests/test_interaction_surface.py tests/test_session_service.py tests/test_channel_ingress_use_cases.py tests/test_session_remote_service.py -q`
+  - result: `17 passed`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - result: `94 passed`
+  - `uv run ruff check src/mini_agent/runtime/interaction_surface.py tests/test_interaction_surface.py src/mini_agent/runtime/session_live_state_handler.py src/mini_agent/application/gateway_agent_execution_handler.py src/mini_agent/application/remote_conversation_binding_service.py`
+  - result: all green
+
+- Continued the same `P30.5` convergence line with a deeper runtime correctness cut:
+  - [session_live_state_handler.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_live_state_handler.py) now resolves shared interaction binding before:
+    - binding projection surface
+    - writing transcript messages
+    - writing activity transcript entries
+  - remote alias + missing-surface cases now stay aligned inside the live runtime state layer instead of falling back to older surface-only semantics
+- Also tightened the adjacent caller seams:
+  - [gateway_agent_execution_handler.py](d:\file\Mini-Agent\src\mini_agent\application\gateway_agent_execution_handler.py) now shapes execution metadata through shared interaction binding
+  - [remote_conversation_binding_service.py](d:\file\Mini-Agent\src\mini_agent\application\remote_conversation_binding_service.py) now normalizes remote alias lookup through the same binding resolver instead of the old `surface=channel_type` trick
+- Result:
+  - remote turns with `channel_type=\"qqbot\"` and no explicit `surface` are now recorded consistently as `qq`
+  - session projection, transcript entries, and remote binding lookup all share the same remote alias semantics
+  - this removes one more low-level drift point where deeper runtime writes could still disagree with the higher-level application binding result
+- Added focused coverage:
+  - [test_session_service.py](d:\file\Mini-Agent\tests\test_session_service.py)
+    - remote chat-turn preparation with missing surface now preserves `qq` through projection + transcript writes
+  - [test_channel_ingress_use_cases.py](d:\file\Mini-Agent\tests\test_channel_ingress_use_cases.py)
+    - remote alias lookup now reuses the same stored binding between `qqbot` and `qq`
+- Verification:
+  - `uv run pytest tests/test_session_service.py tests/test_channel_ingress_use_cases.py tests/test_session_remote_service.py -q`
+  - result: `10 passed`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - result: `94 passed`
+  - `uv run ruff check src/mini_agent/runtime/session_live_state_handler.py src/mini_agent/application/gateway_agent_execution_handler.py src/mini_agent/application/remote_conversation_binding_service.py tests/test_session_service.py tests/test_channel_ingress_use_cases.py`
+  - result: all green
+
+- Continued the same `P30.5` binding-convergence track with a follow-up correctness fix:
+  - [session_service.py](d:\file\Mini-Agent\src\mini_agent\application\session_service.py) `SessionSurfaceBinding.from_request(...)` no longer pre-applies `default_surface`
+  - this lets the shared resolver keep the intended precedence:
+    - explicit `surface`
+    - then remote `channel_type`
+    - then `default_surface`
+- Result:
+  - remote requests without explicit `surface` no longer get silently forced to `"tui"` when they still carry `channel_type="qqbot"` / `qq`
+  - remote derived-session and similar follow-up flows now preserve remote origin/channel binding more honestly
+- Added focused coverage:
+  - [test_session_service.py](d:\file\Mini-Agent\tests\test_session_service.py)
+    - direct `SessionSurfaceBinding.from_request(..., default_surface=\"tui\")` remote-precedence case
+  - [test_session_remote_service.py](d:\file\Mini-Agent\tests\test_session_remote_service.py)
+    - remote derived-session request with missing surface now resolves to `qq`
+- Verification:
+  - `uv run pytest tests/test_session_service.py tests/test_session_remote_service.py -q`
+  - result: `6 passed`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py tests/test_tui_gateway_client.py -q`
+  - result: `97 passed`
+  - `uv run ruff check src/mini_agent/application/session_service.py tests/test_session_service.py tests/test_session_remote_service.py`
+  - result: all green
+
+- Continued `P30.5` with a small but important convergence cut: shared interaction-binding normalization.
+- Added a shared `resolve_interaction_binding(...)` seam in [interaction_surface.py](d:\file\Mini-Agent\src\mini_agent\runtime\interaction_surface.py):
+  - normalizes:
+    - `surface`
+    - `channel_type`
+    - `conversation_id`
+    - `sender_id`
+  - preserves the important boundary rule that missing `surface` remains unset unless a real surface/default exists
+  - resolves remote aliases like `qqbot -> qq` without forcing empty request metadata into `"api"`
+- Updated [interaction_request_adapter.py](d:\file\Mini-Agent\src\mini_agent\application\interaction_request_adapter.py):
+  - chat entry binding construction now uses the same shared normalization seam instead of its own private path
+- Updated [session_service.py](d:\file\Mini-Agent\src\mini_agent\application\session_service.py):
+  - shared-session control/memory/skill/model/policy/approval bindings now normalize through the same seam as chat flows
+  - request alias handling is now consistent across chat and non-chat session operations
+- Updated [gateway_client.py](d:\file\Mini-Agent\src\mini_agent\tui\gateway_client.py):
+  - TUI gateway payload bindings now normalize remote aliases and trim metadata through the same shared seam
+  - gateway mutation payloads no longer preserve raw `qqbot` labels while the runtime/session side expects normalized `qq`
+- Updated focused regression coverage:
+  - [test_interaction_surface.py](d:\file\Mini-Agent\tests\test_interaction_surface.py)
+  - [test_session_service.py](d:\file\Mini-Agent\tests\test_session_service.py)
+  - [test_tui_gateway_client.py](d:\file\Mini-Agent\tests\test_tui_gateway_client.py)
+- Verification:
+  - `uv run pytest tests/test_interaction_surface.py tests/test_interaction_request_adapter.py tests/test_session_service.py tests/test_tui_gateway_client.py tests/test_session_remote_service.py -q`
+  - result: `16 passed`
+  - `uv run ruff check src/mini_agent/runtime/interaction_surface.py src/mini_agent/application/interaction_request_adapter.py src/mini_agent/application/session_service.py src/mini_agent/tui/gateway_client.py tests/test_interaction_surface.py tests/test_session_service.py tests/test_tui_gateway_client.py`
+  - result: all green
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_session_service.py tests/test_tui_app.py -q`
+  - result: `191 passed`
+  - `uv run pytest tests/test_agent_studio_gateway_api_v1.py tests/test_session_remote_service.py -q`
+  - result: `22 passed`
+
+- Ran a second `P30.7` runtime-manager re-audit after the three post-audit behavior cuts landed.
+- Re-quantified the current manager surface:
+  - [main_agent_runtime_manager.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_manager.py) is now down to `1447` lines in the current worktree
+  - the largest remaining methods are again the staged initialization blocks, not hidden behavior blobs
+- Re-audit conclusion:
+  - the remaining larger initialization methods are still composition-root wiring and should not be chased just for size
+  - parameter-heavy operator entrypoints such as `manage_session_memory(...)`, `update_session_context_policy(...)`, and `update_session_model_selection(...)` are now thin enough to count as acceptable facades
+  - no new behavior-shaped hotspot comparable to the previous `model selection / derived session / lineage` queue was found
+- Small residual cleanup performed during the audit:
+  - removed dead `_allocate_session_title_unlocked(...)`
+  - removed dead `_remove_session_lineage_unlocked(...)`
+  - removed the now-unnecessary `_register_session_lineage_unlocked(...)` wrapper and wired the registry directly to `self._session_lineage_registry.register_session`
+- Result:
+  - `P30.7` has reached a natural stopping point for now
+  - any future runtime-manager work should come from new behavior pressure, not from the urge to keep shaving structure
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_session_service.py tests/test_tui_app.py -q`
+  - result: all green
+
+- Continued `P30.7` with the second post-audit cut: derived-session creation extraction.
+- Updated [session_hydration_builder.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_hydration_builder.py):
+  - added `build_derived_hydration_payload(...)`
+  - moved parent-session inheritance logic there for:
+    - selected model identity
+    - knowledge base enabled state
+    - context policy
+    - sandbox diagnostics
+    - lineage parent/root metadata
+- Updated [session_registry_handler.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_registry_handler.py):
+  - added `create_derived_session(...)`
+  - moved derived-session creation orchestration into the registry layer
+  - unified direct `create_session(...)` with the runtime session-id allocator instead of raw `uuid4().hex`
+- Updated [main_agent_runtime_manager.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_manager.py):
+  - `create_derived_session(...)` now keeps only:
+    - `_store_lock`
+    - parent-session lookup
+    - delegation into the session registry handler
+- Continued `P30.7` with the third post-audit cut: lineage registry helper extraction.
+- Added [session_lineage_registry.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_lineage_registry.py):
+  - extracted runtime-private lineage graph registration/removal rules around `SessionLineageStore`
+- Updated [main_agent_runtime_manager.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_manager.py):
+  - lineage register/remove logic now delegates into `RuntimeSessionLineageRegistry`
+  - `clear()` now replaces the store and rebinds the helper so the existing `_session_lineage` test/debug seam remains intact
+- Result:
+  - the three behavior-shaped hotspots from the last audit are now substantially reduced:
+    - model-selection request interpretation
+    - derived-session payload assembly
+    - lineage graph mutation rules
+  - `P30.7` has moved beyond file-top cleanup and cleared the first real post-audit hotspot queue
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_model_selection_handler.py src/mini_agent/runtime/session_operator_handler.py src/mini_agent/runtime/session_registry_handler.py src/mini_agent/runtime/session_hydration_builder.py src/mini_agent/runtime/session_lineage_registry.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "model_selection or inferred_source" -q`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "derived_session or delegation or lineage" -q`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_session_service.py tests/test_tui_app.py -q`
+  - `uv run python scripts/shared_session_gateway_walkthrough.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_model_selection_handler.py src/mini_agent/runtime/session_operator_handler.py src/mini_agent/runtime/session_registry_handler.py src/mini_agent/runtime/session_hydration_builder.py src/mini_agent/runtime/session_lineage_registry.py`
+  - result: all green
+
+- Continued `P30.7` with the first post-audit implementation slice: model-selection request resolution extraction.
+- Updated [session_model_selection_handler.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_model_selection_handler.py):
+  - added `_safe_text(...)`
+  - added handler-owned `resolve_request(...)`
+  - moved missing-`provider_source` inference and `ValueError -> HTTP 400` translation into the model-selection handler
+- Updated [session_operator_handler.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_operator_handler.py):
+  - `update_model_selection(...)` now accepts raw request fields and asks the model-selection handler to resolve the concrete request
+- Updated [main_agent_runtime_manager.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_manager.py):
+  - removed manager-local `provider_source` inference logic from `update_session_model_selection(...)`
+  - injected a bound `resolve_session_model_selection_identity(...)` callback into `RuntimeSessionModelSelectionHandler`
+- Result:
+  - the outer runtime manager no longer interprets model-selection request semantics
+  - missing-source inference now lives beside the rest of model-selection request handling
+  - the next recommended `P30.7` implementation slice remains `create_derived_session(...)`
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_model_selection_handler.py src/mini_agent/runtime/session_operator_handler.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "model_selection or inferred_source" -q`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_session_service.py tests/test_tui_app.py -q`
+  - `uv run python scripts/shared_session_gateway_walkthrough.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_model_selection_handler.py src/mini_agent/runtime/session_operator_handler.py`
+  - result: all green
+
+- Ran a fresh `P30.7` runtime-hotspot audit after the persistence + session-state extractions.
+- Inspected the current `MainAgentRuntimeManager` method surface by line range and responsibility instead of raw file size.
+- Audit result:
+  - the long initialization stages are still mostly composition-root wiring and are not the next cut target
+  - transcript/activity methods such as `record_activity(...)` are now thin delegation and should be left alone
+  - the main remaining behavior hotspots are:
+    - `create_derived_session(...)`
+    - `update_session_model_selection(...)`
+    - lineage registration/removal around `SessionLineageStore`
+- Noted one additional correctness inconsistency in the audit:
+  - [session_registry_handler.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_registry_handler.py) `create_session(...)` still uses `uuid4().hex` directly
+  - that bypasses the runtime's `allocate_session_id()` helper and therefore bypasses the persisted-record collision guard
+  - probability is low, but it is a real boundary inconsistency worth fixing in a later slice
+- Recommended next cut order after the audit:
+  - first: move `provider_source` inference / exact model-selection request resolution out of `MainAgentRuntimeManager.update_session_model_selection(...)`
+  - second: move derived-session snapshot inheritance + creation orchestration out of `MainAgentRuntimeManager.create_derived_session(...)`
+  - third: extract a small lineage registry helper around `SessionLineageStore`
+- Verification:
+  - read-only code audit of:
+    - `src/mini_agent/runtime/main_agent_runtime_manager.py`
+    - `src/mini_agent/runtime/session_registry_handler.py`
+    - `src/mini_agent/runtime/session_operator_handler.py`
+    - `src/mini_agent/runtime/session_model_selection_handler.py`
+    - `src/mini_agent/application/session_service.py`
+
+- Continued `P30.7` with a second same-day decomposition slice: session state model extraction.
+- Added [session_state.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_state.py):
+  - moved the shared runtime session state dataclasses into one dedicated module:
+    - `MainAgentSessionState`
+    - `MainAgentSessionProjectionState`
+    - `MainAgentSessionTranscriptState`
+    - `MainAgentSessionTranscriptEntry`
+    - `MainAgentSessionRuntimeHostState`
+    - `MainAgentSessionLineageState`
+- Updated [main_agent_runtime_manager.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_manager.py):
+  - removed the in-file session state model definitions
+  - rewired the runtime manager to import `MainAgentSessionState` from the new shared module
+- Updated runtime/application collaborators to import session state models from the dedicated module instead of the runtime manager:
+  - [__init__.py](d:\file\Mini-Agent\src\mini_agent\runtime\__init__.py)
+  - [session_service.py](d:\file\Mini-Agent\src\mini_agent\application\session_service.py)
+  - runtime collaborator modules under `src/mini_agent/runtime/`
+- Result:
+  - shared runtime session truth is no longer physically anchored in the outer runtime facade
+  - `MainAgentRuntimeManager` now reads more like a coordinator/composition root and less like the home of every shared runtime primitive
+  - the next `P30.7` cuts should now be chosen by behavior hotspots, not by leftover file-top residue
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime src/mini_agent/application/session_service.py`
+  - `uv run python -m compileall src/mini_agent/runtime src/mini_agent/application/session_service.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py tests/test_tui_app.py -q`
+  - `uv run python scripts/shared_session_gateway_walkthrough.py`
+  - result: all green
+
+- Continued `P30.7` with a new decomposition slice: runtime persistence extraction.
+- Added [session_runtime_persistence.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_runtime_persistence.py):
+  - moved the gateway-managed runtime persistence wrapper into its own module as `MainAgentRuntimePersistence`
+  - kept ownership of:
+    - session record save/load/delete
+    - shared transcript sidecar persistence
+    - metadata registry updates
+    - sandbox diagnostics normalization before metadata write
+- Updated [main_agent_runtime_manager.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_manager.py):
+  - removed the in-file `_MainAgentRuntimePersistence` implementation
+  - rewired runtime bootstrap to compose the extracted `MainAgentRuntimePersistence`
+  - removed now-dead imports tied to the old inline wrapper
+- Result:
+  - `MainAgentRuntimeManager` file-top ownership is cleaner again
+  - the runtime persistence boundary now has one explicit home instead of living inside the outer runtime facade
+  - the next likely `P30.7` cut is now the session-state dataclass cluster, not persistence
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_runtime_persistence.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py -q`
+  - `uv run pytest tests/test_tui_app.py -q`
+  - `uv run python scripts/shared_session_gateway_walkthrough.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_runtime_persistence.py tests/test_tui_app.py`
+  - result: all green
+
+- Continued `P30.5` with an eighth convergence cut: `TUI` + `CLI` model-use request convergence.
+- Updated [execution.py](d:\file\Mini-Agent\src\mini_agent\commands\execution.py):
+  - added `CatalogModelUseRequest`
+  - added `resolve_catalog_model_use_request(...)`
+  - centralized shared `/model use` request validation against a provider catalog snapshot for:
+    - usage
+    - provider missing
+    - model missing
+    - successful identity resolution
+- Updated [__init__.py](d:\file\Mini-Agent\src\mini_agent\commands\__init__.py):
+  - exported the new shared model-use helper through the lazy commands package surface
+- Updated [app.py](d:\file\Mini-Agent\src\mini_agent\tui\app.py):
+  - rewired `/model use` validation to reuse the shared helper instead of keeping a local provider/model branch tree
+- Updated [cli_interactive.py](d:\file\Mini-Agent\src\mini_agent\cli_interactive.py):
+  - removed the duplicated `_resolve_cli_model_target(...)` logic
+  - rewired CLI `/model use` through the same shared helper
+  - cleaned up one unused import and restored the explicit `normalize_command_name` import needed elsewhere in the file
+- Updated [test_command_execution_service.py](d:\file\Mini-Agent\tests\test_command_execution_service.py):
+  - added direct contract coverage for the shared helper:
+    - success
+    - usage
+    - provider not found
+    - model not found
+- Result:
+  - terminal entrances now share the same `/model use` request parsing and catalog-validation contract
+  - runtime/gateway still own the actual model-selection application decision
+  - one more small but real source of terminal entrance drift is gone
+- Verification:
+  - `uv run ruff check src/mini_agent/commands/execution.py src/mini_agent/commands/__init__.py src/mini_agent/tui/app.py src/mini_agent/cli_interactive.py tests/test_command_execution_service.py tests/test_tui_app.py tests/test_cli_submission_loop.py`
+  - `uv run pytest tests/test_command_execution_service.py -q`
+  - `uv run pytest tests/test_tui_app.py -k "remote_model_use or tagged_local_runtime_routes_model_use_locally" -q`
+  - `uv run pytest tests/test_cli_submission_loop.py -k "model" -q`
+  - `uv run pytest tests/test_tui_app.py -q`
+  - `uv run python -m compileall src/mini_agent/commands/execution.py src/mini_agent/commands/__init__.py src/mini_agent/tui/app.py src/mini_agent/cli_interactive.py tests/test_command_execution_service.py tests/test_tui_app.py tests/test_cli_submission_loop.py`
+  - result: all green
+
+- Continued `P30.5` with a seventh convergence cut: `TUI` remote memory mutation convergence.
+- Updated [app.py](d:\file\Mini-Agent\src\mini_agent\tui\app.py):
+  - rewired `memory promote` through `_execute_memory_command_plan(...)`
+  - rewired `memory save` through `_execute_memory_command_plan(...)`
+  - removed the remaining duplicated `try -> run -> unpack result -> append feedback -> set status` shell from those mutation branches
+  - aligned remote approval forwarding to include:
+    - `channel_type`
+    - `conversation_id`
+    - `sender_id`
+    after the broader regression sweep exposed that missing remote binding metadata
+- Updated [test_tui_app.py](d:\file\Mini-Agent\tests\test_tui_app.py):
+  - made fake gateway `manage_session_memory(...)` model mutation transcripts more like the shared runtime path
+  - added focused remote mutation coverage for:
+    - `memory promote note`
+    - `memory promote profile`
+    - `memory save note`
+    - `memory save profile`
+  - aligned remote approval expectations with the now-correct binding metadata forwarding
+- Result:
+  - the `TUI` memory command family no longer keeps a separate thick mutation shell for `promote/save`
+  - the fake gateway now gives a more truthful contract for remote memory mutation behavior
+  - a real but previously hidden remote approval binding gap was caught and fixed during the broader regression pass
+- Verification:
+  - `uv run ruff check src/mini_agent/tui/app.py tests/test_tui_app.py`
+  - `uv run pytest tests/test_tui_app.py -k "memory" -q`
+  - `uv run pytest tests/test_tui_app.py -q`
+  - `uv run python -m compileall src/mini_agent/tui/app.py tests/test_tui_app.py`
+  - result: all green
+
+- Continued `P30.5` with a sixth convergence cut: `TUI` remote memory read-path convergence.
+- Updated [app.py](d:\file\Mini-Agent\src\mini_agent\tui\app.py):
+  - added `_memory_command_result(...)`
+  - added `_execute_memory_command_plan(...)`
+  - rewired a large set of read-heavy / low-risk memory commands through the shared execution+render helper:
+    - `memory status`
+    - `memory show`
+    - `memory list`
+    - `memory overview`
+    - `memory export`
+    - `memory consolidated`
+    - `memory consolidated search`
+    - `memory profile`
+    - `memory notes`
+    - `memory daily`
+    - `memory shared list`
+    - `memory shared show`
+    - `memory shared clear`
+    - `memory runtime`
+    - `memory refresh`
+- Result:
+  - the repeated `try -> run -> unpack result -> append feedback -> set status` shell is materially smaller
+  - remote memory read paths are thinner without changing visible behavior
+  - the remaining thicker mutation hotspot inside memory is now mostly:
+    - `memory promote`
+    - `memory save`
+- Verification:
+  - `uv run ruff check src/mini_agent/tui/app.py tests/test_tui_app.py`
+  - `uv run pytest tests/test_tui_app.py -k "remote_memory or remote_durable_memory or remote_consolidated or remote_context or remote_tagged_local_runtime_uses_local_sandbox_diagnostics" -q`
+  - `uv run pytest tests/test_tui_app.py -k "memory" -q`
+  - `uv run python -m compileall src/mini_agent/tui/app.py tests/test_tui_app.py`
+  - result: all green
+
+- Continued `P30.5` with a fifth convergence cut: remote context request convergence in `TUI`.
+- Updated [execution.py](d:\file\Mini-Agent\src\mini_agent\commands\execution.py):
+  - `execute_context(...)` now attaches structured `remote_request` payloads for:
+    - `context include`
+    - `context exclude`
+    - `context budget`
+    - `context reset`
+- Updated [app.py](d:\file\Mini-Agent\src\mini_agent\tui\app.py):
+  - `_update_remote_context_policy(...)` now forwards remote binding metadata:
+    - `channel_type`
+    - `conversation_id`
+    - `sender_id`
+  - added `_dispatch_remote_context_update(...)`
+  - remote context updates no longer re-parse raw `args` to rebuild:
+    - sources
+    - max_items
+    - max_total_chars
+    - max_items_per_source
+  - remote `TUI` now consumes the structured request that already came out of the shared context command service
+- Updated [test_tui_app.py](d:\file\Mini-Agent\tests\test_tui_app.py):
+  - strengthened the remote `context include` assertion to verify the full structured request + binding payload
+  - added a focused remote `context budget` test to lock the structured budget request path
+- Result:
+  - remote context command meaning is more shared and less reinterpreted by `TUI`
+  - one more entrance-level duplicate parse path is gone
+  - remote context now matches the broader remote binding style more closely
+- Verification:
+  - `uv run ruff check src/mini_agent/commands/execution.py src/mini_agent/tui/app.py tests/test_tui_app.py`
+  - `uv run pytest tests/test_tui_app.py -k "remote_context_command_routes_through_gateway_and_syncs_state or remote_context_budget_routes_structured_request_through_gateway or remote_tagged_local_runtime_routes_context_commands_locally" -q`
+  - `uv run python -m compileall src/mini_agent/commands/execution.py src/mini_agent/tui/app.py tests/test_tui_app.py`
+  - result: all green
+
+- Continued `P30.5` with a fourth convergence cut: shared remote control dispatch in `TUI`.
+- Updated [app.py](d:\file\Mini-Agent\src\mini_agent\tui\app.py):
+  - added `_dispatch_remote_control_command(...)` so remote `mcp_*` and remote context-control now share one request/error/sync seam
+  - rewired `_run_context_control_command(...)` to use the shared remote dispatch helper
+  - rewired the remote branch of `_handle_mcp_command(...)` to use the same helper
+  - remote context-control now also sends:
+    - `channel_type`
+    - `conversation_id`
+    - `sender_id`
+    just like the other remote control commands
+- Updated [test_tui_app.py](d:\file\Mini-Agent\tests\test_tui_app.py):
+  - remote compact tests now assert the aligned remote binding payload
+  - focused remote control regressions stayed green after the helper extraction
+- Result:
+  - remote control request assembly is less duplicated in `TUI`
+  - remote `mcp` and remote context-control now look more like one shared entrance pattern
+  - one more small but real entrance-boundary inconsistency is gone
+- Verification:
+  - `uv run ruff check src/mini_agent/tui/app.py tests/test_tui_app.py`
+  - `uv run pytest tests/test_tui_app.py -k "remote_compact or remote_mcp or remote_kb_command_routes_through_gateway" -q`
+  - `uv run pytest tests/test_tui_app.py -k "remote_compact or remote_mcp or remote_kb" -q`
+  - `uv run python -m compileall src/mini_agent/tui/app.py tests/test_tui_app.py`
+  - result: all green
+
+- Continued `P30.5` with a third convergence cut: remote control conflict handling in `TUI`.
+- Updated [app.py](d:\file\Mini-Agent\src\mini_agent\tui\app.py):
+  - added `_remote_control_error_summary(...)` and `_remote_control_error_status(...)`
+  - removed local remote-session `busy` prechecks from:
+    - `_run_context_control_command(...)`
+    - remote `mcp reload` handling in `_handle_mcp_command(...)`
+  - remote control failures now reuse shared gateway detail through `_remote_gateway_error_detail(...)` instead of keeping `Remote ... failed: Gateway HTTP ...` wording forks
+- Updated [test_tui_app.py](d:\file\Mini-Agent\tests\test_tui_app.py):
+  - fake gateway control behavior now raises the shared busy conflict for remote control actions when the session is busy
+  - added focused tests proving both:
+    - remote `compact` busy conflicts now come from gateway control handling
+    - remote `mcp reload` busy conflicts now come from gateway control handling
+- Result:
+  - remote control conflict semantics are thinner in `TUI`
+  - `TUI` no longer owns a separate busy gate for those remote commands
+  - shared session-control handling is more authoritative again
+- Verification:
+  - `uv run ruff check src/mini_agent/tui/app.py tests/test_tui_app.py`
+  - `uv run pytest tests/test_tui_app.py -k "remote_mcp_reload_busy_relies_on_gateway_conflict or remote_compact_busy_relies_on_gateway_conflict or remote_mcp_reload_routes_through_gateway or remote_compact_command_routes_through_gateway" -q`
+  - `uv run pytest tests/test_tui_app.py -k "remote_approve or remote_mcp or remote_compact" -q`
+  - `uv run python -m compileall src/mini_agent/tui/app.py tests/test_tui_app.py`
+  - result: all green
+
+- Continued `P30.5` with the second convergence cut: `TUI` remote approval handling.
+- Updated [app.py](d:\file\Mini-Agent\src\mini_agent\tui\app.py):
+  - added `_remote_gateway_error_detail(...)` so `TUI` can present shared gateway error detail cleanly instead of embedding `Gateway HTTP ...` transport wording
+  - added `_remote_approval_error_summary(...)` and `_remote_approval_error_status(...)` to keep remote approval failure rendering centralized
+  - rewired `_respond_to_pending_approval(...)` so gateway-backed sessions now:
+    - send the optional token as-is
+    - let the shared gateway/runtime path decide single-token auto-resolution
+    - let the shared gateway/runtime path decide multiple-token conflict behavior
+    - let the shared gateway/runtime path decide restart-loss behavior
+  - kept the local approval path unchanged
+- Updated [test_tui_app.py](d:\file\Mini-Agent\tests\test_tui_app.py):
+  - fake gateway approval behavior now simulates restart-loss conflicts using the shared runtime restart detail
+  - remote single-pending approval test now asserts that `TUI` forwards `token=None` and relies on gateway-side resolution
+  - added a focused test for multiple pending approvals to prove `TUI` no longer blocks locally before gateway resolution
+- Result:
+  - remote approval token selection is no longer owned by `TUI`
+  - restart-loss approval messaging is now aligned with the shared runtime path
+  - `TUI` remote approval handling is thinner and more entrance-like
+- Verification:
+  - `uv run ruff check src/mini_agent/tui/app.py tests/test_tui_app.py`
+  - `uv run pytest tests/test_tui_app.py -k "remote_approve or approve_after_restart_loss or multiple_pending_relies_on_gateway or submit_exec_approval" -q`
+  - `uv run pytest tests/test_tui_app.py -k "approval" -q`
+  - `uv run python -m compileall src/mini_agent/tui/app.py tests/test_tui_app.py`
+  - result: all green
+
+- Continued `P30.5` with the first real convergence cut: `TUI` remote `skill` command handling.
+- Updated [app.py](d:\file\Mini-Agent\src\mini_agent\tui\app.py):
+  - added `RemoteSkillCommandPlan` so remote skill commands now go through a normalized parse/plan step
+  - replaced the large remote `if/elif` skill action tree with:
+    - `_resolve_remote_skill_command_plan(...)`
+    - `_remote_skill_usage_result(...)`
+    - `_remote_skill_summary_fallback(...)`
+    - `_apply_remote_skill_response(...)`
+  - kept the gateway contract unchanged while making remote `TUI` responsible mainly for:
+    - argument extraction
+    - remote dispatch
+    - operator feedback rendering
+  - expanded remote skill mutation-sync handling so `uninstall` and `rollback` now follow the same refresh path as the other mutating actions
+- Added focused coverage in [test_tui_app.py](d:\file\Mini-Agent\tests\test_tui_app.py):
+  - new test locks that remote `skill uninstall` and `skill rollback` both trigger remote detail sync and catalog-signature refresh
+- Result:
+  - `TUI` remote skill handling is materially thinner
+  - remote skill usage/unknown-action semantics are centralized instead of repeated per branch
+  - one more entrance-specific command shell has been reduced toward a true surface layer
+- Verification:
+  - `uv run ruff check src/mini_agent/tui/app.py tests/test_tui_app.py`
+  - `uv run pytest tests/test_tui_app.py -k "remote_skill or local_skill_unknown or skill_install or skill_refresh" -q`
+  - `uv run python -m compileall src/mini_agent/tui/app.py tests/test_tui_app.py`
+  - result: all green
+
+- Started `P30.5` with a shared entrance command-convergence audit before opening the next refactor cut.
+- Inspected the current shared command seam:
+  - [router.py](d:\file\Mini-Agent\src\mini_agent\commands\router.py)
+  - [execution.py](d:\file\Mini-Agent\src\mini_agent\commands\execution.py)
+- Result of the audit:
+  - the shared command core is already real
+  - `LocalOperatorCommandService` already centralizes substantial local operator semantics for:
+    - memory
+    - skill
+    - context
+    - kb
+    - mcp
+  - `CLI` is partially converged and already dispatches several command families through the shared layer
+  - `QQ` is no longer the main architectural problem after `P30.4`
+  - the biggest remaining drift hotspot is now `TUI`, especially its remote-session command shell
+- Inspected the main TUI hotspots in [app.py](d:\file\Mini-Agent\src\mini_agent\tui\app.py):
+  - `_respond_to_pending_approval(...)`
+  - `_run_context_control_command(...)`
+  - `_handle_context_command(...)`
+  - `_handle_memory_command(...)`
+  - `_handle_mcp_command(...)`
+  - `_handle_skill_command(...)`
+  - `_handle_model_command(...)`
+- Boundary conclusion:
+  - `TUI` local paths often reuse shared command services correctly
+  - but `TUI` remote-session paths still behave too much like a second command execution layer
+  - `P30.5` should therefore start from `TUI` convergence, not from more QQ thinning
+- Recommended next implementation cuts:
+  - first: thin the remote `skill` command path in `TUI`
+  - second: thin remote approval handling
+  - third: thin remote MCP/context-control handling
+- Verification:
+  - read-only code inspection of the listed files
+  - no behavior changes in this slice by design
+
+- Continued `P30.4` with a small QQ tail-cleanup + closure-check slice.
+- Updated [bot.mjs](d:\file\Mini-Agent\src\apps\qqbot_channel\bot.mjs):
+  - `ensureSharedSessionBound(...)` now supports a silent check mode so `/status` can probe shared binding without emitting an extra missing-session reply
+  - `/status` now falls back cleanly to local binding status when no shared session is available
+  - `/cancel` now reuses shared gateway conflict wording through `gatewayErrorDetail(...)` instead of keeping a QQ-local `No running turn to cancel.` branch
+- Result:
+  - one remaining QQ UX bug is removed
+  - cancel wording is back in sync with the shared runtime path
+  - the remaining QQ logic is now mainly binding/display/protocol behavior, so `P30.4` is ready to close
+- Verification:
+  - `npm --prefix src/apps/qqbot_channel run check`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "cancel_session" -q`
+  - result: all green
+
+- Continued `P30.4` with a QQ runtime-policy + MCP command thinning slice.
+- Updated [bot.mjs](d:\file\Mini-Agent\src\apps\qqbot_channel\bot.mjs):
+  - QQ command-entry metadata now carries runtime-policy payloads for:
+    - `/plan`
+    - `/build`
+    - `/default`
+    - `/full_access`
+  - `/compact` and `/drop_memories` now also use dispatch metadata instead of inferring behavior from command names
+  - `/mcp` remains a thin subcommand router, but no longer keeps a QQ-local `409 busy` special case for reload
+  - runtime-policy and MCP/control failures now reuse `gatewayErrorDetail(...)`
+- Result:
+  - QQ owns less runtime-policy and control-command semantics
+  - dispatch metadata now makes command scope and command meaning more explicit at the entrance boundary
+  - shared runtime/control handlers stay more authoritative for busy/error behavior
+- Verification:
+  - `npm --prefix src/apps/qqbot_channel run check`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "runtime_policy or control_session_mcp" -q`
+  - `uv run pytest tests/test_agent_studio_gateway_api_v1.py::test_v1_main_agent_control_route_accepts_mcp_actions -q`
+  - result: all green
+
+- Continued `P30.4` with a QQ `/approve` + `/deny` command thinning slice.
+- Updated [bot.mjs](d:\file\Mini-Agent\src\apps\qqbot_channel\bot.mjs):
+  - removed the adapter-local session-detail fetch before approval resolution
+  - removed QQ-owned pending-approval selection logic for:
+    - no pending approval
+    - restart-lost approval
+    - single-token auto-pick
+    - multi-token guidance
+  - `/approve` and `/deny` now forward an optional token directly to the shared approval endpoint
+  - shared gateway/runtime error detail is now surfaced directly back to QQ users
+- Result:
+  - QQ owns less approval-command semantics
+  - shared runtime is now the single authority for approval token resolution and restart-loss behavior
+  - the remote adapter boundary is thinner again without changing approval behavior
+- Verification:
+  - `npm --prefix src/apps/qqbot_channel run check`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "approval" -q`
+  - `uv run pytest tests/test_tui_app.py -k "remote_approve or approve_after_restart_loss" -q`
+  - result: all green
+
+- Continued `P30.4` with a QQ `/memory` + `/context` command thinning slice.
+- Updated [bot.mjs](d:\file\Mini-Agent\src\apps\qqbot_channel\bot.mjs):
+  - `/memory` is now a thinner action-to-payload translation layer instead of one long action-specific branch tree
+  - `/context` now keeps local `show` / `stats` rendering but routes update actions through a thinner payload path
+  - both handlers now rely more on shared gateway/runtime validation and use `gatewayErrorDetail(...)` for cleaner remote error replies
+- Result:
+  - QQ owns less memory/context command semantics
+  - shared runtime handlers are more authoritative for selector and mutation validation
+  - the remote adapter boundary is thinner again without changing the command contract
+- Verification:
+  - `node --check src/apps/qqbot_channel/bot.mjs`
+  - `npm --prefix src/apps/qqbot_channel run check`
+  - result: clean
+
+- Continued `P30.4` with a QQ `/skill` command thinning slice.
+- Updated [bot.mjs](d:\file\Mini-Agent\src\apps\qqbot_channel\bot.mjs):
+  - added `gatewayErrorDetail(...)` so QQ can surface shared gateway validation errors more cleanly
+  - replaced the long `/skill` action branch tree with a thinner action-to-payload mapping
+  - kept only minimal adapter-local shape checks
+  - now forwards more validation responsibility back to the shared session skill handler
+- QQ `/skill` is now aligned more closely with the shared command catalog:
+  - added `skill uninstall <skill_name>`
+  - added `skill rollback <skill_name>`
+- Verification:
+  - `node --check src/apps/qqbot_channel/bot.mjs`
+  - `npm --prefix src/apps/qqbot_channel run check`
+  - result: clean
+- Result:
+  - the QQ adapter owns less skill-command semantics
+  - shared runtime skill handling is more authoritative
+  - catalog/live-behavior drift for QQ skill commands is reduced
+
+- Continued `P30.4` with a shared model-selection source-inference slice.
+- Added shared session-scoped model-selection inference in [runtime.py](d:\file\Mini-Agent\src\mini_agent\model_manager\runtime.py):
+  - `resolve_session_model_selection_identity(...)`
+  - when `provider_source` is omitted, the shared model registry now infers it if the `provider_id + model_id` pair is uniquely resolvable
+  - ambiguous pairs now fail from shared logic with a clear error
+- Updated the shared request contract in [agent.py](d:\file\Mini-Agent\src\mini_agent\interfaces\agent.py) so `MainAgentSessionModelSelectionRequest.provider_source` is now optional.
+- Rewired [main_agent_runtime_manager.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_manager.py) so shared runtime resolves missing model source before executing session model selection.
+- Updated [gateway_client.py](d:\file\Mini-Agent\src\mini_agent\tui\gateway_client.py) to pass `provider_source` as optional in the gateway payload.
+- Simplified QQ `/model use` in [bot.mjs](d:\file\Mini-Agent\src\apps\qqbot_channel\bot.mjs):
+  - it no longer fetches the provider catalog just to disambiguate provider/model routes
+  - it now forwards `provider_id + model_id` and relies on shared model-selection resolution
+- Added focused coverage:
+  - [test_model_routing_runtime.py](d:\file\Mini-Agent\tests\test_model_routing_runtime.py)
+    - unique custom-source inference
+    - ambiguous preset/custom rejection
+  - [test_main_agent_gateway_use_cases.py](d:\file\Mini-Agent\tests\test_main_agent_gateway_use_cases.py)
+    - shared-session model selection without explicit `provider_source`
+  - [test_interface_dto_contracts.py](d:\file\Mini-Agent\tests\test_interface_dto_contracts.py)
+    - request contract now requires only `provider_id` and `model_id`
+- Verification:
+  - `uv run pytest tests/test_model_routing_runtime.py -q`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "model_selection" -q`
+  - `uv run pytest tests/test_interface_dto_contracts.py tests/test_session_remote_service.py -q`
+  - `uv run ruff check src/mini_agent/model_manager/runtime.py src/mini_agent/interfaces/agent.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/tui/gateway_client.py tests/test_model_routing_runtime.py tests/test_main_agent_gateway_use_cases.py tests/test_interface_dto_contracts.py tests/test_session_remote_service.py`
+  - `npm --prefix src/apps/qqbot_channel run check`
+  - `node --check src/apps/qqbot_channel/bot.mjs`
+  - result: all green
+- Result:
+  - QQ no longer owns provider-source disambiguation for `/model use`
+  - shared runtime/model logic became more authoritative
+  - remote entrance adapter thickness dropped again without changing user-visible model-selection semantics
+
+- Continued `P30.4` with a QQ command-scope dispatch thinning slice.
+- Updated [bot.mjs](d:\file\Mini-Agent\src\apps\qqbot_channel\bot.mjs) so QQ command dispatch now carries explicit scope metadata:
+  - added `qqCommandEntry(...)`
+  - the command registry now marks which commands require a bound shared session
+  - `handleCommand(...)` now enforces the shared-session guard once at dispatch time
+- Removed repeated top-of-handler `ensureSharedSessionBound(...)` checks from the QQ shared-session command handlers whose precondition is now owned by dispatch.
+- Result:
+  - the QQ adapter now declares local-vs-shared command scope at the dispatch seam
+  - handler bodies are slightly thinner and easier to classify
+  - the remote entrance boundary is clearer without changing command behavior
+- Verification:
+  - `node --check src/apps/qqbot_channel/bot.mjs`
+  - `npm --prefix src/apps/qqbot_channel run check`
+  - result: clean
+
+- Continued `P30.4` with a QQ adapter request-helper thinning slice.
+- Added thin QQ-local helper functions in [bot.mjs](d:\file\Mini-Agent\src\apps\qqbot_channel\bot.mjs):
+  - `qqSenderId(...)`
+  - `qqSessionMutationPayload(...)`
+  - `postSharedSessionEnvelope(...)`
+- Rewired the repeated QQ shared-session mutation paths to use those helpers:
+  - `controlSharedSession(...)`
+  - `updateSharedSessionModel(...)`
+  - `updateSharedSessionContext(...)`
+  - `manageSharedSessionMemory(...)`
+  - `manageSharedSessionSkill(...)`
+  - `resolveSharedSessionApproval(...)`
+  - `updateSharedSessionRuntimePolicy(...)`
+- Also reused the payload helper in `handleCancelCommand(...)` so the QQ remote-mutation envelope is now assembled consistently in one place.
+- Reviewed the WeChat adapter during the same pass and intentionally left it unchanged:
+  - it does not currently have enough repeated gateway request assembly to justify another abstraction
+- Synced the active records:
+  - [P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md](d:\file\Mini-Agent\docs\P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md)
+  - [task_plan.md](d:\file\Mini-Agent\task_plan.md)
+  - [findings.md](d:\file\Mini-Agent\findings.md)
+- Verification:
+  - `node --check src/apps/qqbot_channel/bot.mjs`
+  - result: syntax clean
+- Result:
+  - QQ stays on the thin-adapter path
+  - repeated remote mutation request assembly is now smaller and less drift-prone
+  - WeChat was consciously not over-abstracted for symmetry
+
+- Continued `P30.4` with a remote binding state-thinning slice.
+- QQ adapter local cache in [bot.mjs](d:\file\Mini-Agent\src\apps\qqbot_channel\bot.mjs) is now thinner and more explicit:
+  - the local map is now named `conversationBindings`
+  - per-conversation state no longer stores global `botName`
+  - `session_title_hint` now uses the process-level configured `qqbotName` directly
+- The shared remote binding contract in [index.ts](d:\file\Mini-Agent\src\channels\types\src\index.ts) is now thinner too:
+  - removed unused `metadata` from `RemoteConversationBindingState`
+- Synced [P30_SESSION_TRUTH_BOUNDARY_MAP_2026-04-13.md](d:\file\Mini-Agent\docs\P30_SESSION_TRUTH_BOUNDARY_MAP_2026-04-13.md) so the documented QQ/WeChat cached fields match the live adapter state.
+- Result:
+  - remote adapter local state is closer to true binding + preference only
+  - the risk of future adapter code treating cached local fields as mini session models is lower
+
+- Continued `P30.3` with the next TUI state-composition tightening cut.
+- Added `TuiSessionOperatorState` in [app.py](d:\file\Mini-Agent\src\mini_agent\tui\app.py) so `TuiSession` is now composed as:
+  - projection
+  - operator
+  - runtime
+  - view
+- Moved the following TUI-local operator-flow fields out of projection:
+  - `pending_model_source`
+  - `pending_provider_id`
+  - `pending_model_id`
+  - `pending_skill_reload`
+  - `pending_skill_reload_reason`
+- Kept shared rendering behavior stable by mapping operator state back through the summary/read-model path when needed.
+- Updated focused TUI tests in [test_tui_app.py](d:\file\Mini-Agent\tests\test_tui_app.py) to assert the new nested access path.
+- Synced the boundary docs:
+  - [P30_SESSION_TRUTH_BOUNDARY_MAP_2026-04-13.md](d:\file\Mini-Agent\docs\P30_SESSION_TRUTH_BOUNDARY_MAP_2026-04-13.md)
+  - [P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md](d:\file\Mini-Agent\docs\P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md)
+- Verification:
+  - `uv run ruff check src/mini_agent/tui/app.py tests/test_tui_app.py`
+  - `uv run pytest tests/test_tui_app.py -k "grouped_state or remote_model_use or remote_context or remote_skill or remote_session_prompt or remote_kb_command or remote_mcp or remote_cancel" -q`
+  - `uv run pytest tests/test_tui_app.py tests/test_session_projection.py -q`
+  - `uv run python -m compileall src/mini_agent/tui/app.py tests/test_tui_app.py`
+  - result: lint clean, focused `20 passed`, broader `112 passed`, compileall clean
+
+- Continued `P30.3` and started the first `P30.4` naming-tightening slice.
+- Synced the active boundary docs so they reflect the landed TUI state shape honestly:
+  - [P30_SESSION_TRUTH_BOUNDARY_MAP_2026-04-13.md](d:\file\Mini-Agent\docs\P30_SESSION_TRUTH_BOUNDARY_MAP_2026-04-13.md) now classifies `TuiSessionSupplementalState` as a distinct TUI-local summary/sync cache
+  - [P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md](d:\file\Mini-Agent\docs\P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md) now records `P30.3` as a tightening/enforcement phase rather than a greenfield split
+- Tightened remote adapter naming so adapter-local cache objects no longer read like canonical session truth:
+  - [index.ts](d:\file\Mini-Agent\src\channels\types\src\index.ts) now uses conversation-binding terminology instead of `SessionState`
+  - [channel.ts](d:\file\Mini-Agent\src\channels\wechat\src\channel.ts) now consumes a `conversationBindingStore` instead of a `sessionStore`
+  - [conversation_binding_store.ts](d:\file\Mini-Agent\src\channels\wechat\src\conversation_binding_store.ts) now makes the file-backed WeChat cache read as a remote binding store, not a session owner
+- Kept the active QQ adapter aligned with the same boundary language:
+  - [bot.mjs](d:\file\Mini-Agent\src\apps\qqbot_channel\bot.mjs) now reads its local per-conversation cache through `getConversationBindingState(...)`
+  - the QQ cache now also uses `conversationId` instead of a generic `key`, so the adapter-side binding hint reads more like a remote conversation identifier and less like an untyped local bucket key
+- Result:
+  - the written architecture and the code-level names now agree more closely
+  - future work has fewer chances to accidentally treat remote adapter caches as session truth
+- Verification:
+  - `uv run pytest tests/test_tui_app.py tests/test_session_projection.py -q`
+  - `uv run pytest tests/test_channel_ingress_use_cases.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py -k "channel_message" -q`
+  - `node --check src/apps/qqbot_channel/bot.mjs`
+  - `npm --prefix src/channels/types run build`
+  - `npm --prefix src/channels/wechat run build`
+  - result: `112 passed`, `5 passed / 19 deselected`, QQ adapter syntax clean, channel-types build clean, WeChat build clean
+
+- Started and completed `P30.2 Session Truth Boundary Lock`.
+- Re-audited the live code instead of relying only on the earlier boundary report:
+  - [app.py](d:\file\Mini-Agent\src\mini_agent\tui\app.py)
+  - [bot.mjs](d:\file\Mini-Agent\src\apps\qqbot_channel\bot.mjs)
+  - [index.ts](d:\file\Mini-Agent\src\channels\types\src\index.ts)
+- Confirmed that TUI state is already materially improved:
+  - `TuiSessionProjectionState`
+  - `TuiSessionRuntimeState`
+  - `TuiSessionViewState`
+- Added the formal ownership map document:
+  - [P30_SESSION_TRUTH_BOUNDARY_MAP_2026-04-13.md](d:\file\Mini-Agent\docs\P30_SESSION_TRUTH_BOUNDARY_MAP_2026-04-13.md)
+- Locked the following in that document:
+  - TUI field ownership by state slice
+  - remote adapter cache classification
+  - canonical allowed cache contract
+  - current canonical remote binding path
+  - direct handoff expectations for `P30.3` and `P30.4`
+- Added code-level ownership reinforcement:
+  - [app.py](d:\file\Mini-Agent\src\mini_agent\tui\app.py) now documents projection/runtime/view ownership intent directly on the dataclasses
+  - [bot.mjs](d:\file\Mini-Agent\src\apps\qqbot_channel\bot.mjs) now marks the per-conversation state map as a convenience cache rather than session truth
+  - [index.ts](d:\file\Mini-Agent\src\channels\types\src\index.ts) now marks remote `SessionState` as a transitional adapter cache, not a canonical session model
+- Re-anchored the active P30 plan and development index to the boundary map:
+  - [P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md](d:\file\Mini-Agent\docs\P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md)
+  - [DEVELOPMENT_INDEX.md](d:\file\Mini-Agent\docs\DEVELOPMENT_INDEX.md)
+- Result:
+  - `P30.2` now has an explicit deliverable instead of a fuzzy audit memory
+  - the next implementation cuts are now clearly:
+    - `P30.3 TUI Session Model Split`
+    - `P30.4 Remote Channel Adapter Normalization`
+
+- Started and completed `Framework Skeleton Lock`.
+- Added [FRAMEWORK_SKELETON.md](d:\file\Mini-Agent\docs\FRAMEWORK_SKELETON.md) as the new active framework guardrail document.
+- Locked the following in that document:
+  - four-entrance product model
+  - canonical layer stack
+  - repository ownership map
+  - dependency direction
+  - remote adapter contract
+  - command/API placement rules
+  - no-go drift patterns
+- Re-anchored active architecture/dev docs to the skeleton lock:
+  - [ARCHITECTURE.md](d:\file\Mini-Agent\docs\ARCHITECTURE.md)
+  - [DEVELOPMENT_INDEX.md](d:\file\Mini-Agent\docs\DEVELOPMENT_INDEX.md)
+  - [REFACTOR_TASKS.md](d:\file\Mini-Agent\docs\REFACTOR_TASKS.md)
+- Result:
+  - future development now has one explicit answer for:
+    - what the maintained entrances are
+    - which directories are active ownership zones
+    - where new code should be added
+    - which drift patterns are now explicitly forbidden
+
+- Re-aligned the active work away from "QQ-side follow-up" and back to the corrected four-entrance architecture:
+  - `CLI`
+  - `TUI`
+  - `WebUI`
+  - `Remote Interaction`
+- Re-read and cross-checked the active architecture/refactor docs:
+  - [ARCHITECTURE.md](d:\file\Mini-Agent\docs\ARCHITECTURE.md)
+  - [P30_SURFACE_SESSION_ARCHITECTURE_CORRECTION_2026-04-12.md](d:\file\Mini-Agent\docs\P30_SURFACE_SESSION_ARCHITECTURE_CORRECTION_2026-04-12.md)
+  - [P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md](d:\file\Mini-Agent\docs\P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md)
+  - [P29_SESSION_BOUNDARY_AUDIT_2026-04-12.md](d:\file\Mini-Agent\docs\P29_SESSION_BOUNDARY_AUDIT_2026-04-12.md)
+- Audited the current remote-related implementation paths:
+  - active QQ remote adapter: [bot.mjs](d:\file\Mini-Agent\src\apps\qqbot_channel\bot.mjs)
+  - existing WeChat adapter path: [index.ts](d:\file\Mini-Agent\src\channels\wechat\src\index.ts) and [channel.ts](d:\file\Mini-Agent\src\channels\wechat\src\channel.ts)
+  - shared ingress path: [channel_ingress_use_cases.py](d:\file\Mini-Agent\src\mini_agent\application\channel_ingress_use_cases.py)
+  - dormant shared binding store: [binding.py](d:\file\Mini-Agent\src\mini_agent\session\binding.py)
+- Locked the next implementation cut as `P30.4a Remote Conversation Binding Centralization`:
+  - move remote `conversation -> session_id` reuse into the shared application ingress path
+  - stop treating channel-local session id caches as the only continuity mechanism
+  - keep the slice deliberately narrow so it strengthens the remote entrance boundary before broader adapter cleanup
+- Completed `P30.4a Remote Conversation Binding Centralization`.
+- Added a shared remote binding service in [remote_conversation_binding_service.py](d:\file\Mini-Agent\src\mini_agent\application\remote_conversation_binding_service.py):
+  - normalizes remote adapter identity through the shared interaction-surface rules
+  - resolves an existing remote `conversation -> session_id` binding when adapters omit `session_id`
+  - persists successful remote bindings back into the shared Python binding store
+- Rewired [channel_ingress_use_cases.py](d:\file\Mini-Agent\src\mini_agent\application\channel_ingress_use_cases.py) so `/api/v1/channel/message` now:
+  - resolves remote session reuse centrally
+  - forwards the resolved `session_id` into the normal shared chat flow
+  - persists the returned session binding after a successful non-dry-run remote turn
+- Extended the shared binding schema in [binding.py](d:\file\Mini-Agent\src\mini_agent\session\binding.py) so stored entries now also retain:
+  - `channel_type`
+  - `conversation_id`
+- Wired the active gateway app path in [main.py](d:\file\Mini-Agent\src\apps\agent_studio_gateway\main.py) to use the shared remote binding service explicitly instead of leaving the binding seam dormant.
+- Updated the remote readiness walkthrough in [channel_ingress_gateway_walkthrough.py](d:\file\Mini-Agent\scripts\channel_ingress_gateway_walkthrough.py):
+  - the second remote turn no longer passes `session_id`
+  - continuity now proves the shared application binding path, not adapter-side reuse
+- Added focused regressions:
+  - [test_channel_ingress_use_cases.py](d:\file\Mini-Agent\tests\test_channel_ingress_use_cases.py) verifies central binding reuse and dry-run non-persistence
+  - [test_agent_studio_gateway_api_v1.py](d:\file\Mini-Agent\tests\test_agent_studio_gateway_api_v1.py) now verifies the gateway route reuses a central binding without explicit `session_id`
+- Verification:
+  - `uv run ruff check src/mini_agent/application/remote_conversation_binding_service.py src/mini_agent/application/channel_ingress_use_cases.py src/mini_agent/application/__init__.py src/mini_agent/session/binding.py src/apps/agent_studio_gateway/main.py scripts/channel_ingress_gateway_walkthrough.py tests/test_channel_ingress_use_cases.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py`
+  - `uv run pytest tests/test_channel_ingress_use_cases.py tests/test_channel_ingress_gateway_walkthrough.py -q`
+  - `uv run pytest tests/test_agent_studio_gateway_api_v1.py -k "channel_message" -q`
+  - `uv run python scripts/channel_ingress_gateway_walkthrough.py`
+  - `uv run python -m compileall src/mini_agent/application/remote_conversation_binding_service.py src/mini_agent/application/channel_ingress_use_cases.py src/mini_agent/application/__init__.py src/mini_agent/session/binding.py src/apps/agent_studio_gateway/main.py scripts/channel_ingress_gateway_walkthrough.py tests/test_channel_ingress_use_cases.py`
+  - result: `ruff clean`, focused ingress bundle `3 passed`, gateway API channel bundle `5 passed`, readiness walkthrough `PASS`, compileall clean
+
+- Started `P23.29 Explicit Task Fork Commands`.
+- Added one explicit derived-session request contract:
+  - `MainAgentSessionForkRequest`
+- Extended the shared runtime/session stack with one explicit child-session API:
+  - [session_service.py](d:\file\Mini-Agent\src\mini_agent\application\session_service.py) now exposes `create_derived_session(...)`
+  - [main_agent_gateway_use_cases.py](d:\file\Mini-Agent\src\mini_agent\application\main_agent_gateway_use_cases.py) now routes that capability through the gateway use-case layer
+  - [main.py](d:\file\Mini-Agent\src\apps\agent_studio_gateway\main.py) now exposes `POST /api/v1/agent/sessions/{session_id}/fork`
+  - [session_remote_service.py](d:\file\Mini-Agent\src\mini_agent\application\session_remote_service.py) and [gateway_client.py](d:\file\Mini-Agent\src\mini_agent\tui\gateway_client.py) now expose the same client path for TUI
+- Added explicit task-fork commands in [catalog.json](d:\file\Mini-Agent\src\mini_agent\commands\catalog.json) and [app.py](d:\file\Mini-Agent\src\mini_agent\tui\app.py):
+  - `/fork [task_prompt]`
+  - `/task new [task_prompt]`
+- Kept the design on the real runtime seam instead of inventing another session type:
+  - TUI first creates a real derived child session through the gateway/runtime path
+  - if a prompt is supplied, TUI switches focus to that child and reuses the normal remote chat execution path for the first turn
+- Added regressions:
+  - [test_main_agent_gateway_use_cases.py](d:\file\Mini-Agent\tests\test_main_agent_gateway_use_cases.py) now verifies explicit derived-session creation preserves lineage and inherited model selection
+  - [test_tui_app.py](d:\file\Mini-Agent\tests\test_tui_app.py) now verifies `/fork` and `/task new`
+- Verification:
+  - `uv run ruff check src/mini_agent/interfaces/agent.py src/mini_agent/interfaces/__init__.py src/mini_agent/application/session_service.py src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/application/session_remote_service.py src/mini_agent/tui/gateway_client.py src/apps/agent_studio_gateway/main.py src/mini_agent/tui/app.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "explicit_derived_session or delegation" -q`
+  - `uv run pytest tests/test_tui_app.py -k "fork_command or task_new_command" -q`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py -q`
+  - `uv run python -m compileall src/mini_agent/interfaces/agent.py src/mini_agent/interfaces/__init__.py src/mini_agent/application/session_service.py src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/application/session_remote_service.py src/mini_agent/tui/gateway_client.py src/apps/agent_studio_gateway/main.py src/mini_agent/tui/app.py`
+  - result: targeted gateway `5 passed`, targeted TUI `2 passed`, broader regression `181 passed`, lint clean, compileall clean
+- Result:
+  - operators now have an explicit child-task/session fork path on top of the same runtime lineage seam delegation already uses
+  - agent-core gained one reusable derived-session entrypoint instead of more surface-specific branching
+
+- Started `P23.28 Delegation-Derived Session Lineage`.
+- Reworked `/delegate` so it no longer runs in an untracked ephemeral worker only:
+  - it now creates a real derived child session under the current parent session
+  - that child session is persisted and carries runtime lineage automatically
+- Added one runtime-level derived-session path in [main_agent_runtime_manager.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_manager.py):
+  - `create_derived_session(...)`
+  - inherits parent workspace
+  - inherits selected model + runtime policy + KB state + context policy
+  - binds lineage as `parent -> child` with reason `delegation`
+  - intentionally does not inherit remote reply binding by default, so delegated children remain internal task sessions
+- Added one application-facing wrapper in [session_service.py](d:\file\Mini-Agent\src\mini_agent\application\session_service.py):
+  - `prepare_derived_chat_turn(...)`
+- Rewired [gateway_route_execution_handler.py](d:\file\Mini-Agent\src\mini_agent\application\gateway_route_execution_handler.py):
+  - `/delegate` now executes the delegated prompt inside a derived child `ManagedSessionTurn`
+  - successful child runs persist their own user/assistant transcript and activity trail
+  - failed child runs now also persist an assistant-side failure message instead of vanishing
+  - parent-session fallback semantics remain intact
+  - delegation payloads now include `child_session_id`
+- Extended [delegation.py](d:\file\Mini-Agent\src\mini_agent\agent_core\delegation.py) so normalized delegation results preserve `child_session_id` coming back from the runner
+- Added/updated delegation regressions in [test_main_agent_gateway_use_cases.py](d:\file\Mini-Agent\tests\test_main_agent_gateway_use_cases.py):
+  - successful delegation creates a child session with lineage and transcript
+  - failed delegation still creates a child session, preserves the failure record, and falls back to the parent session reply
+- Verification:
+  - `uv run ruff check src/mini_agent/agent_core/delegation.py src/mini_agent/application/gateway_route_execution_handler.py src/mini_agent/application/session_service.py src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_main_agent_gateway_use_cases.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "delegation" -q`
+  - `uv run pytest tests/test_agent_core_delegation.py tests/test_main_agent_gateway_use_cases.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py tests/test_tui_app.py -q`
+  - `uv run python scripts/shared_session_gateway_walkthrough.py`
+  - `uv run python -m compileall src/mini_agent/agent_core/delegation.py src/mini_agent/application/gateway_route_execution_handler.py src/mini_agent/application/session_service.py src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_main_agent_gateway_use_cases.py`
+  - result: delegation-focused `4 passed`, broader `186 passed`, walkthrough `PASS`, `ruff clean`, `compileall clean`
+- Result:
+  - delegation now produces a durable child task session instead of only a reply string
+  - lineage now covers a real high-value runtime behavior, not just import/restore plumbing
+  - future task-fork UX can build on this same derived-session path instead of inventing another session type
+
+- Started `P23.27 Session Lineage Runtime Integration`.
+- Connected the previously orphaned `SessionLineageStore` to the real runtime session flow instead of leaving lineage as a dead-side primitive:
+  - added runtime-private `lineage_state` on managed sessions
+  - added runtime store registration/removal in [main_agent_runtime_manager.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_manager.py)
+  - extended the core lineage store in [lineage.py](d:\file\Mini-Agent\src\mini_agent\agent_core\session\lineage.py) with persisted-node restore and node removal support
+- Extended runtime-private snapshot/persistence contracts so lineage now survives real session transport paths:
+  - [session_snapshot.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_snapshot.py)
+  - [session_snapshot_handler.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_snapshot_handler.py)
+  - [session_hydration_builder.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_hydration_builder.py)
+  - [session_persistence_record_builder.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_persistence_record_builder.py)
+  - [session_read_model_builder.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_read_model_builder.py)
+- Wired lineage into the creation/import/restore boundaries instead of bolting on a second tracker:
+  - brand-new sessions now bootstrap as lineage roots
+  - imported snapshots can declare `lineage_parent_session_id`, `lineage_root_session_id`, `lineage_reason`, and `lineage_metadata`
+  - persisted restores rehydrate lineage metadata and repopulate the in-memory lineage graph
+- Added focused regressions:
+  - [test_agent_core_session.py](d:\file\Mini-Agent\tests\test_agent_core_session.py) now covers placeholder-parent upgrade and node removal
+  - [test_main_agent_gateway_use_cases.py](d:\file\Mini-Agent\tests\test_main_agent_gateway_use_cases.py) now covers runtime child-import lineage and persisted restore lineage
+- Verification:
+  - `uv run ruff check src/mini_agent/agent_core/session/lineage.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_creation_handler.py src/mini_agent/runtime/session_hydration_builder.py src/mini_agent/runtime/session_persistence_record_builder.py src/mini_agent/runtime/session_read_model_builder.py src/mini_agent/runtime/session_registry_handler.py src/mini_agent/runtime/session_snapshot.py src/mini_agent/runtime/session_snapshot_handler.py tests/test_agent_core_session.py tests/test_main_agent_gateway_use_cases.py`
+  - `uv run pytest tests/test_agent_core_session.py tests/test_main_agent_gateway_use_cases.py -k "lineage or import_session_snapshot or export_snapshot or persisted_export" -q`
+  - `uv run pytest tests/test_agent_core_session.py tests/test_main_agent_gateway_use_cases.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py tests/test_tui_app.py -q`
+  - `uv run python scripts/shared_session_gateway_walkthrough.py`
+  - `uv run python -m compileall src/mini_agent/agent_core/session/lineage.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_creation_handler.py src/mini_agent/runtime/session_hydration_builder.py src/mini_agent/runtime/session_persistence_record_builder.py src/mini_agent/runtime/session_read_model_builder.py src/mini_agent/runtime/session_registry_handler.py src/mini_agent/runtime/session_snapshot.py src/mini_agent/runtime/session_snapshot_handler.py tests/test_agent_core_session.py tests/test_main_agent_gateway_use_cases.py`
+  - result: focused `7 passed`, broader `189 passed`, walkthrough `PASS`, `ruff clean`, `compileall clean`
+- Result:
+  - session lineage is no longer a disconnected primitive
+  - runtime import/export/restore now preserve ancestry metadata as part of session truth
+  - this gives future fork/delegation/compression work one real runtime ancestry seam instead of a paper design
+
+- Started `P23.26 Agent Kernel Bootstrap Diagnostics`.
+- Extended [tooling.py](d:\file\Mini-Agent\src\mini_agent\runtime\tooling.py) so unified tool bootstrap now returns structured diagnostics together with the active tools and skill runtime:
+  - workspace tool names/count
+  - shared tool names/count
+  - skill bootstrap status, loader readiness, catalog counts, active skill count, and failure reason
+  - MCP bootstrap status, config path, active tool count, and failure reason
+- Changed [kernel.py](d:\file\Mini-Agent\src\mini_agent\agent_core\kernel.py) so `build_agent_kernel(...)` now attaches one unified `agent.kernel_diagnostics` payload covering:
+  - selected route
+  - runtime policy
+  - tool bootstrap summary
+  - skills summary
+  - MCP summary
+  - turn-context provider summary
+- Kept bootstrap behavior intentionally non-fatal for shared optional capabilities:
+  - skill/MCP startup failures no longer disappear silently from observability
+  - the agent still boots, but now carries the failure details in `kernel_diagnostics`
+- Added focused regression coverage in [test_agent_core_kernel.py](d:\file\Mini-Agent\tests\test_agent_core_kernel.py):
+  - kernel diagnostics are attached to built agents
+  - skill/MCP bootstrap failures are reported without failing the whole kernel build
+- Verification:
+  - `uv run ruff check src/mini_agent/agent_core/kernel.py src/mini_agent/runtime/tooling.py tests/test_agent_core_kernel.py`
+  - `uv run pytest tests/test_agent_core_kernel.py -q`
+  - `uv run pytest tests/test_agent_core_kernel.py tests/test_code_agent_loop.py tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py -q`
+  - `uv run python -m compileall src/mini_agent/agent_core/kernel.py src/mini_agent/runtime/tooling.py tests/test_agent_core_kernel.py`
+  - result: `ruff clean`, focused `7 passed`, broader `214 passed`, `compileall clean`
+- Result:
+  - agent-core now has a real kernel bootstrap diagnostics seam instead of relying on scattered implicit state
+  - this gives future TUI/CLI/WebUI/channel surfaces one stable source for kernel self-description
+  - optional capability startup failures are now observable without making the runtime brittle
+
+- Started `P30.7ai Managed Session Require-Helper Cleanup`.
+- Added a small private helper in [main_agent_runtime_manager.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_manager.py) to centralize the repeated “load or restore managed session, otherwise 404” boundary pattern:
+  - `_require_managed_session_unlocked(...)`
+- Reused that helper across the identical facade entrypoints instead of repeating:
+  - `rename_session(...)`
+  - `set_session_shared(...)`
+  - `reset_session(...)`
+  - `set_active_surface(...)`
+  - `control_session_context(...)`
+  - `update_session_context_policy(...)`
+  - `manage_session_memory(...)`
+  - `manage_session_skills(...)`
+  - `update_session_model_selection(...)`
+  - `update_session_runtime_policy(...)`
+- Intentionally left the non-identical branches alone:
+  - `delete_session(...)`
+  - `cancel_session_turn(...)`
+  - `resolve_pending_approval(...)`
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py tests/test_tui_app.py -q`
+  - `uv run python scripts/shared_session_gateway_walkthrough.py`
+  - result: `ruff clean`, runtime bundle `180 passed`, walkthrough `PASS`
+- Result:
+  - the runtime-manager facade surface is now slightly cleaner and more consistent
+  - this confirms the operator facade is near a natural stopping point:
+    - the remaining mid-sized methods are mostly parameter-bearing entrypoints, not hidden strategy blobs
+
+- Started `P30.7ah Runtime Manager Composition Root Cleanup`.
+- Reorganized [main_agent_runtime_manager.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_manager.py) so the runtime-manager composition root is now split into internal initialization stages instead of one 300+ line `__init__` block:
+  - `_initialize_runtime_core(...)`
+  - `_initialize_runtime_support_services()`
+  - `_initialize_session_model_services()`
+  - `_initialize_session_runtime_services()`
+  - `_initialize_session_boundary_services()`
+- Preserved the existing collaborators and order of ownership:
+  - no new external builder layer
+  - no API changes
+  - no wiring redesign beyond making the composition stages explicit
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py tests/test_tui_app.py -q`
+  - `uv run python scripts/shared_session_gateway_walkthrough.py`
+  - result: `ruff clean`, `compileall clean`, runtime bundle `180 passed`, walkthrough `PASS`
+- Result:
+  - `MainAgentRuntimeManager.__init__` dropped from the earlier `309` lines to `20` lines in the current worktree
+  - total file length is roughly flat because the wiring still exists, but it is now grouped by composition stage instead of hidden in one monolithic constructor
+  - the biggest remaining runtime-manager methods are now explicit helper/wiring stages rather than a single unreadable constructor blob
+
+- Started `P30.7ag Snapshot Import Command Surface Cleanup`.
+- Changed [main_agent_runtime_manager.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_manager.py) so `import_session_snapshot(...)` now accepts a single [RuntimeSessionSnapshotImportCommand](d:\file\Mini-Agent\src\mini_agent\runtime\session_snapshot_handler.py) instead of exposing a large kwargs-style import signature.
+- Updated direct callers to speak the same contract:
+  - [test_main_agent_gateway_use_cases.py](d:\file\Mini-Agent\tests\test_main_agent_gateway_use_cases.py)
+  - [shared_session_gateway_walkthrough.py](d:\file\Mini-Agent\scripts\shared_session_gateway_walkthrough.py)
+- Fixed one real follow-up break uncovered by the broader regression bundle:
+  - the walkthrough helper `_import_runtime_session(...)` still used the old signature
+  - it now constructs `RuntimeSessionSnapshotImportCommand(...)` directly
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_main_agent_gateway_use_cases.py scripts/shared_session_gateway_walkthrough.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "import_session_snapshot or export_snapshot or persisted_shared_session or duplicate_session_id" -q`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_main_agent_gateway_use_cases.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py tests/test_tui_app.py -q`
+  - `uv run python scripts/shared_session_gateway_walkthrough.py`
+  - result: `ruff clean`, targeted `3 passed`, `compileall clean`, runtime bundle `180 passed`, walkthrough `PASS`
+- Result:
+  - snapshot import now uses the same command-object language across manager, registry, tests, and readiness walkthrough
+  - `import_session_snapshot(...)` dropped out of the remaining runtime-manager hotspot list
+  - runtime manager shrank again:
+    - from `1611` lines in the prior slice to `1550` lines in the current worktree
+  - the next meaningful hotspots are now:
+    - `__init__`
+    - a few operator-facing methods that look large mostly because of transport payload shaping, not hidden domain logic
+
+- Started `P30.7af Turn Recording Surface Consolidation`.
+- Extended [session_turn_scope_handler.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_turn_scope_handler.py) with a first-class `record_turn(...)` helper so the user/assistant transcript pair now belongs to the existing turn-scope owner instead of being assembled inline in the runtime manager.
+- Rewired [main_agent_runtime_manager.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_manager.py) so:
+  - `record_turn(...)` now delegates directly to the turn-scope handler
+  - `record_activity(...)` and `record_pending_approval(...)` no longer keep redundant temporary return variables
+- Added focused regression coverage in [test_main_agent_gateway_use_cases.py](d:\file\Mini-Agent\tests\test_main_agent_gateway_use_cases.py) for direct runtime `record_turn(...)` persistence.
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_turn_scope_handler.py tests/test_main_agent_gateway_use_cases.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "record_turn or recovery or activity_transcript" -q`
+  - `uv run pytest tests/test_session_service.py tests/test_tui_app.py -q`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py tests/test_tui_app.py -q`
+  - `uv run python scripts/shared_session_gateway_walkthrough.py`
+  - result: `ruff clean`, targeted `4 passed`, broader `110 passed`, runtime bundle `180 passed`, walkthrough `PASS`
+- Result:
+  - transcript pair recording now has one clearer owner
+  - runtime manager became slightly thinner again:
+    - from `1653` lines in the prior recorded slice to `1611` lines in the current worktree
+  - the remaining prominent runtime-manager hotspots are now:
+    - `__init__`
+    - `import_session_snapshot(...)`
+    - a few still-thick facade methods that mostly deserve reevaluation rather than blind extraction
+
+- Started `P30.7ae Cancel / Approval Operator-Surface Follow-Up`.
+- Extended [session_operator_handler.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_operator_handler.py) so the operator surface now also owns:
+  - cancel-turn orchestration
+  - pending-approval resolution orchestration
+- Rewired [main_agent_runtime_manager.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_manager.py) so:
+  - `cancel_session_turn(...)` now keeps `_store_lock` + existence lookup only
+  - `resolve_pending_approval(...)` now keeps `_store_lock` + existence lookup only
+  - transcript recording and approval-finalization ordering now live in the operator handler beside the other operator commands
+- Preserved the two key behaviors from the pre-extraction path:
+  - persisted-but-not-live sessions still return the correct `409` responses for cancel/approval
+  - approval waiter finalization still happens only after the approval transcript entry is recorded
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_operator_handler.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "cancel_session or approval or pending_approval" -q`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py tests/test_tui_app.py -q`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run python scripts/shared_session_gateway_walkthrough.py`
+  - result: `ruff clean`, targeted `3 passed`, `179 passed`, `208 passed`, walkthrough `PASS`
+- Result:
+  - the session operator surface is now more complete as one boundary
+  - runtime-manager remaining hotspots are clearer:
+    - `__init__`
+    - `import_session_snapshot(...)`
+    - transcript/turn recording helpers
+  - this slice mainly improved boundary clarity rather than materially shrinking file length
+
+- Started `P30.7ad Session Operator Handler Extraction`.
+- Added [session_operator_handler.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_operator_handler.py) as the new home for session operator-command orchestration:
+  - control actions
+  - context-policy updates
+  - memory commands
+  - skill commands
+  - model-selection updates
+  - runtime-policy updates
+- Rewired [main_agent_runtime_manager.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_manager.py) so those entrypoints now mostly:
+  - load the session under `_store_lock`
+  - delegate into the operator handler
+- Preserved two important existing semantics during extraction:
+  - non-`mcp_*` control commands keep their original command metadata spelling such as `kb_off`
+  - MCP cleanup still stays monkeypatchable through the runtime-manager module seam by injecting `lambda: cleanup_mcp_connections()`
+- Deleted the old manager-local orchestration helpers for:
+  - memory response / mutation shell
+  - skill response / mutation shell
+  - model-selection response / mutation shell
+  - runtime-policy response / mutation shell
+- `MainAgentRuntimeManager` shrank substantially again:
+  - from `2009` lines to `1653` lines in the current worktree
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_operator_handler.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "control_session_can_toggle_knowledge_base or control_session_mcp_reload_rebuilds_session_agent" -q`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py tests/test_tui_app.py -q`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run python scripts/shared_session_gateway_walkthrough.py`
+  - result: `ruff clean`, targeted `2 passed`, `179 passed`, `208 passed`, walkthrough `PASS`
+- Result:
+  - runtime manager is now much closer to a true outer coordinator
+  - operator-command orchestration has one clearer home
+  - remaining runtime cuts are now more isolated and easier to reason about
+
+- Started `P30.7ac Session Registry Handler Extraction`.
+- Added [session_registry_handler.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_registry_handler.py) as the new home for session-registry orchestration:
+  - `get_or_create_session(...)`
+  - `create_session(...)`
+  - `import_session_snapshot(...)`
+  - `export_session_snapshot(...)`
+  - `list_sessions(...)`
+  - `get_session_detail(...)`
+  - `get_recent_messages(...)`
+- Rewired [main_agent_runtime_manager.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_manager.py) so it now keeps:
+  - `_store_lock`
+  - `_sessions` ownership
+  - facade-style delegation into the new registry handler
+- Kept the composition honest instead of rebuilding logic:
+  - registry handler composes the existing access/creation/snapshot/catalog handlers
+  - restore/import still go through the existing restore/hydrate path
+  - lifecycle refresh/persist still reuse the existing runtime-manager-owned callbacks
+- `MainAgentRuntimeManager` shrank again:
+  - from `2083` lines to `2009` lines in the current worktree
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_registry_handler.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_registry_handler.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py tests/test_tui_app.py -q`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run python scripts/shared_session_gateway_walkthrough.py`
+  - result: `ruff clean`, `compileall clean`, `179 passed`, `208 passed`, walkthrough `PASS`
+- Result:
+  - session registry behavior now has one clearer home
+  - runtime manager is closer to a real outer coordinator instead of a mixed registry/orchestration blob
+  - the next runtime cuts can focus on command/mutation hot spots instead of session registry plumbing
+
+- Started `P30.7ab Runtime Manager Direct-Wiring Cleanup`.
+- Removed the remaining runtime-manager forwarding layer where extracted collaborators already owned the behavior:
+  - diagnostics wiring now points directly at `RuntimeSessionDiagnosticsService`
+  - read-model wiring now points directly at `RuntimeSessionReadModelBuilder`
+  - runtime-memory cleanup/save/restore wiring now points directly at `RuntimeTaskMemoryBackendAdapter`
+- Reordered `MainAgentRuntimeManager.__init__` so the extracted pieces now compose more honestly:
+  - `RuntimeSessionStateHydrator` is initialized before turn-scope/agent-runtime wiring
+  - `RuntimeSessionTurnScopeHandler` remains the persistence-preserving seam for prepared-context capture/restore
+  - `RuntimeSessionCatalogHandler`, `RuntimeSessionRestoreHandler`, and `RuntimeSessionSnapshotHandler` now use read-model builder callbacks directly, with narrow lambda adapters only where keyword-only signatures require shaping
+- Deleted now-dead manager helper wrappers for:
+  - read-model forwarding
+  - diagnostics forwarding
+  - runtime-memory backend forwarding
+- `MainAgentRuntimeManager` shrank materially:
+  - from `2309` lines to `2083` lines in the current worktree
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_read_model_builder.py src/mini_agent/runtime/session_live_state_handler.py src/mini_agent/runtime/session_agent_runtime_handler.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py tests/test_tui_app.py -q`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run python scripts/shared_session_gateway_walkthrough.py`
+  - result: `ruff clean`, `compileall clean`, `179 passed`, `208 passed`, walkthrough `PASS`
+- Result:
+  - runtime manager now exposes fewer fake seams and more direct ownership boundaries
+  - extracted collaborators are actually composed together instead of being routed back through manager-local pass-through helpers
+  - keyword-only callback adapters remain only where they are structurally necessary
+
+- Started `P30.7aa TUI Gateway Client Payload Shaping Consolidation`.
+- Consolidated repeated TUI client payload shaping inside `src/mini_agent/tui/gateway_client.py`:
+  - added `_GatewaySessionBinding`
+  - added `_create_session_payload(...)`
+  - added `_chat_payload(...)`
+- Reused those helpers across:
+  - session interaction context payloads (`cancel/control/context/memory/skill/model/policy/approval`)
+  - async/sync create-session paths
+  - `run_chat(...)` and `stream_chat_events(...)`
+- Added focused regression coverage:
+  - `tests/test_tui_gateway_client.py`
+- Verification:
+  - `uv run ruff check src/mini_agent/tui/gateway_client.py tests/test_tui_gateway_client.py`
+  - `uv run python -m compileall src/mini_agent/tui/gateway_client.py tests/test_tui_gateway_client.py`
+  - `uv run pytest tests/test_tui_gateway_client.py -q`
+  - `uv run pytest tests/test_tui_app.py tests/test_session_remote_service.py tests/test_tui_gateway_client.py tests/test_shared_session_gateway_walkthrough.py -q`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py -q`
+  - result: `ruff clean`, `compileall clean`, `3 passed`, `112 passed`, `96 passed`
+- Result:
+  - the TUI gateway client now has one local home for shared payload shaping
+  - layer boundaries stay clean because this reuse is internal to the TUI client
+  - the remaining payload fields are mostly operation-specific, so this area is also close to a natural stopping point
+
+- Started `P30.7z Session Surface Binding Reuse Across Services`.
+- Promoted `SessionSurfaceBinding` into a reusable interaction-context adapter:
+  - added `from_values(...)`
+  - added `from_request(...)`
+  - added `as_kwargs()`
+- Reused that binding across session-facing service layers:
+  - `SessionApplicationService` now forwards interaction kwargs to runtime-manager calls through the shared binding
+  - `SessionApplicationService.prepare_chat_turn(...)` now uses one binding for both session lookup and managed-turn construction
+  - `RemoteSessionService` now forwards interaction kwargs to gateway-client calls through the same binding
+  - `RemoteSessionService` async/sync create-session paths now share one normalized payload helper
+- Added focused regression coverage:
+  - `tests/test_session_service.py` now verifies `SessionSurfaceBinding.from_request(...).as_kwargs()`
+- Verification:
+  - `uv run ruff check src/mini_agent/application/session_service.py src/mini_agent/application/session_remote_service.py tests/test_session_service.py tests/test_session_remote_service.py`
+  - `uv run python -m compileall src/mini_agent/application/session_service.py src/mini_agent/application/session_remote_service.py tests/test_session_service.py tests/test_session_remote_service.py`
+  - `uv run pytest tests/test_session_service.py tests/test_session_remote_service.py -q`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_session_service.py tests/test_session_remote_service.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py -q`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_shared_session_gateway_walkthrough.py -q`
+  - result: `ruff clean`, `compileall clean`, `4 passed`, `207 passed`, `8 passed`
+- Result:
+  - session-service and remote-service interaction-context forwarding is now centralized
+  - the remaining forwarded arguments are mostly operation-specific fields, so this area is close to a natural stopping point for abstraction
+
+- Started `P30.7y Interaction Request Adapter Extraction + Channel Smoke Repair`.
+- Added a shared application-layer interaction request adapter:
+  - `src/mini_agent/application/interaction_request_adapter.py`
+- Moved request adaptation onto that seam:
+  - `MainAgentGatewayUseCases` now builds gateway chat execution requests through the shared interaction binding
+  - `ChannelIngressUseCases` now builds main-agent chat requests through the same interaction binding
+- Added focused regression coverage:
+  - `tests/test_interaction_request_adapter.py`
+- Verification:
+  - `uv run ruff check src/mini_agent/application/interaction_request_adapter.py src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/application/channel_ingress_use_cases.py tests/test_interaction_request_adapter.py`
+  - `uv run python -m compileall src/mini_agent/application/interaction_request_adapter.py src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/application/channel_ingress_use_cases.py tests/test_interaction_request_adapter.py`
+  - `uv run pytest tests/test_interaction_request_adapter.py tests/test_main_agent_gateway_use_cases.py -k "interaction_request_adapter or run_chat or stream_chat or routing" -q`
+  - result: `ruff clean`, `compileall clean`, `3 passed`
+- Followed with real-use smoke validation:
+  - `uv run pytest tests/test_agent_studio_gateway_api_v1.py tests/test_agent_studio_gateway_integration_flows.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_shared_session_gateway_walkthrough.py -q`
+  - `uv run python scripts/shared_session_gateway_walkthrough.py`
+  - `uv run python scripts/channel_ingress_gateway_walkthrough.py`
+  - result: `24 passed`, walkthrough `PASS`, walkthrough `PASS`
+- Repaired repo-level channel smoke readiness:
+  - `scripts/qq_wechat_smoke.py` now bootstraps missing Node workspaces before running smoke
+  - `src/channels/types/package.json` now uses `npx --yes -p typescript tsc` for self-hosted local package builds
+  - WeChat oversized-body smoke now asserts rejection generically instead of pinning to a single `413` response code
+- Final smoke verification:
+  - `uv run python scripts/qq_wechat_smoke.py`
+  - result: `PASS`
+- Result:
+  - application-layer chat request adaptation is unified
+  - gateway/channel walkthroughs still pass after the refactor
+  - QQ/WeChat smoke is back to a runnable repo-readiness check
+
+- Started `P30.7x Gateway Route Execution Handler Extraction`.
+- Added a dedicated gateway route-execution handler:
+  - `src/mini_agent/application/gateway_route_execution_handler.py`
+- Moved the routed execution shell behind that seam:
+  - `/delegate` parsing
+  - route resolution + routing diagnostics bookkeeping
+  - delegation execution
+  - delegation failure fallback to the main agent
+  - delegation payload / supplemental stream-event shaping
+- Updated `MainAgentGatewayUseCases` to:
+  - instantiate the route-execution handler
+  - delegate routing diagnostics reads to it
+  - delegate chat-turn route execution to it
+- Verification:
+  - `uv run ruff check src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/application/gateway_route_execution_handler.py`
+  - `uv run python -m compileall src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/application/gateway_route_execution_handler.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "run_chat or stream_chat or delegate or approval or activity or routing" -q`
+  - `uv run pytest tests/test_session_service.py tests/test_tui_app.py -k "prepare_chat_turn_scopes_runtime_lifecycle or remote_approval or runtime_policy_commands or stream" -q`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
+  - result: `ruff clean`, `compileall clean`, `5 passed`, `7 passed`, `207 passed`, `11 passed`
+- Result:
+  - `MainAgentGatewayUseCases` no longer owns route/delegation execution internals
+  - route statistics and delegation fallback behavior now have one dedicated home
+  - the gateway use case is now close to a thin entry boundary instead of a mixed orchestration object
+
+- Started `P30.7w Gateway Agent Execution Handler Extraction`.
+- Added a dedicated gateway agent-execution handler:
+  - `src/mini_agent/application/gateway_agent_execution_handler.py`
+- Moved the main-route execution cluster behind that seam:
+  - single-turn agent execution
+  - runtime approval hook injection
+  - runtime activity hook emission
+  - tool-call preview and output shaping helpers
+- Updated `MainAgentGatewayUseCases` to:
+  - instantiate the execution handler
+  - delegate main-route execution to it
+  - keep route/delegation orchestration in the use case
+- Verification:
+  - `uv run ruff check src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/application/gateway_agent_execution_handler.py`
+  - `uv run python -m compileall src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/application/gateway_agent_execution_handler.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "run_chat or stream_chat or delegate or approval or activity or routing" -q`
+  - `uv run pytest tests/test_session_service.py tests/test_tui_app.py -k "prepare_chat_turn_scopes_runtime_lifecycle or remote_approval or runtime_policy_commands or stream" -q`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
+  - result: `ruff clean`, `compileall clean`, `5 passed`, `7 passed`, `207 passed`, `11 passed`
+- Result:
+  - `MainAgentGatewayUseCases` no longer owns approval/activity hook construction inline
+  - the application layer now has a dedicated home for route-local agent execution
+  - the next natural cut is the remaining route/delegation shell
+
+- Started `P30.7v Gateway Chat Flow Handler Extraction`.
+- Added a dedicated gateway chat-flow handler:
+  - `src/mini_agent/application/gateway_chat_flow_handler.py`
+- Moved shared `run_chat(...)` / `stream_chat_events(...)` orchestration behind that seam:
+  - dry-run response shaping
+  - dry-run stream framing
+  - turn preparation + bootstrap error shaping
+  - non-streaming response finalization
+  - streaming heartbeat / delta / done framing
+- Updated `MainAgentGatewayUseCases` to:
+  - instantiate the gateway chat-flow handler
+  - delegate top-level chat/stream orchestration to it
+  - keep route resolution and routed execution semantics in one callback (`_execute_chat_turn(...)`)
+- Verification:
+  - `uv run ruff check src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/application/gateway_chat_flow_handler.py`
+  - `uv run python -m compileall src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/application/gateway_chat_flow_handler.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "run_chat or stream_chat or delegate or approval or activity or routing" -q`
+  - `uv run pytest tests/test_session_service.py tests/test_tui_app.py -k "prepare_chat_turn_scopes_runtime_lifecycle or remote_approval or runtime_policy_commands or stream" -q`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
+  - result: `ruff clean`, `compileall clean`, `5 passed`, `7 passed`, `207 passed`, `11 passed`
+- Result:
+  - gateway top-level chat/stream flow now has a dedicated application home instead of being duplicated inline in the use case
+  - `MainAgentGatewayUseCases` got thinner again and is closer to a route/execution coordinator
+  - the next natural cut is the lower-level routed execution cluster: `_run_agent_once(...)`, approval hooks, activity hooks, and delegation execution
+
+- Started `P30.7u Turn Scope Orchestration Extraction`.
+- Added a dedicated runtime turn-scope handler:
+  - `src/mini_agent/runtime/session_turn_scope_handler.py`
+- Moved managed chat-turn lifecycle orchestration behind that seam:
+  - turn enter: surface bind, pending apply, recovery lookup, running state, user message
+  - turn exit: running-state finish, pending skill reload replay, lock release
+  - turn helper mutations: message/activity/approval/recovery/prepared-context helpers
+- Updated `MainAgentRuntimeManager` to:
+  - instantiate and expose the runtime turn-scope handler
+  - delegate turn helper wrappers (`mark_turn_started`, `bind_session_surface`, `record_message`, `record_activity`, pending approval, recovery, prepared-context capture/restore) through that seam
+- Updated `ManagedSessionTurn` to depend on the runtime turn-scope handler instead of orchestrating the turn lifecycle inline.
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_turn_scope_handler.py src/mini_agent/application/session_service.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_turn_scope_handler.py src/mini_agent/application/session_service.py`
+  - `uv run pytest tests/test_session_service.py -q`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "run_chat or stream_chat or recovery or approval or activity or prepare_chat_turn or survives_runtime_restart or restarted_shared_session or persisted_interrupted_session" -q`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
+  - result: `ruff clean`, `compileall clean`, `2 passed`, `7 passed`, `207 passed`, `11 passed`
+- Result:
+  - turn-scope lifecycle now has a dedicated runtime home instead of being split between the manager and `ManagedSessionTurn`
+  - manager helper methods got thinner again
+  - the next chat-execution refactor can focus on route/run/stream orchestration instead of basic turn enter/exit mechanics
+
+- Started `P30.7t Skill + Model Command Shell Follow-Up`.
+- Extended the shared command coordinator:
+  - `src/mini_agent/runtime/session_command_coordinator.py`
+  - `execute_locked(...)` now supports result-dependent `touch` / `persist` decisions
+- Updated `MainAgentRuntimeManager` to continue the command-shell unification:
+  - skill mutation success now runs through the shared command coordinator instead of a bespoke `async with session.runtime.lock` block
+  - model selection now runs through the same coordinator instead of owning a dedicated inline lock/mutate/persist path
+- Added small execution payloads inside the manager so the orchestrator can keep response shaping while the command shell handles lock/touch/persist flow:
+  - `RuntimeSessionSkillMutationExecution`
+  - `RuntimeSessionModelSelectionExecution`
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_command_coordinator.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_command_coordinator.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "manage_session_skills or skill or update_session_model_selection or queued_shared_session_model or can_update_shared_session_model_selection" -q`
+  - `uv run pytest tests/test_tui_app.py -k "runtime_policy_commands or remote_skill or skill_refresh or model" -q`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
+  - result: `ruff clean`, `compileall clean`, `11 passed`, `21 passed`, `207 passed`, `11 passed`
+- Result:
+  - skill and model command entrypoints now share the same runtime command shell instead of each keeping a custom lock/persist path
+  - queued/applied model-selection behavior stayed stable
+  - `MainAgentRuntimeManager` got thinner again without adding compatibility layers
+
 ## 2026-04-12
+
+- Started `P30.7s Session Command Coordinator Extraction`.
+- Added a dedicated command-entry orchestration seam:
+  - `src/mini_agent/runtime/session_command_coordinator.py`
+- Moved the shared command shell behind that coordinator:
+  - locked command execution
+  - transcript append wiring
+  - touch/persist sequencing
+- Updated `MainAgentRuntimeManager` to:
+  - instantiate the command coordinator once
+  - route `cancel_session_turn(...)`, `control_session_context(...)`, `update_session_context_policy(...)`, and mutating `manage_session_memory(...)` through the shared command shell
+  - finish `update_session_runtime_policy(...)` on the same seam so it no longer performs command mutation work while still inside `_store_lock`
+- Added a dedicated runtime-policy execution helper so the manager keeps:
+  - session lookup
+  - coordinator invocation
+  - response shaping
+  while the shared command shell now owns the common lock/transcript/persist flow
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_command_coordinator.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_command_coordinator.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "runtime_policy or context_policy or memory or manage_session_skills or control_session or cancel_session or approval" -q`
+  - `uv run pytest tests/test_session_service.py tests/test_tui_app.py -k "prepare_chat_turn_scopes_runtime_lifecycle or update_session_runtime_policy" -q`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
+  - result: `ruff clean`, `compileall clean`, `21 passed`, `1 passed`, `207 passed`, `11 passed`
+- Result:
+  - command-entry orchestration now has one shared runtime home instead of being repeated across manager methods
+  - runtime-policy updates now follow the same extracted command path as the other command handlers
+  - `MainAgentRuntimeManager` got another step closer to being orchestration-only
+
+- Started `P30.7r Session Agent-Runtime Handler Extraction`.
+- Added a dedicated agent runtime rebuild / reconfiguration handler:
+  - `src/mini_agent/runtime/session_agent_runtime_handler.py`
+- Moved the manager-owned agent-runtime cluster behind that handler seam:
+  - desired/effective runtime policy inspection
+  - live-agent runtime policy reconfiguration
+  - rebuild with selected identity
+  - pending model-selection application
+  - pending skill-reload application
+  - workspace skill-reload queue mutation
+- Updated `MainAgentRuntimeManager` to:
+  - instantiate the session-agent-runtime handler
+  - delegate runtime-policy inspection through that seam
+  - delegate rebuild/runtime-policy/pending-apply/workspace-reload flows through that seam
+  - remove the old inline rebuild/reconfigure helper cluster from the manager
+- Updated the focused runtime-policy test seam to monkeypatch the new handler method rather than the removed manager helper.
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_agent_runtime_handler.py tests/test_main_agent_gateway_use_cases.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_agent_runtime_handler.py tests/test_main_agent_gateway_use_cases.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "runtime_policy or model_selection or pending_session_skill_reload or manage_session_skills or control_session" -q`
+  - `uv run pytest tests/test_session_service.py tests/test_tui_app.py -k "prepare_chat_turn_scopes_runtime_lifecycle or update_session_runtime_policy" -q`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
+  - result: `ruff clean`, `compileall clean`, `9 passed`, `1 passed`, `207 passed`, `11 passed`
+- Result:
+  - agent rebuild / runtime reconfiguration now have a dedicated runtime home instead of living inline in the manager
+  - model-selection, skill-reload, and runtime-policy semantics stayed stable while the manager got thinner again
+  - the remaining manager weight is now even more decisively orchestration-layer work
+
+- Started `P30.7q Session Catalog Handler Extraction`.
+- Added a dedicated session catalog / metadata handler:
+  - `src/mini_agent/runtime/session_catalog_handler.py`
+- Moved the manager-owned catalog cluster behind that handler seam:
+  - latest active session lookup by workspace
+  - latest persisted record lookup by workspace
+  - human-readable title allocation
+  - list/detail/recent-message routing
+  - remote-channel summary dedupe
+  - rename/share metadata mutation rules
+- Updated `MainAgentRuntimeManager` to:
+  - instantiate the session-catalog handler
+  - delegate access/creation title + workspace lookup through the catalog seam
+  - delegate list/detail/message/rename/share routing through the catalog seam
+  - reuse catalog record-workspace resolution in delete flow
+  - remove the old inline catalog helper cluster from the manager
+- Updated focused regression to call the new public dedupe seam instead of the removed manager helper.
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_catalog_handler.py tests/test_main_agent_gateway_use_cases.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_catalog_handler.py tests/test_main_agent_gateway_use_cases.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "assigns_human_readable_session_title_hints or list_sessions_dedupes_exact_remote_channel_duplicates or hides_untitled_channel_stub_when_shared_tui_session_exists or team_mode or get_or_create_session or chat_applies_session_title_hint_on_new_shared_session" -q`
+  - `uv run pytest tests/test_session_service.py -q`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
+  - result: `ruff clean`, `compileall clean`, `8 passed`, `2 passed`, `207 passed`, `11 passed`
+- Result:
+  - session catalog semantics now have a dedicated runtime home instead of being spread across manager helpers
+  - title allocation, session listing, dedupe, and metadata mutations stayed stable while the manager got thinner again
+  - the remaining manager weight is now even more clearly orchestration-centric
+
+- Started `P30.7p Session Live-State Handler Extraction`.
+- Added a dedicated live session state handler:
+  - `src/mini_agent/runtime/session_live_state_handler.py`
+- Moved the manager-owned live state mutation cluster behind that handler seam:
+  - surface/channel binding
+  - turn start / finish state
+  - transcript append
+  - activity transcript aggregation
+  - pending approval normalization/storage cleanup
+  - recovery context build/clear
+  - runtime reset state cleanup
+- Updated `MainAgentRuntimeManager` to:
+  - instantiate the live-state handler
+  - delegate runtime/session read-model pending-approval normalization through the same handler seam
+  - delegate live session write paths instead of mutating transcript/projection/runtime fields inline
+  - keep only orchestration + persistence responsibilities around those write paths
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_live_state_handler.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_live_state_handler.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "recovery or reset or active_surface or pending_approval or cancel_session or approval" -q`
+  - `uv run pytest tests/test_session_service.py tests/test_tui_app.py -k "prepare_chat_turn_scopes_runtime_lifecycle or mutation_wrappers_shape_session_responses" -q`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
+  - result: `ruff clean`, `compileall clean`, `8 passed`, `2 passed`, `207 passed`, `11 passed`
+- Result:
+  - live session state mutation now has a dedicated runtime boundary instead of being embedded in the manager
+  - turn/transcript/activity/approval/recovery/reset behavior stayed stable while the manager got thinner again
+  - the remaining manager weight is increasingly orchestration-level rather than direct session state manipulation
+
+- Started `P30.7o Session Creation Handler Extraction`.
+- Added a dedicated brand-new session creation handler:
+  - `src/mini_agent/runtime/session_creation_handler.py`
+- Moved duplicated new-session assembly behind that handler seam:
+  - title normalization/allocation
+  - surface/channel normalization
+  - fresh agent bootstrap
+  - lifecycle bootstrap
+  - initial projection assembly
+  - selected-model projection seeding
+  - knowledge-base and sandbox diagnostics initialization
+- Updated `MainAgentRuntimeManager` to:
+  - instantiate the session-creation handler
+  - delegate the create-new branch of `get_or_create_session(...)`
+  - delegate `create_session(...)`
+  - keep only policy/capacity checks, session registration, and persistence around brand-new session creation
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_creation_handler.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_creation_handler.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "assigns_human_readable_session_title_hints or chat_applies_session_title_hint_on_new_shared_session or survives_runtime_restart or team_mode or single_main_workspace_only or max_active_sessions or get_or_create_session" -q`
+  - `uv run pytest tests/test_session_service.py -q`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
+  - result: `ruff clean`, `compileall clean`, `8 passed`, `2 passed`, `207 passed`, `11 passed`
+- Result:
+  - brand-new session creation now has a dedicated runtime boundary instead of being duplicated inline inside the manager
+  - `create_session(...)` and `get_or_create_session(...)` now share one creation path while preserving title/surface/session behavior
+  - the manager moved another step closer to pure orchestration around session access and lifecycle
+
+- Started `P30.7n Session Model Selection Handler Extraction`.
+- Added a dedicated model-selection handler:
+  - `src/mini_agent/runtime/session_model_selection_handler.py`
+- Moved model-selection decision logic behind that handler seam:
+  - request normalization
+  - busy vs idle selection semantics
+  - immediate apply vs queued selection planning
+  - pending-selection eligibility for next-turn application
+- Updated `MainAgentRuntimeManager` to:
+  - instantiate the model-selection handler
+  - delegate model-selection planning to the handler
+  - keep only lock/scoped state mutation, optional rebuild, persistence, and response wrapping
+  - add shared helpers for applying a selection plan and building model-selection responses
+- Synced one shared-session walkthrough script to the already-live grouped session state shape:
+  - `scripts/shared_session_gateway_walkthrough.py`
+  - replaced stale flat-session field access (`busy`, `running_state`, `agent`) with grouped access through `projection` / `runtime`
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_model_selection_handler.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_model_selection_handler.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
+  - `uv run python -m compileall scripts/shared_session_gateway_walkthrough.py`
+  - result: `ruff clean`, `compileall clean`, `201 passed`, `11 passed`
+- Result:
+  - model selection now has its own runtime decision boundary instead of living inline inside the manager
+  - queued/immediate model semantics stayed stable while the manager got thinner again
+  - the next natural extraction target is runtime policy / approval-mode handling
+
+- Started `P30.7m Session Skill Command Handler Extraction`.
+- Added a dedicated skill command handler:
+  - `src/mini_agent/runtime/session_skill_command_handler.py`
+- Moved `/skill` command decomposition behind that handler seam:
+  - skill catalog availability handling
+  - read action routing (`list` / `active` / `show` / `search`)
+  - mutation preparation for `mode` / `enable` / `disable` / `reset` / `install` / `uninstall` / `rollback` / `refresh`
+  - reload queue metadata formatting
+  - final command transcript naming
+- Updated `MainAgentRuntimeManager` to:
+  - instantiate the skill command handler
+  - delegate `/skill` business routing to the handler
+  - keep only session lookup, busy/lock gating, reload queue orchestration, transcript append, persistence, and response wrapping
+  - add a shared `_build_session_skill_response(...)` helper parallel to the memory response helper
+- Fixed one latent runtime bug while landing the extraction:
+  - `/skill uninstall` and `/skill rollback` were already implemented in the manager branch
+  - but the action whitelist did not include them, so they were unreachable through the runtime entrypoint
+  - the new handler now accepts both actions and regression tests cover them directly
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_skill_command_handler.py tests/test_main_agent_gateway_use_cases.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_skill_command_handler.py tests/test_main_agent_gateway_use_cases.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_session_service.py tests/test_p19_runtime_matrix.py tests/test_command_catalog.py -q`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_projection.py -q`
+  - result: `ruff clean`, `compileall clean`, `178 passed`, `38 passed`
+- Result:
+  - `/skill` command behavior now has a dedicated runtime home instead of living inline in the manager
+  - manager is closer to pure orchestration on the skill surface too
+  - the next natural decomposition slice is `/model`
+
+- Started `P30.7l Session Memory Command Handler Extraction`.
+- Added a dedicated memory command handler:
+  - `src/mini_agent/runtime/session_memory_command_handler.py`
+- Moved `/memory` command decomposition behind that handler seam:
+  - action validation
+  - read vs mutation routing
+  - runtime/shared selector resolution
+  - durable/runtime memory payload assembly
+  - mutation result formatting for promote/save/refresh/clear
+- Updated `MainAgentRuntimeManager` to:
+  - instantiate the memory command handler
+  - delegate `/memory` business routing to the handler
+  - keep only session lookup, busy/lock gating, transcript append, persistence, and response wrapping
+  - drop the old inline `_session_memory_read_result(...)` helper and large command branch body
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_memory_command_handler.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_memory_command_handler.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_projection.py -q`
+  - result: `ruff clean`, `compileall clean`, `172 passed`, `38 passed`
+- Result:
+  - `/memory` command behavior now has a dedicated runtime home instead of living inline in the manager
+  - manager is closer to pure orchestration on the memory surface
+  - the next likely decomposition slices are `/skill` and `/model` command handlers
+
+- Started `P30.7k Lifecycle / Policy Coordination Extraction`.
+- Added a dedicated runtime policy/lifecycle coordinator:
+  - `src/mini_agent/runtime/session_runtime_policy_coordinator.py`
+- Moved lifecycle/policy coordination behind that service seam:
+  - main-workspace guardrails
+  - single-main active-workspace admission checks
+  - team saturation/workspace-conflict counters
+  - expired-session selection
+  - lifecycle refresh/reset counting
+  - runtime diagnostics counter payload assembly
+- Updated `MainAgentRuntimeManager` to:
+  - instantiate the policy/lifecycle coordinator
+  - delegate counter clearing and diagnostics payload assembly
+  - delegate workspace/capacity guardrail logic in entry flows
+  - delegate lifecycle refresh and expired-session selection wrappers
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_runtime_policy_coordinator.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_p19_runtime_matrix.py tests/test_session_service.py -q`
+  - result: `ruff clean`, `65 passed`
+- Result:
+  - manager no longer owns policy counters directly
+  - lifecycle/policy coordination now has a dedicated home instead of being spread across entry methods and diagnostics assembly
+  - the next likely step is higher-level command-handler decomposition rather than more low-level runtime seam extraction
+
+- Started `P30.7j Persistence Wrapper Internals Extraction`.
+- Added dedicated persistence-internal helpers:
+  - `src/mini_agent/runtime/session_persistence_metadata_registry.py`
+  - `src/mini_agent/runtime/session_shared_transcript_store.py`
+- Moved low-level persistence-wrapper mechanics behind those helpers:
+  - runtime metadata payload read/write and upsert
+  - shared transcript path resolution
+  - shared transcript file read/write/delete
+- Updated `_MainAgentRuntimePersistence` to:
+  - compose the metadata registry helper
+  - compose the shared transcript store helper
+  - delegate metadata/transcript file mechanics instead of implementing them inline
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_persistence_metadata_registry.py src/mini_agent/runtime/session_shared_transcript_store.py src/mini_agent/runtime/session_persistence_loader.py src/mini_agent/runtime/session_persistence_record_builder.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_main_agent_gateway_use_cases.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_projection.py tests/test_tui_app.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - result: `ruff clean`, `65 passed`, `210 passed`
+- Result:
+  - persistence wrapper internals are now composition-based instead of carrying JSON/file details inline
+  - wrapper behavior stayed stable while internal boundaries became clearer
+  - next likely orchestration cut is lifecycle/policy coordination or command-handler decomposition
+
+- Started `P30.7i Runtime-Memory Backend Adapter Extraction`.
+- Added a dedicated runtime-memory backend adapter:
+  - `src/mini_agent/runtime/session_runtime_memory_backend_adapter.py`
+- Moved `WorkspaceMemoriaRuntime` access behind that adapter seam for:
+  - session/workspace-shared snapshot payload export
+  - session/workspace-shared payload restore
+  - runtime-memory namespace cleanup
+  - runtime-memory entry lookup
+  - runtime-memory promotion operations
+- Updated `MainAgentRuntimeManager` to:
+  - instantiate the adapter once
+  - wire read-model snapshot export through the adapter
+  - wire runtime-state hydrator restore paths through the adapter
+  - delegate runtime-memory command flows and cleanup wrappers through the adapter
+- Result:
+  - `MainAgentRuntimeManager` no longer directly instantiates `WorkspaceMemoriaRuntime`
+  - runtime-memory backend access is now consistent across snapshot/hydration/cleanup/command paths
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_runtime_memory_backend_adapter.py src/mini_agent/runtime/session_diagnostics_service.py src/mini_agent/runtime/session_hydration_builder.py src/mini_agent/runtime/session_runtime_state_hydrator.py src/mini_agent/runtime/session_persistence_loader.py src/mini_agent/runtime/session_read_model_builder.py src/mini_agent/runtime/session_persistence_record_builder.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_main_agent_gateway_use_cases.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_projection.py tests/test_tui_app.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - result: `ruff clean`, `65 passed`, `210 passed`
+
+- Started `P30.7h Session Diagnostics Service Extraction`.
+- Added a dedicated diagnostics service module:
+  - `src/mini_agent/runtime/session_diagnostics_service.py`
+- Moved shared diagnostics computation behind that service seam:
+  - memory diagnostics for live sessions
+  - memory diagnostics for persisted records
+  - sandbox diagnostics for live sessions
+  - sandbox diagnostics for persisted records
+- Updated `MainAgentRuntimeManager` initialization to wire:
+  - hydration builder through the diagnostics service
+  - read-model builder through the diagnostics service
+  - runtime-state hydrator through the diagnostics service
+- Reduced manager diagnostics methods to delegation wrappers instead of carrying the implementations inline.
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_diagnostics_service.py src/mini_agent/runtime/session_hydration_builder.py src/mini_agent/runtime/session_runtime_state_hydrator.py src/mini_agent/runtime/session_persistence_loader.py src/mini_agent/runtime/session_read_model_builder.py src/mini_agent/runtime/session_persistence_record_builder.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_main_agent_gateway_use_cases.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_projection.py tests/test_tui_app.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - result: `ruff clean`, `65 passed`, `210 passed`
+- Result:
+  - diagnostics are no longer manager-owned implementation detail shared indirectly by multiple seams
+  - hydration/runtime-state/read-model layers now share one diagnostics computation boundary
+  - the next likely extraction target is runtime-memory backend access or persistence wrapper internals
+
+- Started `P30.7g Session Runtime State Hydrator Extraction`.
+- Added a dedicated runtime-state hydrator module:
+  - `src/mini_agent/runtime/session_runtime_state_hydrator.py`
+- Moved runtime-state synchronization behind that hydrator seam:
+  - runtime task-memory restore
+  - workspace-shared runtime-memory merge
+  - prepared-context restore onto the live agent
+  - prepared-context capture from the live agent
+  - memory/sandbox diagnostics refresh
+- Updated `MainAgentRuntimeManager` to:
+  - instantiate the runtime-state hydrator
+  - delegate post-build hydration substeps from `_hydrate_session_unlocked(...)`
+  - delegate prepared-context restore/capture wrappers to the hydrator while keeping manager boundary methods intact
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_hydration_builder.py src/mini_agent/runtime/session_runtime_state_hydrator.py src/mini_agent/runtime/session_persistence_loader.py src/mini_agent/runtime/session_read_model_builder.py src/mini_agent/runtime/session_persistence_record_builder.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - result: `ruff clean`, `65 passed`
+- Result:
+  - the shared hydration helper is narrower and no longer mixes session assembly with live runtime-state synchronization
+  - prepared-context and runtime-memory hydration now have a clearer home than the runtime manager
+  - the next likely shrink targets are diagnostics and runtime-memory backend adapters
+
+- Started `P30.7f Session Hydration Unification`.
+- Replaced the restore-specific builder with a shared hydration builder:
+  - `src/mini_agent/runtime/session_hydration_builder.py`
+- Removed the now-obsolete restore-only module:
+  - `src/mini_agent/runtime/session_restore_builder.py`
+- Expanded hydration normalization to cover both:
+  - persisted-record restore payloads
+  - imported snapshot payloads
+- Added a shared runtime hydration path in `MainAgentRuntimeManager`:
+  - `_hydrate_session_unlocked(...)`
+- Rewired:
+  - `import_session_snapshot(...)`
+  - `_restore_persisted_session_unlocked(...)`
+  to use that shared hydration flow instead of maintaining parallel inline assembly logic.
+- The shared hydration flow now centralizes:
+  - agent bootstrap
+  - runtime-policy reconfiguration
+  - message/token restore
+  - knowledge-base state application
+  - session-state assembly
+  - runtime-task/workspace-shared memory restore
+  - prepared-context restore
+  - diagnostics refresh
+  - optional persistence after import hydration
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_hydration_builder.py src/mini_agent/runtime/session_persistence_loader.py src/mini_agent/runtime/session_read_model_builder.py src/mini_agent/runtime/session_persistence_record_builder.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_main_agent_gateway_use_cases.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_projection.py tests/test_tui_app.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - result: `ruff clean`, `65 passed`, `210 passed`
+- Result:
+  - import and restore now share one runtime hydration path instead of duplicating session assembly logic
+  - hydration concerns now have a clearer home than the runtime manager's public entrypoints
+  - the next natural shrink target is to extract runtime-memory/prepared-context hydration substeps from the shared helper
+
+- Started `P30.7e Runtime Restore/Load Boundary Extraction`.
+- Added dedicated runtime restore/load helpers:
+  - `src/mini_agent/runtime/session_restore_builder.py`
+  - `src/mini_agent/runtime/session_persistence_loader.py`
+- Moved persisted-record reconstruction behind the restore builder seam:
+  - transcript import from persisted records
+  - restore-payload normalization
+  - reconstructed `MainAgentSessionState` assembly
+  - stored recovery snapshot application helper
+- Updated `_MainAgentRuntimePersistence` to:
+  - accept an injected persistence loader
+  - delegate runtime-record filtering and loaded-record normalization
+  - keep shared transcript file I/O while no longer assembling loaded runtime records inline
+- Updated `MainAgentRuntimeManager` to:
+  - instantiate the restore builder and persistence loader
+  - delegate persisted-session restoration to the restore builder
+  - reuse the restore builder transcript-import seam from read-model paths and snapshot import
+  - remove now-obsolete inline restore helpers
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_restore_builder.py src/mini_agent/runtime/session_persistence_loader.py src/mini_agent/runtime/session_read_model_builder.py src/mini_agent/runtime/session_persistence_record_builder.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_main_agent_gateway_use_cases.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_projection.py tests/test_tui_app.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - result: `ruff clean`, `65 passed`, `210 passed`
+- Result:
+  - persisted-session restore/load now has dedicated builder/loader seams instead of living inline in the runtime manager and persistence wrapper
+  - the runtime manager is narrower on the restore path and more clearly limited to orchestration work
+  - transcript import is now shared by restore/read-model/snapshot flows from one extracted boundary instead of being re-owned by the manager
+
+- Started `P30.7d Runtime Persistence Record Builder Extraction`.
+- Added a dedicated runtime persistence builder module:
+  - `src/mini_agent/runtime/session_persistence_record_builder.py`
+- Moved runtime persistence record assembly behind that builder seam:
+  - shared transcript entry serialization
+  - runtime metadata record assembly
+  - pending-approval serialization for persisted metadata
+- Updated `_MainAgentRuntimePersistence` to:
+  - accept an injected record builder
+  - write files and metadata only
+  - stop collecting sandbox diagnostics directly during save
+- Updated `MainAgentRuntimeManager` to:
+  - instantiate the new persistence builder
+  - refresh sandbox diagnostics inside `_persist_session_unlocked(...)`
+  - pass normalized sandbox diagnostics into persistence explicitly
+- Verification:
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_persistence_record_builder.py src/mini_agent/runtime/session_read_model_builder.py`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_main_agent_gateway_use_cases.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_projection.py tests/test_tui_app.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - result: `65 passed`, `ruff clean`, `210 passed`
+- Result:
+  - runtime persistence save is now closer to a pure storage boundary
+  - runtime-owned diagnostics refresh moved back to runtime manager where it belongs
+  - metadata/transcript serialization now has a dedicated home instead of living inline in persistence save
+
+- Started `P30.7c Runtime Session Read-Model Builder Extraction`.
+- Added a dedicated runtime read-model builder module:
+  - `src/mini_agent/runtime/session_read_model_builder.py`
+- Moved runtime session read-model construction behind that builder seam:
+  - summary/detail/snapshot builders
+  - message projection builder
+  - recovery snapshot / recovery projection builder
+  - pending-approval projection builder
+- Updated `src/mini_agent/runtime/main_agent_runtime_manager.py` to instantiate the builder with injected callbacks for:
+  - normalization
+  - diagnostics building
+  - token counting
+  - transcript restoration
+  - runtime task-memory snapshotting
+- Reduced runtime-manager read-model methods to delegation shells instead of carrying the full builder bodies inline.
+- Verification:
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -q`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_main_agent_gateway_use_cases.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_projection.py tests/test_tui_app.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_read_model_builder.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - result: `61 passed`, `210 passed`, `ruff clean`, `65 passed`
+- Result:
+  - `MainAgentRuntimeManager` is now less of a presenter/read-model assembler and more of a runtime coordinator
+  - the next extraction target is clearer: persistence save/load and related record assembly
+
+- Started `P30.7b Runtime Session State Composition Cut`.
+- Split runtime session state in `src/mini_agent/runtime/main_agent_runtime_manager.py` into grouped sub-state dataclasses:
+  - `MainAgentSessionProjectionState`
+  - `MainAgentSessionRuntimeHostState`
+  - `MainAgentSessionTranscriptState`
+- Updated `MainAgentSessionState` to store:
+  - top-level identity/lifecycle timestamps
+  - `projection`
+  - `runtime`
+  - `transcript_state`
+- Migrated runtime-manager session construction paths (`create/get_or_create/import/restore`) to populate grouped runtime state explicitly.
+- Migrated runtime-manager field access from flat session fields to grouped state:
+  - projection/session-truth fields now read from `session.projection`
+  - host/execution fields now read from `session.runtime`
+  - transcript fields now read from `session.transcript_state`
+- Migrated `ManagedSessionTurn` in `src/mini_agent/application/session_service.py` to the grouped session state model.
+- Updated focused runtime/gateway tests that intentionally inspect internal runtime session state.
+- Verification:
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -q`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_main_agent_gateway_use_cases.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_projection.py tests/test_tui_app.py -q`
+  - `uv run pytest tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - result: `61 passed`, `206 passed`, `4 passed`
+- Result:
+  - runtime session state now has explicit ownership buckets instead of one flat mixed bag
+  - session-service/runtime-manager call paths now encode the intended boundary in data shape
+  - this reduces the next extraction cut to “move builders/services out” rather than first rediscovering field ownership
+
+- Started `P30.7a Session Projection Boundary Cleanup`.
+- Separated terminal presentation from shared session read models:
+  - moved `TerminalSessionProjection` out of `src/mini_agent/session/projection.py`
+  - added `src/mini_agent/tui/session_projection.py` as the terminal-facing home for that model
+- Replaced brittle summary widening via `summary.__dict__` with an explicit detail constructor:
+  - added `SessionDetailProjection.from_summary(...)`
+  - updated `SessionDetailProjection.from_transport_payload(...)` to reuse the same explicit path
+  - updated runtime manager detail builders to call `SessionDetailProjection.from_summary(...)`
+- Synced imports/exports so shared session projections no longer publicly expose the terminal-only presentation model.
+- Verification:
+  - `uv run pytest tests/test_interaction_surface.py tests/test_main_agent_gateway_use_cases.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_projection.py tests/test_tui_app.py -q`
+  - result: `206 passed`
+- Result:
+  - the shared session projection module is closer to a real transport/application boundary
+  - terminal-specific presentation logic now has an explicit terminal home
+  - touched runtime/session detail builders no longer depend on dataclass `__dict__` internals
+
+- Started `P30.2/P30.3 TUI Session State Composition Cut`.
+- Split `TuiSession` into grouped sub-state objects in `src/mini_agent/tui/app.py`:
+  - `TuiSessionProjectionState`
+  - `TuiSessionRuntimeState`
+  - `TuiSessionViewState`
+- Kept the current flat attribute access working through internal delegation so the first cut could land without a destabilizing full-file rewrite.
+- Migrated the first bounded set of TUI helpers onto explicit grouped state:
+  - session UI state save/load now reads and restores `session.view`
+  - remote summary/detail sync now writes into `session.projection`
+  - submission-loop attach/shutdown now writes into `session.runtime`
+  - runtime reset and chat scroll/follow helpers now use grouped state explicitly
+- Extended the same slice with a second migration wave inside `src/mini_agent/tui/app.py`:
+  - chat message append/update/stream helpers now read and write `session.view.messages`
+  - activity/command expand-collapse state now uses `session.view`
+  - task creation, resume snapshot, pending-resume state, and active task ownership now use `session.runtime` + `session.view`
+  - selected/pending model identity and knowledge-base session snapshot now use `session.projection` + `session.runtime`
+  - the main local `_run_chat_turn(...)` path now explicitly mutates grouped projection/runtime/view state instead of flat `TuiSession` fields
+  - session/thread preview and status-panel read paths now consume grouped `projection/view` state explicitly
+- Continued the same refactor with a third execution-control wave:
+  - local/remote model-apply and queued-model application now use `projection/runtime`
+  - runtime policy updates and running-state updates now read/write grouped session state explicitly
+  - pending approval queue, approval-modal target lookup, and bus-event approval handling now use `session.projection`
+  - workflow run, cancel, invalidate-agent, remote cancel, remote chat turn, and pending-approval response paths now use grouped `projection/runtime/view`
+  - KB/MCP command handlers now use grouped state for runtime-attached/busy/channel metadata and local runtime rebuild
+- Landed a fourth grouped-state cleanup wave in `src/mini_agent/tui/app.py`:
+  - prepared-context capture, context-policy helpers, memory diagnostics, and sandbox diagnostics now store on `session.projection`
+  - local diagnostic refresh paths use `session.runtime.agent` only as runtime input, not as a state bucket
+  - remote memory/skill/context command summaries and remote channel metadata reads now use grouped `projection`
+  - session share/unshare, command token discovery, skill reload checks, tasks list, and startup pending-resume checks now read grouped `projection/runtime/view`
+  - `app.py` no longer contains direct flat access for the migrated grouped session fields
+- Added focused regression coverage in `tests/test_tui_app.py`:
+  - restore path now asserts nested `view` state
+  - new grouped-state test locks alias/nested synchronization
+  - cancel / KB / completed-turn tests now also assert nested grouped state where relevant
+- Tightened a second set of regression assertions to lock grouped ownership more explicitly:
+  - context command routing now asserts `projection.context_policy` and `projection.remote_last_command_summary`
+  - local-runtime sync-skip tests now assert `runtime.loop_bus` and `view.messages`
+  - memory/runtime-policy/clear-session tests now assert `projection.busy`, `projection.sandbox_diagnostics`, `projection.token_usage`, and `view.tasks/messages`
+- Completed the P30.3 seam-removal cut:
+  - removed `TuiSession.__getattr__/__setattr__` and the flat field-dispatch tables from `src/mini_agent/tui/app.py`
+  - switched `TuiSession`, `TuiSessionProjectionState`, `TuiSessionRuntimeState`, and `TuiSessionViewState` to `slots=True`
+  - updated the remaining `target.*` flat access in usage/task/skill-loader helpers to explicit `projection/runtime/view`
+  - updated `tests/test_tui_app.py` to use explicit nested state and added a hard assertion that flat alias access now raises `AttributeError`
+- Result:
+  - grouped state is no longer just the preferred path; it is now the required path inside TUI state access
+  - accidental reintroduction of flat session fields is blocked structurally instead of relying on reviewer discipline
+- Ran a follow-up boundary scan on `MainAgentRuntimeManager` and session projection after the TUI seam removal:
+  - `src/mini_agent/runtime/main_agent_runtime_manager.py` is still the next major boundary hotspot (`4668` lines, `133` defs/classes)
+  - `MainAgentSessionState` remains a wide flat runtime/session object mixing:
+    - runtime host state (`agent`, `cancel_event`, `lock`, waiters)
+    - session truth / binding state (`surface`, `reply`, `channel`, model selection)
+    - recovery/context/diagnostic caches
+    - transcript and persistence-facing state
+  - runtime manager still duplicates read-model construction across:
+    - live session -> summary/detail/snapshot
+    - persisted record -> summary/detail/snapshot
+  - `session/projection.py` still mixes transport read models with terminal-facing `TerminalSessionProjection`
+  - both runtime manager and `session/projection.py` still use `summary.__dict__` to widen summary -> detail payloads
+- Conclusion from the scan:
+  - the TUI-style alias seam is gone, but the runtime layer still has a “wide state + duplicated projection builders + presentation mixing” problem
+  - the cleanest next cut is not another surface tweak; it is splitting runtime session state and extracting projection/persistence builders out of `MainAgentRuntimeManager`
+- Verification:
+  - `uv run pytest tests/test_tui_app.py -q`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_main_agent_gateway_use_cases.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py -q`
+  - result: `107 passed`, `96 passed`
+
+- Started `P30.1 Code Guardrails - Four-Entrance Interaction Surface Contract`.
+- Added a shared interaction resolver:
+  - `src/mini_agent/runtime/interaction_surface.py`
+  - includes:
+    - surface normalization
+    - channel normalization
+    - user-entrance classification (`cli/tui/webui/remote`)
+    - remote-channel resolution (`qq/wechat/feishu`)
+- Wired channel ingress through the shared resolver:
+  - `src/mini_agent/application/channel_ingress_use_cases.py`
+- Wired gateway chat/stream paths through the same resolver:
+  - `src/mini_agent/application/main_agent_gateway_use_cases.py`
+  - turn-context metadata now includes `entrance` and `remote_channel`
+- Wired runtime surface-binding and normalization through the same resolver:
+  - `src/mini_agent/runtime/main_agent_runtime_manager.py`
+  - kept existing `qq/tui` session behavior stable while adding explicit remote-entrance compatibility semantics
+- Added focused tests for the new seam:
+  - `tests/test_interaction_surface.py`
+- Verification:
+  - `uv run pytest tests/test_interaction_surface.py -q`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -q`
+  - `uv run pytest tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py -q`
+  - result: `6 passed`, `61 passed`, `29 passed`
+
+- Started `P30 Four-Entrance Architecture Correction Sync`.
+- Re-read the active architecture and P30 planning docs to compare the current wording against the updated product intent.
+- Confirmed the key mismatch:
+  - active wording still flattened `QQ` into the same list as `CLI / TUI / WebUI`
+  - the corrected design needs `Remote Interaction` as the fourth entrance, with `QQ / WeChat / Feishu` under it as concrete adapters
+- Rewrote the active architecture docs to match the corrected design:
+  - `docs/ARCHITECTURE.md`
+  - `docs/P30_SURFACE_SESSION_ARCHITECTURE_CORRECTION_2026-04-12.md`
+  - `docs/P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md`
+- Synced the active execution/index notes so future refactor work starts from the corrected taxonomy:
+  - `docs/DEVELOPMENT_INDEX.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+- Locked the new P30 plan around this order:
+  - four-entrance boundary lock
+  - session-truth boundary lock
+  - TUI session model split
+  - remote channel adapter normalization
+  - shared entrance operation convergence
+  - canonical WebUI entrance clarification
+  - runtime manager decomposition continuation
+
+- Started `P30.1 QQ Channel Hard Consolidation`.
+- Confirmed the current live/runtime QQ path is `src/apps/qqbot_channel`:
+  - `src/mini_agent/dev/runtime_stack_manager.py` only boots that app
+  - the app depends on `qq-official-bot`
+- Confirmed the repo still carries two historical QQ implementations to remove:
+  - `src/channels/qqbot`
+  - `src/mini_agent/channels/qqbot.py`
+- Confirmed the deletion blast radius before editing:
+  - `scripts/qq_wechat_smoke.py` still uses `src/channels/qqbot`
+  - `tests/test_channels.py` still imports the Python QQ adapter
+  - active docs still reference the old QQ package path
+- Locked this execution slice in `task_plan.md`, `findings.md`, and `progress.md` before code changes.
+- Completed `P30.1 QQ Channel Hard Consolidation`.
+- Refactored the active QQ runtime app path under `src/apps/qqbot_channel/`:
+  - added `guardrails.mjs`
+  - added `gateway_io.mjs`
+  - added `smoke_runner.mjs`
+  - updated `bot.mjs`
+  - updated `.env.example`
+  - rewrote `README_zh-CN.md`
+- Restored the hardening behavior that had drifted out of the live QQ app path:
+  - gateway auth header passthrough via `QQBOT_GATEWAY_AUTH_TOKEN` / `MINI_AGENT_GATEWAY_AUTH_TOKEN`
+  - `/workspace` allowed-root enforcement via `QQBOT_ALLOWED_WORKSPACE_ROOTS`
+  - inbound message truncation via `QQBOT_MAX_MESSAGE_CHARS`
+  - outbound reply chunking via `QQBOT_MAX_REPLY_CHUNK_SIZE`
+- Deleted the historical QQ implementations:
+  - removed `src/channels/qqbot/`
+  - removed `src/mini_agent/channels/qqbot.py`
+- Updated the remaining repo surface to the one maintained QQ path:
+  - `scripts/qq_wechat_smoke.py`
+  - `tests/test_channels.py`
+  - `docs/RUNTIME_FLOW.md`
+  - `docs/DEVELOPMENT_INDEX.md`
+  - `docs/REFACTOR_TASKS.md`
+  - `docs/P29_SESSION_HARD_REFACTOR_PLAN.md`
+  - `docs/TRANSFORMATION_PLAN.md`
+- Verification:
+  - `npm run check --prefix src/apps/qqbot_channel`
+  - `uv run pytest tests/test_channels.py tests/test_markdown_links.py -q`
+  - one-off mock-gateway QQ smoke invoking `npm run smoke --prefix src/apps/qqbot_channel`
+  - result:
+    - QQ app syntax check passed
+    - focused QQ smoke passed
+    - focused pytest bundle passed (`10 passed`)
+- Follow-up verification note:
+  - `uv run python scripts/qq_wechat_smoke.py` now reaches the current QQ path and the current WeChat path
+  - the remaining failure is a pre-existing WeChat oversized-body `413` expectation mismatch, outside the QQ consolidation slice
 
 - Completed the repo hygiene and active-documentation cleanup slice.
 - Documentation changes:
@@ -1589,3 +3675,152 @@
 - Verification:
   - `uv run pytest tests/test_markdown_links.py -q`
   - result: `1 passed`
+
+- Continued the `MainAgentRuntimeManager` shrink work with two more hard extractions:
+  - added `src/mini_agent/runtime/session_runtime_policy_handler.py`
+  - added `src/mini_agent/runtime/session_control_handler.py`
+- `MainAgentRuntimeManager` now delegates:
+  - shared-session runtime-policy planning and busy-state validation
+  - session control actions for compaction, memory drop, KB toggles, and MCP inspection/reload
+- Fixed the runtime-policy regression at the correct seam:
+  - the failing shared-session test assumed `get_session_detail()` would trust `session.projection.sandbox_diagnostics`
+  - in reality the read model rebuilds sandbox diagnostics from the live agent when one exists
+  - the test double now carries minimal `runtime_policy_engine.policy` state so the assertion reflects the real read path
+- Preserved current MCP test ergonomics during extraction:
+  - control handler dependencies are injected via manager-owned lambdas
+  - existing monkeypatches against `mini_agent.runtime.main_agent_runtime_manager` MCP symbols still work
+- Verification:
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "runtime_policy or control_session" -q`
+  - result: `8 passed`
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_runtime_policy_handler.py src/mini_agent/runtime/session_control_handler.py tests/test_main_agent_gateway_use_cases.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_runtime_policy_handler.py src/mini_agent/runtime/session_control_handler.py tests/test_main_agent_gateway_use_cases.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - result: `203 passed`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
+  - result: `11 passed`
+
+- Continued the `MainAgentRuntimeManager` shrink work with the next session/context slice:
+  - added `src/mini_agent/runtime/session_context_policy_handler.py`
+- `MainAgentRuntimeManager` now delegates prepared-context policy command semantics:
+  - `include`
+  - `exclude`
+  - `budget`
+  - `reset`
+- The manager-side method now only:
+  - loads the target session
+  - acquires the session runtime lock
+  - appends the command transcript entry
+  - persists the session
+  - returns the handler-produced response
+- Added focused regression coverage around the newly extracted seam:
+  - `budget` updates are persisted with normalized limits
+  - `reset` returns the policy to normalized defaults
+  - busy shared sessions reject context-policy changes with `409`
+- Verification:
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "context_policy or update_session_context or context_update" -q`
+  - result: `3 passed`
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_context_policy_handler.py tests/test_main_agent_gateway_use_cases.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_context_policy_handler.py tests/test_main_agent_gateway_use_cases.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - result: `205 passed`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
+  - result: `11 passed`
+
+- Continued the `MainAgentRuntimeManager` shrink work with the interrupt/approval slice:
+  - added `src/mini_agent/runtime/session_interrupt_handler.py`
+- `MainAgentRuntimeManager` now delegates:
+  - running-turn cancellation semantics
+  - pending-approval token resolution
+  - restart-recovery approval conflict handling
+  - approval/cancel transcript detail generation
+- The manager-side methods now mainly keep:
+  - active-session existence checks
+  - persisted-but-not-resumable conflict checks
+  - transcript append ordering
+  - persistence after mutation
+- Verification:
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "cancel_session or approval or pending_approval" -q`
+  - result: `3 passed`
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_interrupt_handler.py tests/test_main_agent_gateway_use_cases.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_interrupt_handler.py tests/test_main_agent_gateway_use_cases.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - result: `205 passed`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
+  - result: `11 passed`
+
+- Continued the `MainAgentRuntimeManager` shrink work with the snapshot import/export slice:
+  - added `src/mini_agent/runtime/session_snapshot_handler.py`
+- `MainAgentRuntimeManager` now delegates:
+  - imported snapshot id collision checks
+  - imported snapshot hydration payload assembly
+  - export-time live-vs-persisted snapshot selection
+- Added focused regression coverage around the extracted seam:
+  - duplicate imported session ids now fail explicitly
+  - persisted-record export now has dedicated direct coverage
+  - existing live export tests for runtime task memory and workspace-shared runtime task memory remain green
+- Verification:
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "import_session_snapshot or export_session or persisted_export" -q`
+  - result: `3 passed`
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_snapshot_handler.py tests/test_main_agent_gateway_use_cases.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_snapshot_handler.py tests/test_main_agent_gateway_use_cases.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - result: `207 passed`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
+  - result: `11 passed`
+
+- Continued the `MainAgentRuntimeManager` shrink work with the restore/hydrate slice:
+  - added `src/mini_agent/runtime/session_restore_handler.py`
+- `MainAgentRuntimeManager` now delegates:
+  - persisted-record restore payload preparation
+  - hydration of a normalized payload into live session state
+  - restore-time agent reconfiguration / message restore / token restore / KB state restore / runtime-state hydrate flow
+- The manager-side restore methods now mainly keep:
+  - `now_utc` resolution
+  - in-memory existing-session short-circuit
+  - `_sessions` registration for newly hydrated sessions
+  - immediate persist decision for imported snapshots
+- Validation for this cut intentionally reused real restart/recovery scenarios instead of synthetic unit-only coverage:
+  - interrupted persisted session exposes recovery snapshot after restart
+  - restarted shared session keeps recovery until next turn consumes it
+  - shared session survives runtime restart
+  - chat without session id restores latest persisted shared session
+  - snapshot import/export focused tests remain green
+- Verification:
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "persisted_interrupted_session or restarted_shared_session or survives_runtime_restart or restores_latest_persisted_shared_session or import_session_snapshot or export_session or persisted_export" -q`
+  - result: `7 passed`
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_restore_handler.py tests/test_main_agent_gateway_use_cases.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_restore_handler.py tests/test_main_agent_gateway_use_cases.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - result: `207 passed`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
+  - result: `11 passed`
+
+- Continued the `MainAgentRuntimeManager` shrink work with the session-access slice:
+  - added `src/mini_agent/runtime/session_access_handler.py`
+- `MainAgentRuntimeManager` now delegates the branch-selection logic inside `get_or_create_session(...)`:
+  - in-memory session reuse by explicit id
+  - team-mode same-workspace active-session reuse without id
+  - persisted-session restore by explicit id
+  - latest persisted same-workspace restore without id
+  - create-new decision when no reuse/restore path matches
+- The manager-side method now mainly keeps:
+  - branch execution side effects after the plan is chosen
+  - lifecycle refresh/touch/persist for reused/restored sessions
+  - actual brand-new session instantiation
+- Added/confirmed focused validation around title hints and workspace/session selection behavior:
+  - human-readable session title hints
+  - title-hint application on new shared sessions
+  - latest persisted shared-session restore
+  - team-mode reuse and capacity guardrails
+  - single-main workspace guardrail
+- Also cleaned one test hygiene issue uncovered while widening lint coverage:
+  - removed unused `asyncio` import from `tests/test_p19_runtime_matrix.py`
+- Verification:
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "assigns_human_readable_session_title_hints or chat_applies_session_title_hint_on_new_shared_session or restores_latest_persisted_shared_session or team_mode or single_main_workspace_only or max_active_sessions or survives_runtime_restart or get_or_create_session" -q`
+  - result: `9 passed`
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_access_handler.py tests/test_main_agent_gateway_use_cases.py tests/test_p19_runtime_matrix.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_access_handler.py tests/test_main_agent_gateway_use_cases.py tests/test_p19_runtime_matrix.py`
+  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - result: `207 passed`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
+  - result: `11 passed`

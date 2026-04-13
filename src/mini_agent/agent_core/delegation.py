@@ -46,6 +46,7 @@ class DelegationResult:
     task_id: str
     success: bool
     worker_id: str
+    child_session_id: str | None = None
     output: str = ""
     error: str | None = None
     started_utc: datetime = field(default_factory=_utc_now)
@@ -219,6 +220,7 @@ class DelegationManager:
                     task_id=task.task_id,
                     success=True,
                     worker_id="sub-agent",
+                    child_session_id=None,
                     output=raw,
                     error=None,
                     started_utc=started,
@@ -230,6 +232,11 @@ class DelegationManager:
                     task_id=task.task_id,
                     success=bool(raw.get("success", True)),
                     worker_id=str(raw.get("worker_id", "sub-agent")),
+                    child_session_id=(
+                        str(raw.get("child_session_id")).strip()
+                        if raw.get("child_session_id")
+                        else None
+                    ),
                     output=str(raw.get("output", "")),
                     error=(str(raw.get("error")) if raw.get("error") else None),
                     started_utc=started,
@@ -244,6 +251,7 @@ class DelegationManager:
                 task_id=task.task_id,
                 success=False,
                 worker_id="sub-agent",
+                child_session_id=None,
                 output="",
                 error=f"{type(exc).__name__}: {exc}",
                 started_utc=started,

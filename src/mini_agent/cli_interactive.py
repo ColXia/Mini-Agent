@@ -20,6 +20,7 @@ from prompt_toolkit.key_binding import KeyBindings
 
 from .agent import Agent, TurnStopReason
 from .commands import (
+    CommandExecutionResult,
     LocalOperatorCommandService,
     McpReloadOutcome,
     CommandDispatcher,
@@ -29,8 +30,10 @@ from .commands import (
     build_command_usage_text,
     build_unknown_action_text,
     command_completion_tokens,
+    normalize_command_name,
     parse_memory_show_target,
     parse_command_text,
+    resolve_catalog_model_use_request,
     suggest_command_name,
 )
 from .commands.mcp_support import (
@@ -56,7 +59,6 @@ from .model_manager.model_registry_service import ModelRegistryService
 from .runtime.sandbox_state import collect_sandbox_diagnostics, compact_sandbox_summary
 from .runtime.session_lifecycle import SurfaceSessionLifecycleRuntime
 from .turn_context import (
-    context_policy_summary_line,
     format_prepared_turn_context_details,
     prepared_turn_context_summary_line,
     resolve_turn_context_policy,
@@ -261,33 +263,6 @@ def _render_cli_model_catalog(
             tag_text = f" [{' | '.join(tags)}]" if tags else ""
             lines.append(f"    - {model_id} ({display_name}){tag_text}")
     return "\n".join(lines)
-
-
-def _resolve_cli_model_target(
-    providers: list[dict[str, Any]],
-    *,
-    provider_id: str,
-    model_id: str,
-) -> tuple[str, str, str] | None:
-    normalized_provider_id = _safe_text(provider_id)
-    normalized_model_id = _safe_text(model_id)
-    if not normalized_provider_id or not normalized_model_id:
-        return None
-    for provider in providers:
-        current_provider_id = _safe_text(provider.get("provider_id"))
-        if current_provider_id != normalized_provider_id:
-            continue
-        source = _safe_text(provider.get("source")) or "custom"
-        models = provider.get("models")
-        if not isinstance(models, list):
-            return None
-        for model in models:
-            if not isinstance(model, dict):
-                continue
-            if _safe_text(model.get("model_id")) == normalized_model_id:
-                return (source, current_provider_id, normalized_model_id)
-        return None
-    return None
 
 
 def _copy_agent_session_state(source: Agent, target: Agent) -> None:
@@ -1044,35 +1019,26 @@ async def run_interactive_session(
             print(f"\n{Colors.DIM}{'-' * 50}{Colors.RESET}\n")
             return
         if action == "use":
-            if len(invocation.args) < 3:
-                print(
-                    f"{Colors.YELLOW}{build_command_usage_text('cli', 'model', action='use')}{Colors.RESET}"
-                )
-                return
-            provider_id = _safe_text(invocation.arg(1))
-            model_id = _safe_text(invocation.arg(2))
-            catalog = _cli_model_registry()
-            target = _resolve_cli_model_target(
-                catalog,
-                provider_id=provider_id,
-                model_id=model_id,
+            request = resolve_catalog_model_use_request(
+                surface="cli",
+                providers=_cli_model_registry(),
+                args=invocation.args,
             )
-            if target is None:
-                print(
-                    f"{Colors.RED}[X] Model not found in provider '{provider_id}': {model_id}{Colors.RESET}"
-                )
+            if isinstance(request, CommandExecutionResult):
+                color = Colors.YELLOW if request.kind == "usage" else Colors.RED
+                print(f"{color}{request.details}{Colors.RESET}")
                 print(f"\n{Colors.DIM}{'-' * 50}{Colors.RESET}\n")
                 return
             current_identity = _current_model_identity()
-            if current_identity == target:
+            if current_identity == request.identity:
                 print(
                     f"{Colors.YELLOW}Already using "
-                    f"{_format_model_identity(current_identity, fallback_model=model_id)}.{Colors.RESET}"
+                    f"{_format_model_identity(current_identity, fallback_model=request.model_id)}.{Colors.RESET}"
                 )
                 print(f"\n{Colors.DIM}{'-' * 50}{Colors.RESET}\n")
                 return
             try:
-                active_identity = await _switch_cli_model(*target)
+                active_identity = await _switch_cli_model(*request.identity)
             except Exception as e:
                 print(f"{Colors.RED}[X] Model switch failed: {e}{Colors.RESET}")
                 print(f"\n{Colors.DIM}{'-' * 50}{Colors.RESET}\n")

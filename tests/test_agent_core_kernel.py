@@ -8,6 +8,7 @@ from mini_agent.agent_core.kernel import AgentKernelBuildOptions, build_agent_ke
 from mini_agent.config import AgentConfig, Config, LLMConfig, ToolsConfig
 from mini_agent.model_manager.runtime import RoutedLLMSettings
 from mini_agent.schema import LLMProvider
+from mini_agent.runtime.tooling import initialize_agent_tools
 from mini_agent.tools.base import Tool, ToolResult
 
 
@@ -98,7 +99,27 @@ async def test_build_agent_kernel_uses_unified_routing_and_tool_init(monkeypatch
             get_skills_metadata_prompt=lambda: "SKILL_METADATA",
             loader=catalog_loader,
         )
-        return [_DummyTool()], loader
+        return [_DummyTool()], loader, {
+            "workspace_tools": {"count": 1, "tool_names": ["dummy_tool"]},
+            "shared_tools": {"count": 0, "tool_names": []},
+            "skills": {
+                "enabled": True,
+                "loader_ready": True,
+                "catalog_count": 0,
+                "eligible_count": 0,
+                "active_skill_count": 0,
+                "tool_names": [],
+                "error": None,
+            },
+            "mcp": {
+                "enabled": False,
+                "config_path": None,
+                "tool_count": 0,
+                "tool_names": [],
+                "error": None,
+            },
+            "total_tools": {"count": 1, "tool_names": ["dummy_tool"]},
+        }
 
     monkeypatch.setattr("mini_agent.agent_core.kernel.initialize_agent_tools", _fake_init_tools)
     monkeypatch.setattr("mini_agent.agent_core.kernel.create_agent_logger", lambda _config: SimpleNamespace())
@@ -122,6 +143,10 @@ async def test_build_agent_kernel_uses_unified_routing_and_tool_init(monkeypatch
     assert getattr(agent.llm, "model", "") == "model-picked"
     assert getattr(agent, "skill_runtime", None) is not None
     assert getattr(agent, "skill_catalog_loader", None) is captured["catalog_loader"]
+    assert agent.kernel_diagnostics["route"]["model"] == "model-picked"
+    assert agent.kernel_diagnostics["runtime_policy"]["approval_profile"] == "plan"
+    assert agent.kernel_diagnostics["tools"]["tool_names"] == ["dummy_tool"]
+    assert "RuntimeRecoveryTurnContextProvider" in agent.kernel_diagnostics["turn_context"]["provider_types"]
 
 
 async def test_build_agent_kernel_appends_skill_metadata_when_placeholder_absent(
@@ -141,7 +166,13 @@ async def test_build_agent_kernel_appends_skill_metadata_when_placeholder_absent
     async def _fake_init_tools(*, config, workspace_dir, approval_profile_override, access_level_override=None):
         _ = (config, workspace_dir, approval_profile_override, access_level_override)
         loader = SimpleNamespace(get_skills_metadata_prompt=lambda: "SKILL_BLOCK")
-        return [_DummyTool()], loader
+        return [_DummyTool()], loader, {
+            "workspace_tools": {"count": 1, "tool_names": ["dummy_tool"]},
+            "shared_tools": {"count": 0, "tool_names": []},
+            "skills": {"enabled": True, "loader_ready": True, "catalog_count": 0, "eligible_count": 0, "active_skill_count": 0, "tool_names": [], "error": None},
+            "mcp": {"enabled": False, "config_path": None, "tool_count": 0, "tool_names": [], "error": None},
+            "total_tools": {"count": 1, "tool_names": ["dummy_tool"]},
+        }
 
     monkeypatch.setattr("mini_agent.agent_core.kernel.initialize_agent_tools", _fake_init_tools)
     monkeypatch.setattr("mini_agent.agent_core.kernel.create_agent_logger", lambda _config: SimpleNamespace())
@@ -170,7 +201,13 @@ async def test_build_agent_kernel_uses_pinned_provider_route_when_requested(
     async def _fake_init_tools(*, config, workspace_dir, approval_profile_override, access_level_override=None):
         _ = (config, workspace_dir, approval_profile_override, access_level_override)
         loader = SimpleNamespace(get_skills_metadata_prompt=lambda: "")
-        return [_DummyTool()], loader
+        return [_DummyTool()], loader, {
+            "workspace_tools": {"count": 1, "tool_names": ["dummy_tool"]},
+            "shared_tools": {"count": 0, "tool_names": []},
+            "skills": {"enabled": True, "loader_ready": True, "catalog_count": 0, "eligible_count": 0, "active_skill_count": 0, "tool_names": [], "error": None},
+            "mcp": {"enabled": False, "config_path": None, "tool_count": 0, "tool_names": [], "error": None},
+            "total_tools": {"count": 1, "tool_names": ["dummy_tool"]},
+        }
 
     monkeypatch.setattr("mini_agent.agent_core.kernel.initialize_agent_tools", _fake_init_tools)
     monkeypatch.setattr("mini_agent.agent_core.kernel.create_agent_logger", lambda _config: SimpleNamespace())
@@ -208,7 +245,13 @@ async def test_build_agent_kernel_can_disable_interactive_setup(monkeypatch, tmp
 
     async def _fake_init_tools(*, config, workspace_dir, approval_profile_override, access_level_override=None):
         _ = (config, workspace_dir, approval_profile_override, access_level_override)
-        return [_DummyTool()], None
+        return [_DummyTool()], None, {
+            "workspace_tools": {"count": 1, "tool_names": ["dummy_tool"]},
+            "shared_tools": {"count": 0, "tool_names": []},
+            "skills": {"enabled": False, "loader_ready": False, "catalog_count": 0, "eligible_count": 0, "active_skill_count": 0, "tool_names": [], "error": None},
+            "mcp": {"enabled": False, "config_path": None, "tool_count": 0, "tool_names": [], "error": None},
+            "total_tools": {"count": 1, "tool_names": ["dummy_tool"]},
+        }
 
     monkeypatch.setattr("mini_agent.agent_core.kernel.initialize_agent_tools", _fake_init_tools)
     monkeypatch.setattr("mini_agent.agent_core.kernel.create_agent_logger", lambda _config: SimpleNamespace())
@@ -235,7 +278,13 @@ async def test_build_agent_kernel_can_suppress_background_output(monkeypatch, tm
     async def _fake_init_tools(*, config, workspace_dir, approval_profile_override, access_level_override=None):
         _ = (config, workspace_dir, approval_profile_override, access_level_override)
         print("noisy bootstrap output")
-        return [_DummyTool()], None
+        return [_DummyTool()], None, {
+            "workspace_tools": {"count": 1, "tool_names": ["dummy_tool"]},
+            "shared_tools": {"count": 0, "tool_names": []},
+            "skills": {"enabled": False, "loader_ready": False, "catalog_count": 0, "eligible_count": 0, "active_skill_count": 0, "tool_names": [], "error": None},
+            "mcp": {"enabled": False, "config_path": None, "tool_count": 0, "tool_names": [], "error": None},
+            "total_tools": {"count": 1, "tool_names": ["dummy_tool"]},
+        }
 
     monkeypatch.setattr("mini_agent.agent_core.kernel.initialize_agent_tools", _fake_init_tools)
     monkeypatch.setattr("mini_agent.agent_core.kernel.create_agent_logger", lambda _config: SimpleNamespace())
@@ -272,7 +321,13 @@ async def test_build_agent_kernel_uses_route_token_limit_for_agent_budget(
 
     async def _fake_init_tools(*, config, workspace_dir, approval_profile_override, access_level_override=None):
         _ = (config, workspace_dir, approval_profile_override, access_level_override)
-        return [_DummyTool()], None
+        return [_DummyTool()], None, {
+            "workspace_tools": {"count": 1, "tool_names": ["dummy_tool"]},
+            "shared_tools": {"count": 0, "tool_names": []},
+            "skills": {"enabled": False, "loader_ready": False, "catalog_count": 0, "eligible_count": 0, "active_skill_count": 0, "tool_names": [], "error": None},
+            "mcp": {"enabled": False, "config_path": None, "tool_count": 0, "tool_names": [], "error": None},
+            "total_tools": {"count": 1, "tool_names": ["dummy_tool"]},
+        }
 
     monkeypatch.setattr("mini_agent.agent_core.kernel.initialize_agent_tools", _fake_init_tools)
     monkeypatch.setattr("mini_agent.agent_core.kernel.create_agent_logger", lambda _config: SimpleNamespace())
@@ -280,3 +335,44 @@ async def test_build_agent_kernel_uses_route_token_limit_for_agent_budget(
     agent = await build_agent_kernel(workspace_dir=tmp_path / "workspace-budget")
 
     assert agent.token_limit == 123456
+
+
+async def test_initialize_agent_tools_reports_skill_and_mcp_bootstrap_failures(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    config = _build_test_config()
+    config.tools.enable_file_tools = False
+    config.tools.enable_bash = False
+    config.tools.enable_note = False
+    config.tools.enable_knowledge_base = False
+    config.tools.enable_skills = True
+    config.tools.enable_mcp = True
+
+    monkeypatch.setattr(
+        "mini_agent.tools.skill_tool.create_skill_tools",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("skills boom")),
+    )
+
+    async def _fake_load_mcp_tools_async(_path: str):
+        raise RuntimeError("mcp boom")
+
+    monkeypatch.setattr("mini_agent.tools.mcp_loader.load_mcp_tools_async", _fake_load_mcp_tools_async)
+    monkeypatch.setattr("mini_agent.tools.mcp_loader.set_mcp_timeout_config", lambda **kwargs: None)
+    monkeypatch.setattr(
+        "mini_agent.runtime.tooling.resolve_runtime_mcp_config_path",
+        lambda _config: tmp_path / "mcp.json",
+    )
+
+    tools, skill_loader, diagnostics = await initialize_agent_tools(
+        config,
+        tmp_path / "workspace-e",
+    )
+
+    assert tools == []
+    assert skill_loader is None
+    assert diagnostics["skills"]["enabled"] is True
+    assert diagnostics["skills"]["loader_ready"] is False
+    assert "skills boom" in str(diagnostics["skills"]["error"])
+    assert diagnostics["mcp"]["enabled"] is True
+    assert "mcp boom" in str(diagnostics["mcp"]["error"])

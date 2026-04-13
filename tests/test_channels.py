@@ -12,7 +12,6 @@ from mini_agent.channels.base import (
     ChannelResponse,
     ChannelType,
 )
-from mini_agent.channels.qqbot import QQBotAdapter, QQBotConfig
 from mini_agent.channels.wechat import WeChatAdapter, WeChatConfig
 
 
@@ -102,36 +101,6 @@ def test_channel_registry_unregister():
 
     assert registry.get("test") is None
     assert len(registry.list_adapters()) == 0
-
-
-def test_qqbot_config():
-    config = QQBotConfig(
-        name="my-qqbot",
-        ws_url="ws://localhost:9000",
-        access_token="secret",
-    )
-
-    assert config.channel_type == ChannelType.QQBOT
-    assert config.ws_url == "ws://localhost:9000"
-    assert config.access_token == "secret"
-
-
-def test_qqbot_adapter_extract_content():
-    config = QQBotConfig()
-    adapter = QQBotAdapter(config)
-
-    # String message
-    assert adapter._extract_content("hello") == "hello"
-
-    # List message
-    message = [
-        {"type": "text", "data": {"text": "hello "}},
-        {"type": "text", "data": {"text": "world"}},
-    ]
-    assert adapter._extract_content(message) == "hello world"
-
-    # Empty list
-    assert adapter._extract_content([]) == ""
 
 
 def test_wechat_config():

@@ -585,6 +585,24 @@
       "examples": ["tasks list"]
     },
     {
+      "name": "fork",
+      "category": "Workflow",
+      "summary": "Create a derived child session and optionally start it with a task",
+      "surfaces": ["tui"],
+      "forms": ["fork [task_prompt]"],
+      "completion_tokens": ["fork"],
+      "examples": ["fork Investigate the failing gateway startup path"]
+    },
+    {
+      "name": "task",
+      "category": "Workflow",
+      "summary": "Create a new derived task session from the current session",
+      "surfaces": ["tui"],
+      "forms": ["task new [task_prompt]"],
+      "completion_tokens": ["task", "task new"],
+      "examples": ["task new Prepare a focused fix plan for session lineage"]
+    },
+    {
       "name": "workflow",
       "category": "Workflow",
       "summary": "Run the minimal workflow pipeline",

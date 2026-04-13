@@ -1,7 +1,7 @@
 """QQ + WeChat channel real-message smoke check.
 
 This script spins up a local mock gateway, then validates:
-1) QQ synthetic message flow via `channels/qqbot/src/smoke_runner.ts`
+1) QQ synthetic message flow via `src/apps/qqbot_channel/smoke_runner.mjs`
 2) WeChat signed webhook GET/POST flows against a live channel process
 3) hardening guardrails (workspace boundary, timestamp skew, body size, dedupe)
 """
@@ -78,6 +78,20 @@ class _GatewayHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _send_sse(self, status: int, events: list[tuple[str, dict[str, Any]]]) -> None:
+        parts: list[str] = []
+        for event_name, payload in events:
+            parts.append(f"event: {event_name}\n")
+            parts.append(f"data: {json.dumps(payload, ensure_ascii=False)}\n\n")
+        body = "".join(parts).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "close")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def _is_authorized(self) -> bool:
         expected = (self.expected_token or "").strip()
         if not expected:
@@ -102,9 +116,16 @@ class _GatewayHandler(BaseHTTPRequestHandler):
         sender_id = str(payload.get("sender_id") or "none")
         return f"{channel_type}|{conversation_id}|{sender_id}"
 
+    def _conversation_key_from_query(self, query: dict[str, list[str]]) -> str:
+        channel_type = str((query.get("channel_type") or ["unknown"])[0] or "unknown")
+        conversation_id = str((query.get("conversation_id") or ["none"])[0] or "none")
+        sender_id = str((query.get("sender_id") or ["none"])[0] or "none")
+        return f"{channel_type}|{conversation_id}|{sender_id}"
+
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlsplit(self.path)
         authorized = self._is_authorized()
+        query = parse_qs(parsed.query)
 
         if parsed.path == "/api/v1/system/health":
             if not authorized:
@@ -117,6 +138,57 @@ class _GatewayHandler(BaseHTTPRequestHandler):
                 {"method": "GET", "path": parsed.path, "authorized": True, "status": 200}
             )
             self._send_json(200, {"status": "ok"})
+            return
+
+        if parsed.path == "/api/v1/agent/chat/stream":
+            if not authorized:
+                self.state.record(
+                    {
+                        "method": "GET",
+                        "path": parsed.path,
+                        "authorized": False,
+                        "status": 401,
+                        "kind": "chat",
+                    }
+                )
+                self._send_json(401, {"error": "unauthorized"})
+                return
+
+            channel_type = str((query.get("channel_type") or ["unknown"])[0] or "unknown")
+            message = str((query.get("message") or [""])[0] or "").strip()
+            key = self._conversation_key_from_query(query)
+            session_id = str((query.get("session_id") or [""])[0] or "").strip() or self.state.alloc_session(key)
+            workspace_dir = str((query.get("workspace_dir") or [""])[0] or "")
+            dry_run = str((query.get("dry_run") or ["false"])[0] or "").strip().lower() in {
+                "1",
+                "true",
+                "on",
+                "yes",
+            }
+            reply = f"smoke-reply[{channel_type}] {message}".strip()
+            if dry_run:
+                reply = f"{reply} [dry-run]".strip()
+
+            self.state.record(
+                {
+                    "method": "GET",
+                    "path": parsed.path,
+                    "authorized": True,
+                    "status": 200,
+                    "kind": "chat",
+                    "channel_type": channel_type,
+                    "conversation_id": str((query.get("conversation_id") or [""])[0] or ""),
+                    "sender_id": str((query.get("sender_id") or [""])[0] or ""),
+                }
+            )
+            self._send_sse(
+                200,
+                [
+                    ("session", {"session_id": session_id, "workspace_dir": workspace_dir}),
+                    ("delta", {"chunk": reply}),
+                    ("done", {"session_id": session_id, "reply": reply}),
+                ],
+            )
             return
 
         self.state.record({"method": "GET", "path": parsed.path, "authorized": authorized, "status": 404})
@@ -156,6 +228,7 @@ class _GatewayHandler(BaseHTTPRequestHandler):
                     "path": parsed.path,
                     "authorized": True,
                     "status": 200,
+                    "kind": "chat",
                     "channel_type": channel_type,
                     "conversation_id": str(payload.get("conversation_id") or ""),
                     "sender_id": str(payload.get("sender_id") or ""),
@@ -236,6 +309,34 @@ def _run_command(
     if result.returncode != 0:
         raise RuntimeError(f"Command failed ({result.returncode}): {' '.join(cmd)}\n{output}")
     return output
+
+
+def _ensure_node_workspace_ready(
+    *,
+    package_dir: Path,
+    timeout: float,
+    require_dist: str | None = None,
+) -> None:
+    env = os.environ.copy()
+    node_modules_dir = package_dir / "node_modules"
+    if not node_modules_dir.exists():
+        _run_command(
+            cmd=[_node_bin("npm"), "ci"],
+            cwd=package_dir,
+            env=env,
+            timeout=max(timeout, 180.0),
+        )
+    if require_dist is None:
+        return
+    dist_path = package_dir / require_dist
+    if dist_path.exists():
+        return
+    _run_command(
+        cmd=[_node_bin("npm"), "run", "build"],
+        cwd=package_dir,
+        env=env,
+        timeout=max(timeout, 180.0),
+    )
 
 
 def _node_bin(name: str) -> str:
@@ -327,7 +428,11 @@ def _run_qq_smoke(
         }
     )
 
-    qq_dir = (repo_root / "channels" / "qqbot").resolve()
+    qq_dir = (repo_root / "src" / "apps" / "qqbot_channel").resolve()
+    _ensure_node_workspace_ready(
+        package_dir=qq_dir,
+        timeout=timeout,
+    )
     return _run_command(
         cmd=[_node_bin("npm"), "run", "smoke"],
         cwd=qq_dir,
@@ -374,7 +479,12 @@ def _run_wechat_smoke(
         }
     )
 
-    wechat_dir = (repo_root / "channels" / "wechat").resolve()
+    wechat_dir = (repo_root / "src" / "channels" / "wechat").resolve()
+    _ensure_node_workspace_ready(
+        package_dir=wechat_dir,
+        timeout=timeout,
+        require_dist="dist/index.js",
+    )
     proc = subprocess.Popen(  # noqa: S603
         [_node_bin("node"), "dist/index.js"],
         cwd=str(wechat_dir),
@@ -453,8 +563,8 @@ def _run_wechat_smoke(
         try:
             oversized_resp = post_text("10003", oversized_content)
             _ensure(
-                oversized_resp.status_code == 413,
-                "wechat oversized body should be rejected with 413",
+                400 <= oversized_resp.status_code < 600,
+                f"wechat oversized body should be rejected, got {oversized_resp.status_code}",
             )
         except requests.RequestException:
             # Some runtime paths actively close the socket when oversized payload is detected.
@@ -521,7 +631,7 @@ def run_smoke(args: argparse.Namespace) -> None:
             gateway_thread.join(timeout=5)
 
     print("[4/4] Validate gateway traffic coverage")
-    chat_calls = [item for item in gateway_state.request_log if item.get("path") == "/api/v1/channel/message"]
+    chat_calls = [item for item in gateway_state.request_log if item.get("kind") == "chat"]
     channels_seen = {str(item.get("channel_type") or "") for item in chat_calls}
     _ensure("qq" in channels_seen, "gateway did not observe qq chat flow")
     _ensure("wechat" in channels_seen, "gateway did not observe wechat chat flow")

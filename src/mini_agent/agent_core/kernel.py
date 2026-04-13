@@ -51,6 +51,69 @@ class AgentKernelBuildOptions:
     session_store_dir: str | Path | None = None
 
 
+def _route_diagnostics(route: Any) -> dict[str, Any]:
+    if route is None:
+        return {}
+    return {
+        "source": str(getattr(route, "source", "") or ""),
+        "provider": str(getattr(getattr(route, "provider", None), "value", getattr(route, "provider", "")) or ""),
+        "provider_id": str(getattr(route, "provider_id", "") or ""),
+        "provider_name": str(getattr(route, "provider_name", "") or ""),
+        "model": str(getattr(route, "model", "") or ""),
+        "mapping_mode": str(getattr(route, "mapping_mode", "") or ""),
+        "token_limit": int(getattr(route, "token_limit", 0) or 0),
+    }
+
+
+def _turn_context_diagnostics(
+    providers: list[Any],
+    *,
+    session_store_dir: str | Path | None,
+) -> dict[str, Any]:
+    return {
+        "count": len(providers),
+        "provider_types": [type(provider).__name__ for provider in providers],
+        "session_store_dir": str(session_store_dir) if session_store_dir is not None else None,
+    }
+
+
+def _runtime_policy_diagnostics(runtime_policy: Any) -> dict[str, Any]:
+    policy = getattr(runtime_policy, "policy", None)
+    return {
+        "approval_profile": str(getattr(policy, "approval_profile", "") or ""),
+        "access_level": str(getattr(policy, "access_level", "") or ""),
+        "sandbox_mode": str(getattr(policy, "sandbox_mode", "") or ""),
+    }
+
+
+def _build_kernel_diagnostics(
+    *,
+    workspace_dir: Path,
+    options: AgentKernelBuildOptions,
+    llm_route: Any,
+    runtime_policy: Any,
+    tool_diagnostics: dict[str, Any],
+    turn_context_providers: list[Any],
+) -> dict[str, Any]:
+    return {
+        "workspace_dir": str(workspace_dir),
+        "console_output": bool(options.console_output),
+        "allow_interactive_setup": bool(options.allow_interactive_setup),
+        "background_output_suppressed": bool(options.suppress_background_output),
+        "route": _route_diagnostics(llm_route),
+        "runtime_policy": _runtime_policy_diagnostics(runtime_policy),
+        "tools": dict(tool_diagnostics.get("total_tools", {})),
+        "workspace_tools": dict(tool_diagnostics.get("workspace_tools", {})),
+        "shared_tools": dict(tool_diagnostics.get("shared_tools", {})),
+        "skills": dict(tool_diagnostics.get("skills", {})),
+        "mcp": dict(tool_diagnostics.get("mcp", {})),
+        "turn_context": _turn_context_diagnostics(
+            turn_context_providers,
+            session_store_dir=options.session_store_dir,
+        ),
+    }
+
+
 def _load_system_prompt(config: Config, skill_loader: Any) -> str:
     prompt_path = Config.find_config_file(config.agent.system_prompt_path)
     if prompt_path and prompt_path.exists():
@@ -124,7 +187,7 @@ async def build_agent_kernel(
             retry_config=_build_retry_config(config),
         )
 
-        tools, skill_loader = await initialize_agent_tools(
+        tools, skill_loader, tool_diagnostics = await initialize_agent_tools(
             config=config,
             workspace_dir=resolved_workspace,
             approval_profile_override=opts.approval_profile,
@@ -142,6 +205,11 @@ async def build_agent_kernel(
         policy_engine=runtime_policy,
     )
 
+    turn_context_providers = build_turn_context_providers(
+        config,
+        resolved_workspace,
+        session_store_dir=opts.session_store_dir,
+    )
     agent = Agent(
         llm_client=llm_client,
         system_prompt=system_prompt,
@@ -164,11 +232,7 @@ async def build_agent_kernel(
         ),
         runtime_policy_engine=runtime_policy,
         sandbox_manager=sandbox_manager,
-        turn_context_providers=build_turn_context_providers(
-            config,
-            resolved_workspace,
-            session_store_dir=opts.session_store_dir,
-        ),
+        turn_context_providers=turn_context_providers,
         turn_memory_automation=(
             TurnMemoryAutomation(str(resolved_workspace))
             if getattr(config.tools, "enable_note", False)
@@ -182,5 +246,17 @@ async def build_agent_kernel(
         agent,
         "skill_catalog_loader",
         getattr(skill_loader, "loader", skill_loader) if skill_loader is not None else None,
+    )
+    setattr(
+        agent,
+        "kernel_diagnostics",
+        _build_kernel_diagnostics(
+            workspace_dir=resolved_workspace,
+            options=opts,
+            llm_route=llm_routes[0] if llm_routes else None,
+            runtime_policy=runtime_policy,
+            tool_diagnostics=tool_diagnostics,
+            turn_context_providers=turn_context_providers,
+        ),
     )
     return agent

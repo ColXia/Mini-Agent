@@ -11,10 +11,10 @@ from pathlib import Path
 import re
 import time
 import textwrap
-from typing import Any, Sequence
+from typing import Any, Callable, Sequence
 
 from prompt_toolkit.application import Application
-from prompt_toolkit.completion import Completer, Completion, WordCompleter
+from prompt_toolkit.completion import Completer, WordCompleter
 from prompt_toolkit.data_structures import Point
 from prompt_toolkit.document import Document
 from prompt_toolkit.filters import Condition, has_focus
@@ -50,6 +50,7 @@ from mini_agent.memory.diagnostics import (
 )
 from mini_agent.memory.memoria_runtime import WorkspaceMemoriaRuntime
 from mini_agent.commands import (
+    CommandExecutionResult,
     LocalOperatorCommandService,
     McpReloadOutcome,
     CommandDispatcher,
@@ -61,6 +62,7 @@ from mini_agent.commands import (
     command_completion_tokens,
     parse_memory_show_target,
     parse_command_text,
+    resolve_catalog_model_use_request,
     suggest_command_name,
 )
 from mini_agent.commands.skill_support import (
@@ -76,6 +78,7 @@ from mini_agent.interfaces import (
     MainAgentSessionContextRequest,
     MainAgentSessionControlRequest,
     MainAgentSessionCreateRequest,
+    MainAgentSessionForkRequest,
     MainAgentSessionMemoryRequest,
     MainAgentSessionModelSelectionRequest,
     MainAgentSessionRenameRequest,
@@ -98,8 +101,8 @@ from mini_agent.session import (
     SessionPendingApprovalProjection,
     SessionRecoveryProjection,
     SessionSummaryProjection,
-    TerminalSessionProjection,
 )
+from mini_agent.tui.session_projection import TerminalSessionProjection
 from mini_agent.runtime.session_lifecycle import SurfaceSessionLifecycleRuntime
 from mini_agent.schema import Message
 from mini_agent.tools.mcp_loader import cleanup_mcp_connections
@@ -120,6 +123,18 @@ COMMAND_COMPLETION_MENU_HEIGHT = 8
 ASSISTANT_STREAM_CHUNK_SIZE = 24
 STREAM_RENDER_INTERVAL_SECONDS = 0.04
 SKILL_CATALOG_CHECK_INTERVAL_SECONDS = 2.5
+REMOTE_SKILL_MUTATION_ACTIONS = frozenset(
+    {
+        "refresh",
+        "mode",
+        "enable",
+        "disable",
+        "reset",
+        "install",
+        "uninstall",
+        "rollback",
+    }
+)
 
 
 def _now_label() -> str:
@@ -437,10 +452,32 @@ class TaskEntry:
     note: str = ""
 
 
-@dataclass
-class TuiSession:
-    session_id: str
-    title: str
+@dataclass(slots=True)
+class TuiSessionSupplementalState:
+    """TUI-local sync and recovery summary cache.
+
+    These fields are derived from remote sync or local resume flow and exist only
+    to support surface behavior. They are not shared session truth.
+    """
+
+    remote_message_count: int = 0
+    remote_updated_at: str | None = None
+    remote_recovery_state: str = ""
+    remote_recovery_summary: str = ""
+    remote_last_activity_summary: str = ""
+    remote_last_command_summary: str = ""
+    recovery_running_state: str = ""
+    recovery_pending_approvals: list[dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class TuiSessionProjectionState:
+    """Shared-session projection cache for TUI presentation.
+
+    This mirrors gateway/runtime session detail for rendering and operator flow.
+    It must never be treated as canonical session truth.
+    """
+
     origin_surface: str = "tui"
     active_surface: str = "tui"
     reply_enabled: bool = False
@@ -453,51 +490,83 @@ class TuiSession:
     token_usage: int = 0
     token_limit: int = 0
     knowledge_base_enabled: bool | None = None
-    remote_message_count: int = 0
-    remote_updated_at: str | None = None
-    remote_recovery_state: str = ""
-    remote_recovery_summary: str = ""
-    remote_last_activity_summary: str = ""
-    remote_last_command_summary: str = ""
-    messages: list[ChatEntry] = field(default_factory=list)
-    tasks: list[TaskEntry] = field(default_factory=list)
-    restored_agent_messages: list[dict[str, Any]] = field(default_factory=list)
-    pending_resume_task_id: str | None = None
-    pending_resume_agent_messages: list[dict[str, Any]] = field(default_factory=list)
-    recovery_running_state: str = ""
-    recovery_pending_approvals: list[dict[str, Any]] = field(default_factory=list)
-    next_task_index: int = 1
-    active_task_id: str | None = None
-    agent: Agent | None = None
-    submission_loop: AgentSubmissionLoop | None = None
-    loop_bus: InMemoryLoopMessageBus | None = None
-    busy: bool = False
-    cancel_event: asyncio.Event | None = None
-    running_state: str = ""
-    active_activity_message_index: int | None = None
-    activity_details_expanded: bool = False
-    command_details_expanded: bool = False
-    chat_render_revision: int = 0
-    chat_scroll_line: int = 0
-    chat_follow_output: bool = True
-    pending_resume_started: bool = False
     selected_model_source: str | None = None
     selected_provider_id: str | None = None
     selected_model_id: str | None = None
-    pending_model_source: str | None = None
-    pending_provider_id: str | None = None
-    pending_model_id: str | None = None
     pending_approvals: list[dict[str, Any]] = field(default_factory=list)
     last_prepared_context: dict[str, Any] = field(default_factory=dict)
     prepared_context_diagnostics: dict[str, Any] = field(default_factory=dict)
     memory_diagnostics: dict[str, Any] = field(default_factory=dict)
     sandbox_diagnostics: dict[str, Any] = field(default_factory=dict)
     context_policy: dict[str, Any] = field(default_factory=dict)
+    supplemental: TuiSessionSupplementalState = field(default_factory=TuiSessionSupplementalState)
+
+
+@dataclass(slots=True)
+class TuiSessionOperatorState:
+    """TUI-local operator-flow cache.
+
+    These fields support local command flow and surface interaction. They may
+    mirror remote/runtime detail, but they are not canonical session truth.
+    """
+
+    pending_model_source: str | None = None
+    pending_provider_id: str | None = None
+    pending_model_id: str | None = None
+    pending_skill_reload: bool = False
+    pending_skill_reload_reason: str = ""
+
+
+@dataclass(slots=True)
+class TuiSessionRuntimeState:
+    """TUI-local runtime handles and resume coordination state.
+
+    These fields exist only for local execution ownership inside the TUI surface.
+    They are not part of shared/persisted session truth.
+    """
+
+    restored_agent_messages: list[dict[str, Any]] = field(default_factory=list)
+    pending_resume_task_id: str | None = None
+    pending_resume_agent_messages: list[dict[str, Any]] = field(default_factory=list)
+    next_task_index: int = 1
+    active_task_id: str | None = None
+    agent: Agent | None = None
+    submission_loop: AgentSubmissionLoop | None = None
+    loop_bus: InMemoryLoopMessageBus | None = None
+    cancel_event: asyncio.Event | None = None
+    pending_resume_started: bool = False
+
+
+@dataclass(slots=True)
+class TuiSessionViewState:
+    """Pure TUI presentation state and render caches.
+
+    Nothing in this struct should be consumed as domain truth by runtime/application layers.
+    """
+
+    messages: list[ChatEntry] = field(default_factory=list)
+    tasks: list[TaskEntry] = field(default_factory=list)
+    active_activity_message_index: int | None = None
+    activity_details_expanded: bool = False
+    command_details_expanded: bool = False
+    chat_render_revision: int = 0
+    chat_scroll_line: int = 0
+    chat_follow_output: bool = True
     usage_cache_signature: str = ""
     usage_cache_estimate: int = 0
     usage_cache_at: float = 0.0
-    pending_skill_reload: bool = False
-    pending_skill_reload_reason: str = ""
+
+
+@dataclass(slots=True)
+class TuiSession:
+    """TUI container over session reference + projection/operator/runtime/view slices."""
+
+    session_id: str
+    title: str
+    projection: TuiSessionProjectionState = field(default_factory=TuiSessionProjectionState)
+    operator: TuiSessionOperatorState = field(default_factory=TuiSessionOperatorState)
+    runtime: TuiSessionRuntimeState = field(default_factory=TuiSessionRuntimeState)
+    view: TuiSessionViewState = field(default_factory=TuiSessionViewState)
 
 
 @dataclass(frozen=True)
@@ -512,6 +581,14 @@ class SessionDisplayModel:
     show_gateway_panel: bool
     recovery_pending: bool
     last_command_preview: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class RemoteSkillCommandPlan:
+    command: str
+    action: str
+    request_kwargs: dict[str, Any] = field(default_factory=dict)
+    skill_name: str | None = None
 
 
 class _ThreadSidebarLexer(Lexer):
@@ -605,11 +682,12 @@ def save_tui_session_state(
         session_id = _safe_text(session.session_id)
         if not session_id:
             continue
+        view = session.view
         ui_state[session_id] = {
-            "activity_details_expanded": bool(session.activity_details_expanded),
-            "command_details_expanded": bool(session.command_details_expanded),
-            "chat_scroll_line": max(0, int(session.chat_scroll_line)),
-            "chat_follow_output": bool(session.chat_follow_output),
+            "activity_details_expanded": bool(view.activity_details_expanded),
+            "command_details_expanded": bool(view.command_details_expanded),
+            "chat_scroll_line": max(0, int(view.chat_scroll_line)),
+            "chat_follow_output": bool(view.chat_follow_output),
         }
     payload = {
         "version": SESSION_STATE_VERSION,
@@ -1674,13 +1752,14 @@ class MiniAgentTuiApp:
         *,
         serialized: bool,
     ) -> int:
+        view = session.view
         signature = self._usage_cache_signature(raw_messages)
         if (
             signature
-            and signature == session.usage_cache_signature
-            and (time.monotonic() - float(session.usage_cache_at or 0.0)) < 1.0
+            and signature == view.usage_cache_signature
+            and (time.monotonic() - float(view.usage_cache_at or 0.0)) < 1.0
         ):
-            return _safe_nonnegative_int(session.usage_cache_estimate)
+            return _safe_nonnegative_int(view.usage_cache_estimate)
         if serialized:
             estimate_value = self._estimate_serialized_messages_tokens(raw_messages)  # type: ignore[arg-type]
         else:
@@ -1688,10 +1767,10 @@ class MiniAgentTuiApp:
                 estimate_value = _safe_nonnegative_int(estimate_tokens(raw_messages))
             except Exception:
                 estimate_value = 0
-        session.usage_cache_signature = signature
-        session.usage_cache_estimate = _safe_nonnegative_int(estimate_value)
-        session.usage_cache_at = time.monotonic()
-        return session.usage_cache_estimate
+        view.usage_cache_signature = signature
+        view.usage_cache_estimate = _safe_nonnegative_int(estimate_value)
+        view.usage_cache_at = time.monotonic()
+        return view.usage_cache_estimate
 
     @staticmethod
     def _context_usage_bar_text(*, usage: int, limit: int, width: int = CONTEXT_USAGE_BAR_WIDTH) -> str:
@@ -1754,11 +1833,14 @@ class MiniAgentTuiApp:
         reported_usage = 0
         estimated_usage = 0
         reported_limit = 0
+        projection = target.projection
+        runtime = target.runtime
+        view = target.view
 
-        if target.agent is not None:
-            reported_usage = _safe_nonnegative_int(getattr(target.agent, "api_total_tokens", 0))
-            reported_limit = _safe_nonnegative_int(getattr(target.agent, "token_limit", 0))
-            messages = getattr(target.agent, "messages", None)
+        if runtime.agent is not None:
+            reported_usage = _safe_nonnegative_int(getattr(runtime.agent, "api_total_tokens", 0))
+            reported_limit = _safe_nonnegative_int(getattr(runtime.agent, "token_limit", 0))
+            messages = getattr(runtime.agent, "messages", None)
             if isinstance(messages, list) and messages and reported_usage <= 0:
                 estimated_usage = self._estimate_usage_with_cache(
                     target,
@@ -1766,13 +1848,13 @@ class MiniAgentTuiApp:
                     serialized=False,
                 )
         else:
-            reported_usage = _safe_nonnegative_int(target.token_usage)
-            reported_limit = _safe_nonnegative_int(target.token_limit)
+            reported_usage = _safe_nonnegative_int(projection.token_usage)
+            reported_limit = _safe_nonnegative_int(projection.token_limit)
             if not self._runs_via_gateway(target) and reported_usage <= 0:
                 serialized_messages = (
-                    target.restored_agent_messages
-                    or target.pending_resume_agent_messages
-                    or _fallback_agent_messages_from_chat(target.messages)
+                    runtime.restored_agent_messages
+                    or runtime.pending_resume_agent_messages
+                    or _fallback_agent_messages_from_chat(view.messages)
                 )
                 estimated_usage = self._estimate_usage_with_cache(
                     target,
@@ -1781,13 +1863,13 @@ class MiniAgentTuiApp:
                 )
 
         effective_usage = reported_usage
-        if target.agent is not None or not self._runs_via_gateway(target):
+        if runtime.agent is not None or not self._runs_via_gateway(target):
             effective_usage = max(reported_usage, estimated_usage)
         elif effective_usage <= 0:
             effective_usage = estimated_usage
 
         effective_usage = _safe_nonnegative_int(effective_usage)
-        reported_limit = reported_limit or _safe_nonnegative_int(target.token_limit)
+        reported_limit = reported_limit or _safe_nonnegative_int(projection.token_limit)
         model_limit, model_limit_source = self._lookup_model_usage_limit(
             self._session_active_model_identity(target)
         )
@@ -1800,9 +1882,9 @@ class MiniAgentTuiApp:
             limit_source = "unknown"
 
         if effective_usage > 0:
-            target.token_usage = effective_usage
+            projection.token_usage = effective_usage
         if reported_limit > 0:
-            target.token_limit = reported_limit
+            projection.token_limit = reported_limit
 
         percent = 0
         ratio = 0.0
@@ -1972,8 +2054,10 @@ class MiniAgentTuiApp:
         return fragments
 
     def _session_activity_summary(self, session: TuiSession, *, is_current: bool) -> str:
-        if session.busy:
-            running = _safe_text(session.running_state).lower()
+        projection = session.projection
+        runtime = session.runtime
+        if projection.busy:
+            running = _safe_text(projection.running_state).lower()
             if "resum" in running:
                 label = "resuming"
             elif is_current:
@@ -1983,7 +2067,7 @@ class MiniAgentTuiApp:
             return f"{label} {self._agent_activity_bar_text(active=True)}"
         if self._session_has_gateway_recovery(session):
             return "recovery pending"
-        if session.pending_resume_task_id:
+        if runtime.pending_resume_task_id:
             return "resume pending"
         if is_current:
             return "current"
@@ -1991,12 +2075,13 @@ class MiniAgentTuiApp:
 
     @staticmethod
     def _session_meta_summary(session: TuiSession) -> str:
+        operator = session.operator
         parts = [
             f"{MiniAgentTuiApp._session_message_count(session)}msg",
-            f"{len(session.tasks)}tsk",
+            f"{len(session.view.tasks)}tsk",
             MiniAgentTuiApp._session_last_active_label(session),
         ]
-        if bool(getattr(session, "pending_skill_reload", False)):
+        if bool(operator.pending_skill_reload):
             parts.append("reload")
         return " ".join(parts)
 
@@ -2257,13 +2342,13 @@ class MiniAgentTuiApp:
         ]
 
     def _agent_activity_display(self) -> tuple[str, str, str]:
-        busy_sessions = [session for session in self.sessions if session.busy]
+        busy_sessions = [session for session in self.sessions if session.projection.busy]
         if not busy_sessions:
             return (self._agent_activity_bar_text(active=False), "idle", "class:header.activity.idle")
 
         current = self.current_session if self.sessions else None
-        if current is not None and current.busy:
-            label = "resuming" if "resum" in _safe_text(current.running_state).lower() else "working"
+        if current is not None and current.projection.busy:
+            label = "resuming" if "resum" in _safe_text(current.projection.running_state).lower() else "working"
         else:
             label = "background"
 
@@ -2277,12 +2362,13 @@ class MiniAgentTuiApp:
     def _has_local_runtime_state(session: TuiSession | None) -> bool:
         if session is None:
             return False
+        runtime = session.runtime
         return any(
             (
-                getattr(session, "agent", None) is not None,
-                getattr(session, "submission_loop", None) is not None,
-                getattr(session, "loop_bus", None) is not None,
-                getattr(session, "cancel_event", None) is not None,
+                runtime.agent is not None,
+                runtime.submission_loop is not None,
+                runtime.loop_bus is not None,
+                runtime.cancel_event is not None,
             )
         )
 
@@ -2294,57 +2380,60 @@ class MiniAgentTuiApp:
     def _session_summary_projection(cls, session: TuiSession | None) -> SessionSummaryProjection | None:
         if session is None:
             return None
+        projection = session.projection
+        operator = session.operator
+        supplemental = projection.supplemental
         recovery = None
         if any(
             (
-                _safe_text(getattr(session, "remote_recovery_state", "")),
-                _safe_text(getattr(session, "remote_recovery_summary", "")),
-                _safe_text(getattr(session, "remote_last_activity_summary", "")),
-                getattr(session, "recovery_pending_approvals", []),
+                _safe_text(supplemental.remote_recovery_state),
+                _safe_text(supplemental.remote_recovery_summary),
+                _safe_text(supplemental.remote_last_activity_summary),
+                supplemental.recovery_pending_approvals,
             )
         ):
             recovery = SessionRecoveryProjection(
-                state=_safe_text(getattr(session, "remote_recovery_state", "")) or "idle",
-                summary=_safe_text(getattr(session, "remote_recovery_summary", "")) or "idle",
-                last_activity=_safe_text(getattr(session, "remote_last_activity_summary", "")) or None,
+                state=_safe_text(supplemental.remote_recovery_state) or "idle",
+                summary=_safe_text(supplemental.remote_recovery_summary) or "idle",
+                last_activity=_safe_text(supplemental.remote_last_activity_summary) or None,
                 pending_approvals=SessionPendingApprovalProjection.from_payloads(
-                    getattr(session, "recovery_pending_approvals", [])
+                    supplemental.recovery_pending_approvals
                 ),
             )
-        knowledge_base_enabled = getattr(session, "knowledge_base_enabled", None)
+        knowledge_base_enabled = projection.knowledge_base_enabled
         return SessionSummaryProjection(
-            session_id=_safe_text(getattr(session, "session_id", "")),
+            session_id=_safe_text(session.session_id),
             workspace_dir="",
             created_at="",
-            updated_at=_safe_text(getattr(session, "remote_updated_at", "")),
-            title=_safe_text(getattr(session, "title", "")) or None,
+            updated_at=_safe_text(supplemental.remote_updated_at),
+            title=_safe_text(session.title) or None,
             message_count=cls._session_message_count(session),
-            origin_surface=_safe_text(getattr(session, "origin_surface", "")) or "tui",
-            active_surface=_safe_text(getattr(session, "active_surface", ""))
-            or _safe_text(getattr(session, "origin_surface", ""))
+            origin_surface=_safe_text(projection.origin_surface) or "tui",
+            active_surface=_safe_text(projection.active_surface)
+            or _safe_text(projection.origin_surface)
             or "tui",
-            reply_enabled=bool(getattr(session, "reply_enabled", False)),
-            busy=bool(getattr(session, "busy", False)),
-            running_state=_safe_text(getattr(session, "running_state", "")) or None,
-            channel_type=_safe_text(getattr(session, "channel_type", "")) or None,
-            conversation_id=_safe_text(getattr(session, "conversation_id", "")) or None,
-            sender_id=_safe_text(getattr(session, "sender_id", "")) or None,
-            token_usage=max(0, int(getattr(session, "token_usage", 0) or 0)),
-            token_limit=max(0, int(getattr(session, "token_limit", 0) or 0)),
-            shared=bool(getattr(session, "shared", False)),
+            reply_enabled=bool(projection.reply_enabled),
+            busy=bool(projection.busy),
+            running_state=_safe_text(projection.running_state) or None,
+            channel_type=_safe_text(projection.channel_type) or None,
+            conversation_id=_safe_text(projection.conversation_id) or None,
+            sender_id=_safe_text(projection.sender_id) or None,
+            token_usage=max(0, int(projection.token_usage or 0)),
+            token_limit=max(0, int(projection.token_limit or 0)),
+            shared=bool(projection.shared),
             knowledge_base_enabled=True if knowledge_base_enabled is None else bool(knowledge_base_enabled),
-            selected_model_source=_safe_text(getattr(session, "selected_model_source", "")) or None,
-            selected_provider_id=_safe_text(getattr(session, "selected_provider_id", "")) or None,
-            selected_model_id=_safe_text(getattr(session, "selected_model_id", "")) or None,
-            pending_model_source=_safe_text(getattr(session, "pending_model_source", "")) or None,
-            pending_provider_id=_safe_text(getattr(session, "pending_provider_id", "")) or None,
-            pending_model_id=_safe_text(getattr(session, "pending_model_id", "")) or None,
-            pending_skill_reload=bool(getattr(session, "pending_skill_reload", False)),
-            pending_skill_reload_reason=_safe_text(getattr(session, "pending_skill_reload_reason", "")) or None,
-            pending_approvals=SessionPendingApprovalProjection.from_payloads(getattr(session, "pending_approvals", [])),
+            selected_model_source=_safe_text(projection.selected_model_source) or None,
+            selected_provider_id=_safe_text(projection.selected_provider_id) or None,
+            selected_model_id=_safe_text(projection.selected_model_id) or None,
+            pending_model_source=_safe_text(operator.pending_model_source) or None,
+            pending_provider_id=_safe_text(operator.pending_provider_id) or None,
+            pending_model_id=_safe_text(operator.pending_model_id) or None,
+            pending_skill_reload=bool(operator.pending_skill_reload),
+            pending_skill_reload_reason=_safe_text(operator.pending_skill_reload_reason) or None,
+            pending_approvals=SessionPendingApprovalProjection.from_payloads(projection.pending_approvals),
             recovery=recovery,
-            memory_diagnostics=dict(getattr(session, "memory_diagnostics", {}) or {}),
-            sandbox_diagnostics=dict(getattr(session, "sandbox_diagnostics", {}) or {}),
+            memory_diagnostics=dict(projection.memory_diagnostics or {}),
+            sandbox_diagnostics=dict(projection.sandbox_diagnostics or {}),
         )
 
     @classmethod
@@ -2429,14 +2518,17 @@ class MiniAgentTuiApp:
 
     @staticmethod
     def _session_message_count(session: TuiSession) -> int:
-        if MiniAgentTuiApp._runs_via_gateway(session) and int(getattr(session, "remote_message_count", 0)) > 0:
-            return int(session.remote_message_count)
+        if MiniAgentTuiApp._runs_via_gateway(session):
+            remote_count = int(session.projection.supplemental.remote_message_count or 0)
+            if remote_count > 0:
+                return remote_count
         return len(MiniAgentTuiApp._session_visible_messages(session))
 
     @staticmethod
     def _session_surface_flow(session: TuiSession) -> str:
-        origin = _safe_text(getattr(session, "origin_surface", "")) or "tui"
-        active = _safe_text(getattr(session, "active_surface", "")) or origin
+        projection = session.projection
+        origin = _safe_text(projection.origin_surface) or "tui"
+        active = _safe_text(projection.active_surface) or origin
         return origin if origin == active else f"{origin} -> {active}"
 
     @classmethod
@@ -2446,9 +2538,10 @@ class MiniAgentTuiApp:
 
     @staticmethod
     def _session_peer_label(session: TuiSession) -> str:
-        channel = _safe_text(getattr(session, "channel_type", "")).lower()
-        conversation = _safe_text(getattr(session, "conversation_id", ""))
-        sender = _safe_text(getattr(session, "sender_id", ""))
+        projection = session.projection
+        channel = _safe_text(projection.channel_type).lower()
+        conversation = _safe_text(projection.conversation_id)
+        sender = _safe_text(projection.sender_id)
         pieces: list[str] = []
         if channel:
             pieces.append(channel)
@@ -2542,48 +2635,51 @@ class MiniAgentTuiApp:
         projection = SessionSummaryProjection.from_transport_payload(payload)
         if projection is None:
             return
+        state = session.projection
+        operator = session.operator
+        supplemental = state.supplemental
         session.title = self._remote_session_title_from_projection(
             projection,
             fallback=session.title or session.session_id,
         )
-        session.origin_surface = projection.origin_surface or session.origin_surface or "qq"
-        session.active_surface = projection.active_surface or session.active_surface or session.origin_surface
-        session.reply_enabled = bool(projection.reply_enabled)
-        session.busy = bool(projection.busy)
-        session.running_state = projection.running_state or (session.running_state if session.busy else "")
-        session.channel_type = projection.channel_type or session.channel_type
-        session.conversation_id = projection.conversation_id or session.conversation_id
-        session.sender_id = projection.sender_id or session.sender_id
-        session.shared = bool(projection.shared)
-        session.token_usage = max(0, int(projection.token_usage))
-        session.token_limit = max(0, int(projection.token_limit))
+        state.origin_surface = projection.origin_surface or state.origin_surface or "qq"
+        state.active_surface = projection.active_surface or state.active_surface or state.origin_surface
+        state.reply_enabled = bool(projection.reply_enabled)
+        state.busy = bool(projection.busy)
+        state.running_state = projection.running_state or (state.running_state if state.busy else "")
+        state.channel_type = projection.channel_type or state.channel_type
+        state.conversation_id = projection.conversation_id or state.conversation_id
+        state.sender_id = projection.sender_id or state.sender_id
+        state.shared = bool(projection.shared)
+        state.token_usage = max(0, int(projection.token_usage))
+        state.token_limit = max(0, int(projection.token_limit))
         if payload.get("knowledge_base_enabled") is not None:
-            session.knowledge_base_enabled = bool(projection.knowledge_base_enabled)
-        session.selected_model_source = projection.selected_model_source
-        session.selected_provider_id = projection.selected_provider_id
-        session.selected_model_id = projection.selected_model_id
-        session.pending_model_source = projection.pending_model_source
-        session.pending_provider_id = projection.pending_provider_id
-        session.pending_model_id = projection.pending_model_id
-        session.pending_skill_reload = bool(projection.pending_skill_reload)
-        session.pending_skill_reload_reason = _safe_text(projection.pending_skill_reload_reason)
-        session.remote_message_count = max(0, int(projection.message_count))
-        session.remote_updated_at = projection.updated_at or session.remote_updated_at
-        session.memory_diagnostics = self._normalize_memory_diagnostics_payload(projection.memory_diagnostics)
-        session.sandbox_diagnostics = self._normalize_sandbox_diagnostics_payload(projection.sandbox_diagnostics)
+            state.knowledge_base_enabled = bool(projection.knowledge_base_enabled)
+        state.selected_model_source = projection.selected_model_source
+        state.selected_provider_id = projection.selected_provider_id
+        state.selected_model_id = projection.selected_model_id
+        operator.pending_model_source = projection.pending_model_source
+        operator.pending_provider_id = projection.pending_provider_id
+        operator.pending_model_id = projection.pending_model_id
+        operator.pending_skill_reload = bool(projection.pending_skill_reload)
+        operator.pending_skill_reload_reason = _safe_text(projection.pending_skill_reload_reason)
+        supplemental.remote_message_count = max(0, int(projection.message_count))
+        supplemental.remote_updated_at = projection.updated_at or supplemental.remote_updated_at
+        state.memory_diagnostics = self._normalize_memory_diagnostics_payload(projection.memory_diagnostics)
+        state.sandbox_diagnostics = self._normalize_sandbox_diagnostics_payload(projection.sandbox_diagnostics)
         if projection.recovery is not None:
-            session.remote_recovery_state = projection.recovery.state
-            session.remote_recovery_summary = projection.recovery.summary
-            session.remote_last_activity_summary = _safe_text(projection.recovery.last_activity)
-            session.recovery_pending_approvals = self._normalize_pending_approvals_payload(
+            supplemental.remote_recovery_state = projection.recovery.state
+            supplemental.remote_recovery_summary = projection.recovery.summary
+            supplemental.remote_last_activity_summary = _safe_text(projection.recovery.last_activity)
+            supplemental.recovery_pending_approvals = self._normalize_pending_approvals_payload(
                 [item.to_transport().model_dump() for item in projection.recovery.pending_approvals]
             )
         else:
-            session.remote_recovery_state = ""
-            session.remote_recovery_summary = ""
-            session.remote_last_activity_summary = ""
-            session.recovery_pending_approvals = []
-        session.pending_approvals = self._normalize_pending_approvals_payload(
+            supplemental.remote_recovery_state = ""
+            supplemental.remote_recovery_summary = ""
+            supplemental.remote_last_activity_summary = ""
+            supplemental.recovery_pending_approvals = []
+        state.pending_approvals = self._normalize_pending_approvals_payload(
             [item.to_transport().model_dump() for item in projection.pending_approvals]
         )
 
@@ -2593,9 +2689,10 @@ class MiniAgentTuiApp:
         if detail is None:
             return
         self._apply_remote_session_summary(session, payload)
-        session.context_policy = self._normalize_context_policy_payload(detail.context_policy)
-        session.last_prepared_context = self._normalize_prepared_context_payload(detail.last_prepared_context)
-        session.prepared_context_diagnostics = self._normalize_prepared_context_diagnostics_payload(
+        state = session.projection
+        state.context_policy = self._normalize_context_policy_payload(detail.context_policy)
+        state.last_prepared_context = self._normalize_prepared_context_payload(detail.last_prepared_context)
+        state.prepared_context_diagnostics = self._normalize_prepared_context_diagnostics_payload(
             detail.prepared_context_diagnostics
         )
         if isinstance(payload.get("recent_messages"), list):
@@ -2604,7 +2701,7 @@ class MiniAgentTuiApp:
                 self._remote_chat_entries([item.to_transport().model_dump() for item in detail.recent_messages]),
                 preserve_follow_output=should_follow_output,
             )
-        session.remote_last_command_summary = self._session_last_command_preview_from_messages(session) or ""
+        state.supplemental.remote_last_command_summary = self._session_last_command_preview_from_messages(session) or ""
 
     def _apply_remote_session_messages(self, session: TuiSession, items: Sequence[dict[str, Any]]) -> None:
         self._replace_session_messages(
@@ -2640,16 +2737,16 @@ class MiniAgentTuiApp:
                 if session is None:
                     continue
                 changed = True
-            previous_count = int(session.remote_message_count)
-            previous_updated = _safe_text(session.remote_updated_at)
+            previous_count = int(session.projection.supplemental.remote_message_count)
+            previous_updated = _safe_text(session.projection.supplemental.remote_updated_at)
             self._apply_remote_session_summary(session, summary)
             local_runtime_authoritative = self._has_local_runtime_state(session)
             should_fetch_detail = (
                 not local_runtime_authoritative
                 and (
                     (focus_current and current_session_id == session.session_id)
-                    or session.busy
-                    or not session.messages
+                    or session.projection.busy
+                    or not session.view.messages
                 )
             )
             if should_fetch_detail:
@@ -2658,7 +2755,10 @@ class MiniAgentTuiApp:
                 changed = True
             elif (
                 not local_runtime_authoritative
-                and (previous_count != session.remote_message_count or previous_updated != _safe_text(session.remote_updated_at))
+                and (
+                    previous_count != session.projection.supplemental.remote_message_count
+                    or previous_updated != _safe_text(session.projection.supplemental.remote_updated_at)
+                )
             ):
                 messages = await self.remote_session_service.get_session_messages(session.session_id, limit=6)
                 self._apply_remote_session_messages(session, [item.model_dump() for item in messages])
@@ -2724,10 +2824,11 @@ class MiniAgentTuiApp:
         raw_state = self._session_view_state.get(_safe_text(session.session_id), {})
         if not isinstance(raw_state, dict):
             return
-        session.activity_details_expanded = bool(raw_state.get("activity_details_expanded", False))
-        session.command_details_expanded = bool(raw_state.get("command_details_expanded", False))
-        session.chat_scroll_line = max(0, int(raw_state.get("chat_scroll_line", 0) or 0))
-        session.chat_follow_output = bool(raw_state.get("chat_follow_output", True))
+        view = session.view
+        view.activity_details_expanded = bool(raw_state.get("activity_details_expanded", False))
+        view.command_details_expanded = bool(raw_state.get("command_details_expanded", False))
+        view.chat_scroll_line = max(0, int(raw_state.get("chat_scroll_line", 0) or 0))
+        view.chat_follow_output = bool(raw_state.get("chat_follow_output", True))
 
     def _build_runtime_session_from_summary(self, payload: dict[str, Any]) -> TuiSession | None:
         session_id = _safe_text(payload.get("session_id"))
@@ -2736,8 +2837,10 @@ class MiniAgentTuiApp:
         session = TuiSession(
             session_id=session_id,
             title=self._remote_session_title(payload, fallback=session_id),
-            origin_surface=_safe_text(payload.get("origin_surface")) or "tui",
-            active_surface=_safe_text(payload.get("active_surface")) or "tui",
+            projection=TuiSessionProjectionState(
+                origin_surface=_safe_text(payload.get("origin_surface")) or "tui",
+                active_surface=_safe_text(payload.get("active_surface")) or "tui",
+            ),
         )
         self._apply_remote_session_summary(session, payload)
         self._apply_saved_session_ui_state(session)
@@ -2825,6 +2928,78 @@ class MiniAgentTuiApp:
         self._persist_session_state()
         self._render_all()
         return session
+
+    @staticmethod
+    def _derived_session_title_from_prompt(prompt: str | None) -> str | None:
+        cleaned = _safe_text(prompt)
+        if not cleaned:
+            return None
+        return f"Task: {_truncate_inline(cleaned, limit=42)}"
+
+    async def _create_derived_runtime_session(
+        self,
+        *,
+        parent_session: TuiSession,
+        title: str | None = None,
+    ) -> TuiSession | None:
+        response = await self.remote_session_service.create_derived_session(
+            parent_session.session_id,
+            MainAgentSessionForkRequest(
+                title=title,
+                surface="tui",
+            ),
+        )
+        payload = response.model_dump()
+        session = self._build_runtime_session_from_summary(payload)
+        if session is None:
+            return None
+        if isinstance(payload.get("recent_messages"), list):
+            self._apply_remote_session_detail(session, payload)
+        self._capture_chat_view_state()
+        self.sessions.insert(0, session)
+        self.session_index = 0
+        self._restore_chat_view_state()
+        preferred_model = self._preferred_cursor_model_identity(self.current_session)
+        if preferred_model is not None:
+            self._set_model_cursor_by_identity(preferred_model)
+        self._refresh_command_completer()
+        self._persist_session_state()
+        self._render_all()
+        return session
+
+    async def _fork_current_session(
+        self,
+        *,
+        prompt: str | None = None,
+        command_label: str,
+    ) -> None:
+        parent_session = self.current_session
+        title = self._derived_session_title_from_prompt(prompt)
+        try:
+            child_session = await self._create_derived_runtime_session(
+                parent_session=parent_session,
+                title=title,
+            )
+        except Exception as exc:
+            message = f"Derived session creation failed: {exc}"
+            self._append_command_feedback(
+                command_label,
+                summary="fork failed",
+                details=message,
+                level="error",
+            )
+            self._set_status(message)
+            self._render_all()
+            return
+        if child_session is None:
+            self._set_status("Derived session creation failed.")
+            self._render_all()
+            return
+        self._set_status(f"Forked {child_session.title} from {parent_session.title}.")
+        if _safe_text(prompt):
+            await self._run_remote_chat_turn(str(prompt), session=child_session)
+            return
+        self._render_all()
 
     def _find_session_index(self, session_id: str) -> int | None:
         target = _safe_text(session_id)
@@ -2914,13 +3089,14 @@ class MiniAgentTuiApp:
         persist: bool = True,
     ) -> int:
         should_follow_output = self._should_follow_output_after_session_update(session)
-        session.messages.append(ChatEntry(role=role, content=content, metadata=dict(metadata or {})))
+        view = session.view
+        view.messages.append(ChatEntry(role=role, content=content, metadata=dict(metadata or {})))
         self._bump_chat_render_revision(session)
         if should_follow_output:
-            session.chat_follow_output = True
+            view.chat_follow_output = True
         if persist:
             self._persist_session_state()
-        return len(session.messages) - 1
+        return len(view.messages) - 1
 
     def _update_session_message_content(
         self,
@@ -2931,16 +3107,17 @@ class MiniAgentTuiApp:
         metadata: dict[str, Any] | None = None,
         persist: bool = False,
     ) -> bool:
-        if index < 0 or index >= len(session.messages):
+        view = session.view
+        if index < 0 or index >= len(view.messages):
             return False
         should_follow_output = self._should_follow_output_after_session_update(session)
-        entry = session.messages[index]
+        entry = view.messages[index]
         entry.content = content
         if isinstance(metadata, dict):
             entry.metadata.update(metadata)
         self._bump_chat_render_revision(session)
         if should_follow_output:
-            session.chat_follow_output = True
+            view.chat_follow_output = True
         if persist:
             self._persist_session_state()
         return True
@@ -2953,11 +3130,12 @@ class MiniAgentTuiApp:
         preserve_follow_output: bool = True,
     ) -> None:
         should_follow_output = preserve_follow_output and self._should_follow_output_after_session_update(session)
-        session.messages = list(messages)
-        session.active_activity_message_index = None
+        view = session.view
+        view.messages = list(messages)
+        view.active_activity_message_index = None
         self._bump_chat_render_revision(session)
         if should_follow_output:
-            session.chat_follow_output = True
+            view.chat_follow_output = True
 
     def _invalidate_chat_render_cache(self) -> None:
         self._chat_render_cache_key = None
@@ -2965,7 +3143,8 @@ class MiniAgentTuiApp:
         self._chat_render_cache_fragments = []
 
     def _bump_chat_render_revision(self, session: TuiSession) -> None:
-        session.chat_render_revision = int(getattr(session, "chat_render_revision", 0)) + 1
+        view = session.view
+        view.chat_render_revision = int(getattr(view, "chat_render_revision", 0)) + 1
         if self.sessions and self.current_session is session:
             self._invalidate_chat_render_cache()
 
@@ -3033,8 +3212,9 @@ class MiniAgentTuiApp:
         *,
         message_index: int | None = None,
     ) -> int:
+        view = session.view
         entry_index = message_index
-        if entry_index is None or entry_index < 0 or entry_index >= len(session.messages):
+        if entry_index is None or entry_index < 0 or entry_index >= len(view.messages):
             entry_index = self._append_session_message(
                 session,
                 "assistant",
@@ -3042,7 +3222,7 @@ class MiniAgentTuiApp:
                 metadata={"streaming": True},
                 persist=False,
             )
-        entry = session.messages[entry_index]
+        entry = view.messages[entry_index]
         metadata = dict(entry.metadata) if isinstance(entry.metadata, dict) else {}
         metadata["streaming"] = True
         self._update_session_message_content(
@@ -3062,8 +3242,9 @@ class MiniAgentTuiApp:
         message_index: int | None = None,
     ) -> int:
         display_text = _format_assistant_content(content) or "(empty response)"
+        view = session.view
         entry_index = message_index
-        if entry_index is None or entry_index < 0 or entry_index >= len(session.messages):
+        if entry_index is None or entry_index < 0 or entry_index >= len(view.messages):
             entry_index = self._append_session_message(
                 session,
                 "assistant",
@@ -3071,7 +3252,7 @@ class MiniAgentTuiApp:
                 metadata={"streaming": True},
                 persist=False,
             )
-        metadata = dict(session.messages[entry_index].metadata)
+        metadata = dict(view.messages[entry_index].metadata)
         metadata["streaming"] = True
         self._update_session_message_content(session, entry_index, "", metadata=metadata, persist=False)
         for chunk in _iter_stream_chunks(display_text):
@@ -3128,7 +3309,7 @@ class MiniAgentTuiApp:
 
     def _session_share_transcript_payload(self, session: TuiSession) -> list[dict[str, Any]]:
         items: list[dict[str, Any]] = []
-        for entry in session.messages:
+        for entry in session.view.messages:
             metadata = dict(entry.metadata) if isinstance(entry.metadata, dict) else {}
             payload: dict[str, Any] = {
                 "role": _safe_text(entry.role) or "system",
@@ -3269,9 +3450,10 @@ class MiniAgentTuiApp:
         return first
 
     def _ensure_activity_message(self, session: TuiSession) -> ChatEntry:
-        index = session.active_activity_message_index
-        if index is not None and 0 <= index < len(session.messages):
-            entry = session.messages[index]
+        view = session.view
+        index = view.active_activity_message_index
+        if index is not None and 0 <= index < len(view.messages):
+            entry = view.messages[index]
             if _safe_text(entry.role).lower() == "tool" and entry.metadata.get("kind") == "activity":
                 return entry
         index = self._append_session_message(
@@ -3281,8 +3463,8 @@ class MiniAgentTuiApp:
             metadata={"kind": "activity", "activity_items": []},
             persist=False,
         )
-        session.active_activity_message_index = index
-        return session.messages[index]
+        view.active_activity_message_index = index
+        return view.messages[index]
 
     def _append_activity_line(
         self,
@@ -3335,23 +3517,24 @@ class MiniAgentTuiApp:
                 target["state"] = _safe_text(state).lower()
         self._bump_chat_render_revision(session)
         if should_follow_output:
-            session.chat_follow_output = True
+            session.view.chat_follow_output = True
         self._persist_session_state()
 
     def _start_turn_activity(self, session: TuiSession, *, detail: str) -> None:
-        session.active_activity_message_index = None
+        session.view.active_activity_message_index = None
         self._append_activity_line(session, label="thinking", detail=detail)
 
     def _finish_turn_activity(self, session: TuiSession, *, detail: str | None = None) -> None:
         if detail:
             self._append_activity_line(session, label="thinking", detail=detail)
-        session.active_activity_message_index = None
+        session.view.active_activity_message_index = None
 
     def _toggle_activity_details(self, mode: str = "toggle") -> bool:
         session = self.current_session
+        view = session.view
         if not any(
             self._activity_items(message)
-            for message in session.messages
+            for message in view.messages
             if _safe_text(getattr(message, "role", "")).lower() == "tool"
             and isinstance(getattr(message, "metadata", None), dict)
             and getattr(message, "metadata", {}).get("kind") == "activity"
@@ -3362,13 +3545,13 @@ class MiniAgentTuiApp:
 
         action = _safe_text(mode).lower() or "toggle"
         if action in {"expand", "open", "on"}:
-            session.activity_details_expanded = True
+            view.activity_details_expanded = True
         elif action in {"collapse", "close", "off"}:
-            session.activity_details_expanded = False
+            view.activity_details_expanded = False
         else:
-            session.activity_details_expanded = not session.activity_details_expanded
+            view.activity_details_expanded = not view.activity_details_expanded
         self._bump_chat_render_revision(session)
-        state = "expanded" if session.activity_details_expanded else "collapsed"
+        state = "expanded" if view.activity_details_expanded else "collapsed"
         self._set_status(f"Activity output {state} for {session.title}.")
         self._persist_session_state()
         self._render_all()
@@ -3376,11 +3559,12 @@ class MiniAgentTuiApp:
 
     def _toggle_command_details(self, mode: str = "toggle") -> bool:
         session = self.current_session
+        view = session.view
         has_command_blocks = any(
             _safe_text(getattr(message, "role", "")).lower() == "system"
             and isinstance(getattr(message, "metadata", None), dict)
             and getattr(message, "metadata", {}).get("kind") == "command"
-            for message in session.messages
+            for message in view.messages
         )
         if not has_command_blocks:
             self._set_status(f"No command blocks in {session.title}.")
@@ -3389,13 +3573,13 @@ class MiniAgentTuiApp:
 
         action = _safe_text(mode).lower() or "toggle"
         if action in {"expand", "open", "on"}:
-            session.command_details_expanded = True
+            view.command_details_expanded = True
         elif action in {"collapse", "close", "off"}:
-            session.command_details_expanded = False
+            view.command_details_expanded = False
         else:
-            session.command_details_expanded = not session.command_details_expanded
+            view.command_details_expanded = not view.command_details_expanded
         self._bump_chat_render_revision(session)
-        state = "expanded" if session.command_details_expanded else "collapsed"
+        state = "expanded" if view.command_details_expanded else "collapsed"
         self._set_status(f"Command output {state} for {session.title}.")
         self._persist_session_state()
         self._render_all()
@@ -3422,52 +3606,56 @@ class MiniAgentTuiApp:
         if self.current_session is not session:
             return True
         self._capture_chat_view_state()
-        return bool(session.chat_follow_output)
+        return bool(session.view.chat_follow_output)
 
     def _capture_chat_view_state(self) -> None:
         if not self.sessions:
             return
         session = self.current_session
-        session.chat_scroll_line = max(0, int(self.chat_panel.vertical_scroll))
-        session.chat_follow_output = session.chat_scroll_line >= self._chat_max_scroll()
+        view = session.view
+        view.chat_scroll_line = max(0, int(self.chat_panel.vertical_scroll))
+        view.chat_follow_output = view.chat_scroll_line >= self._chat_max_scroll()
 
     def _restore_chat_view_state(self) -> None:
         if not self.sessions:
             return
         session = self.current_session
-        if session.chat_follow_output:
+        view = session.view
+        if view.chat_follow_output:
             self._scroll_chat_to_bottom(force=True)
             return
         max_scroll = self._chat_max_scroll()
-        self.chat_panel.vertical_scroll = min(max(0, session.chat_scroll_line), max_scroll)
+        self.chat_panel.vertical_scroll = min(max(0, view.chat_scroll_line), max_scroll)
 
     def _scroll_chat_to_bottom(self, *, force: bool = False) -> None:
         if not self.sessions:
             return
         session = self.current_session
-        if not force and not session.chat_follow_output:
+        view = session.view
+        if not force and not view.chat_follow_output:
             return
         target = self._chat_max_scroll()
-        session.chat_scroll_line = target
-        session.chat_follow_output = True
+        view.chat_scroll_line = target
+        view.chat_follow_output = True
         self.chat_panel.vertical_scroll = target
 
     def _scroll_chat_lines(self, delta: int) -> None:
         if not self.sessions or delta == 0:
             return
         session = self.current_session
+        view = session.view
         max_scroll = self._chat_max_scroll()
-        if session.chat_follow_output:
-            if int(session.chat_scroll_line) >= max_scroll:
+        if view.chat_follow_output:
+            if int(view.chat_scroll_line) >= max_scroll:
                 current = max_scroll
             else:
                 current = max(0, int(self.chat_panel.vertical_scroll))
         else:
-            current = max(0, int(session.chat_scroll_line))
+            current = max(0, int(view.chat_scroll_line))
         target = current + delta
         target = min(max(0, target), max_scroll)
-        session.chat_scroll_line = target
-        session.chat_follow_output = target >= max_scroll
+        view.chat_scroll_line = target
+        view.chat_follow_output = target >= max_scroll
         self.chat_panel.vertical_scroll = target
         self._render_all()
 
@@ -3478,8 +3666,9 @@ class MiniAgentTuiApp:
         if not self.sessions:
             return
         session = self.current_session
-        session.chat_scroll_line = 0
-        session.chat_follow_output = False
+        view = session.view
+        view.chat_scroll_line = 0
+        view.chat_follow_output = False
         self.chat_panel.vertical_scroll = 0
         self._render_all()
 
@@ -3492,13 +3681,15 @@ class MiniAgentTuiApp:
 
     @staticmethod
     def _clear_session_skill_reload_pending(session: TuiSession) -> None:
-        session.pending_skill_reload = False
-        session.pending_skill_reload_reason = ""
+        operator = session.operator
+        operator.pending_skill_reload = False
+        operator.pending_skill_reload_reason = ""
 
     @staticmethod
     def _mark_session_skill_reload_pending(session: TuiSession, *, reason: str) -> None:
-        session.pending_skill_reload = True
-        session.pending_skill_reload_reason = _safe_text(reason) or "workspace skill runtime changed"
+        operator = session.operator
+        operator.pending_skill_reload = True
+        operator.pending_skill_reload_reason = _safe_text(reason) or "workspace skill runtime changed"
 
     def _queue_workspace_skill_reload(
         self,
@@ -3513,11 +3704,11 @@ class MiniAgentTuiApp:
                 continue
             if session.session_id == active_session.session_id and not include_current:
                 continue
-            if not session.busy and session.agent is None:
+            if not session.projection.busy and session.runtime.agent is None:
                 continue
             self._mark_session_skill_reload_pending(session, reason=reason)
             queued += 1
-            if session.session_id != active_session.session_id and not session.busy and session.agent is not None:
+            if session.session_id != active_session.session_id and not session.projection.busy and session.runtime.agent is not None:
                 self._invalidate_session_agent(session)
         if queued:
             self._persist_session_state()
@@ -3525,12 +3716,12 @@ class MiniAgentTuiApp:
 
     def _session_skill_runtime_summary(self, session: TuiSession) -> str:
         if self._runs_via_gateway(session):
-            if session.pending_skill_reload:
+            if session.operator.pending_skill_reload:
                 return "queued reload"
             return "remote managed"
-        if session.pending_skill_reload:
+        if session.operator.pending_skill_reload:
             return "reload pending"
-        if session.agent is None:
+        if session.runtime.agent is None:
             return "cold"
         return "synced"
 
@@ -3563,7 +3754,7 @@ class MiniAgentTuiApp:
             try:
                 effective_loader = resolve_skill_catalog_loader(
                     workspace_dir=self.workspace,
-                    agent=target.agent,
+                    agent=target.runtime.agent,
                 )
             except Exception:
                 effective_loader = None
@@ -3625,7 +3816,7 @@ class MiniAgentTuiApp:
 
     def _read_skill_catalog_signature(self) -> tuple[str, ...] | None:
         session = self.current_session if self.sessions else None
-        agent = session.agent if session is not None else None
+        agent = session.runtime.agent if session is not None else None
         try:
             return skill_catalog_signature(
                 workspace_dir=self.workspace,
@@ -3681,20 +3872,22 @@ class MiniAgentTuiApp:
         target = _safe_text(task_id)
         if not target:
             return None
-        for task in session.tasks:
+        for task in session.view.tasks:
             if task.task_id == target:
                 return task
         return None
 
     def _create_task(self, session: TuiSession, prompt: str) -> TaskEntry:
+        runtime = session.runtime
+        view = session.view
         task = TaskEntry(
-            task_id=f"task-{session.next_task_index}",
+            task_id=f"task-{runtime.next_task_index}",
             prompt=prompt,
             status="queued",
         )
-        session.next_task_index += 1
-        session.tasks.append(task)
-        session.active_task_id = task.task_id
+        runtime.next_task_index += 1
+        view.tasks.append(task)
+        runtime.active_task_id = task.task_id
         self._persist_session_state()
         return task
 
@@ -3722,10 +3915,11 @@ class MiniAgentTuiApp:
 
     def _render_tasks(self, session: TuiSession | None = None) -> str:
         target = session or self.current_session
-        if not target.tasks:
+        tasks = target.view.tasks
+        if not tasks:
             return f"Tasks ({target.title}):\n  (none)"
         lines: list[str] = [f"Tasks ({target.title}):"]
-        for task in target.tasks:
+        for task in tasks:
             prompt = self._task_prompt_preview(task.prompt)
             detail_parts = [f"{task.task_id}", f"status={task.status}", f"updated={task.updated_at}"]
             if task.submission_id:
@@ -3738,12 +3932,13 @@ class MiniAgentTuiApp:
         return "\n".join(lines)
 
     def _snapshot_resume_agent_messages(self, session: TuiSession) -> list[dict[str, Any]]:
-        messages = getattr(session.agent, "messages", None)
+        runtime = session.runtime
+        messages = getattr(runtime.agent, "messages", None)
         if isinstance(messages, list) and messages:
             return [_serialize_agent_message(item) for item in messages]
-        if session.restored_agent_messages:
-            return _copy_serialized_messages(session.restored_agent_messages)
-        return _fallback_agent_messages_from_chat(session.messages)
+        if runtime.restored_agent_messages:
+            return _copy_serialized_messages(runtime.restored_agent_messages)
+        return _fallback_agent_messages_from_chat(session.view.messages)
 
     def _set_pending_resume(
         self,
@@ -3752,31 +3947,40 @@ class MiniAgentTuiApp:
         task_id: str | None,
         agent_messages: Sequence[dict[str, Any]] | None = None,
     ) -> None:
-        session.pending_resume_task_id = _safe_text(task_id) or None
-        session.pending_resume_agent_messages = _copy_serialized_messages(agent_messages)
-        session.pending_resume_started = False
-        session.recovery_running_state = _safe_text(session.running_state or session.recovery_running_state)
-        session.recovery_pending_approvals = [
+        runtime = session.runtime
+        projection = session.projection
+        supplemental = projection.supplemental
+        runtime.pending_resume_task_id = _safe_text(task_id) or None
+        runtime.pending_resume_agent_messages = _copy_serialized_messages(agent_messages)
+        runtime.pending_resume_started = False
+        supplemental.recovery_running_state = _safe_text(
+            projection.running_state or supplemental.recovery_running_state
+        )
+        supplemental.recovery_pending_approvals = [
             dict(item)
-            for item in session.pending_approvals
+            for item in projection.pending_approvals
             if isinstance(item, dict) and _safe_text(item.get("token"))
         ]
 
     def _clear_pending_resume(self, session: TuiSession, *, task_id: str | None = None) -> None:
+        runtime = session.runtime
+        supplemental = session.projection.supplemental
         if task_id is not None:
-            current = _safe_text(session.pending_resume_task_id)
+            current = _safe_text(runtime.pending_resume_task_id)
             target = _safe_text(task_id)
             if current and current != target:
                 return
-        session.pending_resume_task_id = None
-        session.pending_resume_agent_messages = []
-        session.pending_resume_started = False
-        session.recovery_running_state = ""
-        session.recovery_pending_approvals = []
+        runtime.pending_resume_task_id = None
+        runtime.pending_resume_agent_messages = []
+        runtime.pending_resume_started = False
+        supplemental.recovery_running_state = ""
+        supplemental.recovery_pending_approvals = []
 
     async def _resume_pending_session_task(self, session: TuiSession) -> bool:
-        task_id = _safe_text(session.pending_resume_task_id)
-        if not task_id or session.pending_resume_started or session.busy:
+        runtime = session.runtime
+        projection = session.projection
+        task_id = _safe_text(runtime.pending_resume_task_id)
+        if not task_id or runtime.pending_resume_started or projection.busy:
             return False
 
         task = self._find_task(session, task_id)
@@ -3793,7 +3997,7 @@ class MiniAgentTuiApp:
             self._render_all()
             return False
 
-        session.pending_resume_started = True
+        runtime.pending_resume_started = True
         self._schedule(
             self._run_chat_turn(
                 task.prompt,
@@ -3801,7 +4005,7 @@ class MiniAgentTuiApp:
                 existing_task=task,
                 append_user_message=False,
                 resuming=True,
-                restore_agent_messages=session.pending_resume_agent_messages or session.restored_agent_messages,
+                restore_agent_messages=runtime.pending_resume_agent_messages or runtime.restored_agent_messages,
             )
         )
         return True
@@ -3858,18 +4062,20 @@ class MiniAgentTuiApp:
 
     @staticmethod
     def _session_selected_model_identity(session: TuiSession) -> tuple[str, str, str] | None:
-        source = _safe_text(session.selected_model_source)
-        provider_id = _safe_text(session.selected_provider_id)
-        model_id = _safe_text(session.selected_model_id)
+        projection = session.projection
+        source = _safe_text(projection.selected_model_source)
+        provider_id = _safe_text(projection.selected_provider_id)
+        model_id = _safe_text(projection.selected_model_id)
         if source and provider_id and model_id:
             return (source, provider_id, model_id)
         return None
 
     @staticmethod
     def _session_pending_model_identity(session: TuiSession) -> tuple[str, str, str] | None:
-        source = _safe_text(session.pending_model_source)
-        provider_id = _safe_text(session.pending_provider_id)
-        model_id = _safe_text(session.pending_model_id)
+        operator = session.operator
+        source = _safe_text(operator.pending_model_source)
+        provider_id = _safe_text(operator.pending_provider_id)
+        model_id = _safe_text(operator.pending_model_id)
         if source and provider_id and model_id:
             return (source, provider_id, model_id)
         return None
@@ -3905,12 +4111,13 @@ class MiniAgentTuiApp:
         session: TuiSession,
         identity: tuple[str, str, str] | None,
     ) -> None:
+        projection = session.projection
         if identity is None:
-            session.selected_model_source = None
-            session.selected_provider_id = None
-            session.selected_model_id = None
+            projection.selected_model_source = None
+            projection.selected_provider_id = None
+            projection.selected_model_id = None
             return
-        session.selected_model_source, session.selected_provider_id, session.selected_model_id = identity
+        projection.selected_model_source, projection.selected_provider_id, projection.selected_model_id = identity
 
     @classmethod
     def _set_session_pending_model_identity(
@@ -3918,26 +4125,27 @@ class MiniAgentTuiApp:
         session: TuiSession,
         identity: tuple[str, str, str] | None,
     ) -> None:
+        operator = session.operator
         if identity is None:
-            session.pending_model_source = None
-            session.pending_provider_id = None
-            session.pending_model_id = None
+            operator.pending_model_source = None
+            operator.pending_provider_id = None
+            operator.pending_model_id = None
             return
-        session.pending_model_source, session.pending_provider_id, session.pending_model_id = identity
+        operator.pending_model_source, operator.pending_provider_id, operator.pending_model_id = identity
 
     def _session_active_model_identity(self, session: TuiSession) -> tuple[str, str, str] | None:
         selected = self._session_selected_model_identity(session)
         if selected is not None:
             return selected
-        if session.agent is not None:
-            return self._route_model_identity(getattr(session.agent, "runtime_route", None))
+        if session.runtime.agent is not None:
+            return self._route_model_identity(getattr(session.runtime.agent, "runtime_route", None))
         return None
 
     def _preferred_cursor_model_identity(self, session: TuiSession | None) -> tuple[str, str, str] | None:
         if session is None:
             return None
         pending = self._session_pending_model_identity(session)
-        if session.busy and pending is not None:
+        if session.projection.busy and pending is not None:
             return pending
         return self._session_active_model_identity(session)
 
@@ -4116,15 +4324,17 @@ class MiniAgentTuiApp:
     ) -> None:
         refreshed_limit, _ = self._lookup_model_usage_limit(identity)
         for session in self.sessions:
+            projection = session.projection
+            runtime = session.runtime
             active_identity = self._session_active_model_identity(session)
             pending_identity = self._session_pending_model_identity(session)
             if active_identity == identity or pending_identity == identity:
-                session.token_limit = refreshed_limit
+                projection.token_limit = refreshed_limit
             if (
                 active_identity == identity
                 and not self._runs_via_gateway(session)
-                and not session.busy
-                and session.agent is not None
+                and not projection.busy
+                and runtime.agent is not None
             ):
                 self._invalidate_session_agent(session)
 
@@ -4181,24 +4391,28 @@ class MiniAgentTuiApp:
 
     @classmethod
     def _session_knowledge_base_enabled(cls, session: TuiSession) -> bool | None:
-        if session.agent is not None:
-            session.knowledge_base_enabled = cls._agent_knowledge_base_enabled(session.agent)
-        return session.knowledge_base_enabled
+        projection = session.projection
+        runtime = session.runtime
+        if runtime.agent is not None:
+            projection.knowledge_base_enabled = cls._agent_knowledge_base_enabled(runtime.agent)
+        return projection.knowledge_base_enabled
 
     def _capture_session_agent_snapshot(self, session: TuiSession) -> None:
-        if session.agent is not None:
-            session.knowledge_base_enabled = self._agent_knowledge_base_enabled(session.agent)
-        diagnostics = getattr(session.agent, "prepared_context_diagnostics", None)
+        projection = session.projection
+        runtime = session.runtime
+        if runtime.agent is not None:
+            projection.knowledge_base_enabled = self._agent_knowledge_base_enabled(runtime.agent)
+        diagnostics = getattr(runtime.agent, "prepared_context_diagnostics", None)
         if isinstance(diagnostics, dict):
-            session.prepared_context_diagnostics = dict(diagnostics)
+            projection.prepared_context_diagnostics = dict(diagnostics)
         self._refresh_local_memory_diagnostics(session)
-        messages = getattr(session.agent, "messages", None)
+        messages = getattr(runtime.agent, "messages", None)
         if isinstance(messages, list) and messages:
-            session.restored_agent_messages = [_serialize_agent_message(item) for item in messages]
+            runtime.restored_agent_messages = [_serialize_agent_message(item) for item in messages]
             return
-        if session.restored_agent_messages:
+        if runtime.restored_agent_messages:
             return
-        session.restored_agent_messages = _fallback_agent_messages_from_chat(session.messages)
+        runtime.restored_agent_messages = _fallback_agent_messages_from_chat(session.view.messages)
 
     def _selected_model_identity(self) -> tuple[str, str, str] | None:
         selected = self._selected_provider_and_model()
@@ -4361,19 +4575,24 @@ class MiniAgentTuiApp:
         session: TuiSession,
         identity: tuple[str, str, str],
     ) -> None:
+        projection = session.projection
+        runtime = session.runtime
+        view = session.view
         self._set_session_selected_model_identity(session, identity)
         self._set_session_pending_model_identity(session, None)
         self._capture_session_agent_snapshot(session)
         await self._shutdown_submission_loop(session)
-        session.agent = None
-        session.cancel_event = None
-        session.running_state = ""
-        session.active_activity_message_index = None
+        runtime.agent = None
+        runtime.cancel_event = None
+        projection.running_state = ""
+        view.active_activity_message_index = None
         if session.session_id == self.current_session.session_id:
             self._set_model_cursor_by_identity(identity)
         self._persist_session_state()
 
     async def _build_session_agent(self, session: TuiSession) -> Agent:
+        projection = session.projection
+        runtime = session.runtime
         selected_identity = self._session_selected_model_identity(session)
         approval_profile, access_level = self._session_runtime_policy(session)
         agent = await build_agent_kernel(
@@ -4398,22 +4617,22 @@ class MiniAgentTuiApp:
             ),
         )
         self._restore_agent_messages(session, agent)
-        if session.knowledge_base_enabled is None:
-            session.knowledge_base_enabled = self._agent_knowledge_base_enabled(agent)
+        if projection.knowledge_base_enabled is None:
+            projection.knowledge_base_enabled = self._agent_knowledge_base_enabled(agent)
         else:
-            session.knowledge_base_enabled = self._apply_agent_knowledge_base_enabled(
+            projection.knowledge_base_enabled = self._apply_agent_knowledge_base_enabled(
                 agent,
-                bool(session.knowledge_base_enabled),
+                bool(projection.knowledge_base_enabled),
             )
         if hasattr(agent, "api_total_tokens"):
-            agent.api_total_tokens = _safe_nonnegative_int(session.token_usage)
-        if _safe_nonnegative_int(session.token_limit) > 0 and hasattr(agent, "token_limit"):
-            agent.token_limit = _safe_nonnegative_int(session.token_limit)
-        if isinstance(session.last_prepared_context, dict):
-            agent.last_prepared_turn_context = dict(session.last_prepared_context)
-        if isinstance(session.prepared_context_diagnostics, dict):
-            agent.prepared_context_diagnostics = dict(session.prepared_context_diagnostics)
-        session.agent = agent
+            agent.api_total_tokens = _safe_nonnegative_int(projection.token_usage)
+        if _safe_nonnegative_int(projection.token_limit) > 0 and hasattr(agent, "token_limit"):
+            agent.token_limit = _safe_nonnegative_int(projection.token_limit)
+        if isinstance(projection.last_prepared_context, dict):
+            agent.last_prepared_turn_context = dict(projection.last_prepared_context)
+        if isinstance(projection.prepared_context_diagnostics, dict):
+            agent.prepared_context_diagnostics = dict(projection.prepared_context_diagnostics)
+        runtime.agent = agent
         self._cache_local_skill_policy_snapshot(session, allow_discover=True)
         self._session_usage_stats(session)
         return agent
@@ -4437,13 +4656,15 @@ class MiniAgentTuiApp:
         session: TuiSession,
         identity: tuple[str, str, str],
     ) -> None:
+        projection = session.projection
+        runtime = session.runtime
         if self._runs_via_gateway(session):
             await self._apply_remote_session_model_selection(session, identity)
             return
 
         current_identity = self._session_active_model_identity(session)
         pending_identity = self._session_pending_model_identity(session)
-        if session.busy:
+        if projection.busy:
             if pending_identity == identity:
                 self._set_status(
                     f"{self._format_model_identity(identity)} is already queued for {session.title}."
@@ -4460,7 +4681,7 @@ class MiniAgentTuiApp:
             self._render_all()
             return
 
-        if current_identity == identity and session.agent is not None:
+        if current_identity == identity and runtime.agent is not None:
             self._set_status(f"{session.title} is already using {self._format_model_identity(identity)}.")
             if session.session_id == self.current_session.session_id:
                 self._set_model_cursor_by_identity(identity)
@@ -4479,6 +4700,7 @@ class MiniAgentTuiApp:
         session: TuiSession,
         identity: tuple[str, str, str],
     ) -> None:
+        projection = session.projection
         source, provider_id, model_id = identity
         response = await self.remote_session_service.update_session_model(
             session.session_id,
@@ -4487,9 +4709,9 @@ class MiniAgentTuiApp:
                 provider_id=provider_id,
                 model_id=model_id,
                 surface="tui",
-                channel_type=session.channel_type,
-                conversation_id=session.conversation_id,
-                sender_id=session.sender_id,
+                channel_type=projection.channel_type,
+                conversation_id=projection.conversation_id,
+                sender_id=projection.sender_id,
             ),
         )
         await self._sync_remote_session_detail(session, recent_limit=80)
@@ -4502,7 +4724,7 @@ class MiniAgentTuiApp:
         if normalized_identity is not None and session.session_id == self.current_session.session_id:
             self._set_model_cursor_by_identity(normalized_identity)
         if response.queued:
-            session.remote_last_command_summary = (
+            projection.supplemental.remote_last_command_summary = (
                 f"model use | queued {self._format_model_identity(identity)}"
             )
             self._set_status(
@@ -4510,7 +4732,7 @@ class MiniAgentTuiApp:
                 "it will apply after the current turn."
             )
         else:
-            session.remote_last_command_summary = (
+            projection.supplemental.remote_last_command_summary = (
                 f"model use | applied {self._format_model_identity(identity)}"
             )
             self._set_status(f"Applied {self._format_model_identity(identity)} to {session.title}.")
@@ -4546,7 +4768,7 @@ class MiniAgentTuiApp:
 
     async def _apply_pending_session_model_selection(self, session: TuiSession) -> None:
         pending_identity = self._session_pending_model_identity(session)
-        if pending_identity is None or session.busy:
+        if pending_identity is None or session.projection.busy:
             return
         await self._activate_session_model_selection(session, pending_identity)
         await self._warm_session_agent(
@@ -4556,20 +4778,23 @@ class MiniAgentTuiApp:
                 f"for {session.title}"
             ),
         )
-        if session.pending_skill_reload:
+        if session.operator.pending_skill_reload:
             self._clear_session_skill_reload_pending(session)
             self._persist_session_state()
 
     async def _apply_pending_session_skill_reload(self, session: TuiSession) -> bool:
-        if self._runs_via_gateway(session) or session.busy or not session.pending_skill_reload:
+        projection = session.projection
+        operator = session.operator
+        runtime = session.runtime
+        if self._runs_via_gateway(session) or projection.busy or not operator.pending_skill_reload:
             return False
-        if session.agent is not None:
+        if runtime.agent is not None:
             self._capture_session_agent_snapshot(session)
             await self._shutdown_submission_loop(session)
-            session.agent = None
-            session.cancel_event = None
-            session.running_state = ""
-            session.pending_approvals = []
+            runtime.agent = None
+            runtime.cancel_event = None
+            projection.running_state = ""
+            projection.pending_approvals = []
         agent = await self._warm_session_agent(
             session,
             prefix=f"Reloaded skills for {session.title}",
@@ -4688,7 +4913,7 @@ class MiniAgentTuiApp:
         if session is None:
             return self.default_approval_profile, self.default_access_level
         approval_profile, access_level = self._runtime_policy_overrides_from_diagnostics_payload(
-            session.sandbox_diagnostics
+            session.projection.sandbox_diagnostics
         )
         return (
             approval_profile or self.default_approval_profile,
@@ -4705,29 +4930,31 @@ class MiniAgentTuiApp:
         approval_profile: str,
         access_level: str,
     ) -> dict[str, Any]:
-        if session.busy and not session.pending_approvals:
+        projection = session.projection
+        runtime = session.runtime
+        if projection.busy and not projection.pending_approvals:
             raise RuntimeError(
                 "Session is busy. Runtime mode can only change while idle or waiting on approval."
             )
         diagnostics = self._normalize_sandbox_diagnostics_payload(
             {
-                **dict(session.sandbox_diagnostics or {}),
+                **dict(projection.sandbox_diagnostics or {}),
                 "approval_profile": approval_profile,
                 "access_level": access_level,
                 "sandbox_mode": "unrestricted" if access_level == "full-access" else "workspace",
             }
         )
-        if session.agent is not None:
+        if runtime.agent is not None:
             diagnostics = self._normalize_sandbox_diagnostics_payload(
                 reconfigure_agent_runtime_policy(
-                    agent=session.agent,
+                    agent=runtime.agent,
                     config=self._load_runtime_config(),
                     workspace_dir=self.workspace,
                     approval_profile_override=approval_profile,
                     access_level_override=access_level,
                 )
             )
-        session.sandbox_diagnostics = diagnostics
+        projection.sandbox_diagnostics = diagnostics
         self._persist_session_state()
         return diagnostics
 
@@ -4738,19 +4965,20 @@ class MiniAgentTuiApp:
         approval_profile: str,
         access_level: str,
     ) -> dict[str, Any]:
+        projection = session.projection
         response = await self.remote_session_service.update_session_runtime_policy(
             session.session_id,
             MainAgentSessionRuntimePolicyRequest(
                 approval_profile=approval_profile,
                 access_level=access_level,
                 surface="tui",
-                channel_type=session.channel_type or None,
-                conversation_id=session.conversation_id or None,
-                sender_id=session.sender_id or None,
+                channel_type=projection.channel_type or None,
+                conversation_id=projection.conversation_id or None,
+                sender_id=projection.sender_id or None,
             ),
         )
-        session.active_surface = _safe_text(response.active_surface) or session.active_surface
-        session.sandbox_diagnostics = self._normalize_sandbox_diagnostics_payload(
+        projection.active_surface = _safe_text(response.active_surface) or projection.active_surface
+        projection.sandbox_diagnostics = self._normalize_sandbox_diagnostics_payload(
             response.sandbox_diagnostics
         )
         try:
@@ -4809,7 +5037,7 @@ class MiniAgentTuiApp:
             self._render_all()
             return False
 
-        session.sandbox_diagnostics = self._normalize_sandbox_diagnostics_payload(diagnostics)
+        session.projection.sandbox_diagnostics = self._normalize_sandbox_diagnostics_payload(diagnostics)
         self._append_command_feedback(
             command_text,
             summary=f"runtime {resolved_profile} / {resolved_access}",
@@ -4836,18 +5064,20 @@ class MiniAgentTuiApp:
         return fallback or "tool"
 
     def _update_running_state(self, session: TuiSession, text: str) -> None:
-        if not session.busy:
+        projection = session.projection
+        if not projection.busy:
             return
-        session.running_state = _safe_text(text)
-        if session.running_state and session.session_id == self.current_session.session_id:
-            self._set_status(f"{session.title}: {session.running_state}")
+        projection.running_state = _safe_text(text)
+        if projection.running_state and session.session_id == self.current_session.session_id:
+            self._set_status(f"{session.title}: {projection.running_state}")
         self._persist_session_state()
         self._render_all()
 
     async def _ensure_submission_loop(self, session: TuiSession) -> AgentSubmissionLoop:
-        if session.submission_loop is not None:
-            await session.submission_loop.start()
-            return session.submission_loop
+        runtime = session.runtime
+        if runtime.submission_loop is not None:
+            await runtime.submission_loop.start()
+            return runtime.submission_loop
 
         bus = InMemoryLoopMessageBus()
         loop_context = AgentLoopContext(
@@ -4867,21 +5097,23 @@ class MiniAgentTuiApp:
             hooks=self._build_turn_hooks(session),
         )
         await submission_loop.start()
-        session.submission_loop = submission_loop
-        session.loop_bus = bus
+        runtime.submission_loop = submission_loop
+        runtime.loop_bus = bus
         return submission_loop
 
     async def _shutdown_submission_loop(self, session: TuiSession) -> None:
-        loop = session.submission_loop
+        runtime = session.runtime
+        projection = session.projection
+        loop = runtime.submission_loop
         if loop is None:
-            session.loop_bus = None
+            runtime.loop_bus = None
             return
         try:
             await loop.stop()
         finally:
-            session.submission_loop = None
-            session.loop_bus = None
-            session.pending_approvals = []
+            runtime.submission_loop = None
+            runtime.loop_bus = None
+            projection.pending_approvals = []
 
     async def _shutdown_all_submission_loops(self) -> None:
         for session in self.sessions:
@@ -4917,14 +5149,17 @@ class MiniAgentTuiApp:
         return normalized
 
     def _pending_approval_summary(self, session: TuiSession) -> str:
-        approvals = [item for item in session.pending_approvals if self._pending_approval_token(item)]
+        projection = session.projection
+        supplemental = projection.supplemental
+        runtime = session.runtime
+        approvals = [item for item in projection.pending_approvals if self._pending_approval_token(item)]
         if not approvals:
             recovered = [
                 item
-                for item in session.recovery_pending_approvals
+                for item in supplemental.recovery_pending_approvals
                 if self._pending_approval_token(item)
             ]
-            if recovered and (session.pending_resume_task_id or self._session_has_gateway_recovery(session)):
+            if recovered and (runtime.pending_resume_task_id or self._session_has_gateway_recovery(session)):
                 if len(recovered) == 1:
                     item = recovered[0]
                     tool_name = _safe_text(item.get("tool_name")) or "tool"
@@ -4944,7 +5179,7 @@ class MiniAgentTuiApp:
             return None
         pending = [
             item
-            for item in target_session.pending_approvals
+            for item in target_session.projection.pending_approvals
             if self._pending_approval_token(item)
         ]
         if not pending:
@@ -5025,34 +5260,36 @@ class MiniAgentTuiApp:
         return normalize_sandbox_diagnostics(value)
 
     def _record_prepared_context(self, session: TuiSession, payload: Any) -> None:
-        session.last_prepared_context = self._normalize_prepared_context_payload(payload)
+        session.projection.last_prepared_context = self._normalize_prepared_context_payload(payload)
 
     def _record_prepared_context_diagnostics(self, session: TuiSession, payload: Any) -> None:
-        session.prepared_context_diagnostics = self._normalize_prepared_context_diagnostics_payload(payload)
+        session.projection.prepared_context_diagnostics = self._normalize_prepared_context_diagnostics_payload(payload)
         self._refresh_local_memory_diagnostics(session)
 
     def _refresh_local_memory_diagnostics(self, session: TuiSession) -> dict[str, Any]:
+        projection = session.projection
+        runtime = session.runtime
         if self._runs_via_gateway(session):
-            return self._normalize_memory_diagnostics_payload(session.memory_diagnostics)
+            return self._normalize_memory_diagnostics_payload(projection.memory_diagnostics)
         try:
-            session.memory_diagnostics = build_memory_diagnostics(
+            projection.memory_diagnostics = build_memory_diagnostics(
                 workspace_dir=self.workspace,
                 session_id=session.session_id,
-                last_prepared_context=session.last_prepared_context,
+                last_prepared_context=projection.last_prepared_context,
                 last_memory_automation=(
-                    getattr(session.agent, "last_memory_automation", {})
-                    if session.agent is not None
+                    getattr(runtime.agent, "last_memory_automation", {})
+                    if runtime.agent is not None
                     else {}
                 ),
                 last_runtime_task_memory=(
-                    getattr(session.agent, "last_runtime_task_memory", {})
-                    if session.agent is not None
+                    getattr(runtime.agent, "last_runtime_task_memory", {})
+                    if runtime.agent is not None
                     else {}
                 ),
             )
         except Exception:
-            session.memory_diagnostics = self._normalize_memory_diagnostics_payload(session.memory_diagnostics)
-        return self._normalize_memory_diagnostics_payload(session.memory_diagnostics)
+            projection.memory_diagnostics = self._normalize_memory_diagnostics_payload(projection.memory_diagnostics)
+        return self._normalize_memory_diagnostics_payload(projection.memory_diagnostics)
 
     def _session_memory_diagnostics(
         self,
@@ -5060,20 +5297,23 @@ class MiniAgentTuiApp:
         *,
         refresh_local: bool = False,
     ) -> dict[str, Any]:
+        projection = session.projection
         if self._runs_via_gateway(session):
-            return self._normalize_memory_diagnostics_payload(session.memory_diagnostics)
-        if refresh_local or not isinstance(session.memory_diagnostics, dict) or not session.memory_diagnostics:
+            return self._normalize_memory_diagnostics_payload(projection.memory_diagnostics)
+        if refresh_local or not isinstance(projection.memory_diagnostics, dict) or not projection.memory_diagnostics:
             return self._refresh_local_memory_diagnostics(session)
-        return self._normalize_memory_diagnostics_payload(session.memory_diagnostics)
+        return self._normalize_memory_diagnostics_payload(projection.memory_diagnostics)
 
     def _refresh_local_sandbox_diagnostics(self, session: TuiSession) -> dict[str, Any]:
+        projection = session.projection
+        runtime = session.runtime
         if self._runs_via_gateway(session):
-            return self._normalize_sandbox_diagnostics_payload(session.sandbox_diagnostics)
-        existing = self._normalize_sandbox_diagnostics_payload(session.sandbox_diagnostics)
-        if session.agent is None:
+            return self._normalize_sandbox_diagnostics_payload(projection.sandbox_diagnostics)
+        existing = self._normalize_sandbox_diagnostics_payload(projection.sandbox_diagnostics)
+        if runtime.agent is None:
             approval_profile = _normalize_runtime_approval_profile(existing.get("approval_profile")) or self.default_approval_profile
             access_level = _normalize_runtime_access_level(existing.get("access_level")) or self.default_access_level
-            session.sandbox_diagnostics = self._normalize_sandbox_diagnostics_payload(
+            projection.sandbox_diagnostics = self._normalize_sandbox_diagnostics_payload(
                 {
                     **existing,
                     "approval_profile": approval_profile,
@@ -5082,12 +5322,12 @@ class MiniAgentTuiApp:
                     or ("unrestricted" if access_level == "full-access" else "workspace"),
                 }
             )
-            return self._normalize_sandbox_diagnostics_payload(session.sandbox_diagnostics)
+            return self._normalize_sandbox_diagnostics_payload(projection.sandbox_diagnostics)
         try:
-            session.sandbox_diagnostics = collect_sandbox_diagnostics(agent=session.agent)
+            projection.sandbox_diagnostics = collect_sandbox_diagnostics(agent=runtime.agent)
         except Exception:
-            session.sandbox_diagnostics = self._normalize_sandbox_diagnostics_payload(session.sandbox_diagnostics)
-        return self._normalize_sandbox_diagnostics_payload(session.sandbox_diagnostics)
+            projection.sandbox_diagnostics = self._normalize_sandbox_diagnostics_payload(projection.sandbox_diagnostics)
+        return self._normalize_sandbox_diagnostics_payload(projection.sandbox_diagnostics)
 
     def _session_sandbox_diagnostics(
         self,
@@ -5095,15 +5335,16 @@ class MiniAgentTuiApp:
         *,
         refresh_local: bool = False,
     ) -> dict[str, Any]:
+        projection = session.projection
         if self._runs_via_gateway(session):
-            return self._normalize_sandbox_diagnostics_payload(session.sandbox_diagnostics)
-        if refresh_local or not isinstance(session.sandbox_diagnostics, dict) or not session.sandbox_diagnostics:
+            return self._normalize_sandbox_diagnostics_payload(projection.sandbox_diagnostics)
+        if refresh_local or not isinstance(projection.sandbox_diagnostics, dict) or not projection.sandbox_diagnostics:
             return self._refresh_local_sandbox_diagnostics(session)
-        return self._normalize_sandbox_diagnostics_payload(session.sandbox_diagnostics)
+        return self._normalize_sandbox_diagnostics_payload(projection.sandbox_diagnostics)
 
     def _prepared_context_summary(self, session: TuiSession) -> str:
         return prepared_turn_context_summary_line(
-            session.last_prepared_context,
+            session.projection.last_prepared_context,
             include_none=True,
         )
 
@@ -5118,12 +5359,12 @@ class MiniAgentTuiApp:
 
     def _context_policy_summary(self, session: TuiSession) -> str:
         return context_policy_summary_line(
-            session.context_policy,
+            session.projection.context_policy,
             include_default=True,
         )
 
     def _context_policy_metadata(self, session: TuiSession) -> dict[str, Any]:
-        normalized = self._normalize_context_policy_payload(session.context_policy)
+        normalized = self._normalize_context_policy_payload(session.projection.context_policy)
         if not normalized.get("active"):
             return {}
         return {"prepared_context_policy": normalized}
@@ -5135,7 +5376,8 @@ class MiniAgentTuiApp:
         field_name: str,
         sources: list[str],
     ) -> dict[str, Any]:
-        normalized = self._normalize_context_policy_payload(session.context_policy)
+        projection = session.projection
+        normalized = self._normalize_context_policy_payload(projection.context_policy)
         deduped = []
         seen: set[str] = set()
         for source in sources:
@@ -5151,7 +5393,7 @@ class MiniAgentTuiApp:
             for item in list(normalized.get(opposite) or [])
             if item not in deduped
         ]
-        session.context_policy = normalized
+        projection.context_policy = normalized
         self._persist_session_state()
         return normalized
 
@@ -5163,18 +5405,19 @@ class MiniAgentTuiApp:
         max_total_chars: int | None = None,
         max_items_per_source: int | None = None,
     ) -> dict[str, Any]:
-        normalized = self._normalize_context_policy_payload(session.context_policy)
+        projection = session.projection
+        normalized = self._normalize_context_policy_payload(projection.context_policy)
         normalized["max_items"] = max(1, int(max_items))
         if max_total_chars is not None:
             normalized["max_total_chars"] = max(200, int(max_total_chars))
         if max_items_per_source is not None:
             normalized["max_items_per_source"] = max(1, int(max_items_per_source))
-        session.context_policy = normalized
+        projection.context_policy = normalized
         self._persist_session_state()
         return normalized
 
     def _reset_context_policy(self, session: TuiSession) -> dict[str, Any]:
-        session.context_policy = {}
+        session.projection.context_policy = {}
         self._persist_session_state()
         return self._normalize_context_policy_payload({})
 
@@ -5188,6 +5431,7 @@ class MiniAgentTuiApp:
         max_total_chars: int | None = None,
         max_items_per_source: int | None = None,
     ) -> dict[str, Any]:
+        projection = session.projection
         response = await self.remote_session_service.update_session_context(
             session.session_id,
             MainAgentSessionContextRequest(
@@ -5197,16 +5441,61 @@ class MiniAgentTuiApp:
                 max_total_chars=max_total_chars,
                 max_items_per_source=max_items_per_source,
                 surface="tui",
+                channel_type=projection.channel_type,
+                conversation_id=projection.conversation_id,
+                sender_id=projection.sender_id,
             ),
         )
         await self._sync_remote_session_detail(session, recent_limit=80)
         context_policy = dict(response.context_policy or {})
-        session.remote_last_command_summary = (
+        projection.supplemental.remote_last_command_summary = (
             f"context {action} | "
             f"{context_policy_summary_line(context_policy, include_default=True) if context_policy else 'context policy updated'}"
         )
         self._persist_session_state()
         return response.model_dump()
+
+    async def _dispatch_remote_context_update(
+        self,
+        session: TuiSession,
+        validation_result: CommandExecutionResult,
+    ) -> bool:
+        payload = validation_result.payload if isinstance(validation_result.payload, dict) else {}
+        remote_request = payload.get("remote_request") if isinstance(payload.get("remote_request"), dict) else {}
+        action = _safe_text(remote_request.get("action"))
+        if not action:
+            self._append_command_feedback(
+                validation_result.command,
+                summary="update failed",
+                details="Remote context update request was not prepared.",
+                level="error",
+                metadata={"threads_visible": False},
+            )
+            self._set_status("Remote context update failed.")
+            self._render_all()
+            return False
+        try:
+            await self._update_remote_context_policy(
+                session,
+                action=action,
+                sources=list(remote_request.get("sources") or []),
+                max_items=remote_request.get("max_items"),
+                max_total_chars=remote_request.get("max_total_chars"),
+                max_items_per_source=remote_request.get("max_items_per_source"),
+            )
+        except Exception as exc:
+            detail = self._remote_gateway_error_detail(exc)
+            self._append_command_feedback(
+                validation_result.command,
+                summary="reset failed" if action == "reset" else "update failed",
+                details=detail,
+                level="error",
+                metadata={"threads_visible": False},
+            )
+            self._set_status(detail or f"Remote context {'reset' if action == 'reset' else 'update'} failed.")
+            self._render_all()
+            return False
+        return True
 
     def _run_local_memory_action(
         self,
@@ -5231,7 +5520,7 @@ class MiniAgentTuiApp:
             day=day,
             export_format=export_format,
             detail_mode=detail_mode,
-            prepared_context=session.last_prepared_context,
+            prepared_context=session.projection.last_prepared_context,
         )
         self._persist_session_state()
         return result.to_dict()
@@ -5248,6 +5537,7 @@ class MiniAgentTuiApp:
         export_format: str | None = None,
         detail_mode: str = "full",
     ) -> dict[str, Any]:
+        projection = session.projection
         response = await self.remote_session_service.manage_session_memory(
             session.session_id,
             MainAgentSessionMemoryRequest(
@@ -5259,18 +5549,18 @@ class MiniAgentTuiApp:
                 export_format=export_format,
                 detail_mode=detail_mode,
                 surface="tui",
-                channel_type=session.channel_type,
-                conversation_id=session.conversation_id,
-                sender_id=session.sender_id,
+                channel_type=projection.channel_type,
+                conversation_id=projection.conversation_id,
+                sender_id=projection.sender_id,
             ),
         )
-        session.memory_diagnostics = self._normalize_memory_diagnostics_payload(
+        projection.memory_diagnostics = self._normalize_memory_diagnostics_payload(
             response.memory_diagnostics
         )
         result = dict(response.result or {})
         if result:
             summary_text = _safe_text(result.get("summary")) or "memory command"
-            session.remote_last_command_summary = f"memory {action} | {summary_text}"
+            projection.supplemental.remote_last_command_summary = f"memory {action} | {summary_text}"
         if _safe_text(action).lower().replace("-", "_") in {
             "refresh",
             "shared_clear",
@@ -5318,6 +5608,70 @@ class MiniAgentTuiApp:
             detail_mode=detail_mode,
         )
 
+    @staticmethod
+    def _memory_command_result(response: Any) -> dict[str, Any]:
+        if isinstance(response, dict) and isinstance(response.get("result"), dict):
+            return dict(response.get("result") or {})
+        if isinstance(response, dict):
+            return dict(response)
+        return {}
+
+    async def _execute_memory_command_plan(
+        self,
+        session: TuiSession,
+        *,
+        command: str,
+        action: str,
+        success_status: str,
+        failure_summary: str,
+        failure_detail_prefix: str,
+        failure_status: str,
+        summary_fallback: str | Callable[[TuiSession, dict[str, Any]], str] = "",
+        metadata: dict[str, Any] | None = None,
+        metadata_builder: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
+        **request_kwargs: Any,
+    ) -> bool:
+        try:
+            response = await self._run_memory_action_for_session(
+                session,
+                action=action,
+                **request_kwargs,
+            )
+        except Exception as exc:
+            self._append_command_feedback(
+                command,
+                summary=failure_summary,
+                details=f"{failure_detail_prefix}{exc}",
+                level="error",
+            )
+            self._set_status(failure_status)
+            self._render_all()
+            return False
+
+        result = self._memory_command_result(response)
+        summary = _safe_text(result.get("summary"))
+        if not summary:
+            if callable(summary_fallback):
+                summary = _safe_text(summary_fallback(session, result))
+            else:
+                summary = _safe_text(summary_fallback)
+        resolved_metadata = {"threads_visible": False}
+        if isinstance(metadata, dict):
+            resolved_metadata.update(metadata)
+        if callable(metadata_builder):
+            extra_metadata = metadata_builder(result)
+            if isinstance(extra_metadata, dict):
+                resolved_metadata.update(extra_metadata)
+        self._append_command_feedback(
+            command,
+            summary=summary,
+            details=str(result.get("details") or ""),
+            metadata=resolved_metadata,
+        )
+        self._set_status(success_status)
+        self._render_all()
+        return True
+
     async def _run_remote_skill_action(
         self,
         session: TuiSession,
@@ -5328,6 +5682,7 @@ class MiniAgentTuiApp:
         query: str | None = None,
         mode: str | None = None,
     ) -> dict[str, Any]:
+        projection = session.projection
         response = await self.remote_session_service.manage_session_skill(
             session.session_id,
             MainAgentSessionSkillRequest(
@@ -5337,16 +5692,16 @@ class MiniAgentTuiApp:
                 query=query,
                 mode=mode if _safe_text(mode) else None,
                 surface="tui",
-                channel_type=session.channel_type,
-                conversation_id=session.conversation_id,
-                sender_id=session.sender_id,
+                channel_type=projection.channel_type,
+                conversation_id=projection.conversation_id,
+                sender_id=projection.sender_id,
             ),
         )
         result = dict(response.result or {})
         if result:
             summary_text = _safe_text(result.get("summary")) or "skill command"
-            session.remote_last_command_summary = f"skill {action} | {summary_text}"
-        if _safe_text(action).lower().replace("-", "_") in {"refresh", "mode", "enable", "disable", "reset", "install"}:
+            projection.supplemental.remote_last_command_summary = f"skill {action} | {summary_text}"
+        if _safe_text(action).lower().replace("-", "_") in REMOTE_SKILL_MUTATION_ACTIONS:
             await self._sync_remote_session_detail(session, recent_limit=80)
             if _safe_text(response.status).lower() == "ok":
                 self._refresh_skill_catalog_signature_baseline()
@@ -5408,6 +5763,156 @@ class MiniAgentTuiApp:
         if normalized_action == "rollback":
             return "Workspace skill rolled back."
         return "Skill command completed."
+
+    @staticmethod
+    def _remote_skill_usage_status_text(action: str) -> str:
+        normalized_action = _safe_text(action).lower().replace("-", "_")
+        if normalized_action == "list":
+            return "Skill list usage shown."
+        return f"Skill {normalized_action or 'command'} usage displayed."
+
+    def _remote_skill_usage_result(self, action: str) -> CommandExecutionResult:
+        normalized_action = _safe_text(action).lower().replace("-", "_")
+        command = f"skill {normalized_action}".strip() if normalized_action else "skill"
+        return CommandExecutionResult(
+            command=command,
+            summary="usage",
+            details=build_command_usage_text("tui", "skill", action=normalized_action or None),
+            status_text=self._remote_skill_usage_status_text(normalized_action),
+            kind="usage",
+        )
+
+    def _resolve_remote_skill_command_plan(
+        self,
+        *,
+        args: list[str],
+        raw_text: str,
+    ) -> RemoteSkillCommandPlan | CommandExecutionResult:
+        action = _safe_text(args[0]).lower() if args else "list"
+
+        if action in {"list", "active", "reset", "refresh"}:
+            if len(args) > 1:
+                return self._remote_skill_usage_result(action)
+            return RemoteSkillCommandPlan(command=f"skill {action}", action=action)
+
+        if action == "show":
+            skill_name = " ".join(args[1:]).strip()
+            if not skill_name:
+                return self._remote_skill_usage_result(action)
+            return RemoteSkillCommandPlan(
+                command=f"skill show {skill_name}",
+                action=action,
+                request_kwargs={"skill_name": skill_name},
+                skill_name=skill_name,
+            )
+
+        if action == "install":
+            source_path = (
+                raw_text[len("skill install") :].strip()
+                if raw_text.lower().startswith("skill install")
+                else " ".join(args[1:]).strip()
+            )
+            if not source_path:
+                return self._remote_skill_usage_result(action)
+            return RemoteSkillCommandPlan(
+                command=f"skill install {source_path}",
+                action=action,
+                request_kwargs={"path": source_path},
+            )
+
+        if action in {"uninstall", "rollback", "enable", "disable"}:
+            skill_name = " ".join(args[1:]).strip()
+            if not skill_name:
+                return self._remote_skill_usage_result(action)
+            return RemoteSkillCommandPlan(
+                command=f"skill {action} {skill_name}",
+                action=action,
+                request_kwargs={"skill_name": skill_name},
+                skill_name=skill_name,
+            )
+
+        if action == "search":
+            query = " ".join(args[1:]).strip()
+            if not query:
+                return self._remote_skill_usage_result(action)
+            return RemoteSkillCommandPlan(
+                command=f"skill search {query}",
+                action=action,
+                request_kwargs={"query": query},
+            )
+
+        if action == "mode":
+            requested_mode = _safe_text(args[1]) if len(args) > 1 else ""
+            if not requested_mode or len(args) > 2:
+                return self._remote_skill_usage_result(action)
+            return RemoteSkillCommandPlan(
+                command=f"skill mode {requested_mode}",
+                action=action,
+                request_kwargs={"mode": requested_mode},
+            )
+
+        return CommandExecutionResult(
+            command="skill",
+            summary="unknown action",
+            details=build_unknown_action_text(
+                "tui",
+                "skill",
+                action,
+                fallback=build_command_usage_text("tui", "skill"),
+            ),
+            status_text="Unknown skill action.",
+            kind="error",
+        )
+
+    @staticmethod
+    def _remote_skill_summary_fallback(
+        action: str,
+        *,
+        found: bool | None = None,
+    ) -> str:
+        normalized_action = _safe_text(action).lower().replace("-", "_")
+        if normalized_action == "show":
+            return "showing skill" if found is not False else "skill not found"
+        return {
+            "list": "skill catalog shown",
+            "active": "workspace skill policy shown",
+            "search": "skill search completed",
+            "mode": "workspace skill mode updated",
+            "enable": "workspace skill policy updated",
+            "disable": "workspace skill policy updated",
+            "reset": "workspace skill policy reset",
+            "refresh": "skill catalog refreshed",
+            "install": "skill installed",
+            "uninstall": "skill uninstalled",
+            "rollback": "skill rolled back",
+        }.get(normalized_action, "skill command completed")
+
+    def _apply_remote_skill_response(
+        self,
+        session: TuiSession,
+        plan: RemoteSkillCommandPlan,
+        response: dict[str, Any],
+    ) -> None:
+        result = response.get("result") if isinstance(response.get("result"), dict) else {}
+        status = _safe_text(response.get("status")).lower()
+        found = bool(result.get("found", True)) if plan.action == "show" else None
+        self._append_command_feedback(
+            plan.command,
+            summary=_safe_text(result.get("summary"))
+            or self._remote_skill_summary_fallback(plan.action, found=found),
+            details=str(result.get("details") or ""),
+            level=self._remote_skill_feedback_level(status, found=found),
+            metadata={"threads_visible": False},
+        )
+        self._set_status(
+            self._remote_skill_status_text(
+                session,
+                action=plan.action,
+                status=status,
+                found=found,
+                skill_name=plan.skill_name,
+            )
+        )
 
     def _cache_local_skill_result_snapshot(
         self,
@@ -5518,7 +6023,7 @@ class MiniAgentTuiApp:
             return
 
         descriptor = self._local_skill_reload_descriptor(payload)
-        if session.busy:
+        if session.projection.busy:
             self._queue_workspace_skill_reload(
                 active_session=session,
                 reason=descriptor["reason"],
@@ -5547,7 +6052,7 @@ class MiniAgentTuiApp:
             self._set_session_selected_model_identity(session, active_identity)
         self._capture_session_agent_snapshot(session)
         await self._shutdown_submission_loop(session)
-        session.agent = None
+        session.runtime.agent = None
         await self._warm_session_agent(
             session,
             prefix=f"{descriptor['warm_prefix_base']} for {session.title}",
@@ -5588,29 +6093,31 @@ class MiniAgentTuiApp:
         )
 
     def _record_pending_approval(self, session: TuiSession, payload: dict[str, Any]) -> str | None:
+        projection = session.projection
         token = self._pending_approval_token(payload)
         if not token:
             return None
         normalized = dict(payload)
         normalized["token"] = token
-        for index, item in enumerate(session.pending_approvals):
+        for index, item in enumerate(projection.pending_approvals):
             if self._pending_approval_token(item) == token:
-                session.pending_approvals[index] = normalized
+                projection.pending_approvals[index] = normalized
                 self._persist_session_state()
                 return token
-        session.pending_approvals.append(normalized)
+        projection.pending_approvals.append(normalized)
         self._persist_session_state()
         return token
 
     def _clear_pending_approval(self, session: TuiSession, token: str | None = None) -> None:
+        projection = session.projection
         normalized = _safe_text(token)
         if not normalized:
-            session.pending_approvals = []
+            projection.pending_approvals = []
             self._persist_session_state()
             return
-        session.pending_approvals = [
+        projection.pending_approvals = [
             item
-            for item in session.pending_approvals
+            for item in projection.pending_approvals
             if self._pending_approval_token(item) != normalized
         ]
         self._persist_session_state()
@@ -5625,6 +6132,7 @@ class MiniAgentTuiApp:
     ) -> None:
         if str(payload.get("submission_id", "") or "").strip() != submission_id:
             return
+        projection = session.projection
 
         if event_type == "loop.approval.requested":
             token = self._record_pending_approval(session, payload)
@@ -5664,9 +6172,9 @@ class MiniAgentTuiApp:
                 activity_id=f"approval:{token or tool_name}",
                 state="ok" if decision == "approved" else "failed",
             )
-            if not session.pending_approvals and session.busy:
+            if not projection.pending_approvals and projection.busy:
                 self._update_running_state(session, f"continuing after {decision}")
-            if session.session_id == self.current_session.session_id and not session.pending_approvals:
+            if session.session_id == self.current_session.session_id and not projection.pending_approvals:
                 self._close_approval_modal()
             self._render_all()
 
@@ -5677,7 +6185,7 @@ class MiniAgentTuiApp:
         submission_id: str,
         event_start_index: int,
     ) -> dict[str, Any]:
-        bus = session.loop_bus
+        bus = session.runtime.loop_bus
         if bus is None:
             raise RuntimeError("Missing submission loop bus.")
         return await wait_for_submission_completion(
@@ -5701,8 +6209,9 @@ class MiniAgentTuiApp:
         metadata: dict[str, Any] | None = None,
         start_new_run: bool = True,
     ) -> dict[str, Any]:
+        runtime = session.runtime
         loop = await self._ensure_submission_loop(session)
-        event_start_index = len(session.loop_bus.events) if session.loop_bus is not None else 0
+        event_start_index = len(runtime.loop_bus.events) if runtime.loop_bus is not None else 0
         policy_overrides = {
             "max_steps": getattr(agent, "max_steps", 50),
             "max_tool_calls_per_step": getattr(agent, "max_tool_calls_per_step", None),
@@ -5732,7 +6241,9 @@ class MiniAgentTuiApp:
 
     async def _run_minimal_workflow(self, objective: str) -> None:
         session = self.current_session
-        if session.busy:
+        projection = session.projection
+        runtime = session.runtime
+        if projection.busy:
             self._set_status(f"{session.title} is busy. Please wait for completion.")
             self._render_all()
             return
@@ -5751,10 +6262,10 @@ class MiniAgentTuiApp:
 
         self._apply_session_lifecycle(session)
         self._append_message("user", f"[workflow] {objective_text}")
-        session.busy = True
-        session.cancel_event = None
-        session.running_state = "workflow starting"
-        session.pending_approvals = []
+        projection.busy = True
+        runtime.cancel_event = None
+        projection.running_state = "workflow starting"
+        projection.pending_approvals = []
         self._set_status(f"Running workflow for {session.title}...")
         self._render_all()
 
@@ -5831,40 +6342,44 @@ class MiniAgentTuiApp:
             )
             self._set_status(message)
         finally:
-            session.busy = False
-            session.cancel_event = None
-            session.running_state = ""
-            session.pending_approvals = []
+            projection.busy = False
+            runtime.cancel_event = None
+            projection.running_state = ""
+            projection.pending_approvals = []
             await self._apply_pending_session_model_selection(session)
             self._persist_session_state()
             self._render_all()
 
     def _invalidate_session_agent(self, session: TuiSession) -> None:
+        projection = session.projection
+        runtime = session.runtime
         self._capture_session_agent_snapshot(session)
-        if session.busy:
+        if projection.busy:
             self._cancel_session_turn(session)
-        if session.submission_loop is not None:
+        if runtime.submission_loop is not None:
             self._schedule(self._shutdown_submission_loop(session))
-        session.agent = None
-        session.cancel_event = None
-        session.running_state = ""
-        session.pending_approvals = []
+        runtime.agent = None
+        runtime.cancel_event = None
+        projection.running_state = ""
+        projection.pending_approvals = []
 
     def _invalidate_all_session_agents(self) -> None:
         for session in self.sessions:
             self._invalidate_session_agent(session)
 
     def _cancel_session_turn(self, session: TuiSession) -> bool:
-        if not session.busy:
+        projection = session.projection
+        runtime = session.runtime
+        if not projection.busy:
             return False
-        task = self._find_task(session, session.active_task_id)
-        if session.submission_loop is not None:
-            agent_cancel_event = getattr(session.agent, "cancel_event", None)
+        task = self._find_task(session, runtime.active_task_id)
+        if runtime.submission_loop is not None:
+            agent_cancel_event = getattr(runtime.agent, "cancel_event", None)
             if isinstance(agent_cancel_event, asyncio.Event) and not agent_cancel_event.is_set():
                 agent_cancel_event.set()
-            self._schedule(session.submission_loop.submit_interrupt(reason="user_cancel"))
+            self._schedule(runtime.submission_loop.submit_interrupt(reason="user_cancel"))
             self._update_task(task, note="cancellation requested")
-            session.running_state = "cancellation requested"
+            projection.running_state = "cancellation requested"
             if session.session_id == self.current_session.session_id:
                 self._set_status(f"Cancelling turn for {session.title}...")
                 self._append_command_feedback(
@@ -5874,12 +6389,12 @@ class MiniAgentTuiApp:
                 )
             self._render_all()
             return True
-        cancel_event = session.cancel_event
+        cancel_event = runtime.cancel_event
         if cancel_event is None or cancel_event.is_set():
             return False
         cancel_event.set()
         self._update_task(task, note="cancellation requested")
-        session.running_state = "cancellation requested"
+        projection.running_state = "cancellation requested"
         if session.session_id == self.current_session.session_id:
             self._set_status(f"Cancelling turn for {session.title}...")
             self._append_command_feedback(
@@ -5946,10 +6461,12 @@ class MiniAgentTuiApp:
             self._render_all()
             return False
 
-        task = self._find_task(session, session.active_task_id)
+        projection = session.projection
+        runtime = session.runtime
+        task = self._find_task(session, runtime.active_task_id)
         self._update_task(task, note="cancellation requested")
-        session.busy = True
-        session.running_state = "cancellation requested"
+        projection.busy = True
+        projection.running_state = "cancellation requested"
         try:
             await self._sync_remote_session_detail(session, recent_limit=80)
         except Exception:
@@ -5965,10 +6482,13 @@ class MiniAgentTuiApp:
         session: TuiSession | None = None,
     ) -> None:
         session = session or self.current_session
+        projection = session.projection
+        runtime = session.runtime
+        view = session.view
         if not self._runs_via_gateway(session):
             await self._run_chat_turn(text, session=session)
             return
-        if session.busy:
+        if projection.busy:
             self._set_status(f"{session.title} is busy. Please wait for the remote turn to finish.")
             self._render_all()
             return
@@ -5985,11 +6505,11 @@ class MiniAgentTuiApp:
             },
         )
         self._start_turn_activity(session, detail="starting run")
-        session.busy = True
-        session.active_task_id = task.task_id
-        session.active_surface = "tui"
-        session.reply_enabled = False
-        session.running_state = "gateway request running"
+        projection.busy = True
+        runtime.active_task_id = task.task_id
+        projection.active_surface = "tui"
+        projection.reply_enabled = False
+        projection.running_state = "gateway request running"
         self._set_status(f"Submitting remote turn for {session.title}...")
         self._persist_session_state()
         self._render_all()
@@ -6041,7 +6561,7 @@ class MiniAgentTuiApp:
                         token = self._pending_approval_token(payload)
                         if token:
                             self._clear_pending_approval(session, token)
-                        if session.session_id == self.current_session.session_id and not session.pending_approvals:
+                        if session.session_id == self.current_session.session_id and not projection.pending_approvals:
                             self._close_approval_modal()
                         self._render_all()
                         continue
@@ -6093,13 +6613,13 @@ class MiniAgentTuiApp:
             if stop_reason in {"", TurnStopReason.END_TURN.value}:
                 self._update_task(task, status="completed", stop_reason="end_turn", note="ok")
                 self._finish_turn_activity(session, detail="response ready")
-                if isinstance(assistant_message_index, int) and 0 <= assistant_message_index < len(session.messages):
-                    metadata = dict(session.messages[assistant_message_index].metadata)
+                if isinstance(assistant_message_index, int) and 0 <= assistant_message_index < len(view.messages):
+                    metadata = dict(view.messages[assistant_message_index].metadata)
                     metadata["streaming"] = False
                     self._update_session_message_content(
                         session,
                         assistant_message_index,
-                        session.messages[assistant_message_index].content,
+                        view.messages[assistant_message_index].content,
                         metadata=metadata,
                         persist=False,
                     )
@@ -6115,14 +6635,20 @@ class MiniAgentTuiApp:
             else:
                 self._update_task(task, status="completed", stop_reason=stop_reason, note="refusal_or_failure")
                 self._finish_turn_activity(session, detail="run failed")
-            session.busy = False
-            session.running_state = ""
+            projection.busy = False
+            projection.running_state = ""
             if isinstance(response, dict):
-                session.remote_message_count = max(
-                    int(response.get("message_count", session.remote_message_count) or 0),
-                    session.remote_message_count,
+                projection.supplemental.remote_message_count = max(
+                    int(
+                        response.get(
+                            "message_count",
+                            projection.supplemental.remote_message_count,
+                        )
+                        or 0
+                    ),
+                    projection.supplemental.remote_message_count,
                 )
-                session.token_usage = _safe_nonnegative_int(response.get("token_usage"), default=session.token_usage)
+                projection.token_usage = _safe_nonnegative_int(response.get("token_usage"), default=projection.token_usage)
             await self._sync_remote_session_detail(session, recent_limit=80)
             if stop_reason in {"", TurnStopReason.END_TURN.value}:
                 self._set_status(f"Completed remote turn for {session.title}.")
@@ -6148,14 +6674,14 @@ class MiniAgentTuiApp:
                 )
                 self._set_status(f"Remote turn failed for {session.title}.")
         except Exception as exc:
-            session.busy = False
-            session.running_state = ""
+            projection.busy = False
+            projection.running_state = ""
             self._update_task(task, status="completed", stop_reason="exception", note=str(exc))
             self._finish_turn_activity(session, detail="exception raised")
             self._append_session_message(session, "system", f"Remote turn failed: {exc}")
             self._set_status(f"Remote turn failed for {session.title}: {exc}")
         finally:
-            session.active_task_id = None
+            runtime.active_task_id = None
             self._render_all()
 
     def _build_turn_hooks(self, session: TuiSession) -> PlannerExecutorHooks:
@@ -6221,7 +6747,10 @@ class MiniAgentTuiApp:
         restore_agent_messages: Sequence[dict[str, Any]] | None = None,
     ) -> None:
         session = session or self.current_session
-        if session.busy:
+        projection = session.projection
+        runtime = session.runtime
+        view = session.view
+        if projection.busy:
             self._set_status(f"{session.title} is busy. Please wait for completion.")
             self._render_all()
             return
@@ -6241,7 +6770,7 @@ class MiniAgentTuiApp:
             self._set_pending_resume(
                 session,
                 task_id=task.task_id,
-                agent_messages=restore_agent_messages or session.pending_resume_agent_messages or session.restored_agent_messages,
+                agent_messages=restore_agent_messages or runtime.pending_resume_agent_messages or runtime.restored_agent_messages,
             )
             self._update_task(
                 task,
@@ -6260,12 +6789,13 @@ class MiniAgentTuiApp:
                 metadata={"threads_visible": False},
             )
             recovery_notes: list[str] = []
-            if _safe_text(session.recovery_running_state):
-                recovery_notes.append(f"Last state before restart: {session.recovery_running_state}")
-            if session.recovery_pending_approvals:
+            supplemental = projection.supplemental
+            if _safe_text(supplemental.recovery_running_state):
+                recovery_notes.append(f"Last state before restart: {supplemental.recovery_running_state}")
+            if supplemental.recovery_pending_approvals:
                 approval_labels = ", ".join(
                     _safe_text(item.get("tool_name")) or _safe_text(item.get("token")) or "tool"
-                    for item in session.recovery_pending_approvals
+                    for item in supplemental.recovery_pending_approvals
                     if isinstance(item, dict)
                 )
                 if approval_labels:
@@ -6279,11 +6809,11 @@ class MiniAgentTuiApp:
                 )
 
         self._start_turn_activity(session, detail="resuming after restart" if resuming else "starting run")
-        session.busy = True
-        session.cancel_event = None
-        session.active_task_id = task.task_id
-        session.running_state = "resuming after restart" if resuming else "starting run"
-        session.pending_approvals = []
+        projection.busy = True
+        runtime.cancel_event = None
+        runtime.active_task_id = task.task_id
+        projection.running_state = "resuming after restart" if resuming else "starting run"
+        projection.pending_approvals = []
         self._set_status(f"{'Resuming' if resuming else 'Running'} turn for {session.title}...")
         self._persist_session_state()
         self._render_all()
@@ -6292,11 +6822,11 @@ class MiniAgentTuiApp:
         submission_started = False
         try:
             if restore_agent_messages:
-                session.restored_agent_messages = _copy_serialized_messages(
+                runtime.restored_agent_messages = _copy_serialized_messages(
                     [item for item in restore_agent_messages if isinstance(item, dict)]
                 )
-                if session.agent is not None:
-                    self._restore_agent_messages_payload(session.restored_agent_messages, session.agent)
+                if runtime.agent is not None:
+                    self._restore_agent_messages_payload(runtime.restored_agent_messages, runtime.agent)
 
             agent = await self._ensure_agent(session)
             if agent is None:
@@ -6324,7 +6854,7 @@ class MiniAgentTuiApp:
                 return
 
             loop = await self._ensure_submission_loop(session)
-            event_start_index = len(session.loop_bus.events) if session.loop_bus is not None else 0
+            event_start_index = len(runtime.loop_bus.events) if runtime.loop_bus is not None else 0
             policy_overrides = {
                 "max_steps": getattr(agent, "max_steps", 50),
                 "max_tool_calls_per_step": getattr(agent, "max_tool_calls_per_step", None),
@@ -6420,32 +6950,34 @@ class MiniAgentTuiApp:
             if clear_pending_resume:
                 self._clear_pending_resume(session, task_id=task.task_id)
             else:
-                session.pending_resume_started = False
-            session.active_task_id = None
-            session.busy = False
-            session.cancel_event = None
-            session.running_state = ""
-            session.active_activity_message_index = None
-            session.pending_approvals = []
+                runtime.pending_resume_started = False
+            runtime.active_task_id = None
+            projection.busy = False
+            runtime.cancel_event = None
+            projection.running_state = ""
+            view.active_activity_message_index = None
+            projection.pending_approvals = []
             await self._apply_pending_session_model_selection(session)
             await self._apply_pending_session_skill_reload(session)
             self._persist_session_state()
             self._render_all()
 
     async def _ensure_agent(self, session: TuiSession) -> Agent | None:
-        if session.pending_skill_reload and self._has_local_runtime_state(session):
+        operator = session.operator
+        runtime = session.runtime
+        if operator.pending_skill_reload and self._has_local_runtime_state(session):
             applied = await self._apply_pending_session_skill_reload(session)
-            if applied and session.agent is not None:
-                return session.agent
-        if session.agent is not None:
-            return session.agent
+            if applied and runtime.agent is not None:
+                return runtime.agent
+        if runtime.agent is not None:
+            return runtime.agent
         try:
             agent = await self._build_session_agent(session)
-            if session.pending_skill_reload:
+            if operator.pending_skill_reload:
                 self._clear_session_skill_reload_pending(session)
                 self._persist_session_state()
             self._set_status(f"Agent ready on {agent.llm.model}.")
-            return session.agent
+            return runtime.agent
         except Exception as exc:
             self._append_message("system", f"Agent initialization failed: {exc}")
             self._set_status(f"Agent init failed: {exc}")
@@ -6476,28 +7008,31 @@ class MiniAgentTuiApp:
             return False
 
     def _reset_session_runtime_state(self, session: TuiSession) -> None:
-        self._reset_agent_messages(session.agent)
+        runtime = session.runtime
+        projection = session.projection
+        view = session.view
+        self._reset_agent_messages(runtime.agent)
         if self._has_local_runtime_state(session):
             self._clear_local_runtime_task_memory(session.session_id)
-        session.token_usage = 0
-        if session.agent is not None:
-            session.token_limit = _safe_nonnegative_int(getattr(session.agent, "token_limit", session.token_limit))
-        session.restored_agent_messages = []
-        session.pending_resume_task_id = None
-        session.pending_resume_agent_messages = []
-        session.pending_resume_started = False
-        session.recovery_running_state = ""
-        session.recovery_pending_approvals = []
-        session.pending_approvals = []
-        session.active_task_id = None
-        session.cancel_event = None
-        session.busy = False
-        session.running_state = ""
-        session.active_activity_message_index = None
-        session.chat_scroll_line = 0
-        session.chat_follow_output = True
-        session.last_prepared_context = {}
-        session.prepared_context_diagnostics = {}
+        projection.token_usage = 0
+        if runtime.agent is not None:
+            projection.token_limit = _safe_nonnegative_int(getattr(runtime.agent, "token_limit", projection.token_limit))
+        runtime.restored_agent_messages = []
+        runtime.pending_resume_task_id = None
+        runtime.pending_resume_agent_messages = []
+        runtime.pending_resume_started = False
+        projection.supplemental.recovery_running_state = ""
+        projection.supplemental.recovery_pending_approvals = []
+        projection.pending_approvals = []
+        runtime.active_task_id = None
+        runtime.cancel_event = None
+        projection.busy = False
+        projection.running_state = ""
+        view.active_activity_message_index = None
+        view.chat_scroll_line = 0
+        view.chat_follow_output = True
+        projection.last_prepared_context = {}
+        projection.prepared_context_diagnostics = {}
         self._bump_chat_render_revision(session)
         self._refresh_local_memory_diagnostics(session)
 
@@ -6533,7 +7068,7 @@ class MiniAgentTuiApp:
 
     @classmethod
     def _restore_agent_messages(cls, session: TuiSession, agent: Agent) -> None:
-        cls._restore_agent_messages_payload(session.restored_agent_messages, agent)
+        cls._restore_agent_messages_payload(session.runtime.restored_agent_messages, agent)
 
     def _apply_session_lifecycle(self, session: TuiSession) -> None:
         decision = self.session_lifecycle_runtime.ensure_active(
@@ -6583,11 +7118,11 @@ class MiniAgentTuiApp:
         tokens.update({"drop-memories", "/drop-memories", "quit", "/quit"})
         for session in self.sessions:
             tokens.add(session.session_id)
-            for approval in session.pending_approvals:
+            for approval in session.projection.pending_approvals:
                 approval_token = self._pending_approval_token(approval)
                 if approval_token:
                     tokens.add(approval_token)
-            for task in session.tasks:
+            for task in session.view.tasks:
                 task_id = _safe_text(task.task_id)
                 if task_id:
                     tokens.add(task_id)
@@ -6626,7 +7161,9 @@ class MiniAgentTuiApp:
         for index, session in enumerate(self.sessions):
             marker = ">" if index == self.session_index else " "
             visible_count = self._session_message_count(session)
-            source_tag = (_safe_text(session.channel_type) or _safe_text(session.origin_surface) or "tui").upper()
+            source_tag = (
+                _safe_text(session.projection.channel_type) or _safe_text(session.projection.origin_surface) or "tui"
+            ).upper()
             lines.append(
                 f"{marker} #{index + 1} {session.title} ({session.session_id}) [{source_tag}] - {visible_count} msg"
             )
@@ -6646,6 +7183,95 @@ class MiniAgentTuiApp:
             lines.extend([f"  - {model.get('model_id')}" for _, model in models])
         return "\n".join(lines)
 
+    @staticmethod
+    def _remote_gateway_error_detail(exc: Exception) -> str:
+        message = _safe_text(exc)
+        match = re.match(r"^Gateway HTTP \d+:\s*(.+)$", message)
+        if match:
+            return _safe_text(match.group(1))
+        return message or "Remote request failed."
+
+    @classmethod
+    def _remote_approval_error_summary(cls, detail: str) -> str:
+        normalized = _safe_text(detail)
+        if normalized.startswith("Pending approval not found:"):
+            return "token not found"
+        if normalized.startswith("Multiple approvals pending."):
+            return "token required"
+        if normalized == "Session has no pending approval.":
+            return "nothing pending"
+        if "cannot be resumed directly" in normalized:
+            return "recovery required"
+        if normalized == "Pending approval is no longer waiting for input.":
+            return "approval unavailable"
+        return "approval failed"
+
+    @classmethod
+    def _remote_approval_error_status(cls, detail: str) -> str:
+        normalized = _safe_text(detail)
+        if normalized.startswith("Multiple approvals pending."):
+            return "Specify approval token."
+        if normalized == "Session has no pending approval.":
+            return "No pending approval request."
+        return normalized or "Remote approval failed."
+
+    @classmethod
+    def _remote_control_error_summary(cls, detail: str) -> str:
+        normalized = _safe_text(detail)
+        if normalized == "Session is busy. Wait for the current turn to finish.":
+            return "session busy"
+        return "command failed"
+
+    @classmethod
+    def _remote_control_error_status(cls, detail: str) -> str:
+        normalized = _safe_text(detail)
+        if normalized:
+            return normalized
+        return "Remote command failed."
+
+    async def _dispatch_remote_control_command(
+        self,
+        *,
+        session: TuiSession,
+        command_text: str,
+        action: str,
+        reason: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> tuple[Any, bool] | None:
+        projection = session.projection
+        try:
+            response = await self.remote_session_service.control_session(
+                session.session_id,
+                MainAgentSessionControlRequest(
+                    action=action,
+                    reason=reason,
+                    surface="tui",
+                    channel_type=projection.channel_type,
+                    conversation_id=projection.conversation_id,
+                    sender_id=projection.sender_id,
+                ),
+            )
+        except Exception as exc:
+            detail = self._remote_gateway_error_detail(exc)
+            self._append_command_feedback(
+                command_text,
+                summary=self._remote_control_error_summary(detail),
+                details=detail,
+                level="error",
+                metadata=metadata,
+            )
+            self._set_status(self._remote_control_error_status(detail))
+            self._render_all()
+            return None
+
+        synced = False
+        try:
+            await self._sync_remote_session_detail(session, recent_limit=80)
+            synced = True
+        except Exception:
+            pass
+        return response, synced
+
     async def _respond_to_pending_approval(
         self,
         *,
@@ -6654,16 +7280,57 @@ class MiniAgentTuiApp:
         token: str | None = None,
     ) -> bool:
         action_name = "approve" if approved else "deny"
-        loop = session.submission_loop
-        pending = [item for item in session.pending_approvals if self._pending_approval_token(item)]
-        if not pending:
-            if self._runs_via_gateway(session) and session.recovery_pending_approvals:
-                message = (
-                    "Pending approval was lost after restart and cannot be resumed directly. "
-                    "Send a new message to continue with recovery context."
+        projection = session.projection
+        normalized_token = _safe_text(token) or None
+        if self._runs_via_gateway(session):
+            try:
+                response = await self.remote_session_service.respond_to_approval(
+                    session.session_id,
+                    MainAgentSessionApprovalRequest(
+                        approved=approved,
+                        token=normalized_token,
+                        surface="tui",
+                        channel_type=projection.channel_type,
+                        conversation_id=projection.conversation_id,
+                        sender_id=projection.sender_id,
+                    ),
                 )
-            else:
-                message = "No pending approval request."
+            except Exception as exc:
+                detail = self._remote_gateway_error_detail(exc)
+                self._append_command_feedback(
+                    f"{action_name} {normalized_token}".strip() or action_name,
+                    summary=self._remote_approval_error_summary(detail),
+                    details=detail,
+                    level="error",
+                )
+                self._set_status(self._remote_approval_error_status(detail))
+                self._render_all()
+                return False
+
+            resolved_token = _safe_text(response.token)
+            tool_name = _safe_text(response.tool_name) or "tool"
+            decision = _safe_text(response.decision) or ("approved" if approved else "denied")
+            self._clear_pending_approval(session, resolved_token)
+            try:
+                await self._sync_remote_session_detail(session, recent_limit=80)
+            except Exception:
+                pass
+            self._append_command_feedback(
+                f"{action_name} {resolved_token}".strip(),
+                summary=f"{decision} {tool_name}",
+                details=f"{decision.capitalize()} pending tool call for {tool_name}.",
+            )
+            if not projection.pending_approvals:
+                self._close_approval_modal()
+            self._set_status(f"{decision.capitalize()} {tool_name} for {session.title}.")
+            self._render_all()
+            return True
+
+        runtime = session.runtime
+        loop = runtime.submission_loop
+        pending = [item for item in projection.pending_approvals if self._pending_approval_token(item)]
+        if not pending:
+            message = "No pending approval request."
             self._append_command_feedback(
                 action_name,
                 summary="nothing pending",
@@ -6686,7 +7353,6 @@ class MiniAgentTuiApp:
             self._render_all()
             return False
 
-        normalized_token = _safe_text(token)
         target = None
         if normalized_token:
             target = next(
@@ -6721,41 +7387,14 @@ class MiniAgentTuiApp:
 
         resolved_token = self._pending_approval_token(target)
         tool_name = _safe_text(target.get("tool_name")) or "tool"
-        if self._runs_via_gateway(session):
-            try:
-                await self.remote_session_service.respond_to_approval(
-                    session.session_id,
-                    MainAgentSessionApprovalRequest(
-                        approved=approved,
-                        token=resolved_token,
-                        surface="tui",
-                    ),
-                )
-            except Exception as exc:
-                message = f"Remote {action_name} failed: {exc}"
-                self._append_command_feedback(
-                    f"{action_name} {resolved_token}",
-                    summary="approval failed",
-                    details=message,
-                    level="error",
-                )
-                self._set_status(message)
-                self._render_all()
-                return False
-            self._clear_pending_approval(session, resolved_token)
-            try:
-                await self._sync_remote_session_detail(session, recent_limit=80)
-            except Exception:
-                pass
-        else:
-            await loop.submit_exec_approval(approved=approved, token=resolved_token)
-            self._clear_pending_approval(session, resolved_token)
+        await loop.submit_exec_approval(approved=approved, token=resolved_token)
+        self._clear_pending_approval(session, resolved_token)
         self._append_command_feedback(
             f"{action_name} {resolved_token}",
             summary=f"{'approved' if approved else 'denied'} {tool_name}",
             details=f"{'Approved' if approved else 'Denied'} pending tool call for {tool_name}.",
         )
-        if not session.pending_approvals:
+        if not projection.pending_approvals:
             self._close_approval_modal()
         self._set_status(
             f"{'Approved' if approved else 'Denied'} {tool_name} for {session.title}."
@@ -6772,45 +7411,19 @@ class MiniAgentTuiApp:
     ) -> bool:
         normalized_action = _safe_text(action).lower().replace("-", "_")
         command_text = normalized_action if not reason else f"{normalized_action} {reason}"
-
-        if session.busy:
-            message = f"{session.title} is busy. Wait for the current turn to finish first."
-            self._append_command_feedback(
-                normalized_action,
-                summary="session busy",
-                details=message,
-                level="error",
-            )
-            self._set_status(message)
-            self._render_all()
-            return False
+        projection = session.projection
+        runtime = session.runtime
 
         if self._runs_via_gateway(session):
-            try:
-                response = await self.remote_session_service.control_session(
-                    session.session_id,
-                    MainAgentSessionControlRequest(
-                        action=normalized_action,
-                        reason=reason,
-                        surface="tui",
-                    ),
-                )
-            except Exception as exc:
-                message = f"Remote {normalized_action} failed: {exc}"
-                self._append_command_feedback(
-                    command_text,
-                    summary="command failed",
-                    details=message,
-                    level="error",
-                )
-                self._set_status(message)
-                self._render_all()
+            remote_result = await self._dispatch_remote_control_command(
+                session=session,
+                command_text=command_text,
+                action=normalized_action,
+                reason=reason,
+            )
+            if remote_result is None:
                 return False
-
-            try:
-                await self._sync_remote_session_detail(session, recent_limit=80)
-            except Exception:
-                pass
+            response, _ = remote_result
 
             applied = bool(response.applied)
             if normalized_action == "compact":
@@ -6829,6 +7442,18 @@ class MiniAgentTuiApp:
             self._render_all()
             return True
 
+        if projection.busy:
+            message = f"{session.title} is busy. Wait for the current turn to finish first."
+            self._append_command_feedback(
+                normalized_action,
+                summary="session busy",
+                details=message,
+                level="error",
+            )
+            self._set_status(message)
+            self._render_all()
+            return False
+
         agent = await self._ensure_agent(session)
         if agent is None:
             self._append_command_feedback(
@@ -6842,7 +7467,7 @@ class MiniAgentTuiApp:
             return False
 
         loop = await self._ensure_submission_loop(session)
-        bus = session.loop_bus
+        bus = runtime.loop_bus
         if bus is None:
             message = "Missing submission loop bus."
             self._append_command_feedback(
@@ -6961,18 +7586,6 @@ class MiniAgentTuiApp:
 
     async def _handle_session_command(self, args: list[str]) -> None:
         action = args[0].lower() if args else "list"
-        session_actions = (
-            "new",
-            "next",
-            "prev",
-            "list",
-            "rename",
-            "delete",
-            "remove",
-            "rm",
-            "share",
-            "unshare",
-        )
         if action.isdigit():
             target_index = self._find_session_index_by_selector(action)
             if target_index is None:
@@ -7027,7 +7640,7 @@ class MiniAgentTuiApp:
                     target_session.session_id,
                     MainAgentSessionShareRequest(shared=True),
                 )
-                target_session.shared = bool(response.shared if response.shared is not None else True)
+                target_session.projection.shared = bool(response.shared if response.shared is not None else True)
                 await self._sync_remote_session_detail(target_session, recent_limit=80)
                 self._set_status(f"Shared {target_session.title} to remote surfaces.")
             except Exception as exc:
@@ -7062,7 +7675,7 @@ class MiniAgentTuiApp:
                     target_session.session_id,
                     MainAgentSessionShareRequest(shared=False),
                 )
-                target_session.shared = bool(response.shared if response.shared is not None else False)
+                target_session.projection.shared = bool(response.shared if response.shared is not None else False)
                 await self._sync_remote_session_detail(target_session, recent_limit=80)
                 self._set_status(f"Unshared {target_session.title}.")
             except Exception as exc:
@@ -7192,15 +7805,16 @@ class MiniAgentTuiApp:
             args = ["show", action]
             action = "show"
         session = self.current_session
+        projection = session.projection
         if action == "show":
             await self._refresh_context_snapshot_if_gateway_bound(session, recent_limit=80)
             result = self.local_command_service.execute_context(
                 surface="tui",
                 action=action,
                 args=args,
-                current_policy=session.context_policy,
-                prepared_context=session.last_prepared_context,
-                prepared_context_diagnostics=session.prepared_context_diagnostics,
+                current_policy=projection.context_policy,
+                prepared_context=projection.last_prepared_context,
+                prepared_context_diagnostics=projection.prepared_context_diagnostics,
                 session_label=session.title,
             )
             self._append_command_feedback(
@@ -7217,9 +7831,9 @@ class MiniAgentTuiApp:
                 surface="tui",
                 action=action,
                 args=args,
-                current_policy=session.context_policy,
-                prepared_context=session.last_prepared_context,
-                prepared_context_diagnostics=session.prepared_context_diagnostics,
+                current_policy=projection.context_policy,
+                prepared_context=projection.last_prepared_context,
+                prepared_context_diagnostics=projection.prepared_context_diagnostics,
                 session_label=session.title,
             )
             self._append_command_feedback(
@@ -7235,9 +7849,9 @@ class MiniAgentTuiApp:
                 surface="tui",
                 action=action,
                 args=args,
-                current_policy=session.context_policy,
-                prepared_context=session.last_prepared_context,
-                prepared_context_diagnostics=session.prepared_context_diagnostics,
+                current_policy=projection.context_policy,
+                prepared_context=projection.last_prepared_context,
+                prepared_context_diagnostics=projection.prepared_context_diagnostics,
                 session_label=session.title,
             )
             if validation_result.kind in {"usage", "error"}:
@@ -7253,46 +7867,23 @@ class MiniAgentTuiApp:
                 return
 
             if self._runs_via_gateway(session):
-                try:
-                    if action in {"include", "exclude"}:
-                        await self._update_remote_context_policy(
-                            session,
-                            action=action,
-                            sources=list(args[1:]),
-                        )
-                    elif action == "budget":
-                        await self._update_remote_context_policy(
-                            session,
-                            action="budget",
-                            max_items=int(args[1]),
-                            max_total_chars=int(args[2]) if len(args) >= 3 else None,
-                            max_items_per_source=int(args[3]) if len(args) >= 4 else None,
-                        )
-                    else:
-                        await self._update_remote_context_policy(session, action="reset")
-                except Exception as exc:
-                    self._append_command_feedback(
-                        validation_result.command,
-                        summary="update failed" if action != "reset" else "reset failed",
-                        details=f"Remote context {'reset' if action == 'reset' else 'update'} failed: {exc}",
-                        level="error",
-                    )
-                    self._set_status(f"Remote context {'reset' if action == 'reset' else 'update'} failed.")
+                updated = await self._dispatch_remote_context_update(session, validation_result)
+                if not updated:
                     self._render_all()
                     return
             else:
                 updated_policy = validation_result.payload.get("policy")
                 if isinstance(updated_policy, dict):
-                    session.context_policy = updated_policy
+                    projection.context_policy = updated_policy
                     self._persist_session_state()
 
             result = self.local_command_service.execute_context(
                 surface="tui",
                 action=action,
                 args=args,
-                current_policy=session.context_policy,
-                prepared_context=session.last_prepared_context,
-                prepared_context_diagnostics=session.prepared_context_diagnostics,
+                current_policy=projection.context_policy,
+                prepared_context=projection.last_prepared_context,
+                prepared_context_diagnostics=projection.prepared_context_diagnostics,
                 session_label=session.title,
             )
             self._append_command_feedback(
@@ -7308,9 +7899,9 @@ class MiniAgentTuiApp:
                 surface="tui",
                 action=action,
                 args=args,
-                current_policy=session.context_policy,
-                prepared_context=session.last_prepared_context,
-                prepared_context_diagnostics=session.prepared_context_diagnostics,
+                current_policy=projection.context_policy,
+                prepared_context=projection.last_prepared_context,
+                prepared_context_diagnostics=projection.prepared_context_diagnostics,
                 session_label=session.title,
             )
             self._append_command_feedback(
@@ -7327,22 +7918,6 @@ class MiniAgentTuiApp:
         if action in {"brief", "full"}:
             args = ["show", action]
             action = "show"
-        memory_actions = (
-            "status",
-            "show",
-            "list",
-            "overview",
-            "consolidated",
-            "profile",
-            "notes",
-            "daily",
-            "export",
-            "shared",
-            "refresh",
-            "runtime",
-            "promote",
-            "save",
-        )
         session = self.current_session
 
         if action == "status":
@@ -7356,35 +7931,17 @@ class MiniAgentTuiApp:
                 self._set_status("Memory status usage shown.")
                 self._render_all()
                 return
-            try:
-                response = await self._run_memory_action_for_session(
-                    session,
-                    action="status",
-                    detail_mode="brief",
-                )
-            except Exception as exc:
-                self._append_command_feedback(
-                    "memory status",
-                    summary="status failed",
-                    details=f"Memory status failed: {exc}",
-                    level="error",
-                )
-                self._set_status("Memory status failed.")
-                self._render_all()
-                return
-            result = (
-                response.get("result")
-                if isinstance(response, dict) and isinstance(response.get("result"), dict)
-                else response
+            await self._execute_memory_command_plan(
+                session,
+                command="memory status",
+                action="status",
+                detail_mode="brief",
+                success_status="Memory status shown.",
+                failure_summary="status failed",
+                failure_detail_prefix="Memory status failed: ",
+                failure_status="Memory status failed.",
+                summary_fallback=lambda current_session, _result: self._memory_summary(current_session),
             )
-            self._append_command_feedback(
-                "memory status",
-                summary=_safe_text(result.get("summary")) or self._memory_summary(session),
-                details=str(result.get("details") or ""),
-                metadata={"threads_visible": False},
-            )
-            self._set_status("Memory status shown.")
-            self._render_all()
             return
 
         if action == "show":
@@ -7399,40 +7956,22 @@ class MiniAgentTuiApp:
                 self._set_status("Memory show usage displayed.")
                 self._render_all()
                 return
-            try:
-                response = await self._run_memory_action_for_session(
-                    session,
-                    action="session_show" if selector else "show",
-                    engram_id=selector,
-                    detail_mode=detail_mode,
-                )
-            except Exception as exc:
-                self._append_command_feedback(
-                    f"memory show {selector}" if selector else "memory show",
-                    summary="show failed",
-                    details=f"{'Runtime memory entry' if selector else 'Memory diagnostics'} failed: {exc}",
-                    level="error",
-                )
-                self._set_status("Runtime memory entry failed." if selector else "Memory diagnostics failed.")
-                self._render_all()
-                return
-            result = (
-                response.get("result")
-                if isinstance(response, dict) and isinstance(response.get("result"), dict)
-                else response
-            )
-            self._append_command_feedback(
-                (
+            await self._execute_memory_command_plan(
+                session,
+                command=(
                     f"memory show {selector}"
                     if selector
                     else f"memory show {detail_mode}" if detail_mode != "full" else "memory show"
                 ),
-                summary=_safe_text(result.get("summary")) or self._memory_summary(session),
-                details=str(result.get("details") or ""),
-                metadata={"threads_visible": False},
+                action="session_show" if selector else "show",
+                engram_id=selector,
+                detail_mode=detail_mode,
+                success_status="Runtime memory entry shown." if selector else "Memory diagnostics shown.",
+                failure_summary="show failed",
+                failure_detail_prefix=f"{'Runtime memory entry' if selector else 'Memory diagnostics'} failed: ",
+                failure_status="Runtime memory entry failed." if selector else "Memory diagnostics failed.",
+                summary_fallback=lambda current_session, _result: self._memory_summary(current_session),
             )
-            self._set_status("Runtime memory entry shown." if selector else "Memory diagnostics shown.")
-            self._render_all()
             return
 
         if action == "list":
@@ -7446,35 +7985,17 @@ class MiniAgentTuiApp:
                 self._set_status("Memory list usage shown.")
                 self._render_all()
                 return
-            try:
-                response = await self._run_memory_action_for_session(
-                    session,
-                    action="list",
-                    detail_mode="full",
-                )
-            except Exception as exc:
-                self._append_command_feedback(
-                    "memory list",
-                    summary="list failed",
-                    details=f"Runtime memory list failed: {exc}",
-                    level="error",
-                )
-                self._set_status("Runtime memory list failed.")
-                self._render_all()
-                return
-            result = (
-                response.get("result")
-                if isinstance(response, dict) and isinstance(response.get("result"), dict)
-                else response
+            await self._execute_memory_command_plan(
+                session,
+                command="memory list",
+                action="list",
+                detail_mode="full",
+                success_status="Runtime memory list shown.",
+                failure_summary="list failed",
+                failure_detail_prefix="Runtime memory list failed: ",
+                failure_status="Runtime memory list failed.",
+                summary_fallback=lambda current_session, _result: self._memory_summary(current_session),
             )
-            self._append_command_feedback(
-                "memory list",
-                summary=_safe_text(result.get("summary")) or self._memory_summary(session),
-                details=str(result.get("details") or ""),
-                metadata={"threads_visible": False},
-            )
-            self._set_status("Runtime memory list shown.")
-            self._render_all()
             return
 
         if action == "overview":
@@ -7488,35 +8009,17 @@ class MiniAgentTuiApp:
                 self._set_status("Memory overview usage shown.")
                 self._render_all()
                 return
-            try:
-                response = await self._run_memory_action_for_session(
-                    session,
-                    action="overview",
-                    detail_mode="full",
-                )
-            except Exception as exc:
-                self._append_command_feedback(
-                    "memory overview",
-                    summary="overview failed",
-                    details=f"Memory overview failed: {exc}",
-                    level="error",
-                )
-                self._set_status("Memory overview failed.")
-                self._render_all()
-                return
-            result = (
-                response.get("result")
-                if isinstance(response, dict) and isinstance(response.get("result"), dict)
-                else response
+            await self._execute_memory_command_plan(
+                session,
+                command="memory overview",
+                action="overview",
+                detail_mode="full",
+                success_status="Memory overview shown.",
+                failure_summary="overview failed",
+                failure_detail_prefix="Memory overview failed: ",
+                failure_status="Memory overview failed.",
+                summary_fallback="memory overview shown",
             )
-            self._append_command_feedback(
-                "memory overview",
-                summary=_safe_text(result.get("summary")) or "memory overview shown",
-                details=str(result.get("details") or ""),
-                metadata={"threads_visible": False},
-            )
-            self._set_status("Memory overview shown.")
-            self._render_all()
             return
 
         if action == "export":
@@ -7531,36 +8034,18 @@ class MiniAgentTuiApp:
                 self._set_status("Memory export usage shown.")
                 self._render_all()
                 return
-            try:
-                response = await self._run_memory_action_for_session(
-                    session,
-                    action="export",
-                    export_format=export_format,
-                    detail_mode="full",
-                )
-            except Exception as exc:
-                self._append_command_feedback(
-                    f"memory export {export_format}",
-                    summary="export failed",
-                    details=f"Memory export failed: {exc}",
-                    level="error",
-                )
-                self._set_status("Memory export failed.")
-                self._render_all()
-                return
-            result = (
-                response.get("result")
-                if isinstance(response, dict) and isinstance(response.get("result"), dict)
-                else response
+            await self._execute_memory_command_plan(
+                session,
+                command=f"memory export {export_format}",
+                action="export",
+                export_format=export_format,
+                detail_mode="full",
+                success_status="Memory export prepared.",
+                failure_summary="export failed",
+                failure_detail_prefix="Memory export failed: ",
+                failure_status="Memory export failed.",
+                summary_fallback="memory export prepared",
             )
-            self._append_command_feedback(
-                f"memory export {export_format}",
-                summary=_safe_text(result.get("summary")) or "memory export prepared",
-                details=str(result.get("details") or ""),
-                metadata={"threads_visible": False},
-            )
-            self._set_status("Memory export prepared.")
-            self._render_all()
             return
 
         if action == "consolidated":
@@ -7576,35 +8061,17 @@ class MiniAgentTuiApp:
                     self._set_status("Memory consolidated usage shown.")
                     self._render_all()
                     return
-                try:
-                    response = await self._run_memory_action_for_session(
-                        session,
-                        action="consolidated_show",
-                        detail_mode="full",
-                    )
-                except Exception as exc:
-                    self._append_command_feedback(
-                        "memory consolidated",
-                        summary="consolidated failed",
-                        details=f"Consolidated memory view failed: {exc}",
-                        level="error",
-                    )
-                    self._set_status("Consolidated memory view failed.")
-                    self._render_all()
-                    return
-                result = (
-                    response.get("result")
-                    if isinstance(response, dict) and isinstance(response.get("result"), dict)
-                    else response
+                await self._execute_memory_command_plan(
+                    session,
+                    command="memory consolidated",
+                    action="consolidated_show",
+                    detail_mode="full",
+                    success_status="Consolidated memory shown.",
+                    failure_summary="consolidated failed",
+                    failure_detail_prefix="Consolidated memory view failed: ",
+                    failure_status="Consolidated memory view failed.",
+                    summary_fallback="consolidated memory shown",
                 )
-                self._append_command_feedback(
-                    "memory consolidated",
-                    summary=_safe_text(result.get("summary")) or "consolidated memory shown",
-                    details=str(result.get("details") or ""),
-                    metadata={"threads_visible": False},
-                )
-                self._set_status("Consolidated memory shown.")
-                self._render_all()
                 return
             if consolidated_action == "search":
                 query = " ".join(args[2:]).strip() if len(args) >= 3 else ""
@@ -7618,36 +8085,18 @@ class MiniAgentTuiApp:
                     self._set_status("Memory consolidated usage shown.")
                     self._render_all()
                     return
-                try:
-                    response = await self._run_memory_action_for_session(
-                        session,
-                        action="consolidated_search",
-                        query=query,
-                        detail_mode="full",
-                    )
-                except Exception as exc:
-                    self._append_command_feedback(
-                        "memory consolidated search",
-                        summary="consolidated search failed",
-                        details=f"Consolidated memory search failed: {exc}",
-                        level="error",
-                    )
-                    self._set_status("Consolidated memory search failed.")
-                    self._render_all()
-                    return
-                result = (
-                    response.get("result")
-                    if isinstance(response, dict) and isinstance(response.get("result"), dict)
-                    else response
+                await self._execute_memory_command_plan(
+                    session,
+                    command=f"memory consolidated search {query}",
+                    action="consolidated_search",
+                    query=query,
+                    detail_mode="full",
+                    success_status="Consolidated memory matches shown.",
+                    failure_summary="consolidated search failed",
+                    failure_detail_prefix="Consolidated memory search failed: ",
+                    failure_status="Consolidated memory search failed.",
+                    summary_fallback="consolidated memory matches shown",
                 )
-                self._append_command_feedback(
-                    f"memory consolidated search {query}",
-                    summary=_safe_text(result.get("summary")) or "consolidated memory matches shown",
-                    details=str(result.get("details") or ""),
-                    metadata={"threads_visible": False},
-                )
-                self._set_status("Consolidated memory matches shown.")
-                self._render_all()
                 return
             self._append_command_feedback(
                 "memory consolidated",
@@ -7664,70 +8113,34 @@ class MiniAgentTuiApp:
 
         if action == "profile":
             query = " ".join(args[1:]).strip() if len(args) > 1 else ""
-            try:
-                response = await self._run_memory_action_for_session(
-                    session,
-                    action="profile",
-                    query=query or None,
-                    detail_mode="full",
-                )
-            except Exception as exc:
-                self._append_command_feedback(
-                    "memory profile",
-                    summary="profile failed",
-                    details=f"Global profile view failed: {exc}",
-                    level="error",
-                )
-                self._set_status("Global profile view failed.")
-                self._render_all()
-                return
-            result = (
-                response.get("result")
-                if isinstance(response, dict) and isinstance(response.get("result"), dict)
-                else response
+            await self._execute_memory_command_plan(
+                session,
+                command="memory profile" + (f" {query}" if query else ""),
+                action="profile",
+                query=query or None,
+                detail_mode="full",
+                success_status="Global profile shown.",
+                failure_summary="profile failed",
+                failure_detail_prefix="Global profile view failed: ",
+                failure_status="Global profile view failed.",
+                summary_fallback="global profile shown",
             )
-            self._append_command_feedback(
-                "memory profile" + (f" {query}" if query else ""),
-                summary=_safe_text(result.get("summary")) or "global profile shown",
-                details=str(result.get("details") or ""),
-                metadata={"threads_visible": False},
-            )
-            self._set_status("Global profile shown.")
-            self._render_all()
             return
 
         if action == "notes":
             query = " ".join(args[1:]).strip() if len(args) > 1 else ""
-            try:
-                response = await self._run_memory_action_for_session(
-                    session,
-                    action="notes",
-                    query=query or None,
-                    detail_mode="full",
-                )
-            except Exception as exc:
-                self._append_command_feedback(
-                    "memory notes",
-                    summary="notes failed",
-                    details=f"Workspace durable notes view failed: {exc}",
-                    level="error",
-                )
-                self._set_status("Workspace durable notes view failed.")
-                self._render_all()
-                return
-            result = (
-                response.get("result")
-                if isinstance(response, dict) and isinstance(response.get("result"), dict)
-                else response
+            await self._execute_memory_command_plan(
+                session,
+                command="memory notes" + (f" {query}" if query else ""),
+                action="notes",
+                query=query or None,
+                detail_mode="full",
+                success_status="Workspace durable notes shown.",
+                failure_summary="notes failed",
+                failure_detail_prefix="Workspace durable notes view failed: ",
+                failure_status="Workspace durable notes view failed.",
+                summary_fallback="workspace durable notes shown",
             )
-            self._append_command_feedback(
-                "memory notes" + (f" {query}" if query else ""),
-                summary=_safe_text(result.get("summary")) or "workspace durable notes shown",
-                details=str(result.get("details") or ""),
-                metadata={"threads_visible": False},
-            )
-            self._set_status("Workspace durable notes shown.")
-            self._render_all()
             return
 
         if action == "daily":
@@ -7742,36 +8155,18 @@ class MiniAgentTuiApp:
                 self._render_all()
                 return
             day = _safe_text(args[1])
-            try:
-                response = await self._run_memory_action_for_session(
-                    session,
-                    action="daily",
-                    day=day or None,
-                    detail_mode="full",
-                )
-            except Exception as exc:
-                self._append_command_feedback(
-                    "memory daily",
-                    summary="daily failed",
-                    details=f"Workspace daily memory view failed: {exc}",
-                    level="error",
-                )
-                self._set_status("Workspace daily memory view failed.")
-                self._render_all()
-                return
-            result = (
-                response.get("result")
-                if isinstance(response, dict) and isinstance(response.get("result"), dict)
-                else response
+            await self._execute_memory_command_plan(
+                session,
+                command=f"memory daily {day}",
+                action="daily",
+                day=day or None,
+                detail_mode="full",
+                success_status="Workspace daily memory shown.",
+                failure_summary="daily failed",
+                failure_detail_prefix="Workspace daily memory view failed: ",
+                failure_status="Workspace daily memory view failed.",
+                summary_fallback="workspace daily memory shown",
             )
-            self._append_command_feedback(
-                f"memory daily {day}",
-                summary=_safe_text(result.get("summary")) or "workspace daily memory shown",
-                details=str(result.get("details") or ""),
-                metadata={"threads_visible": False},
-            )
-            self._set_status("Workspace daily memory shown.")
-            self._render_all()
             return
 
         if action == "shared":
@@ -7788,35 +8183,17 @@ class MiniAgentTuiApp:
                     self._set_status("Memory shared usage shown.")
                     self._render_all()
                     return
-                try:
-                    response = await self._run_memory_action_for_session(
-                        session,
-                        action="shared_list",
-                        detail_mode="full",
-                    )
-                except Exception as exc:
-                    self._append_command_feedback(
-                        "memory shared list",
-                        summary="shared list failed",
-                        details=f"Workspace-shared runtime memory list failed: {exc}",
-                        level="error",
-                    )
-                    self._set_status("Workspace-shared runtime memory list failed.")
-                    self._render_all()
-                    return
-                result = (
-                    response.get("result")
-                    if isinstance(response, dict) and isinstance(response.get("result"), dict)
-                    else response
+                await self._execute_memory_command_plan(
+                    session,
+                    command="memory shared list",
+                    action="shared_list",
+                    detail_mode="full",
+                    success_status="Workspace-shared runtime memory list shown.",
+                    failure_summary="shared list failed",
+                    failure_detail_prefix="Workspace-shared runtime memory list failed: ",
+                    failure_status="Workspace-shared runtime memory list failed.",
+                    summary_fallback="workspace-shared runtime memory listed",
                 )
-                self._append_command_feedback(
-                    "memory shared list",
-                    summary=_safe_text(result.get("summary")) or "workspace-shared runtime memory listed",
-                    details=str(result.get("details") or ""),
-                    metadata={"threads_visible": False},
-                )
-                self._set_status("Workspace-shared runtime memory list shown.")
-                self._render_all()
                 return
             if shared_action == "show":
                 if len(args) > 3:
@@ -7829,43 +8206,23 @@ class MiniAgentTuiApp:
                     self._set_status("Memory shared usage shown.")
                     self._render_all()
                     return
-                try:
-                    response = await self._run_memory_action_for_session(
-                        session,
-                        action="shared_show",
-                        engram_id=selector or None,
-                        detail_mode="full",
-                    )
-                except Exception as exc:
-                    self._append_command_feedback(
-                        "memory shared show",
-                        summary="shared show failed",
-                        details=f"Workspace-shared runtime memory entry failed: {exc}",
-                        level="error",
-                    )
-                    self._set_status("Workspace-shared runtime memory entry failed.")
-                    self._render_all()
-                    return
-                result = (
-                    response.get("result")
-                    if isinstance(response, dict) and isinstance(response.get("result"), dict)
-                    else response
+                await self._execute_memory_command_plan(
+                    session,
+                    command="memory shared show",
+                    action="shared_show",
+                    engram_id=selector or None,
+                    detail_mode="full",
+                    success_status="Workspace-shared runtime memory entry shown.",
+                    failure_summary="shared show failed",
+                    failure_detail_prefix="Workspace-shared runtime memory entry failed: ",
+                    failure_status="Workspace-shared runtime memory entry failed.",
+                    summary_fallback="workspace-shared runtime memory entry shown",
+                    metadata_builder=lambda result: (
+                        {"engram_id": _safe_text(result.get("engram_id"))}
+                        if _safe_text(result.get("engram_id"))
+                        else {}
+                    ),
                 )
-                self._append_command_feedback(
-                    "memory shared show",
-                    summary=_safe_text(result.get("summary")) or "workspace-shared runtime memory entry shown",
-                    details=str(result.get("details") or ""),
-                    metadata={
-                        "threads_visible": False,
-                        **(
-                            {"engram_id": _safe_text(result.get("engram_id"))}
-                            if _safe_text(result.get("engram_id"))
-                            else {}
-                        ),
-                    },
-                )
-                self._set_status("Workspace-shared runtime memory entry shown.")
-                self._render_all()
                 return
             if shared_action == "clear":
                 if len(args) > 2:
@@ -7878,7 +8235,7 @@ class MiniAgentTuiApp:
                     self._set_status("Memory shared usage shown.")
                     self._render_all()
                     return
-                if self._has_local_runtime_state(session) and session.busy:
+                if self._has_local_runtime_state(session) and session.projection.busy:
                     self._append_command_feedback(
                         "memory shared clear",
                         summary="session busy",
@@ -7888,35 +8245,17 @@ class MiniAgentTuiApp:
                     self._set_status(f"{session.title} is busy.")
                     self._render_all()
                     return
-                try:
-                    response = await self._run_memory_action_for_session(
-                        session,
-                        action="shared_clear",
-                        detail_mode="full",
-                    )
-                except Exception as exc:
-                    self._append_command_feedback(
-                        "memory shared clear",
-                        summary="shared clear failed",
-                        details=f"Workspace-shared runtime memory clear failed: {exc}",
-                        level="error",
-                    )
-                    self._set_status("Workspace-shared runtime memory clear failed.")
-                    self._render_all()
-                    return
-                result = (
-                    response.get("result")
-                    if isinstance(response, dict) and isinstance(response.get("result"), dict)
-                    else response
+                await self._execute_memory_command_plan(
+                    session,
+                    command="memory shared clear",
+                    action="shared_clear",
+                    detail_mode="full",
+                    success_status="Workspace-shared runtime memory cleared.",
+                    failure_summary="shared clear failed",
+                    failure_detail_prefix="Workspace-shared runtime memory clear failed: ",
+                    failure_status="Workspace-shared runtime memory clear failed.",
+                    summary_fallback="workspace-shared runtime memory cleared",
                 )
-                self._append_command_feedback(
-                    "memory shared clear",
-                    summary=_safe_text(result.get("summary")) or "workspace-shared runtime memory cleared",
-                    details=str(result.get("details") or ""),
-                    metadata={"threads_visible": False},
-                )
-                self._set_status("Workspace-shared runtime memory cleared.")
-                self._render_all()
                 return
 
             self._append_command_feedback(
@@ -7943,35 +8282,17 @@ class MiniAgentTuiApp:
                 self._set_status("Memory runtime usage shown.")
                 self._render_all()
                 return
-            try:
-                response = await self._run_memory_action_for_session(
-                    session,
-                    action="runtime",
-                    detail_mode="full",
-                )
-            except Exception as exc:
-                self._append_command_feedback(
-                    "memory runtime",
-                    summary="runtime failed",
-                    details=f"Runtime task memory inspection failed: {exc}",
-                    level="error",
-                )
-                self._set_status("Runtime task memory inspection failed.")
-                self._render_all()
-                return
-            result = (
-                response.get("result")
-                if isinstance(response, dict) and isinstance(response.get("result"), dict)
-                else response
+            await self._execute_memory_command_plan(
+                session,
+                command="memory runtime",
+                action="runtime",
+                detail_mode="full",
+                success_status="Runtime task memory shown.",
+                failure_summary="runtime failed",
+                failure_detail_prefix="Runtime task memory inspection failed: ",
+                failure_status="Runtime task memory inspection failed.",
+                summary_fallback=lambda current_session, _result: self._memory_summary(current_session),
             )
-            self._append_command_feedback(
-                "memory runtime",
-                summary=_safe_text(result.get("summary")) or self._memory_summary(session),
-                details=str(result.get("details") or ""),
-                metadata={"threads_visible": False},
-            )
-            self._set_status("Runtime task memory shown.")
-            self._render_all()
             return
 
         if action == "refresh":
@@ -7985,7 +8306,7 @@ class MiniAgentTuiApp:
                 self._set_status("Memory refresh usage shown.")
                 self._render_all()
                 return
-            if self._has_local_runtime_state(session) and session.busy:
+            if self._has_local_runtime_state(session) and session.projection.busy:
                 self._append_command_feedback(
                     "memory refresh",
                     summary="session busy",
@@ -7995,35 +8316,17 @@ class MiniAgentTuiApp:
                 self._set_status(f"{session.title} is busy.")
                 self._render_all()
                 return
-            try:
-                response = await self._run_memory_action_for_session(
-                    session,
-                    action="refresh",
-                    detail_mode="full",
-                )
-            except Exception as exc:
-                self._append_command_feedback(
-                    "memory refresh",
-                    summary="refresh failed",
-                    details=f"Memory refresh failed: {exc}",
-                    level="error",
-                )
-                self._set_status("Memory refresh failed.")
-                self._render_all()
-                return
-            result = (
-                response.get("result")
-                if isinstance(response, dict) and isinstance(response.get("result"), dict)
-                else response
+            await self._execute_memory_command_plan(
+                session,
+                command="memory refresh",
+                action="refresh",
+                detail_mode="full",
+                success_status="Memory refresh completed.",
+                failure_summary="refresh failed",
+                failure_detail_prefix="Memory refresh failed: ",
+                failure_status="Memory refresh failed.",
+                summary_fallback="memory refreshed",
             )
-            self._append_command_feedback(
-                "memory refresh",
-                summary=_safe_text(result.get("summary")) or "memory refreshed",
-                details=str(result.get("details") or ""),
-                metadata={"threads_visible": False},
-            )
-            self._set_status("Memory refresh completed.")
-            self._render_all()
             return
 
         if action == "promote":
@@ -8039,7 +8342,7 @@ class MiniAgentTuiApp:
                 self._set_status("Memory promote usage shown.")
                 self._render_all()
                 return
-            if self._has_local_runtime_state(session) and session.busy:
+            if self._has_local_runtime_state(session) and session.projection.busy:
                 self._append_command_feedback(
                     f"memory promote {target}",
                     summary="session busy",
@@ -8055,43 +8358,23 @@ class MiniAgentTuiApp:
                 promote_action = "promote_note"
             else:
                 promote_action = "promote_profile"
-            try:
-                response = await self._run_memory_action_for_session(
-                    session,
-                    action=promote_action,
-                    engram_id=engram_id or None,
-                    detail_mode="full",
-                )
-            except Exception as exc:
-                self._append_command_feedback(
-                    f"memory promote {target}",
-                    summary="promotion failed",
-                    details=f"Memory promotion failed: {exc}",
-                    level="error",
-                )
-                self._set_status("Memory promotion failed.")
-                self._render_all()
-                return
-            result = (
-                response.get("result")
-                if isinstance(response, dict) and isinstance(response.get("result"), dict)
-                else response
+            await self._execute_memory_command_plan(
+                session,
+                command=f"memory promote {target}",
+                action=promote_action,
+                engram_id=engram_id or None,
+                detail_mode="full",
+                success_status=f"Memory promoted to {target}.",
+                failure_summary="promotion failed",
+                failure_detail_prefix="Memory promotion failed: ",
+                failure_status="Memory promotion failed.",
+                summary_fallback=f"runtime memory promoted to {target}",
+                metadata_builder=lambda result: (
+                    {"engram_id": _safe_text(result.get("engram_id"))}
+                    if _safe_text(result.get("engram_id"))
+                    else {}
+                ),
             )
-            self._append_command_feedback(
-                f"memory promote {target}",
-                summary=_safe_text(result.get("summary")) or f"runtime memory promoted to {target}",
-                details=str(result.get("details") or ""),
-                metadata={
-                    "threads_visible": False,
-                    **(
-                        {"engram_id": _safe_text(result.get("engram_id"))}
-                        if _safe_text(result.get("engram_id"))
-                        else {}
-                    ),
-                },
-            )
-            self._set_status(f"Memory promoted to {target}.")
-            self._render_all()
             return
 
         if action == "save":
@@ -8107,7 +8390,7 @@ class MiniAgentTuiApp:
                 self._set_status("Memory save usage shown.")
                 self._render_all()
                 return
-            if self._has_local_runtime_state(session) and session.busy:
+            if self._has_local_runtime_state(session) and session.projection.busy:
                 self._append_command_feedback(
                     f"memory save {target}",
                     summary="session busy",
@@ -8118,36 +8401,18 @@ class MiniAgentTuiApp:
                 self._render_all()
                 return
             save_action = "save_note" if target == "note" else "save_profile"
-            try:
-                response = await self._run_memory_action_for_session(
-                    session,
-                    action=save_action,
-                    content=content or None,
-                    detail_mode="full",
-                )
-            except Exception as exc:
-                self._append_command_feedback(
-                    f"memory save {target}",
-                    summary="save failed",
-                    details=f"Memory save failed: {exc}",
-                    level="error",
-                )
-                self._set_status("Memory save failed.")
-                self._render_all()
-                return
-            result = (
-                response.get("result")
-                if isinstance(response, dict) and isinstance(response.get("result"), dict)
-                else response
+            await self._execute_memory_command_plan(
+                session,
+                command=f"memory save {target}",
+                action=save_action,
+                content=content or None,
+                detail_mode="full",
+                success_status=f"Memory saved to {target}.",
+                failure_summary="save failed",
+                failure_detail_prefix="Memory save failed: ",
+                failure_status="Memory save failed.",
+                summary_fallback=f"memory saved to {target}",
             )
-            self._append_command_feedback(
-                f"memory save {target}",
-                summary=_safe_text(result.get("summary")) or f"memory saved to {target}",
-                details=str(result.get("details") or ""),
-                metadata={"threads_visible": False},
-            )
-            self._set_status(f"Memory saved to {target}.")
-            self._render_all()
             return
 
         self._append_command_feedback(
@@ -8167,6 +8432,8 @@ class MiniAgentTuiApp:
     async def _handle_kb_command(self, args: list[str]) -> None:
         action = args[0].lower() if args else "status"
         session = self.current_session
+        projection = session.projection
+        runtime = session.runtime
         if action == "status":
             if self._runs_via_gateway(session):
                 try:
@@ -8187,7 +8454,7 @@ class MiniAgentTuiApp:
                 args=args,
                 current_enabled=self._session_knowledge_base_enabled(session),
                 session_label=session.title,
-                runtime_attached=session.agent is not None,
+                runtime_attached=runtime.agent is not None,
             )
             self._append_command_feedback(
                 result.command,
@@ -8215,7 +8482,6 @@ class MiniAgentTuiApp:
             self._render_all()
             return
 
-        desired_enabled = action == "on"
         if self._runs_via_gateway(session):
             try:
                 response = await self.remote_session_service.control_session(
@@ -8223,9 +8489,9 @@ class MiniAgentTuiApp:
                     MainAgentSessionControlRequest(
                         action=f"kb_{action}",
                         surface="tui",
-                        channel_type=session.channel_type,
-                        conversation_id=session.conversation_id,
-                        sender_id=session.sender_id,
+                        channel_type=projection.channel_type,
+                        conversation_id=projection.conversation_id,
+                        sender_id=projection.sender_id,
                     ),
                 )
             except Exception as exc:
@@ -8239,7 +8505,7 @@ class MiniAgentTuiApp:
                 self._render_all()
                 return
             if response.knowledge_base_enabled is not None:
-                session.knowledge_base_enabled = bool(response.knowledge_base_enabled)
+                projection.knowledge_base_enabled = bool(response.knowledge_base_enabled)
             try:
                 await self._sync_remote_session_detail(session, recent_limit=80)
             except Exception:
@@ -8252,9 +8518,9 @@ class MiniAgentTuiApp:
             return
 
         def _apply_local_kb(enabled: bool) -> bool:
-            if session.agent is not None:
-                return self._apply_agent_knowledge_base_enabled(session.agent, enabled)
-            session.knowledge_base_enabled = enabled
+            if runtime.agent is not None:
+                return self._apply_agent_knowledge_base_enabled(runtime.agent, enabled)
+            projection.knowledge_base_enabled = enabled
             return enabled
 
         result = await self.local_command_service.execute_kb(
@@ -8263,13 +8529,13 @@ class MiniAgentTuiApp:
             args=args,
             current_enabled=self._session_knowledge_base_enabled(session),
             session_label=session.title,
-            runtime_attached=session.agent is not None,
-            busy=bool(session.busy),
+            runtime_attached=runtime.agent is not None,
+            busy=bool(projection.busy),
             toggle_callback=_apply_local_kb,
         )
         enabled_payload = result.payload.get("enabled")
         if isinstance(enabled_payload, bool) or enabled_payload is None:
-            session.knowledge_base_enabled = enabled_payload
+            projection.knowledge_base_enabled = enabled_payload
         self._append_command_feedback(
             result.command,
             summary=result.summary,
@@ -8284,6 +8550,8 @@ class MiniAgentTuiApp:
     async def _handle_mcp_command(self, args: list[str]) -> None:
         action = args[0].lower() if args else "status"
         session = self.current_session
+        projection = session.projection
+        runtime = session.runtime
 
         if self._runs_via_gateway(session):
             if action not in {"status", "list", "reload"}:
@@ -8302,17 +8570,6 @@ class MiniAgentTuiApp:
                 self._set_status("Unknown mcp action.")
                 self._render_all()
                 return
-            if action == "reload" and session.busy:
-                self._append_command_feedback(
-                    "mcp reload",
-                    summary="session busy",
-                    details=f"{session.title} is busy. Wait for the current turn to finish first.",
-                    level="error",
-                    metadata={"threads_visible": False},
-                )
-                self._set_status(f"{session.title} is busy.")
-                self._render_all()
-                return
             if len(args) > 1:
                 self._append_command_feedback(
                     f"mcp {action}",
@@ -8325,35 +8582,15 @@ class MiniAgentTuiApp:
                 self._render_all()
                 return
 
-            try:
-                response = await self.remote_session_service.control_session(
-                    session.session_id,
-                    MainAgentSessionControlRequest(
-                        action=f"mcp_{action}",
-                        surface="tui",
-                        channel_type=session.channel_type,
-                        conversation_id=session.conversation_id,
-                        sender_id=session.sender_id,
-                    ),
-                )
-            except Exception as exc:
-                self._append_command_feedback(
-                    f"mcp {action}",
-                    summary="command failed",
-                    details=f"Remote MCP {action} failed: {exc}",
-                    level="error",
-                    metadata={"threads_visible": False},
-                )
-                self._set_status(f"Remote MCP {action} failed.")
-                self._render_all()
+            remote_result = await self._dispatch_remote_control_command(
+                session=session,
+                command_text=f"mcp {action}",
+                action=f"mcp_{action}",
+                metadata={"threads_visible": False},
+            )
+            if remote_result is None:
                 return
-
-            synced = False
-            try:
-                await self._sync_remote_session_detail(session, recent_limit=80)
-                synced = True
-            except Exception:
-                pass
+            response, synced = remote_result
 
             if not synced:
                 stats = dict(response.stats or {})
@@ -8381,7 +8618,7 @@ class MiniAgentTuiApp:
                 self._set_session_selected_model_identity(session, active_identity)
             self._capture_session_agent_snapshot(session)
             await self._shutdown_submission_loop(session)
-            session.agent = None
+            runtime.agent = None
             await self._warm_session_agent(
                 session,
                 prefix=f"MCP bindings reloaded for {session.title}",
@@ -8390,7 +8627,7 @@ class MiniAgentTuiApp:
                 rebuilt_runtime=True,
                 active_model_label=self._format_model_identity(
                     self._session_active_model_identity(session),
-                    fallback_model=_safe_text(getattr(getattr(session.agent, "llm_client", None), "model", "")),
+                    fallback_model=_safe_text(getattr(getattr(runtime.agent, "llm_client", None), "model", "")),
                 ),
             )
 
@@ -8398,7 +8635,7 @@ class MiniAgentTuiApp:
             surface="tui",
             action=action,
             args=args,
-            busy=bool(session.busy),
+            busy=bool(projection.busy),
             busy_label=session.title,
             reload_callback=_reload_local_mcp if action == "reload" else None,
         )
@@ -8445,370 +8682,28 @@ class MiniAgentTuiApp:
         action = args[0].lower() if args else "list"
         session = self.current_session
         if self._runs_via_gateway(session):
+            plan = self._resolve_remote_skill_command_plan(args=args, raw_text=raw_text)
+            if isinstance(plan, CommandExecutionResult):
+                self._append_command_feedback(
+                    plan.command,
+                    summary=plan.summary,
+                    details=plan.details,
+                    level="error" if plan.kind in {"usage", "error"} else "info",
+                    metadata={"threads_visible": False},
+                )
+                self._set_status(plan.status_text)
+                self._render_all()
+                return
             try:
-                if action == "show":
-                    skill_name = " ".join(args[1:]).strip()
-                    if not skill_name:
-                        self._append_command_feedback(
-                            "skill show",
-                            summary="usage",
-                            details=build_command_usage_text("tui", "skill", action="show"),
-                            level="error",
-                            metadata={"threads_visible": False},
-                        )
-                        self._set_status("Skill show usage displayed.")
-                    else:
-                        response = await self._run_remote_skill_action(
-                            session,
-                            action="show",
-                            skill_name=skill_name,
-                        )
-                        status = _safe_text(response.get("status")).lower()
-                        result = response.get("result") if isinstance(response.get("result"), dict) else {}
-                        found = bool(result.get("found", True))
-                        details = str(result.get("details") or "")
-                        self._append_command_feedback(
-                            f"skill show {skill_name}",
-                            summary=_safe_text(result.get("summary")) or ("showing skill" if found else "skill not found"),
-                            details=details,
-                            level=self._remote_skill_feedback_level(status, found=found),
-                            metadata={"threads_visible": False},
-                        )
-                        self._set_status(
-                            self._remote_skill_status_text(
-                                session,
-                                action="show",
-                                status=status,
-                                found=found,
-                                skill_name=skill_name,
-                            )
-                        )
-                elif action == "list":
-                    if len(args) > 1:
-                        self._append_command_feedback(
-                            "skill list",
-                            summary="usage",
-                            details=build_command_usage_text("tui", "skill", action="list"),
-                            level="error",
-                            metadata={"threads_visible": False},
-                        )
-                        self._set_status("Skill list usage shown.")
-                    else:
-                        response = await self._run_remote_skill_action(session, action="list")
-                        result = response.get("result") if isinstance(response.get("result"), dict) else {}
-                        summary = _safe_text(result.get("summary")) or "skill catalog shown"
-                        details = str(result.get("details") or "")
-                        status = _safe_text(response.get("status")).lower()
-                        self._append_command_feedback(
-                            "skill list",
-                            summary=summary,
-                            details=details,
-                            level=self._remote_skill_feedback_level(status),
-                            metadata={"threads_visible": False},
-                        )
-                        self._set_status(
-                            self._remote_skill_status_text(
-                                session,
-                                action="list",
-                                status=status,
-                            )
-                        )
-                elif action == "install":
-                    source_path = raw_text[len("skill install") :].strip() if raw_text.lower().startswith("skill install") else " ".join(args[1:]).strip()
-                    if not source_path:
-                        self._append_command_feedback(
-                            "skill install",
-                            summary="usage",
-                            details=build_command_usage_text("tui", "skill", action="install"),
-                            level="error",
-                            metadata={"threads_visible": False},
-                        )
-                        self._set_status("Skill install usage displayed.")
-                    else:
-                        response = await self._run_remote_skill_action(
-                            session,
-                            action="install",
-                            path=source_path,
-                        )
-                        status = _safe_text(response.get("status")).lower()
-                        result = response.get("result") if isinstance(response.get("result"), dict) else {}
-                        self._append_command_feedback(
-                            f"skill install {source_path}",
-                            summary=_safe_text(result.get("summary")) or "skill installed",
-                            details=str(result.get("details") or ""),
-                            level=self._remote_skill_feedback_level(status),
-                            metadata={"threads_visible": False},
-                        )
-                        self._set_status(
-                            self._remote_skill_status_text(
-                                session,
-                                action="install",
-                                status=status,
-                            )
-                        )
-                elif action == "uninstall":
-                    skill_name = " ".join(args[1:]).strip()
-                    if not skill_name:
-                        self._append_command_feedback(
-                            "skill uninstall",
-                            summary="usage",
-                            details=build_command_usage_text("tui", "skill", action="uninstall"),
-                            level="error",
-                            metadata={"threads_visible": False},
-                        )
-                        self._set_status("Skill uninstall usage displayed.")
-                    else:
-                        response = await self._run_remote_skill_action(
-                            session,
-                            action="uninstall",
-                            skill_name=skill_name,
-                        )
-                        status = _safe_text(response.get("status")).lower()
-                        result = response.get("result") if isinstance(response.get("result"), dict) else {}
-                        self._append_command_feedback(
-                            f"skill uninstall {skill_name}",
-                            summary=_safe_text(result.get("summary")) or "skill uninstalled",
-                            details=str(result.get("details") or ""),
-                            level=self._remote_skill_feedback_level(status),
-                            metadata={"threads_visible": False},
-                        )
-                        self._set_status(
-                            self._remote_skill_status_text(
-                                session,
-                                action="uninstall",
-                                status=status,
-                            )
-                        )
-                elif action == "rollback":
-                    skill_name = " ".join(args[1:]).strip()
-                    if not skill_name:
-                        self._append_command_feedback(
-                            "skill rollback",
-                            summary="usage",
-                            details=build_command_usage_text("tui", "skill", action="rollback"),
-                            level="error",
-                            metadata={"threads_visible": False},
-                        )
-                        self._set_status("Skill rollback usage displayed.")
-                    else:
-                        response = await self._run_remote_skill_action(
-                            session,
-                            action="rollback",
-                            skill_name=skill_name,
-                        )
-                        status = _safe_text(response.get("status")).lower()
-                        result = response.get("result") if isinstance(response.get("result"), dict) else {}
-                        self._append_command_feedback(
-                            f"skill rollback {skill_name}",
-                            summary=_safe_text(result.get("summary")) or "skill rolled back",
-                            details=str(result.get("details") or ""),
-                            level=self._remote_skill_feedback_level(status),
-                            metadata={"threads_visible": False},
-                        )
-                        self._set_status(
-                            self._remote_skill_status_text(
-                                session,
-                                action="rollback",
-                                status=status,
-                            )
-                        )
-                elif action == "active":
-                    if len(args) > 1:
-                        self._append_command_feedback(
-                            "skill active",
-                            summary="usage",
-                            details=build_command_usage_text("tui", "skill", action="active"),
-                            level="error",
-                            metadata={"threads_visible": False},
-                        )
-                        self._set_status("Skill active usage displayed.")
-                    else:
-                        response = await self._run_remote_skill_action(session, action="active")
-                        status = _safe_text(response.get("status")).lower()
-                        result = response.get("result") if isinstance(response.get("result"), dict) else {}
-                        self._append_command_feedback(
-                            "skill active",
-                            summary=_safe_text(result.get("summary")) or "workspace skill policy shown",
-                            details=str(result.get("details") or ""),
-                            level=self._remote_skill_feedback_level(status),
-                            metadata={"threads_visible": False},
-                        )
-                        self._set_status(
-                            self._remote_skill_status_text(
-                                session,
-                                action="active",
-                                status=status,
-                            )
-                        )
-                elif action == "search":
-                    query = " ".join(args[1:]).strip()
-                    if not query:
-                        self._append_command_feedback(
-                            "skill search",
-                            summary="usage",
-                            details=build_command_usage_text("tui", "skill", action="search"),
-                            level="error",
-                            metadata={"threads_visible": False},
-                        )
-                        self._set_status("Skill search usage displayed.")
-                    else:
-                        response = await self._run_remote_skill_action(
-                            session,
-                            action="search",
-                            query=query,
-                        )
-                        status = _safe_text(response.get("status")).lower()
-                        result = response.get("result") if isinstance(response.get("result"), dict) else {}
-                        self._append_command_feedback(
-                            f"skill search {query}",
-                            summary=_safe_text(result.get("summary")) or "skill search completed",
-                            details=str(result.get("details") or ""),
-                            level=self._remote_skill_feedback_level(status),
-                            metadata={"threads_visible": False},
-                        )
-                        self._set_status(
-                            self._remote_skill_status_text(
-                                session,
-                                action="search",
-                                status=status,
-                            )
-                        )
-                elif action == "mode":
-                    requested_mode = _safe_text(args[1]) if len(args) > 1 else ""
-                    if not requested_mode or len(args) > 2:
-                        self._append_command_feedback(
-                            "skill mode",
-                            summary="usage",
-                            details=build_command_usage_text("tui", "skill", action="mode"),
-                            level="error",
-                            metadata={"threads_visible": False},
-                        )
-                        self._set_status("Skill mode usage displayed.")
-                    else:
-                        response = await self._run_remote_skill_action(session, action="mode", mode=requested_mode)
-                        result = response.get("result") if isinstance(response.get("result"), dict) else {}
-                        status = _safe_text(response.get("status")).lower()
-                        self._append_command_feedback(
-                            f"skill mode {requested_mode}",
-                            summary=_safe_text(result.get("summary")) or "workspace skill mode updated",
-                            details=str(result.get("details") or ""),
-                            level=self._remote_skill_feedback_level(status),
-                            metadata={"threads_visible": False},
-                        )
-                        self._set_status(
-                            self._remote_skill_status_text(
-                                session,
-                                action="mode",
-                                status=status,
-                            )
-                        )
-                elif action in {"enable", "disable"}:
-                    skill_name = " ".join(args[1:]).strip()
-                    if not skill_name:
-                        self._append_command_feedback(
-                            f"skill {action}",
-                            summary="usage",
-                            details=build_command_usage_text("tui", "skill", action=action),
-                            level="error",
-                            metadata={"threads_visible": False},
-                        )
-                        self._set_status(f"Skill {action} usage displayed.")
-                    else:
-                        response = await self._run_remote_skill_action(
-                            session,
-                            action=action,
-                            skill_name=skill_name,
-                        )
-                        result = response.get("result") if isinstance(response.get("result"), dict) else {}
-                        status = _safe_text(response.get("status")).lower()
-                        self._append_command_feedback(
-                            f"skill {action} {skill_name}",
-                            summary=_safe_text(result.get("summary")) or "workspace skill policy updated",
-                            details=str(result.get("details") or ""),
-                            level=self._remote_skill_feedback_level(status),
-                            metadata={"threads_visible": False},
-                        )
-                        self._set_status(
-                            self._remote_skill_status_text(
-                                session,
-                                action=action,
-                                status=status,
-                                skill_name=skill_name,
-                            )
-                        )
-                elif action == "reset":
-                    if len(args) > 1:
-                        self._append_command_feedback(
-                            "skill reset",
-                            summary="usage",
-                            details=build_command_usage_text("tui", "skill", action="reset"),
-                            level="error",
-                            metadata={"threads_visible": False},
-                        )
-                        self._set_status("Skill reset usage displayed.")
-                    else:
-                        response = await self._run_remote_skill_action(session, action="reset")
-                        result = response.get("result") if isinstance(response.get("result"), dict) else {}
-                        status = _safe_text(response.get("status")).lower()
-                        self._append_command_feedback(
-                            "skill reset",
-                            summary=_safe_text(result.get("summary")) or "workspace skill policy reset",
-                            details=str(result.get("details") or ""),
-                            level=self._remote_skill_feedback_level(status),
-                            metadata={"threads_visible": False},
-                        )
-                        self._set_status(
-                            self._remote_skill_status_text(
-                                session,
-                                action="reset",
-                                status=status,
-                            )
-                        )
-                elif action == "refresh":
-                    if len(args) > 1:
-                        self._append_command_feedback(
-                            "skill refresh",
-                            summary="usage",
-                            details=build_command_usage_text("tui", "skill", action="refresh"),
-                            level="error",
-                            metadata={"threads_visible": False},
-                        )
-                        self._set_status("Skill refresh usage displayed.")
-                    else:
-                        response = await self._run_remote_skill_action(session, action="refresh")
-                        result = response.get("result") if isinstance(response.get("result"), dict) else {}
-                        status = _safe_text(response.get("status")).lower()
-                        self._append_command_feedback(
-                            "skill refresh",
-                            summary=_safe_text(result.get("summary")) or "skill catalog refreshed",
-                            details=str(result.get("details") or ""),
-                            level=self._remote_skill_feedback_level(status),
-                            metadata={"threads_visible": False},
-                        )
-                        self._set_status(
-                            self._remote_skill_status_text(
-                                session,
-                                action="refresh",
-                                status=status,
-                            )
-                        )
-                else:
-                    self._append_command_feedback(
-                        "skill",
-                        summary="unknown action",
-                        details=build_unknown_action_text(
-                            "tui",
-                            "skill",
-                            action,
-                            fallback=build_command_usage_text("tui", "skill"),
-                        ),
-                        level="error",
-                        metadata={"threads_visible": False},
-                    )
-                    self._set_status("Unknown skill action.")
+                response = await self._run_remote_skill_action(
+                    session,
+                    action=plan.action,
+                    **plan.request_kwargs,
+                )
+                self._apply_remote_skill_response(session, plan, response)
             except Exception as exc:
                 self._append_command_feedback(
-                    f"skill {action}",
+                    plan.command,
                     summary="command failed",
                     details=f"Remote skill command failed: {exc}",
                     level="error",
@@ -8823,24 +8718,13 @@ class MiniAgentTuiApp:
             action=action,
             args=args,
             raw_text=raw_text,
-            agent=session.agent,
+            agent=session.runtime.agent,
         )
         await self._apply_local_skill_command_result(session, result)
         self._render_all()
 
     async def _handle_model_command(self, args: list[str]) -> None:
         action = args[0].lower() if args else "list"
-        model_actions = (
-            "list",
-            "next",
-            "prev",
-            "apply",
-            "discover",
-            "refresh",
-            "use",
-            "filter",
-            "limit",
-        )
         if action == "list":
             provider_count = len(self.providers)
             model_count = sum(
@@ -8866,66 +8750,35 @@ class MiniAgentTuiApp:
             self._refresh_registry()
             self._set_status("Refreshed model registry.")
         elif action == "use":
-            if len(args) < 3:
-                message = build_command_usage_text("tui", "model", action="use")
+            request = resolve_catalog_model_use_request(
+                surface="tui",
+                providers=self.providers,
+                args=args,
+            )
+            if isinstance(request, CommandExecutionResult):
+                self._append_command_feedback(
+                    request.command,
+                    summary=request.summary,
+                    details=request.details,
+                    level="error",
+                )
+                self._set_status(request.status_text)
+                self._render_all()
+                return
+            try:
+                await self._apply_session_model_selection(
+                    self.current_session,
+                    request.identity,
+                )
+            except Exception as exc:
+                message = f"Model switch failed: {exc}"
                 self._append_command_feedback(
                     "model use",
-                    summary="usage",
+                    summary="model switch failed",
                     details=message,
                     level="error",
                 )
-                self._set_status("Model use requires provider_id and model_id.")
-            else:
-                provider_id = args[1]
-                model_id = args[2]
-                matched = next(
-                    (item for item in self.providers if str(item.get("provider_id")) == provider_id),
-                    None,
-                )
-                if matched is None:
-                    message = f"Provider not found: {provider_id}"
-                    self._append_command_feedback(
-                        "model use",
-                        summary="provider not found",
-                        details=message,
-                        level="error",
-                    )
-                    self._set_status(message)
-                else:
-                    available_model_ids = {
-                        _safe_text(item.get("model_id"))
-                        for item in matched.get("models", [])
-                        if isinstance(item, dict)
-                    }
-                    if model_id not in available_model_ids:
-                        message = f"Model not found in {provider_id}: {model_id}"
-                        self._append_command_feedback(
-                            "model use",
-                            summary="model not found",
-                            details=message,
-                            level="error",
-                        )
-                        self._set_status(message)
-                        self._render_all()
-                        return
-                    try:
-                        await self._apply_session_model_selection(
-                            self.current_session,
-                            (
-                                _safe_text(matched.get("source", "custom")),
-                                provider_id,
-                                model_id,
-                            ),
-                        )
-                    except Exception as exc:
-                        message = f"Model switch failed: {exc}"
-                        self._append_command_feedback(
-                            "model use",
-                            summary="model switch failed",
-                            details=message,
-                            level="error",
-                        )
-                        self._set_status(message)
+                self._set_status(message)
         elif action == "filter":
             if len(args) < 2:
                 current = self.model_filter or "off"
@@ -9174,7 +9027,7 @@ class MiniAgentTuiApp:
             if action == "list":
                 self._append_command_feedback(
                     "tasks list",
-                    summary=f"{len(self.current_session.tasks)} task(s)",
+                    summary=f"{len(self.current_session.view.tasks)} task(s)",
                     details=self._render_tasks(),
                 )
                 self._set_status("Listed tasks.")
@@ -9192,6 +9045,35 @@ class MiniAgentTuiApp:
                 )
                 self._set_status("Unknown tasks action.")
             self._render_all()
+
+        async def _dispatch_fork(inv) -> None:  # noqa: ANN001
+            if inv.name == "task":
+                action = inv.action or "new"
+                if action != "new":
+                    self._append_command_feedback(
+                        "task",
+                        summary="unknown action",
+                        details=build_unknown_action_text(
+                            "tui",
+                            "task",
+                            action,
+                            fallback=build_command_usage_text("tui", "task"),
+                        ),
+                        level="error",
+                    )
+                    self._set_status("Unknown task action.")
+                    self._render_all()
+                    return
+                await self._fork_current_session(
+                    prompt=inv.joined_args(1) or None,
+                    command_label="task new",
+                )
+                return
+
+            await self._fork_current_session(
+                prompt=inv.joined_args() or None,
+                command_label="fork",
+            )
 
         async def _dispatch_workflow(inv) -> None:  # noqa: ANN001
             action = inv.action or "run"
@@ -9303,6 +9185,8 @@ class MiniAgentTuiApp:
         dispatcher.register("activity", _dispatch_activity)
         dispatcher.register("command", _dispatch_command_panel)
         dispatcher.register("tasks", _dispatch_tasks)
+        dispatcher.register("fork", _dispatch_fork)
+        dispatcher.register("task", _dispatch_fork)
         dispatcher.register("workflow", _dispatch_workflow)
         dispatcher.register("approve", _dispatch_approval)
         dispatcher.register("deny", _dispatch_approval)
@@ -9336,6 +9220,8 @@ class MiniAgentTuiApp:
                 "activity",
                 "command",
                 "tasks",
+                "fork",
+                "task",
                 "mcp",
                 "approve",
                 "deny",
@@ -9426,12 +9312,13 @@ class MiniAgentTuiApp:
 
     @staticmethod
     def _session_status_label(session: TuiSession) -> str:
-        if session.busy:
+        projection = session.projection
+        if projection.busy:
             return "busy"
         if MiniAgentTuiApp._session_has_gateway_recovery(session):
             return "interrupted"
-        if session.tasks:
-            latest_status = _safe_text(session.tasks[-1].status).lower()
+        if session.view.tasks:
+            latest_status = _safe_text(session.view.tasks[-1].status).lower()
             if latest_status in {"completed", "cancelled", "queued", "running", "resume_pending", "resuming"}:
                 return latest_status
         return "idle"
@@ -9439,14 +9326,14 @@ class MiniAgentTuiApp:
     @staticmethod
     def _session_last_active_label(session: TuiSession) -> str:
         if MiniAgentTuiApp._runs_via_gateway(session):
-            remote_updated = _safe_text(getattr(session, "remote_updated_at", ""))
+            remote_updated = _safe_text(getattr(session.projection.supplemental, "remote_updated_at", ""))
             if remote_updated:
                 return _label_from_iso_timestamp(remote_updated)
         latest_message = MiniAgentTuiApp._session_latest_visible_message(session)
         if latest_message is not None:
             return _safe_text(getattr(latest_message, "timestamp", "")) or "--:--:--"
-        if session.tasks:
-            return _safe_text(session.tasks[-1].updated_at) or "--:--:--"
+        if session.view.tasks:
+            return _safe_text(session.view.tasks[-1].updated_at) or "--:--:--"
         return "--:--:--"
 
     @staticmethod
@@ -9469,7 +9356,7 @@ class MiniAgentTuiApp:
     def _session_visible_messages(session: TuiSession) -> list[Any]:
         return [
             message
-            for message in session.messages
+            for message in session.view.messages
             if MiniAgentTuiApp._message_visible_in_threads(message)
         ]
 
@@ -9482,7 +9369,7 @@ class MiniAgentTuiApp:
 
     @staticmethod
     def _session_latest_command_message(session: TuiSession) -> Any | None:
-        for message in reversed(session.messages):
+        for message in reversed(session.view.messages):
             if MiniAgentTuiApp._message_is_command(message):
                 return message
         return None
@@ -9505,7 +9392,8 @@ class MiniAgentTuiApp:
 
     @staticmethod
     def _session_last_message_preview(session: TuiSession) -> str:
-        last_any = session.messages[-1] if session.messages else None
+        messages = session.view.messages
+        last_any = messages[-1] if messages else None
         if last_any is not None and MiniAgentTuiApp._message_is_command(last_any):
             return MiniAgentTuiApp._command_message_preview(last_any)
 
@@ -9535,7 +9423,7 @@ class MiniAgentTuiApp:
 
     @staticmethod
     def _session_last_command_preview(session: TuiSession) -> str | None:
-        remote_summary = _safe_text(getattr(session, "remote_last_command_summary", ""))
+        remote_summary = _safe_text(getattr(session.projection.supplemental, "remote_last_command_summary", ""))
         if MiniAgentTuiApp._runs_via_gateway(session) and remote_summary:
             return remote_summary
         return MiniAgentTuiApp._session_last_command_preview_from_messages(session)
@@ -9545,7 +9433,7 @@ class MiniAgentTuiApp:
         status_label = MiniAgentTuiApp._session_status_label(session)
         last_active = MiniAgentTuiApp._session_last_active_label(session)
         visible_message_count = len(MiniAgentTuiApp._session_visible_messages(session))
-        return f"state {status_label} | at {last_active}\ncount {visible_message_count} msg | {len(session.tasks)} task"
+        return f"state {status_label} | at {last_active}\ncount {visible_message_count} msg | {len(session.view.tasks)} task"
 
     def _render_sessions(self) -> str:
         rendered, _cursor_position, _current_line_index = self._render_sessions_text_and_cursor()
@@ -9593,6 +9481,8 @@ class MiniAgentTuiApp:
         if session is None:
             return "\n".join(lines)
         display = self._build_session_display_model(session)
+        projection = session.projection
+        view = session.view
 
         lines.extend(
             self._sidebar_labeled_lines(
@@ -9629,7 +9519,7 @@ class MiniAgentTuiApp:
                 "state",
                 (
                     "busy"
-                    if session.busy
+                    if projection.busy
                     else (
                         "interrupted"
                         if display.recovery_pending
@@ -9645,12 +9535,12 @@ class MiniAgentTuiApp:
             self._sidebar_labeled_lines(
                 "task",
                 (
-                    session.running_state
-                    if session.busy and session.running_state
+                    projection.running_state
+                    if projection.busy and projection.running_state
                     else (
-                        session.remote_recovery_summary
+                        projection.supplemental.remote_recovery_summary
                         if display.recovery_pending
-                        and session.remote_recovery_summary
+                        and projection.supplemental.remote_recovery_summary
                         else "idle"
                     )
                 ),
@@ -9807,7 +9697,7 @@ class MiniAgentTuiApp:
         lines.extend(
             self._sidebar_labeled_lines(
                 "chat",
-                "live" if session.chat_follow_output else "history",
+                "live" if view.chat_follow_output else "history",
                 width=width,
                 max_lines=1,
                 label_width=8,
@@ -9816,7 +9706,7 @@ class MiniAgentTuiApp:
         lines.extend(
             self._sidebar_labeled_lines(
                 "activity",
-                "expanded" if session.activity_details_expanded else "compact",
+                "expanded" if view.activity_details_expanded else "compact",
                 width=width,
                 max_lines=1,
                 label_width=8,
@@ -9825,7 +9715,7 @@ class MiniAgentTuiApp:
         lines.extend(
             self._sidebar_labeled_lines(
                 "command",
-                "expanded" if session.command_details_expanded else "compact",
+                "expanded" if view.command_details_expanded else "compact",
                 width=width,
                 max_lines=1,
                 label_width=8,
@@ -9844,21 +9734,21 @@ class MiniAgentTuiApp:
                         label_width=8,
                     )
                 )
-            if session.remote_recovery_summary:
+            if projection.supplemental.remote_recovery_summary:
                 lines.extend(
                     self._sidebar_labeled_lines(
                         "recover",
-                        session.remote_recovery_summary,
+                        projection.supplemental.remote_recovery_summary,
                         width=width,
                         max_lines=3,
                         label_width=8,
                     )
                 )
-            if session.remote_last_activity_summary:
+            if projection.supplemental.remote_last_activity_summary:
                 lines.extend(
                     self._sidebar_labeled_lines(
                         "activity",
-                        session.remote_last_activity_summary,
+                        projection.supplemental.remote_last_activity_summary,
                         width=width,
                         max_lines=3,
                         label_width=8,
@@ -10087,7 +9977,7 @@ class MiniAgentTuiApp:
                 prefix_style=prefix_style,
             )
         ]
-        if detail_text and self.current_session.command_details_expanded:
+        if detail_text and self.current_session.view.command_details_expanded:
             lines.append(
                 ChatRenderLine(
                     "output:",
@@ -10116,7 +10006,7 @@ class MiniAgentTuiApp:
     ) -> list[ChatRenderLine]:
         activity_lines: list[ChatRenderLine] = []
         items = self._activity_items(item)
-        expanded = bool(self.current_session.activity_details_expanded)
+        expanded = bool(self.current_session.view.activity_details_expanded)
 
         if not items:
             content_lines = _normalize_chat_content(item.content).split("\n") or [""]
@@ -10212,7 +10102,8 @@ class MiniAgentTuiApp:
         return activity_lines
 
     def _build_chat_render_lines(self) -> list[ChatRenderLine]:
-        if not self.current_session.messages:
+        view = self.current_session.view
+        if not view.messages:
             return [
                 ChatRenderLine("MINI-AGENT", "class:chat.empty.title"),
                 ChatRenderLine("Start the conversation below.", "class:chat.empty.body"),
@@ -10224,7 +10115,7 @@ class MiniAgentTuiApp:
             ]
 
         lines: list[ChatRenderLine] = []
-        for item in self.current_session.messages:
+        for item in view.messages:
             if lines:
                 lines.append(ChatRenderLine(""))
             if self._is_command_entry(item):
@@ -10293,15 +10184,16 @@ class MiniAgentTuiApp:
 
     def _current_chat_render_key(self) -> tuple[str, int, bool, bool, int, int, tuple[str, str, str, str], tuple[str, str, str, str]]:
         session = self.current_session
-        messages = list(getattr(session, "messages", []) or [])
+        view = session.view
+        messages = list(getattr(view, "messages", []) or [])
         first_signature = self._message_cache_signature(messages[0]) if messages else ("", "", "", "")
         last_signature = self._message_cache_signature(messages[-1]) if messages else ("", "", "", "")
         return (
             _safe_text(session.session_id),
-            int(getattr(session, "chat_render_revision", 0)),
-            bool(session.activity_details_expanded),
-            bool(session.command_details_expanded),
-            id(getattr(session, "messages", None)),
+            int(getattr(view, "chat_render_revision", 0)),
+            bool(view.activity_details_expanded),
+            bool(view.command_details_expanded),
+            id(getattr(view, "messages", None)),
             len(messages),
             first_signature,
             last_signature,
@@ -10343,9 +10235,10 @@ class MiniAgentTuiApp:
         if not self.sessions:
             return Point(x=len(lines[last_index].text), y=last_index)
         session = self.current_session
-        if session.chat_follow_output:
+        view = session.view
+        if view.chat_follow_output:
             return Point(x=len(lines[last_index].text), y=last_index)
-        target_line = min(max(0, session.chat_scroll_line), last_index)
+        target_line = min(max(0, view.chat_scroll_line), last_index)
         return Point(x=0, y=target_line)
 
     def _render_models_text_and_cursor(self) -> tuple[str, int, int]:
@@ -10567,7 +10460,7 @@ class MiniAgentTuiApp:
                 text=self.initial_prompt,
                 cursor_position=len(self.initial_prompt),
             )
-        if any(session.pending_resume_task_id for session in self.sessions):
+        if any(session.runtime.pending_resume_task_id for session in self.sessions):
             await self._resume_pending_tasks()
         try:
             await self._sync_remote_sessions_once(focus_current=True)

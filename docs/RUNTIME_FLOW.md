@@ -443,24 +443,25 @@ Updated: 2026-04-06
      - optional `metadata`
    - gateway chat endpoint uses these fields for conversation binding (`channel|conversation|sender`).
 2. QQ channel source/runtime path:
-   - reusable source package: `src/channels/qqbot/src/index.ts`
-   - core channel: `src/channels/qqbot/src/channel.ts`
-   - gateway client: `src/channels/qqbot/src/gateway_client.ts`
-   - session persistence: `src/channels/qqbot/src/session_store.ts` (`.qqbot_sessions.json`)
-   - runtime app/orchestration: `src/apps/qqbot_channel/` via `uv run mini-agent stack up` or `scripts/start_runtime_stack.ps1`
+   - single maintained runtime app: `src/apps/qqbot_channel/`
+   - runtime entry: `src/apps/qqbot_channel/bot.mjs`
+   - gateway transport helpers: `src/apps/qqbot_channel/gateway_io.mjs`
+   - workspace/message guardrails: `src/apps/qqbot_channel/guardrails.mjs`
+   - synthetic smoke: `src/apps/qqbot_channel/smoke_runner.mjs`
+   - runtime app/orchestration: `uv run mini-agent stack up` or `scripts/start_runtime_stack.ps1`
    - gateway auth passthrough:
      - optional `Authorization: Bearer <token>` from `QQBOT_GATEWAY_AUTH_TOKEN` or `MINI_AGENT_GATEWAY_AUTH_TOKEN`
    - message handling:
-     - normal text forwarding
-     - attachment-aware message normalization (`[Attachment ...]` wrappers)
+     - normal text forwarding to `GET /api/v1/agent/chat/stream`
      - inbound message truncation guardrail (`QQBOT_MAX_MESSAGE_CHARS`)
+     - outbound reply chunking guardrail (`QQBOT_MAX_REPLY_CHUNK_SIZE`)
      - `/workspace` path boundary enforcement (`QQBOT_ALLOWED_WORKSPACE_ROOTS`)
-     - command set (`/help`, `/status`, `/workspace`, `/dryrun`, `/reset`, `/clear`, `/ping`)
+     - command set reusing shared session/application semantics
 3. WeChat channel source path:
    - entry: `src/channels/wechat/src/index.ts`
    - core channel: `src/channels/wechat/src/channel.ts`
    - gateway client: `src/channels/wechat/src/gateway_client.ts`
-   - session persistence: `src/channels/wechat/src/session_store.ts` (`.wechat_sessions.json`)
+   - conversation binding persistence: `src/channels/wechat/src/conversation_binding_store.ts` (`.wechat_sessions.json`)
    - gateway auth passthrough:
      - optional `Authorization: Bearer <token>` from `WECHAT_GATEWAY_AUTH_TOKEN` or `MINI_AGENT_GATEWAY_AUTH_TOKEN`
    - webhook flow:

@@ -7,6 +7,7 @@ from mini_agent.interfaces import (
     MainAgentSessionApprovalRequest,
     MainAgentSessionContextRequest,
     MainAgentSessionControlRequest,
+    MainAgentSessionForkRequest,
     MainAgentSessionModelSelectionRequest,
 )
 
@@ -117,7 +118,7 @@ class _DummyGatewayClient:
         self,
         session_id: str,
         *,
-        provider_source: str,
+        provider_source: str | None,
         provider_id: str,
         model_id: str,
         surface: str | None = None,
@@ -163,6 +164,33 @@ class _DummyGatewayClient:
             "channel_type": channel_type,
             "conversation_id": conversation_id,
             "sender_id": sender_id,
+        }
+
+    async def create_derived_session(
+        self,
+        parent_session_id: str,
+        *,
+        title: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ):
+        return {
+            "session_id": f"{parent_session_id}:child",
+            "workspace_dir": ".",
+            "created_at": "2026-04-12T08:00:00+00:00",
+            "updated_at": "2026-04-12T08:00:01+00:00",
+            "title": title,
+            "message_count": 0,
+            "origin_surface": surface or "tui",
+            "active_surface": surface or "tui",
+            "channel_type": channel_type,
+            "conversation_id": conversation_id,
+            "sender_id": sender_id,
+            "shared": False,
+            "knowledge_base_enabled": True,
+            "recent_messages": [],
         }
 
 
@@ -228,5 +256,28 @@ def test_remote_session_service_shapes_gateway_payloads_into_typed_models() -> N
         assert context.context_policy["max_items"] == 6
         assert model.selected_provider_id == "maas"
         assert approval.decision == "approved"
+
+    asyncio.run(_run())
+
+
+def test_remote_session_service_derived_session_prefers_remote_channel_when_surface_missing() -> None:
+    async def _run() -> None:
+        service = RemoteSessionService(gateway_client=_DummyGatewayClient())
+
+        detail = await service.create_derived_session(
+            "sess-1",
+            MainAgentSessionForkRequest(
+                title="remote fork",
+                channel_type="qqbot",
+                conversation_id="group:demo",
+                sender_id="user-1",
+            ),
+        )
+
+        assert detail.origin_surface == "qq"
+        assert detail.active_surface == "qq"
+        assert detail.channel_type == "qq"
+        assert detail.conversation_id == "group:demo"
+        assert detail.sender_id == "user-1"
 
     asyncio.run(_run())

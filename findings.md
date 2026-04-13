@@ -1,5 +1,2176 @@
 # Findings
 
+## 2026-04-13 P31.2 Thin Application Seam Hardening
+
+- This slice confirmed that the right next move was not a large gateway rewrite.
+- It was enough to correct the top application seam so a new desktop surface would not bind itself to transport-owned naming and orchestration.
+- The key result is not new behavior.
+- The key result is corrected ownership:
+  - `MainAgentSurfaceService` is now the canonical top interaction service
+  - surface-neutral chat flow types now exist for request/result/stream-event handling
+  - gateway now consumes the shared service as transport, instead of being the only obvious semantic owner
+- The implementation also showed that a small amount of compatibility aliasing is still useful here.
+- Why:
+  - tests and adjacent code still reference `MainAgentGatewayUseCases` and older gateway-shaped names
+  - replacing all of that in one cut would create churn disproportionate to the seam correction itself
+- This is one of the cases where a minimal alias is acceptable:
+  - it preserves working behavior
+  - but the canonical name and dependency direction are now changed
+- The more important architectural win is that the next desktop slice can now target:
+  - shared surface service semantics
+  - local gateway transport
+- instead of hard-binding to `gateway use cases` as if HTTP were the business boundary.
+
+## 2026-04-13 P31 DesktopUI(PySide6) Decision Freeze
+
+- The desktop-direction choice should be treated as an architecture decision, not just a UI preference.
+- The important clarification is:
+  - the user does not want browser-first work as the main daily-use graphical path
+  - but also does not want the current TUI renderer awkwardly wrapped into a fake desktop shell
+- That makes the right answer:
+  - a separate `PySide6 DesktopUI`
+  - on the same shared runtime/session/application truth
+- The current codebase is actually in a better place for this than it first appears.
+- Why:
+  - `SessionApplicationService` is already mostly surface-neutral
+  - recent `P30.5` work cleaned up interaction binding and session truth handling
+  - the gateway already exposes a reasonably complete command/session/model transport surface
+- But there is still one meaningful leak:
+  - the top orchestration is still named and shaped as `MainAgentGatewayUseCases`
+  - that is acceptable for HTTP delivery
+  - but it is the wrong long-term service boundary for a new first-class desktop entrance
+- So the real decision is not:
+  - "rewrite gateway first"
+- And it is not:
+  - "start DesktopUI directly on the current gateway-owned orchestration shape"
+- The correct middle path is:
+  - first land one thin surface-neutral application seam
+  - then reuse the existing gateway as the first DesktopUI transport/backend
+- That keeps the execution path fast without locking the new desktop surface onto transport-owned semantics.
+
+## 2026-04-13 P30.5 Near-Close And Remote Scope Correction
+
+- It would be easy to keep shaving `P30.5` forever once the shared-binding work starts going well.
+- But the latest audit suggests that would now be the wrong move.
+- Why:
+  - the active production binding path is already aligned
+  - the runtime write path is aligned too
+  - the low-level direct-call guardrail is also now patched
+- At that point, continuing the same line by inertia would mostly be cosmetic refactor energy.
+- A follow-up review initially pointed toward the remote-adapter side.
+- But the user clarified an important product-scope rule:
+  - `WeChat` is not part of the current actual implementation plan
+  - it is future extension only
+- That changes the right conclusion.
+- The correct next move is not:
+  - using `WeChat` as the next active refactor target
+- The correct next move is:
+  - freeze `P30.5` near its natural stop
+  - keep the `Remote Interaction` architecture generic at the entrance level
+  - but document active delivery scope as `QQ` only
+  - leave `WeChat / Feishu` as future extension targets, not current execution commitments
+
+## 2026-04-13 P30.5 Interaction-Surface Direct-Call Guardrail
+
+- After the runtime live-state cut, the main production drift was already removed.
+- But a smaller guardrail issue remained in the lowest shared helper:
+  - `resolve_interaction_surface(...)`
+- The mismatch was subtle:
+  - `resolve_user_entrance(None, "qq")` already classifies the request as remote
+  - but `resolve_interaction_surface(None, "qq")` still returned the legacy fallback surface shape
+- That no longer broke the current application/runtime path because those paths now use shared interaction binding.
+- Still, leaving the helper in that state would invite the same bug to reappear the next time someone reaches for the lower-level function directly.
+- So this is not a big architecture slice.
+- It is a preventive guardrail:
+  - make the lower-level helper consistent with the remote meaning it already exposes
+  - lock that with one direct test
+- This kind of cleanup is worth doing after a convergence refactor:
+  - first fix the real write path
+  - then remove the remaining low-level footguns that could recreate the same drift later
+
+## 2026-04-13 P30.5 Runtime Live-State Remote Binding Convergence
+
+- The previous two `P30.5` cuts fixed the shared binding seam and the request-side precedence bug.
+- But one lower-level drift point still remained:
+  - some runtime state writes were still using older surface-only normalization
+  - so the top of the stack could correctly understand a remote request as `qq`
+  - while a deeper transcript/projection write could still fall back differently
+- That kind of bug is easy to miss because the request contract already looks correct at the application boundary.
+- The real question is:
+  - does the runtime write the same truth it just resolved?
+- In this case, the answer was "not always yet."
+- The important fix was therefore not another adapter rewrite.
+- It was to reuse the same shared interaction-binding seam in the place that actually mutates session truth:
+  - projection surface binding
+  - transcript message writes
+  - activity transcript writes
+- Two adjacent seams benefited from the same cleanup:
+  - gateway execution metadata now resolves through shared interaction binding too
+  - remote conversation binding lookup no longer relies on the older `surface=channel_type` shortcut
+- This is a useful architecture lesson for the rest of the refactor:
+  - boundary convergence is not finished when requests are normalized
+  - it is finished when the write-path that persists session truth also uses the same normalization contract
+
+## 2026-04-13 P30.5 Default-Surface Override Fix For Remote Bindings
+
+- This follow-up mattered because the previous convergence cut removed duplication, but one precedence bug still remained.
+- The bug was subtle:
+  - `SessionSurfaceBinding.from_request(...)` accepted `default_surface`
+  - and it applied that default before calling the shared resolver
+- That changed the meaning of the resolver itself.
+- The shared resolver was supposed to decide:
+  - explicit surface first
+  - channel type second
+  - default surface last
+- But with the old prefill behavior, `default_surface="tui"` could win too early.
+- So a remote request like:
+  - no explicit `surface`
+  - `channel_type="qqbot"`
+- could still end up looking like a TUI-originated request before the shared binding logic even ran.
+- That is not merely duplication.
+- It is a correctness bug because remote-origin context gets overwritten by a local fallback.
+- The fix is small and honest:
+  - stop pre-applying the default
+  - pass the raw request values into the shared resolver
+  - let the resolver keep the authoritative precedence order
+- This is a good example of why small boundary follow-ups are worth doing:
+  - the previous slice created the right seam
+  - this slice made sure callers actually respect that seam's contract
+
+## 2026-04-13 P30.5 Shared Interaction Binding Convergence
+
+- This was a good next slice because it fixed a real semantic split without reopening a large refactor track.
+- By this point, the architecture docs had already locked the four-entrance model.
+- The remaining risk was quieter:
+  - chat requests were already normalized through a shared interaction adapter
+  - shared-session operations still built their bindings locally
+  - the TUI gateway client had yet another lighter local normalization path
+- That kind of duplication does not look dramatic in code review.
+- But it creates exactly the sort of boundary drift that shows up later as:
+  - alias mismatches
+  - slightly different trimming rules
+  - one entrance passing `qqbot` while another passes `qq`
+  - one path inventing a default surface while another preserves `None`
+- The right fix was not to redesign surface semantics.
+- The right fix was to add one shared normalization seam and reuse it in the existing callers.
+- The most important detail in this cut is what it did *not* do:
+  - it did not force empty shared-session mutation requests into `"api"`
+  - it kept the current meaning that missing `surface` stays unset unless a real source/default is available
+- That matters because session mutation/control paths should not accidentally overwrite session activity provenance just because the caller omitted optional surface metadata.
+- This is a healthy convergence slice:
+  - small
+  - boundary-focused
+  - behavior-preserving
+  - valuable because it removes a future source of entrance drift before it becomes another larger refactor
+
+## 2026-04-13 P30.7ap Runtime Manager Re-Audit + Natural Stop Check
+
+- This re-audit was important because successful refactors create a new kind of risk:
+  - continuing to refactor after the architectural reason is gone
+- The current runtime manager still has some long methods.
+- But the meaning of those long methods has changed.
+- The longest remaining blocks are now the staged initialization methods.
+- Those are composition-root wiring.
+- They are not the same problem as the earlier mixed-responsibility hotspots.
+- The parameter-heavy operator methods also still occupy noticeable space, but on inspection they are mostly:
+  - load session
+  - delegate
+  - return
+- That is a good facade shape, even if the signature itself is long.
+- The re-audit therefore suggests a different standard from the earlier `P30.7` stages:
+  - do not keep extracting because the file is still non-trivial
+  - only extract again when a real behavior seam starts drifting or mixing ownership
+- The small dead-helper cleanup found during the audit supports that conclusion:
+  - what remained to remove was mostly residue, not architecture
+  - `_allocate_session_title_unlocked(...)` and the thin lineage wrapper remnants were cleanup, not new decomposition work
+- So the honest state now is:
+  - `P30.7` has materially improved the runtime boundary
+  - the manager is now close enough to a real outer coordinator/composition root
+  - the next useful engineering energy should probably move back to capability work unless a fresh runtime smell appears
+
+## 2026-04-13 P30.7ao Lineage Registry Helper Extraction
+
+- This was the smallest honest third cut after the hotspot audit.
+- By this point, the manager no longer owned much shared state or much request interpretation.
+- What remained in this area was one runtime-private rule cluster:
+  - lineage root resolution
+  - lineage registration/update
+  - lineage removal
+- That is exactly the kind of logic that does not need a large subsystem, but also should not stay inline in the outer coordinator forever.
+- The helper extraction is useful because it improves ownership without breaking the current observation seam:
+  - `runtime._session_lineage` still exists for tests/debugging
+  - the mutation rules now live in a dedicated helper
+- That is a good fit for this stage of `P30.7`:
+  - small
+  - behavior-preserving
+  - no abstraction theater
+
+## 2026-04-13 P30.7an Derived Session Creation Extraction
+
+- This was the right second cut after model-selection request resolution.
+- `create_derived_session(...)` was still a real manager hotspot because it assembled a full inherited payload inline.
+- That included:
+  - inheriting selected model identity
+  - inheriting context and sandbox state
+  - shaping child lineage metadata
+- None of that is outer-coordinator work.
+- It belongs with session creation and hydration semantics.
+- Moving payload inheritance into the hydration builder and creation orchestration into the registry handler improved the package structure in a very clean way:
+  - the manager still owns lock + parent-session lookup
+  - registry/hydration now own how a derived session is shaped and created
+- Fixing direct `create_session(...)` to reuse `allocate_session_id()` was also the right opportunistic cleanup here.
+- It removed a real though low-probability inconsistency:
+  - direct session creation now respects the same live/persisted collision guard as the rest of runtime session creation
+- After this cut, derived-session creation looks much more like the rest of the runtime:
+  - session truth stays centralized
+  - the coordinator delegates
+  - the session registry/hydration path owns the construction details
+
+## 2026-04-13 P30.7am Model Selection Request Resolution Extraction
+
+- This was the right next implementation cut because it matched the hotspot audit almost perfectly:
+  - small surface
+  - clear misplaced responsibility
+  - low risk of collateral churn
+- Before this slice, the runtime manager still behaved like a partial request interpreter for model selection.
+- It was deciding:
+  - whether `provider_source` was missing
+  - how to infer it
+  - and how to translate inference failures into `400` errors
+- That is not coordinator work.
+- It belongs with model-selection request semantics.
+- Moving the logic into `RuntimeSessionModelSelectionHandler` improves the boundary in two ways:
+  - the handler now owns the full request-resolution step before planning
+  - `MainAgentRuntimeManager` now only:
+    - loads the session
+    - forwards the request
+- Another good detail in this cut is that the existing monkeypatch seam stayed stable:
+  - the runtime manager still injects the bound `resolve_session_model_selection_identity(...)` callback
+  - so tests and runtime composition can continue to override the resolution behavior without teaching the manager to interpret the request again
+- This is a healthy `P30.7` pattern to keep repeating:
+  - do not invent a new abstraction if one handler already owns the nearby semantics
+  - just move the remaining request meaning into that handler and thin the manager facade
+- The next best follow-up remains `create_derived_session(...)`, because it is now the clearest remaining manager method that still assembles a non-trivial runtime payload inline
+
+## 2026-04-13 P30.7al Runtime Hotspot Audit
+
+- After the persistence and shared-state extractions, the right question changed.
+- The question was no longer:
+  - "what still makes the file look big?"
+- The better question was:
+  - "what remaining logic still makes the manager the wrong owner?"
+- That distinction mattered immediately.
+- The longest remaining methods by line count were the initialization stages.
+- But those are now mostly honest composition-root wiring.
+- They are long, yet not especially confused.
+- That means they should not be the next target just because they rank high in a length table.
+- The more useful hotspots are smaller but more meaningful:
+  - `update_session_model_selection(...)` still performs provider-source inference and exact selection validation before delegating
+  - `create_derived_session(...)` still assembles inherited snapshot payload state inline inside the manager
+  - `_register_session_lineage_unlocked(...)` still owns the runtime-private lineage graph mutation rules
+- Those three are better next-cut candidates because each one still represents a real ownership question:
+  - model-selection request resolution belongs with model-selection semantics
+  - derived-session creation belongs with session creation/registry orchestration
+  - lineage graph mutation belongs with a lineage-specific runtime seam rather than the outer coordinator
+- The audit also exposed one smaller but honest consistency problem:
+  - `RuntimeSessionRegistryHandler.create_session(...)` uses `uuid4().hex` directly
+  - while the runtime already has `allocate_session_id()` to avoid collisions against both live sessions and persisted records
+  - collision probability is low, but this is still the wrong owner for identity generation rules
+- So the outcome of the audit is not "the manager is still too large."
+- The more accurate outcome is:
+  - the manager has now reached the point where only behavior-shaped hotspots deserve further extraction
+  - future `P30.7` work should be narrower and more evidence-driven than the earlier residue-removal cuts
+
+## 2026-04-13 P30.7ak Session State Model Extraction
+
+- This was the right follow-up to the persistence cut because it addressed a different kind of residual coupling.
+- The persistence wrapper was manager-private.
+- The session-state cluster was not.
+- It was referenced across much of the runtime package, which meant the shared runtime session truth was still physically living inside the outer runtime facade.
+- That is a subtle but important architectural drag:
+  - even if behavior is correct
+  - other runtime collaborators still look like they depend on the manager for their core shared types
+- Moving the state cluster into `session_state.py` improves the shape of the package more than the raw line count suggests.
+- It makes the runtime dependency graph more honest:
+  - state models live in a neutral shared module
+  - the manager depends on those models
+  - the collaborators depend on those models
+  - fewer modules conceptually depend on the manager just to talk about shared session state
+- This slice also confirms a useful boundary rule for the remaining `P30.7` work:
+  - once file-top residue is gone, the next cuts should be driven by true orchestration hotspots
+  - not by adjacency or by a desire to keep splitting modules for its own sake
+- In other words:
+  - persistence and shared state were good extractions because they represented distinct shared responsibilities
+  - future cuts now need to justify themselves in terms of ownership or behavior, not just file geography
+
+## 2026-04-13 P30.7aj Runtime Persistence Extraction
+
+- The latest `P30.7` audit was useful because it showed that the remaining runtime-manager file-top bulk was not one problem.
+- It was at least two different problems:
+  - a private persistence wrapper
+  - a broadly referenced session-state type cluster
+- Treating those as one refactor would have been the wrong move.
+- The persistence wrapper was the better first cut because it already had a clean boundary:
+  - write the live session record
+  - write/read the shared transcript sidecar
+  - manage metadata records
+- It was also mostly manager-private.
+- That matters because a good decomposition slice should reduce ownership confusion without forcing a cross-runtime import migration unless that migration is the point of the slice.
+- This cut therefore improved architecture in a very honest way:
+  - the outer runtime facade no longer embeds persistence implementation
+  - persistence behavior did not need to change
+  - the manager composition root still clearly owns when persistence is used, but not how the persistence wrapper works internally
+- The next top-of-file hotspot is now clearer:
+  - the `MainAgentSession*` dataclass cluster is still physically anchored in `main_agent_runtime_manager.py`
+  - unlike persistence, that cluster is referenced by a broad set of runtime modules
+  - so it should be treated as a separate follow-up slice, not casually bundled into the same change
+- This is a good example of the current `P30.7` refactor rule:
+  - prefer small extractions that remove real mixed responsibility
+  - avoid combining unrelated cleanup categories just because they are adjacent in the file
+
+## 2026-04-13 P30.5 TUI-CLI Model Use Request Convergence
+
+- This slice is smaller than the earlier remote-command cuts, but still worth doing.
+- By this point, the biggest architectural danger was no longer one huge duplicated command shell.
+- The danger was smaller repetition surviving in multiple entrances because it looked harmless.
+- `/model use` was one of those cases.
+- Both terminal entrances still owned the same local questions:
+  - is usage complete?
+  - does the provider exist in the current catalog snapshot?
+  - does the provider expose that model?
+- Those questions are not very complicated.
+- But that is exactly why they are easy to duplicate forever.
+- The useful move here was not to redesign model selection.
+- Runtime and gateway already own the actual selection decision.
+- The useful move was only to centralize the request-resolution contract that both terminal entrances were already implementing.
+- That gives two benefits:
+  - one shared place now defines the catalog-facing `/model use` validation semantics
+  - `TUI` and `CLI` can still present the result in surface-appropriate ways without re-deciding the same request validity logic
+- This is a good example of the kind of convergence work that matters late in a refactor track:
+  - not dramatic
+  - not architectural theater
+  - just removing the small duplicated branches that would otherwise keep reappearing
+
+## 2026-04-13 P30.5 TUI Remote Memory Mutation Convergence
+
+- This was the natural follow-up to the read-path convergence cut.
+- The useful question was no longer:
+  - "what business rule still belongs in `TUI`?"
+- The useful question was:
+  - "why do `promote` and `save` still own their own execution shell if the shared memory service already owns the real command semantics?"
+- The answer was basically "historical leftover shape."
+- That is exactly the right kind of thing to remove during a convergence pass.
+- These branches still repeated:
+  - execute
+  - catch
+  - unpack `result`
+  - append feedback
+  - set status
+- But they were not earning that duplication with any special local meaning.
+- So the right move stayed small and honest:
+  - do not invent a new mutation framework
+  - just route the last two branches through the helper that already proved itself on the read-heavy actions
+- The second useful finding came from verification, not from the original code target.
+- Once the broader `TUI` suite was run, it exposed a real boundary inconsistency:
+  - remote approval forwarding still omitted remote binding metadata even though the request contract supports it
+- That matters because once a session is remote and channel-bound, the surface should not arbitrarily drop binding context for one command family while forwarding it for others.
+- So this slice ended up doing two healthy things:
+  - finishing the memory mutation convergence
+  - correcting a small but real remote approval boundary gap discovered by the broader regression sweep
+
+## 2026-04-13 P30.5 TUI Remote Memory Read-Path Convergence
+
+- `memory` was the right next hotspot after `context`.
+- The problem here was less about duplicated command meaning and more about duplicated command shell mechanics.
+- The `TUI` memory handler had many branches that all repeated the same five steps:
+  - execute one memory action
+  - catch an exception
+  - unpack `result`
+  - render the feedback
+  - set the status
+- That repetition matters because large command handlers do not only drift in business rules.
+- They also drift in little things:
+  - one branch forgets a metadata field
+  - one branch phrases a failure slightly differently
+  - one branch starts using a different result unpack rule
+- The useful move here was not to invent another full command-planning system.
+- The useful move was smaller:
+  - add one execution/render helper
+  - move the repeated read-heavy memory paths through it
+- That gives us a good intermediate result:
+  - the read-heavy remote memory surface is thinner now
+  - the remaining mutation-heavy memory actions are easier to see as the next separate hotspot
+- This is a healthy cut because it reduces structural thickness without forcing a premature redesign of the more stateful memory mutations.
+
+## 2026-04-13 P30.5 TUI Remote Context Request Convergence
+
+- This was a particularly worthwhile cut because it removed a subtle but important kind of drift.
+- The drift was not in validation output.
+- `TUI` was already asking the shared command service to validate `context include/exclude/budget/reset`.
+- The drift was in what happened next:
+  - after validation succeeded
+  - `TUI` went back to raw `args`
+  - and rebuilt the remote request shape itself
+- That is exactly the kind of half-shared command flow that looks fine for a while and then becomes a maintenance trap.
+- The right move here was not to push more logic into `TUI`.
+- The right move was to let the shared command service expose the structured remote-request intent directly.
+- Then `TUI` could just forward it.
+- That produces a much healthier split:
+  - shared command execution owns more of the command meaning
+  - `TUI` owns less re-parsing
+  - remote binding metadata is forwarded consistently
+- This slice is valuable because it reduces a kind of drift that is easy to miss in reviews:
+  - duplicated parse logic that only exists after validation has already happened once
+
+## 2026-04-13 P30.5 TUI Remote Control Dispatch Convergence
+
+- After the busy-conflict cut, the remaining remote control smell was smaller but still worth fixing.
+- The issue was no longer "who decides busy."
+- The issue was "why are remote `mcp` and remote context-control still assembling nearly the same control request in parallel?"
+- That kind of duplication is quieter than duplicated business rules, but it still matters.
+- It creates three risks:
+  - one path starts forwarding a different binding payload than the other
+  - one path handles gateway failure detail differently
+  - one path forgets to sync session detail after a successful remote mutation
+- In fact, that first inconsistency was already real:
+  - remote context-control was not sending the same binding payload style as remote `mcp`
+- So this cut was the right size:
+  - not a new subsystem
+  - not a broad control-framework rewrite
+  - just one shared remote dispatch seam inside `TUI`
+- That gives a cleaner entrance shape:
+  - request assembly is less duplicated
+  - gateway error rendering is less duplicated
+  - remote control binding metadata is more consistent
+- This is a good follow-up cut because it reduces drift pressure without pretending the whole command surface is now "finished."
+
+## 2026-04-13 P30.5 TUI Remote Control Conflict Convergence
+
+- This slice is smaller than remote `skill` or remote approval, but still worth doing.
+- The problem was not that `TUI` owned all remote control semantics.
+- The problem was that it still owned one very specific kind of semantic fork:
+  - remote busy-conflict decisions for `compact`
+  - remote busy-conflict decisions for `drop_memories`
+  - remote busy-conflict decisions for `mcp reload`
+- Those are easy branches to leave in a surface because they look harmless.
+- But they are exactly the kind of branches that make one entrance slowly drift from the canonical runtime behavior.
+- The shared control path already had the authoritative rule:
+  - session busy should be rejected there
+  - and the user should get the shared conflict detail there
+- So the useful move here was not a bigger redesign.
+- It was to stop `TUI` from answering that question first for remote sessions.
+- This slice also improved test truthfulness:
+  - the fake gateway now knows how to surface shared busy conflicts for remote control actions
+  - so the tests verify gateway-authoritative control conflicts instead of verifying the old local precheck
+- The result is healthy:
+  - `TUI` remote control handling is thinner
+  - shared control conflict wording is more authoritative
+  - there is still more `mcp` convergence left, but the worst remote busy fork is gone
+
+## 2026-04-13 P30.5 TUI Remote Approval Convergence
+
+- Remote approval was the right next target after remote `skill`.
+- The issue was not just duplicated lines.
+- The issue was duplicated authority:
+  - `TUI` was still deciding whether approval existed
+  - whether restart loss should block direct approval
+  - whether one pending approval should auto-pick a token
+  - and whether multiple approvals should require a token
+- Those are not surface concerns.
+- Those are approval-resolution rules.
+- And the shared runtime already owns them.
+- So the right move here was the same principle as the QQ approval cut:
+  - do not redesign approval APIs
+  - do not introduce a new abstraction layer
+  - just stop letting the surface re-implement shared approval semantics
+- This slice also needed one testing correction:
+  - the fake gateway in `test_tui_app.py` was still modeling the old TUI-precheck world for restart loss
+  - that would have let stale local behavior look correct in tests even after the architecture moved on
+- Fixing the fake gateway matters because otherwise we would be "testing the old bug as the contract."
+- The result of this cut is clear:
+  - remote `TUI` approval now behaves more like a surface over shared runtime decisions
+  - local approval still works the same way
+  - the next `P30.5` hotspot is now remote control behavior, especially MCP/context-control
+
+## 2026-04-13 P30.5 TUI Remote Skill Convergence
+
+- The audit was right to target `TUI` first.
+- The remote `skill` path in `TUI` really was a second command shell in practice:
+  - per-action argument validation
+  - per-action usage handling
+  - per-action response fallback text
+  - per-action status wording
+  all lived in one long branch tree
+- That kind of structure is not just ugly.
+- It is dangerous because every new skill action encourages one more local branch in the entrance layer.
+- The useful move here was not a new abstraction shared across the whole app.
+- The useful move was smaller and more honest:
+  - add one normalized remote command plan
+  - centralize remote usage / unknown-action handling
+  - centralize remote response fallback rendering
+  - keep gateway interaction exactly where it already belongs
+- That gives us a better boundary:
+  - `TUI` still owns operator-facing display behavior
+  - but it owns far less action-by-action command meaning
+- This slice also exposed a small correctness risk:
+  - remote `skill uninstall` and `skill rollback` were not included in the same mutation-sync path as the other mutating skill actions
+- That was easy to miss because it was not a crash.
+- It was a consistency hole.
+- Locking it now is worthwhile because these are exactly the kinds of tiny drift bugs that slowly make one entrance feel "special."
+- So the architectural result of this slice is good:
+  - `TUI` remote `skill` is no longer the biggest low-hanging command-shell duplication in the surface
+  - the next `P30.5` cuts can now move to remote approval, then remote MCP/context-control
+
+## 2026-04-13 P30.5 Shared Entrance Command Convergence Audit
+
+- The good news is that the project is no longer missing a shared command foundation.
+- It already exists in two important pieces:
+  - [router.py](d:\file\Mini-Agent\src\mini_agent\commands\router.py)
+  - [execution.py](d:\file\Mini-Agent\src\mini_agent\commands\execution.py)
+- That matters because it changes the nature of the problem.
+- We are not looking at a system with no shared command seam.
+- We are looking at a system where some entrances already use that seam better than others.
+- `CLI` is not perfect, but it is meaningfully closer to the target:
+  - it already dispatches several command families through shared helpers
+  - `kb`, `mcp`, `model`, `skill`, and compaction-related flows are visibly converging
+- `QQ` also stopped being the main boundary risk after the `P30.4` work.
+- The remaining adapter logic there is now mostly:
+  - binding hints
+  - display formatting
+  - channel protocol behavior
+- So continuing to shave QQ edges would no longer attack the highest-value problem.
+- The highest-value problem has moved to `TUI`.
+- More specifically, it has moved to the `TUI` remote-session command path.
+- The architectural smell is not just "a few duplicated lines."
+- The smell is that `TUI` still behaves like it owns a second command execution shell when operating against gateway-backed sessions.
+- The clearest hotspots are:
+  - approval resolution
+  - context control
+  - context command orchestration
+  - memory command orchestration
+  - MCP command orchestration
+  - skill command orchestration
+  - model command orchestration
+- There is one important nuance:
+  - some `TUI` model behavior is legitimately surface-specific, such as cursor movement, filter state, and apply-next/apply-prev operator affordances
+  - but `show/list/use` semantics should not keep drifting separately
+- So the correct `P30.5` direction is now clear:
+  - do not restart from QQ
+  - do not invent a brand-new shared command subsystem
+  - instead, thin the `TUI` remote command shell until it becomes a true surface over shared semantics
+- The safest first implementation cut is:
+  - remote `skill` convergence in `TUI`
+- After that, the next best cuts are:
+  - remote approval convergence
+  - remote MCP/context-control convergence
+
+## 2026-04-13 P30.4 QQ Tail Cleanup + Closure Check
+
+- After the last command-thinning cuts, the remaining QQ issues were no longer serious boundary violations.
+- They were small tail problems:
+  - `/status` could double-reply when probing for a shared session and then falling back to local status
+  - `/cancel` still kept a QQ-local conflict wording branch
+- These are important to fix, but they do not justify another large `P30.4` refactor.
+- The right finish here is tiny and disciplined:
+  - allow silent binding checks for read-only status probing
+  - let shared conflict wording remain authoritative for cancel failures
+- After that cleanup, the remaining QQ logic is mostly:
+  - conversation binding hints
+  - local display formatting
+  - channel protocol handling
+- That matches the frozen remote-adapter contract.
+- So the architectural conclusion is straightforward:
+  - `P30.4` is ready to close
+  - further work should move to shared entrance convergence instead of continuing to shave tiny adapter-local edges
+
+## 2026-04-13 P30.4 QQ Runtime Policy + MCP Command Thinning
+
+- After the approval cut, the remaining QQ adapter semantics were smaller but still visible in two places:
+  - runtime policy commands
+  - session control commands
+- The runtime-policy issue was mostly structural:
+  - `/plan`
+  - `/build`
+  - `/default`
+  - `/full_access`
+  were all routed through one handler, but the handler still derived the payload by branching on the command name.
+- That is not a severe boundary violation, but it is still the adapter deciding command meaning in code instead of declaring it at dispatch time.
+- The cleaner boundary is:
+  - dispatch declares the intended policy payload
+  - the handler only forwards that payload and renders the response
+- The MCP issue was similar but lighter:
+  - `/mcp` legitimately remains a subcommand router in QQ
+  - but it did not need to keep a QQ-only `reload + 409 busy` wording branch
+- The shared session-control path already knows whether a session is busy and already returns the canonical conflict message.
+- So the useful tightening here was not to invent a new shared subsystem.
+- It was to:
+  - move more meaning into entry metadata
+  - keep `/mcp` as a thin router
+  - and let shared error detail stay authoritative
+- This is a good `P30.4` cut because it improves entrance clarity without pretending every tiny command translation must disappear.
+
+## 2026-04-13 P30.4 QQ Approval Command Thinning
+
+- After the `/memory` and `/context` cut, the strongest remaining QQ adapter-owned semantic hotspot was `/approve` / `/deny`.
+- The problem was not transport formatting.
+- The problem was that QQ was still acting like a partial approval resolver:
+  - fetch session detail
+  - inspect live pending approvals
+  - inspect restart-recovery pending approvals
+  - auto-pick a token when only one approval exists
+  - and locally tell the user which token to choose when multiple approvals exist
+- That is exactly the kind of logic the adapter should not own, because approval resolution semantics must stay identical across entrances.
+- The good news was that the correct shared seam already existed:
+  - `session_interrupt_handler.py` already owns
+    - no-pending conflict behavior
+    - restart-lost approval conflict behavior
+    - implicit single-token resolution
+    - multi-token conflict messaging
+- So the right move here was not to invent a new abstraction.
+- The right move was to delete QQ's duplicate logic and let the shared approval path speak for itself.
+- This is a healthy `P30.4` cut because it removes duplicated business semantics without touching remote binding behavior that legitimately belongs to the adapter.
+
+## 2026-04-13 P30.4 QQ Memory + Context Command Thinning
+
+- After thinning `/skill`, the next architectural pressure point was the pair of large QQ handlers:
+  - `/memory`
+  - `/context`
+- Both had the same smell:
+  - lots of action-specific branching
+  - lots of argument-shape handling
+  - and only part of that logic truly needed to remain at the adapter boundary
+- The right split here is not "move everything out."
+- Some local responsibility is still real:
+  - `context show`
+  - `context stats`
+  need local read-model formatting in the QQ surface
+- But the update and mutation paths did not need so much adapter-owned control flow.
+- The useful refactor was therefore:
+  - keep the local read-only display behavior
+  - convert the mutation/update branches into thinner action-to-payload mapping
+  - let the shared memory/context handlers reject incomplete selectors and invalid mutations
+- This is especially valuable for `/memory`, because its action surface is broad enough that every extra local branch increases drift risk.
+- Reducing that branch fan-out lowers the chance that QQ quietly diverges from TUI/CLI behavior over time.
+
+## 2026-04-13 P30.4 QQ Skill Command Thinning
+
+- After the model-selection cut, `/skill` was the next obvious remote-adapter hotspot.
+- The QQ handler still owned a long sequence of action-specific branches for something the shared runtime already understands quite well.
+- That is exactly the kind of structure that slowly turns an adapter into a second command system.
+- The useful observation here is that QQ does not need to fully parse skill semantics to be user-friendly.
+- It only needs to do a little:
+  - recognize the action shape
+  - package the relevant text field
+  - return a clean error detail when the shared layer rejects the request
+- Everything else is better owned by the shared session skill handler.
+- This also exposed a correctness gap:
+  - the command catalog already advertised `skill uninstall` and `skill rollback` for QQ
+  - but the live QQ handler did not support them yet
+- Fixing both together was the right move:
+  - thinner adapter
+  - closer alignment between catalog and live behavior
+  - less duplicated skill-command branching in the remote entrance
+
+## 2026-04-13 P30.4 Shared Model-Selection Source Inference
+
+- After the request-helper and command-scope cuts, the next real boundary offender in QQ was `/model use`.
+- The adapter was still acting like a partial model router:
+  - fetch the catalog
+  - find matching provider ids
+  - detect ambiguity
+  - detect missing models
+- That is the wrong long-term direction because the exact same provider/model pair should mean the same thing no matter which entrance requested it.
+- The correct home for that decision is shared model-selection logic.
+- The useful compromise here was:
+  - do not redesign the whole model API
+  - do not force TUI/CLI to change
+  - just let shared-session model selection infer `provider_source` when the pair is uniquely resolvable
+- That small shift matters a lot architecturally:
+  - QQ now knows less about provider-catalog internals
+  - ambiguity is decided once in shared logic
+  - and future remote entrances can reuse the same omission-friendly behavior instead of copying the same catalog scan
+- This is exactly the kind of `P30.4` cut we want:
+  - remove adapter-owned routing knowledge
+  - keep the shared core more authoritative
+  - avoid inventing a bigger abstraction than the problem needs
+
+## 2026-04-13 P30.4 QQ Command Scope Dispatch Thinning
+
+- After the QQ request-helper cleanup, the next remaining adapter smell was more structural than repetitive.
+- The adapter still knew one entrance-routing rule:
+  - some commands are local
+  - some commands only make sense when a shared session is bound
+- But that rule was expressed indirectly through repeated `ensureSharedSessionBound(...)` checks inside many handlers.
+- That arrangement is easy to live with for a while, but it makes the adapter boundary harder to read:
+  - you need to inspect each handler body to learn whether the command is local or shared-session-scoped
+  - the dispatch seam itself does not say
+- The right move here was still not a new subsystem.
+- The right move was to let the command registry say what the command scope is.
+- That gives the adapter a cleaner shape:
+  - the dispatch layer owns entrance-routing preconditions
+  - the handler body focuses more on command behavior
+  - and the safety net can still remain deeper in helper functions where needed
+- This is a good `P30.4` cut because it improves the boundary without pretending QQ no longer has any command adaptation responsibility.
+- It still does.
+- But now that responsibility is more explicit and less smeared across handler bodies.
+
+## 2026-04-13 P30.4 QQ Adapter Request Helper Thinning
+
+- After the binding-state and naming cleanups, the next honest `P30.4` smell was not ownership anymore.
+- It was repetition inside the active QQ adapter:
+  - the same shared-session mutation payload shape
+  - the same gateway POST shape
+  - the same response-envelope validation
+  kept appearing across multiple commands
+- That kind of repetition matters here because it makes the adapter look more like a mini remote business layer over time.
+- The right response was not to build a new shared remote utility module.
+- The right response was to keep the helper extraction inside the QQ adapter itself:
+  - one sender-id helper
+  - one mutation-payload helper
+  - one envelope-post helper
+- This keeps the boundary honest:
+  - the adapter is thinner
+  - the application/gateway contract is unchanged
+  - and no new pseudo-shared layer was introduced just to deduplicate a few POST calls
+- WeChat was reviewed at the same time and intentionally not refactored:
+  - its current request assembly is still small enough
+  - forcing symmetry there right now would add abstraction pressure without architectural value
+
+## 2026-04-13 P30.4 Remote Binding State Thinning
+
+- Once the remote adapter names were corrected, a smaller but worthwhile follow-up became obvious:
+  - some adapter-local fields were still present simply because they had accumulated over time
+  - not because the adapter truly needed to own them per conversation
+- The clearest example was QQ `botName`:
+  - it is process/global configuration
+  - storing it inside every conversation binding object only makes the local state shape look richer than it really is
+- The WeChat-side `metadata` field had the opposite problem:
+  - the type allowed it
+  - the active binding flow did not actually need it
+  - so the contract was wider than the live implementation
+- This kind of thinning work is easy to underestimate, but it matters for architecture stability:
+  - a thinner cache shape is harder to misuse
+  - a thinner cache shape is easier to classify as binding/preference only
+  - and future adapter additions are less likely to cargo-cult extra local state
+- This is the right style of `P30.4` progress:
+  - reduce ambiguity
+  - reduce local ownership surface
+  - do not invent new adapter-side abstractions just to look organized
+
+## 2026-04-13 P30.3 Operator-Flow State Split
+
+- After the supplemental split, the next honest TUI boundary issue was smaller but still important:
+  - `pending_model_*`
+  - `pending_skill_reload*`
+  were still sitting on projection state
+- Those fields are tricky because they can mirror real runtime/session detail, especially for gateway-backed sessions.
+- But inside the TUI they still behave as operator-flow state:
+  - queue a model switch
+  - remember a skill reload is pending
+  - affect what the operator sees next
+- Leaving them on projection makes them look more authoritative than they are in the TUI composition.
+- The right move was therefore not to redesign shared DTOs.
+- The right move was:
+  - keep shared contracts untouched
+  - add one `TuiSessionOperatorState`
+  - let TUI map that state back into summary projection when it needs to render or mirror remote detail
+- This keeps the architecture correction honest without inventing another abstraction layer in the shared runtime.
+
+## 2026-04-13 P30.3 Supplemental Cache Split + P30.4 Naming Tightening
+
+- The live code had already taken the right first step for `P30.3`:
+  - remote sync/recovery summaries were moved into `TuiSessionSupplementalState`
+- The main risk after that move was no longer runtime behavior.
+- It was documentation and naming drift:
+  - the boundary map still described those fields as if they belonged to projection proper
+  - the remote adapter type name `SessionState` still sounded like canonical session truth
+- That kind of mismatch is dangerous because it invites future regressions without any failing test:
+  - a developer reads the name
+  - assumes stronger ownership than the code should have
+  - and reintroduces session-owner behavior by accident
+- Tightening the names to `conversation binding` language is a small change, but it is exactly the kind of small change that keeps architecture corrections alive over time.
+- This is also a good example of the right refactor pacing for the current phase:
+  - do not invent a new subsystem
+  - do not expand the feature surface
+  - make the already-correct boundary harder to misread
+- After this cut, the next honest remote-adapter work is more concrete:
+  - shrink active adapter caches further toward binding + preference + display metadata
+  - not "add more channel-local session behavior"
+
+## 2026-04-13 P30.2 Session Truth Boundary Lock
+
+- The audit baseline was directionally right, but the current codebase is already better than that older snapshot:
+  - `TuiSession` has already been split into projection/runtime/view state
+- That matters because without re-reading the live code, it would have been easy to repeat stale conclusions and start refactoring the wrong problem.
+- The real job for `P30.2` was therefore not "invent the split."
+- The real job was to freeze what already exists and clarify what still remains risky.
+- Two useful conclusions fell out of the code-level read:
+  - TUI is no longer the biggest ownership offender it once was
+  - remote adapters are still more structurally misleading than they should be
+- The WeChat-side `SessionState` name is especially important here:
+  - it sounds authoritative
+  - but under the corrected architecture it is only an adapter-side cache
+- That kind of naming mismatch is exactly how architectural drift comes back later.
+- Another valuable clarification is that not every field in `TuiSessionProjectionState` has the same semantic weight:
+  - some are legitimate shared-session projection
+  - some are summary-oriented presentation caches
+- They can stay in projection state for now, but they should not be mentally upgraded into truth.
+- This is a good stopping point for the phase because it gives the next two cuts a clean handoff:
+  - `P30.3` can focus on stricter TUI state composition
+  - `P30.4` can focus on shrinking remote adapters instead of rediscovering ownership from scratch
+
+## 2026-04-13 Framework Skeleton Lock
+
+- The recent drift was not just a feature-priority mistake.
+- It exposed a framework-shape problem:
+  - the project had architecture corrections
+  - but it still did not have one short active document that froze where code belongs
+- That gap makes it easy to keep doing the right local fix in the wrong structural place.
+- The practical answer is not another vague architecture note.
+- The practical answer is one explicit skeleton contract that freezes:
+  - entrances
+  - layers
+  - repository mapping
+  - allowed dependency direction
+  - forbidden drift patterns
+- This is especially important for Mini-Agent because the tree now contains:
+  - shared runtime/application code
+  - active entrance apps
+  - compatibility adapters
+  - transitional channel paths
+- Without a skeleton lock, those categories can keep bleeding into each other during normal implementation.
+- Freezing the framework skeleton now gives future work a stronger default:
+  - new code should first be placed correctly
+  - only then should the specific feature behavior be discussed
+
+## 2026-04-13 P30.4a Remote Conversation Binding Centralization
+
+- Re-reading the corrected architecture made the real next move much clearer:
+  - the project does not need "more QQ"
+  - it needs a thinner and more canonical `Remote Interaction` path
+- The strongest small cut is the remote binding seam.
+- Right now the tree already contains the ingredients of the right design:
+  - channel ingress DTOs
+  - shared application chat flow
+  - an existing Python `ConversationBindingStore`
+- But the active path still behaves as if channel adapters must carry the reusable session binding themselves.
+- That is exactly the kind of partial ownership that makes remote adapters sticky over time:
+  - they start with a session id cache
+  - then they grow command behavior around it
+  - then they become "almost another session system"
+- Centralizing `conversation -> session_id` reuse in the shared application ingress path is therefore a good architectural move because it improves the boundary without demanding a full remote rewrite in one jump.
+- It also sets up the next normalization steps more honestly:
+  - QQ / WeChat / Feishu can become thinner adapters over time
+  - the gateway/application stack becomes the canonical place to resume a remote conversation
+  - future remote adapters do not need to reinvent local binding stores just to keep continuity
+
+## 2026-04-13 P23.29 Explicit Task Fork Commands
+
+- Once delegation started producing real child sessions, the next architectural gap became very clear:
+  - runtime had a real derived-session seam
+  - operators still had no explicit way to use it
+- That kind of gap is where codebases often drift into duplication:
+  - one path for delegated children
+  - another path for manual task forks
+  - and eventually two almost-the-same session hierarchies
+- The right fix here was not to teach TUI how to fake child tasks locally.
+- The right fix was to expose the already-correct runtime path through one explicit API and let TUI call that.
+- A second useful design decision was to keep session creation and first-task execution separate:
+  - create the child session through the explicit fork API
+  - then reuse the normal chat execution path for the first child turn
+- That kept the design simpler:
+  - one API creates derived sessions
+  - one existing path runs turns
+  - TUI composes them instead of asking the backend for another special-case "fork-and-run" primitive
+- The result is a cleaner foundation for later parity work:
+  - QQ/CLI can reuse the same explicit fork API
+  - lineage-aware child sessions stay a runtime truth, not a TUI-only convenience
+
+## 2026-04-13 P23.28 Delegation-Derived Session Lineage
+
+- After wiring lineage into import/export/restore, one obvious gap remained:
+  - explicit delegation still did not create a child session
+  - so one of the most natural lineage-producing behaviors in the runtime still had no ancestry-bearing session artifact
+- This is an important architectural distinction:
+  - a delegated worker execution is not the same thing as a delegated task session
+  - the first gives you output
+  - the second gives you durable runtime truth
+- For this codebase, the second is the one future features actually need.
+- If delegation only returns a string to the parent session, then later work such as:
+  - task fork
+  - partial resume
+  - child-task review
+  - memory/task summarization by branch
+  - branch-local model selection
+  becomes much harder because there is no persisted child boundary to attach them to
+- The right fix was therefore not to expose lineage in UI first.
+- The right fix was to make one real runtime behavior actually produce a lineage-bearing child session.
+- Another key design choice here was configuration inheritance.
+- A derived task session that loses the parent's:
+  - selected model
+  - runtime policy
+  - KB enabled state
+  - context policy
+  is technically a child session, but operationally the wrong one.
+- Reusing the snapshot-hydration path for derived sessions was therefore a good move:
+  - it preserved the existing model/policy restore semantics
+  - without inventing another partially overlapping session-construction path
+- One subtle but important restraint was also added:
+  - delegated child sessions do not inherit remote reply binding by default
+  - they are internal task sessions, not accidental second remote chat heads
+- That keeps the architecture cleaner:
+  - lineage-bearing child sessions exist
+  - but remote-channel ownership still belongs to the parent conversation unless explicitly reassigned later
+- The result is a better foundation for future task-fork work:
+  - there is now one real derived-session path in runtime/application layers
+  - `/delegate` already exercises it in production code
+  - future explicit fork commands can reuse that path instead of creating another special case
+
+## 2026-04-13 P23.27 Session Lineage Runtime Integration
+
+- The codebase already had a real lineage primitive:
+  - `SessionLineageStore`
+- But before this slice it was structurally misleading:
+  - the primitive existed
+  - unit tests proved it worked in isolation
+  - and yet the runtime never used it for real managed sessions
+- That is exactly the kind of gap that causes future design drift:
+  - later work starts assuming lineage exists
+  - but actual session import/export/restore semantics still behave as if lineage does not exist
+- The right fix was not a brand-new lineage subsystem.
+- The right fix was to connect the existing one to runtime truth.
+- The important design decision here was to keep lineage runtime-private first:
+  - attach lineage metadata to managed session state
+  - persist it through internal metadata/snapshot contracts
+  - rebuild the in-memory lineage graph on restore
+  - avoid prematurely expanding public DTOs before the operator surfaces need them
+- This slice also clarified a subtle runtime requirement:
+  - persisted restore cannot rely on parent sessions already being present in memory
+  - so the lineage store must support placeholder parents and later upgrades
+  - otherwise child sessions restored before parents would lose graph correctness
+- Adding `restore_node(...)` was therefore not incidental cleanup.
+- It was the minimal capability required to make lineage survive restart order.
+- The result is valuable beyond lineage itself:
+  - snapshot import/export now has a place to carry ancestry semantics
+  - future session fork / delegation / compression flows no longer need to invent their own ancestry representation
+  - runtime session truth is a little closer to a stable kernel rather than a collection of ad hoc metadata fields
+
+## 2026-04-13 P23.26 Agent Kernel Bootstrap Diagnostics
+
+- After the runtime-boundary cleanup, a clearer agent-core gap surfaced:
+  - the unified kernel could already build a working agent
+  - but it still could not explain itself in one stable payload
+- This mattered more than it first seemed because the kernel is now the shared bootstrap path for:
+  - CLI
+  - TUI
+  - gateway
+  - future web/remote surfaces
+- Without a kernel-level diagnostics seam, each surface would eventually be tempted to rediscover or re-derive pieces of bootstrap state on its own.
+- A second, more operational gap was hiding in the tooling bootstrap:
+  - optional capabilities like skills and MCP could fail during initialization
+  - the runtime would often continue, which is good for resilience
+  - but the failure was largely silent, which is bad for real use and debugging
+- The right fix here was not to make bootstrap stricter.
+- The right fix was:
+  - keep optional capability bootstrap non-fatal
+  - but make the result observable in one canonical payload
+- The new `kernel_diagnostics` seam is valuable because it centralizes bootstrap truth:
+  - selected route
+  - runtime policy
+  - workspace/shared tool catalogs
+  - skills readiness/counts/errors
+  - MCP readiness/counts/errors
+  - turn-context provider inventory
+- This is a good example of agent-core strengthening that improves future extensibility too:
+  - RAG / memory / skills / MCP integration can now build on the same kernel self-description
+  - instead of adding surface-specific bootstrap probes later
+
+## 2026-04-13 P30.7ai Managed Session Require-Helper Cleanup
+
+- After auditing the remaining operator-facing facade methods, the conclusion was:
+  - most of them no longer hide meaningful business logic
+  - their size is mostly coming from parameter lists and a repeated restore-or-404 session lookup pattern
+- That means a large new extraction here would likely be churn rather than improvement.
+- A smaller cleanup was still worthwhile:
+  - centralize the repeated `_load_managed_session_unlocked(...)` + `404` pattern
+  - leave the genuinely different branches alone
+- The resulting helper is intentionally narrow:
+  - it does not replace `_load_managed_session_unlocked(...)`
+  - it only expresses the stronger contract for the identical facade paths that require a managed session
+- This slice is useful because it clarifies the current architectural state:
+  - the runtime-manager operator surface is now mostly a real facade
+  - the remaining code duplication is minor and local rather than a sign of hidden mixed responsibilities
+- It also helps identify a natural stopping point:
+  - further refactoring on this surface should now be driven by behavior or policy confusion
+  - not by line counts or small amounts of repeated boundary code
+
+## 2026-04-13 P30.7ah Runtime Manager Composition Root Cleanup
+
+- After the registry/operator/transcript/snapshot cleanup wave, the most obvious runtime-manager hotspot was no longer a hidden behavior branch.
+- It was simply the constructor:
+  - `__init__`
+  - one long composition block wiring almost every runtime collaborator in sequence
+- This is a different kind of design problem from the earlier ones:
+  - not misplaced business logic
+  - not duplicated orchestration
+  - but poor readability at the composition root
+- The right move here was deliberately conservative:
+  - do not invent an external builder
+  - do not add another layer just to move lines around
+  - keep the runtime manager as the composition root
+  - but split the wiring into a few internal stages with clearer intent
+- The resulting shape is better for maintenance even though total file length does not drop much:
+  - `__init__` is now short and readable
+  - the wiring stages make dependency order explicit
+  - future refactors can target one stage at a time instead of re-reading a 300-line constructor
+- This slice reinforces another useful refactor rule for this codebase:
+  - not every problem wants a new module
+  - sometimes the honest cleanup is to keep the ownership where it is and make the structure legible
+- What remains now is narrower and more interpretable:
+  - the largest methods are mostly explicit helper/wiring stages
+  - several operator-facing methods are mid-sized but increasingly shallow
+  - further work should focus on genuinely confusing behavior or duplicated policy, not constructor line counts alone
+
+## 2026-04-13 P30.7ag Snapshot Import Command Surface Cleanup
+
+- After the turn-recording cleanup, `import_session_snapshot(...)` was still one of the obvious big shapes in the runtime manager.
+- On closer inspection, the problem was no longer hidden orchestration logic:
+  - the real logic already lived in the registry/snapshot handlers
+  - the manager was mostly keeping a very wide kwargs-style transport signature
+  - and rebuilding `RuntimeSessionSnapshotImportCommand(...)` inline
+- That made this a good boundary-cleanup slice rather than a new abstraction slice:
+  - the lower layer already had the right command object
+  - the manager simply had not adopted it yet
+- Moving the manager to the command object cleaned up more than just one method body:
+  - tests now use the same import contract as the runtime
+  - the shared-session walkthrough helper now uses the same contract too
+  - the snapshot-import seam is more explicit about what is being passed across the boundary
+- One useful follow-up fell out of the broader regression run:
+  - the readiness walkthrough script still encoded the old signature
+  - catching that in the runtime bundle was helpful because it proved the new surface is now exercised outside of unit tests too
+- This slice is a good example of a better cleanup heuristic for the remaining work:
+  - when a method looks large, first ask whether the bulk is actual business logic or just an over-wide interface
+  - here the right fix was interface consolidation, not another handler
+- The remaining runtime-manager hotspots are therefore increasingly “real”:
+  - `__init__` is still the main composition blob
+  - several operator-facing methods still look mid-sized, but many of them now mostly contain response shaping and session lookup rather than hidden orchestration
+
+## 2026-04-13 P30.7af Turn Recording Surface Consolidation
+
+- After the registry/operator/cancel-approval extractions, the runtime manager transcript surface was mostly thin already.
+- One small but honest boundary leak still remained:
+  - `record_turn(...)` was still composing two transcript writes inline in the manager
+  - even though `RuntimeSessionTurnScopeHandler` was already the real owner of message/activity/pending-approval recording
+- This was a good follow-up because it keeps the refactor honest without overreacting:
+  - we did not add another handler
+  - we simply let the existing turn-scope owner also own the two-message convenience mutation
+- The payoff is modest in file length but useful in boundary clarity:
+  - `record_turn(...)` now lives beside `record_message(...)`
+  - transcript mutation sequencing is less split across manager + handler
+  - the runtime manager reads more consistently as an outer facade
+- This slice also confirmed an important heuristic for the ongoing cleanup:
+  - not every remaining thick-ish method deserves a brand-new abstraction
+  - some of the best progress now comes from finishing ownership handoffs inside the seams we already extracted
+- The remaining hotspots are therefore more meaningful:
+  - `__init__` is still the dominant composition blob
+  - `import_session_snapshot(...)` is still the clearest remaining orchestration body
+  - several command-facing methods still look large in raw line counts, but many are already thin enough that further extraction could become churn rather than improvement
+
+## 2026-04-13 P30.7ae Cancel / Approval Operator-Surface Follow-Up
+
+- After the larger operator-surface extraction, two operator-facing branches still stood out as leftover exceptions:
+  - `cancel_session_turn(...)`
+  - `resolve_pending_approval(...)`
+- They were already relying on the extracted interrupt domain handler for the business rules.
+- What remained inline in the manager was mostly orchestration:
+  - distinguish live session vs persisted-only record
+  - append transcript entries
+  - preserve approval waiter finalization ordering
+- That made this a good follow-up because it completes the operator boundary instead of leaving two special cases behind.
+- One subtle behavior had to stay intact:
+  - approval waiters must only be finalized after the transcript entry is recorded
+  - otherwise the resumed turn can race ahead of the operator-facing approval record
+- Another subtle behavior also stayed explicit:
+  - persisted-but-not-live sessions still return the earlier `409` responses for cancel/approval instead of silently restoring a session and mutating it
+- This slice did not materially reduce total file length the way the earlier registry/operator cuts did.
+- It still matters because it reduces exception paths:
+  - cancel/approval now belong to the same operator-command surface as control/context/memory/skill/model/policy
+  - the runtime manager has fewer “but this one is special” orchestration branches left inline
+
+## 2026-04-13 P30.7ad Session Operator Handler Extraction
+
+- After the session-registry extraction, the remaining runtime-manager thickness was no longer hidden:
+  - it was the operator-command surface
+  - the manager still owned the orchestration body for control/context/memory/skill/model/policy commands
+- By this point those methods were mostly composing already-extracted business handlers:
+  - control handler
+  - context-policy handler
+  - memory command handler
+  - skill command handler
+  - model-selection handler
+  - runtime-policy handler
+- That made this a good extraction target because the manager was still thick mostly due to orchestration, not domain ownership.
+- The new operator handler now owns:
+  - command normalization
+  - lock/coordinator composition
+  - response shaping
+  - busy/queue handling around skills and runtime-memory mutations
+  - the remaining transport-facing command transcript shaping for this surface
+- Two behavior details were worth preserving explicitly:
+  - command metadata spelling:
+    - `kb_off` must stay `kb_off`
+    - `mcp_reload` is still rendered as `mcp reload`
+  - MCP cleanup monkeypatchability:
+    - tests patch `mini_agent.runtime.main_agent_runtime_manager.cleanup_mcp_connections`
+    - injecting `lambda: cleanup_mcp_connections()` from the manager preserves that seam
+    - passing the raw function object would have been cleaner-looking but behaviorally worse for the existing contract
+- This slice materially changes the feel of the runtime boundary:
+  - registry orchestration now lives in one handler
+  - operator-command orchestration now lives in another
+  - the manager is much closer to a genuine outer facade rather than a mixed bag of orchestration blocks
+
+## 2026-04-13 P30.7ac Session Registry Handler Extraction
+
+- After the direct-wiring cleanup, the next remaining runtime-manager thickness was not hidden anymore:
+  - it was the session registry orchestration itself
+  - the manager still owned the full body for acquire/create/import/export/list/detail/recent flows
+- Those methods were no longer one-off special cases:
+  - they all coordinated the same registry truth
+  - active in-memory sessions
+  - persisted session records
+  - restore/hydrate entry
+  - catalog-backed read views
+- The clean next move was therefore not another micro-helper:
+  - it was one registry-level handler that composes the existing lower-level handlers
+  - `access`
+  - `creation`
+  - `snapshot`
+  - `catalog`
+- This keeps the architecture honest:
+  - runtime manager still owns the `_store_lock` and `_sessions`
+  - registry orchestration no longer lives inline beside command execution and live-session mutation logic
+- One useful design constraint stayed in place:
+  - the registry handler does not introduce a new source of truth
+  - it receives the live session map and delegates restore/import back through the existing hydration path
+  - so we reduced ownership sprawl rather than moving it sideways
+- This cut also clarifies the next runtime seam:
+  - session registry plumbing is now much less mixed into the manager
+  - the remaining hot spots are more clearly command/mutation orchestration rather than session inventory control
+
+## 2026-04-13 P30.7ab Runtime Manager Direct-Wiring Cleanup
+
+- After the extraction wave, `MainAgentRuntimeManager` still had one quieter form of thickness:
+  - it was no longer owning much of the read-model/diagnostics/runtime-memory behavior
+  - but it was still pretending to own it through a layer of pass-through helpers
+- That is a real boundary smell even when behavior is correct:
+  - collaborators look extracted on paper
+  - but the composition still routes back through the manager for no semantic reason
+- The right next move was not another handler:
+  - most of the remaining code was not domain logic
+  - it was forwarding logic
+  - so the honest fix was direct wiring, not more abstraction
+- This cleanup now wires extracted collaborators together directly where possible:
+  - `RuntimeSessionDiagnosticsService`
+  - `RuntimeSessionReadModelBuilder`
+  - `RuntimeTaskMemoryBackendAdapter`
+  - `RuntimeSessionCatalogHandler`
+  - `RuntimeSessionRestoreHandler`
+  - `RuntimeSessionSnapshotHandler`
+- One important nuance had to stay intact:
+  - agent rebuilds still capture prepared-context state through `RuntimeSessionTurnScopeHandler`
+  - that preserves the existing persistence side effect during rebuild/reconfigure flows
+  - switching that seam directly to the hydrator would have made the code shorter but weakened the behavior contract
+- A second nuance surfaced during verification:
+  - some builder methods intentionally use keyword-only arguments such as `recent_limit=` and `transcript=`
+  - those cannot always be handed around as raw callables
+  - the correct boundary is therefore:
+    - direct wiring where signatures already match
+    - tiny lambda shims only where signature shaping is structurally required
+- This slice is valuable because it removes “fake thinness”:
+  - the runtime manager now delegates to real owners more directly
+  - fewer manager-local helper names need to be mentally traversed before reaching the real implementation
+  - the extracted seams are now more honest to the architecture we have been moving toward
+
+## 2026-04-13 P30.7aa TUI Gateway Client Payload Shaping Consolidation
+
+- After consolidating interaction binding in application services, the same payload-shaping duplication still existed one layer out in the TUI client:
+  - `TuiGatewayClient` repeatedly rebuilt:
+    - session interaction context payloads
+    - create-session payloads
+    - chat payload/query shapes
+- This was the same pattern as before, but the right fix here was local, not cross-layer:
+  - the TUI client should stay self-contained
+  - it should not depend on application-layer request/binding types
+- The client now has lightweight internal helpers instead:
+  - `_GatewaySessionBinding`
+  - `_create_session_payload(...)`
+  - `_chat_payload(...)`
+- That keeps the layer boundaries clean while still removing the duplication:
+  - session context payload normalization is centralized within the TUI client
+  - async/sync create-session paths share one normalization seam
+  - `run_chat(...)` and `stream_chat_events(...)` now share the same chat payload shape
+- This is also close to the natural stopping point for this family of cleanup:
+  - what remains in the client payloads is mostly operation-specific data
+  - further abstraction would likely compress unlike operations together for little gain
+
+## 2026-04-13 P30.7z Session Surface Binding Reuse Across Services
+
+- After request adaptation was unified for chat entrypoints, one smaller duplication cluster still remained in the session-facing services:
+  - `SessionApplicationService`
+  - `RemoteSessionService`
+- Both were repeatedly unpacking the same interaction-context fields:
+  - `surface`
+  - `channel_type`
+  - `conversation_id`
+  - `sender_id`
+- That duplication was not large enough to justify another heavy handler extraction, but it was still a real boundary leak:
+  - both services were manually rebuilding the same interaction kwargs
+  - that made it too easy for one path to quietly forget a field in the future
+- The existing `SessionSurfaceBinding` was already the right abstraction; it just had not been promoted into a reusable adapter.
+- It now owns:
+  - `from_values(...)`
+  - `from_request(...)`
+  - `as_kwargs()`
+- Both service layers now reuse that one binding:
+  - `SessionApplicationService` for runtime-manager calls and managed-turn construction
+  - `RemoteSessionService` for gateway-client calls and default create-session payload shaping
+- This is the right stopping point for this slice:
+  - the repeated interaction-context unpacking is now centralized
+  - the remaining fields being forwarded are mostly operation-specific business fields, not generic surface context
+  - further abstraction here would likely start drifting into abstraction-for-its-own-sake
+
+## 2026-04-13 P30.7y Interaction Request Adapter Extraction + Channel Smoke Repair
+
+- After the gateway use case became thin, the next duplication was smaller but still real:
+  - gateway chat entrypoints normalized interaction labels and built internal chat-execution requests
+  - channel-ingress did another version of the same work when forwarding remote messages into main-agent chat
+- That duplication was not worth another heavy handler split, but it was worth one shared application seam.
+- A dedicated interaction request adapter now owns that conversion layer:
+  - `src/mini_agent/application/interaction_request_adapter.py`
+  - it handles:
+    - normalized interaction binding creation
+    - `ChannelMessageRequest -> MainAgentChatRequest`
+    - `MainAgentChatRequest/stream args -> GatewayChatExecutionRequest`
+- This keeps the architecture cleaner without over-fragmenting it:
+  - gateway and channel-ingress now share one request adaptation boundary
+  - remote adapter expansion can reuse the same interaction binding instead of re-copying surface/channel fields
+- The follow-up smoke run also exposed two real repo-readiness issues outside the Python application core:
+  - `scripts/qq_wechat_smoke.py` assumed WeChat `dist/index.js` already existed
+  - the local Node package `src/channels/types` used a brittle `tsc` prepare script that failed during dependency install
+- Those were corrected at the repo boundary instead of hand-waving around them:
+  - `qq_wechat_smoke.py` now bootstraps missing Node workspaces before launch
+  - `src/channels/types/package.json` now uses an explicit `npx -p typescript tsc` build command
+  - the smoke now validates oversized-body rejection as a hard failure response, not only a literal `413`
+- Result:
+  - application-layer request adaptation is more consistent
+  - the QQ/WeChat smoke script is again usable on a fresh-ish checkout instead of depending on prebuilt artifacts
+
+## 2026-04-13 P30.7x Gateway Route Execution Handler Extraction
+
+- After moving chat-flow orchestration and main-route execution hooks out, `MainAgentGatewayUseCases` still owned the routed execution shell:
+  - parse `/delegate`
+  - resolve message route
+  - record routing diagnostics
+  - execute delegation
+  - fall back to the main agent on delegation failure
+- That meant the use case was still both:
+  - a top-level entrance coordinator
+  - and the concrete route/delegation execution engine
+- A dedicated route-execution handler now owns that cluster:
+  - `src/mini_agent/application/gateway_route_execution_handler.py`
+  - it handles:
+    - delegation command parsing
+    - route resolution + route-stat bookkeeping
+    - delegation execution
+    - delegation failure fallback to main-agent execution
+    - shaping delegation payloads and supplemental stream events
+- This leaves `MainAgentGatewayUseCases` in a much clearer role:
+  - normalize gateway entry requests
+  - forward session operations to the session service
+  - hand chat turns to dedicated chat-flow / route-execution handlers
+- At this point the use case is close to the intended thin boundary:
+  - most remaining methods are straightforward pass-through entrypoints
+  - the next refactor no longer has to start from a large mixed orchestration object
+
+## 2026-04-13 P30.7w Gateway Agent Execution Handler Extraction
+
+- After the chat-flow shell moved out, `MainAgentGatewayUseCases` still carried the lower-level main-route execution cluster:
+  - single-turn agent execution
+  - runtime approval hook construction
+  - runtime activity hook construction
+  - tool-call preview / output formatting helpers
+- That meant the use case still knew too much about how a turn is executed instead of just deciding which route should handle the turn.
+- A dedicated execution handler now owns that cluster:
+  - `src/mini_agent/application/gateway_agent_execution_handler.py`
+  - it handles:
+    - one-shot agent execution against a managed turn
+    - approval hook injection / restoration
+    - activity hook emission
+    - tool activity preview / output shaping
+- `MainAgentGatewayUseCases` is thinner again:
+  - it still resolves routes
+  - it still decides delegation vs main-route execution
+  - but it no longer builds runtime execution hooks inline
+- The next obvious target is now the remaining routed execution shell:
+  - `_run_routed_message(...)`
+  - `_run_delegation_with_fallback(...)`
+  - route-resolution bookkeeping helpers
+
+## 2026-04-13 P30.7v Gateway Chat Flow Handler Extraction
+
+- After the turn-scope lifecycle moved out, the next duplication was higher up in the application layer:
+  - `run_chat(...)`
+  - `stream_chat_events(...)`
+- Those methods were no longer mostly about routing decisions; they were carrying repeated top-level chat orchestration:
+  - dry-run behavior
+  - turn preparation and bootstrap error shaping
+  - response finalization
+  - stream heartbeat / delta / done framing
+- A dedicated gateway chat-flow handler now owns that shell:
+  - `src/mini_agent/application/gateway_chat_flow_handler.py`
+  - it handles:
+    - dry-run response/stream paths
+    - turn preparation
+    - non-streaming finalization
+    - streaming heartbeat / delta / done coordination
+- This keeps the layering cleaner:
+  - application chat-flow orchestration has one home
+  - `MainAgentGatewayUseCases` now mainly supplies routed execution logic
+  - runtime/session concerns remain below in the session service / runtime layers
+- The next decomposition target is now more obvious:
+  - routed execution internals still live together in the use case:
+    - `_run_agent_once(...)`
+    - approval hook construction
+    - activity hook construction
+    - delegation fallback execution
+
+## 2026-04-13 P30.7u Turn Scope Orchestration Extraction
+
+- After the command-entry work, the next orchestration-heavy cluster was not another command path; it was the managed turn scope itself.
+- `ManagedSessionTurn` had become a hidden runtime coordinator:
+  - acquire/release session lock
+  - bind active surface
+  - apply queued model / skill changes
+  - pull recovery context
+  - mark the turn running / finished
+  - record the first user message
+- That was too much lifecycle knowledge for an application-layer context manager to carry directly.
+- A dedicated runtime turn-scope handler now owns that layer:
+  - `src/mini_agent/runtime/session_turn_scope_handler.py`
+  - it handles:
+    - turn enter / exit orchestration
+    - turn-scoped message/activity/approval persistence helpers
+    - recovery-context clearing
+    - prepared-context capture / restore
+- This improves the architecture in two useful ways:
+  - the application layer now consumes a runtime turn seam instead of rebuilding runtime lifecycle steps inline
+  - manager helper methods for turn-scoped mutations now delegate to the same seam instead of each persisting separately
+- This is a better setup for the next chat-execution cut:
+  - turn enter / exit mechanics are now isolated
+  - later refactors can focus on routing, run/stream execution, and event emission without dragging basic session-turn state transitions along with them
+
+## 2026-04-13 P30.7t Skill + Model Command Shell Follow-Up
+
+- The initial command coordinator extraction solved the largest duplication, but not all of it:
+  - `manage_session_skills(...)` still had a bespoke success-path lock block
+  - `update_session_model_selection(...)` still owned its own full lock/mutate/persist flow
+- That mattered because these methods were no longer carrying unique domain logic; they were mostly carrying leftover orchestration shells.
+- The useful refinement was not another business handler; it was making the command coordinator slightly more expressive:
+  - result-dependent `touch`
+  - result-dependent `persist`
+- That small capability is what lets one shared command shell cover both:
+  - skill mutation success vs busy recheck outcomes
+  - model-selection queued vs applied outcomes
+- This keeps the boundary cleaner:
+  - business decisions still come from the extracted handlers
+  - manager still shapes transport responses
+  - the common lock/touch/persist shell now lives in one place even when the result decides whether persistence should happen
+- An important constraint stayed preserved:
+  - model selection still does not gain a new transcript side effect
+  - the refactor only unified orchestration, not operator-visible behavior
+
+## 2026-04-12 P30.7s Session Command Coordinator Extraction
+
+- After the earlier handler cuts, the manager still repeated the same command-entry shell in several methods:
+  - load session
+  - acquire runtime lock
+  - execute the command mutation
+  - append a command transcript entry
+  - touch and persist
+- By that point the business logic had already been extracted, but the orchestration shell itself was still duplicated.
+- That duplication matters because it keeps the manager thick in a subtler way:
+  - not by owning domain logic
+  - but by re-implementing the same command lifecycle envelope around several extracted handlers
+- A dedicated coordinator now owns that shell:
+  - `src/mini_agent/runtime/session_command_coordinator.py`
+  - it handles:
+    - locked command execution
+    - optional transcript construction/append
+    - touch/persist ordering
+- This extraction became especially important for `update_session_runtime_policy(...)`:
+  - it was the last obvious command-shaped method still doing mutation work while inside `_store_lock`
+  - moving it onto the shared command seam restores the intended lock layering:
+    - `_store_lock` for session lookup/registry access
+    - `session.runtime.lock` for live-session command mutation
+- The architecture is cleaner now:
+  - command business semantics live in dedicated handlers
+  - command shell orchestration lives in one coordinator
+  - manager invokes both instead of re-implementing either layer inline
+
+## 2026-04-12 P30.7r Session Agent-Runtime Handler Extraction
+
+- After session catalog extraction, the next manager-owned cluster was agent runtime rebuild / reconfiguration:
+  - desired/effective runtime policy inspection
+  - live-agent runtime policy reconfigure
+  - rebuild with selected model identity
+  - pending model-selection application
+  - pending skill-reload application
+  - workspace skill-reload queue mutation
+- Those behaviors all belonged to the same concern:
+  - mutating the live agent host and the session state that depends on that host
+- Keeping them inline in `MainAgentRuntimeManager` meant the manager was still partly acting as an agent-host controller instead of only orchestrating around one.
+- A dedicated agent-runtime handler now owns that layer:
+  - `src/mini_agent/runtime/session_agent_runtime_handler.py`
+  - it handles:
+    - runtime policy inspection
+    - live-agent runtime policy reconfiguration
+    - rebuild with selected identity
+    - pending model-selection application
+    - pending skill-reload application
+    - workspace skill-reload queue mutation
+- `MainAgentRuntimeManager` now keeps the right outer responsibilities:
+  - decide when these flows should happen
+  - hold lock/persist/transcript boundaries
+  - delegate the actual live-agent host mutation work
+- This extraction also improved the runtime graph consistency:
+  - runtime-policy planning now consumes the same desired/effective policy seam that rebuild paths use
+  - model-selection and skill-reload paths now share one rebuild boundary instead of reaching into separate inline helpers
+  - workspace skill-reload queueing no longer carries its own mutation logic in the manager
+- The broader architecture is now more coherent:
+  - session access decides reuse / restore / create
+  - session creation builds brand-new state
+  - session restore hydrates persisted/imported state
+  - session live-state handler mutates active in-memory session state
+  - session catalog handler owns directory/catalog semantics
+  - session agent-runtime handler owns live agent-host mutation
+  - manager orchestrates across those seams rather than implementing them inline
+
+## 2026-04-12 P30.7q Session Catalog Handler Extraction
+
+- After live-state extraction, the next manager-owned cluster was session catalog / metadata routing:
+  - latest active-session lookup by workspace
+  - latest persisted-session lookup by workspace
+  - workspace-local title allocation
+  - list/detail/recent-message routing
+  - remote-channel summary dedupe
+  - rename/share metadata mutations
+- Those behaviors were related, but they were still spread across several manager helpers and entrypoints.
+- That kept `MainAgentRuntimeManager` doing too much directory/catalog work instead of only orchestrating around it.
+- A dedicated catalog handler now owns that layer:
+  - `src/mini_agent/runtime/session_catalog_handler.py`
+  - it handles:
+    - latest active/persisted workspace lookup
+    - human-readable title allocation
+    - list/detail/message read routing
+    - session summary dedupe for remote-channel duplicates and hidden stubs
+    - rename/share metadata mutation semantics
+- `MainAgentRuntimeManager` now keeps the right outer responsibilities:
+  - orchestrate lock boundaries
+  - invoke the catalog handler
+  - persist mutations
+  - update live session registry where needed
+- This extraction improves the runtime shape in two useful ways:
+  - session access and session creation now consume the same catalog boundary for title allocation and workspace lookup
+  - list/detail/message/read paths no longer have their own mini directory logic embedded in the manager
+- The broader architecture is now more coherent:
+  - session access decides reuse / restore / create
+  - session creation builds brand-new runtime state
+  - session restore hydrates persisted/imported runtime state
+  - session live-state handler mutates active in-memory runtime state
+  - session catalog handler owns directory/catalog semantics
+  - manager orchestrates across those seams rather than implementing them inline
+
+## 2026-04-12 P30.7p Session Live-State Handler Extraction
+
+- After session creation moved out, the next manager hotspot was the live session mutation cluster:
+  - surface binding
+  - turn start / finish flags
+  - transcript append helpers
+  - activity aggregation
+  - pending approval normalization / cleanup
+  - recovery-context cleanup/build
+  - runtime reset state cleanup
+- These behaviors were tightly related, but they were still implemented as manager-owned low-level helpers.
+- That kept `MainAgentRuntimeManager` in the wrong role:
+  - it was coordinating flows
+  - but it was also directly acting as the live session state machine
+- A dedicated live-state handler now owns that mutation layer:
+  - `src/mini_agent/runtime/session_live_state_handler.py`
+  - it handles:
+    - surface/channel binding semantics
+    - transcript append and activity-entry reuse
+    - busy/running/pending-approval turn state mutations
+    - recovery-context build and clearing
+    - runtime reset cleanup for live sessions
+    - normalized pending-approval parsing reused by other runtime seams
+- `MainAgentRuntimeManager` now keeps the right outer responsibilities:
+  - acquire locks
+  - invoke the live-state handler
+  - persist session state
+  - coordinate higher-level flows around commands, turns, and restarts
+- This extraction also improves consistency across the runtime graph:
+  - read-model and interrupt seams now reuse the same pending-approval normalization boundary
+  - transcript and surface semantics no longer exist as an inline helper cluster inside the manager
+  - recovery/reset semantics stay attached to the same live-session mutation layer instead of being spread across manager helpers
+- The architecture is getting cleaner in the intended direction:
+  - session access decides whether to reuse / restore / create
+  - session creation builds brand-new state
+  - session restore hydrates persisted/imported state
+  - session live-state handler mutates active in-memory state
+  - manager orchestrates across those seams instead of implementing them inline
+
+## 2026-04-12 P30.7o Session Creation Handler Extraction
+
+- After session-access extraction, the next manager-owned duplication was brand-new session construction:
+  - `get_or_create_session(...)` create-new branch
+  - `create_session(...)`
+  were both rebuilding the same runtime state inline.
+- The duplicated construction was not just a few assignments:
+  - build agent
+  - bootstrap lifecycle
+  - normalize title and surface shape
+  - derive knowledge-base and sandbox diagnostics
+  - seed selected-model projection fields
+- That made session creation another hidden implementation detail inside the manager instead of a reusable runtime boundary.
+- A dedicated creation handler now owns that work:
+  - `src/mini_agent/runtime/session_creation_handler.py`
+  - it handles:
+    - title normalization and workspace-local allocation
+    - surface/channel normalization with the existing semantics preserved
+    - fresh agent bootstrap
+    - lifecycle bootstrap
+    - projection assembly for brand-new sessions
+    - selected-model projection seeding from the routed runtime identity
+- `MainAgentRuntimeManager` now keeps the right outer responsibilities:
+  - run workspace/capacity guardrails
+  - request a new session from the creation handler
+  - register it in `_sessions`
+  - persist it
+- This is a meaningful cleanup rather than cosmetic extraction:
+  - session creation is now one runtime seam shared by both explicit creation and access-driven creation
+  - the manager no longer has two slightly diverging inline constructors that could drift over time
+  - title-hint and default-surface behavior stay explicit without keeping duplicated state assembly in the manager
+- The broader direction is getting more consistent:
+  - session access decides reuse vs restore vs create
+  - session creation builds brand-new runtime state
+  - session restore hydrates persisted/imported runtime state
+  - the manager coordinates across those seams instead of implementing each one inline
+
+## 2026-04-12 P30.7n Session Model Selection Handler Extraction
+
+- After `/memory` and `/skill` were extracted, the next manager-owned decision branch was model selection:
+  - request normalization
+  - busy vs idle selection semantics
+  - queued vs immediate-apply response shaping
+  - pending-selection eligibility on the next turn
+- That logic was smaller than `/memory` or `/skill`, but it still mixed runtime orchestration with domain decisions.
+- A dedicated handler now owns that selection logic:
+  - `src/mini_agent/runtime/session_model_selection_handler.py`
+  - it handles:
+    - request normalization
+    - plan generation for immediate apply vs queued apply
+    - no-op selected behavior when the requested model is already active
+    - pending-selection eligibility for deferred application
+- `MainAgentRuntimeManager` now keeps only the outer model-selection responsibilities:
+  - load session
+  - lock the runtime host
+  - apply pending-state mutations
+  - optionally rebuild the agent
+  - persist
+  - wrap the transport response
+- This is a useful refinement even though the old branch was not huge:
+  - it keeps the decomposition pattern consistent across memory / skill / model
+  - it makes future runtime-policy extraction less likely to collapse back into another mixed branch
+  - it centralizes the queued/immediate model semantics in one testable seam
+- The broader regression run also surfaced a separate but valuable cleanup:
+  - `scripts/shared_session_gateway_walkthrough.py` still used stale flat-session fields (`busy`, `running_state`, `agent`)
+  - the runtime has already been grouped into `projection` / `runtime`
+  - syncing the walkthrough script to that shape removed another source of misleading breakage during future refactor validation
+
+## 2026-04-12 P30.7m Session Skill Command Handler Extraction
+
+- After `/memory` was extracted, the next manager hotspot was `/skill`:
+  - catalog availability handling
+  - read action routing
+  - workspace policy/install mutation routing
+  - reload queue metadata formatting
+  - transcript command-name construction
+- That branch was doing the same thing the old `/memory` branch had been doing:
+  - mixing runtime orchestration with operator-command formatting and validation
+- A dedicated handler now owns the skill-command business branch:
+  - `src/mini_agent/runtime/session_skill_command_handler.py`
+  - it handles:
+    - supported-action validation
+    - skill catalog availability / disabled-state handling
+    - read action payload assembly
+    - mutation preparation for policy/install/uninstall/rollback/refresh
+    - busy-queue metadata formatting
+    - final command transcript naming
+- `MainAgentRuntimeManager` now keeps the right outer responsibilities for `/skill`:
+  - load session
+  - coordinate busy/lock boundaries
+  - queue workspace skill reloads
+  - rebuild the active session agent
+  - append transcript entries
+  - persist session state
+  - wrap transport response payloads
+- This slice also surfaced a real latent bug:
+  - `uninstall` and `rollback` were already implemented in the old inline branch
+  - but the accepted action whitelist did not include them
+  - so command catalog / TUI command handling advertised actions the runtime entrypoint could reject
+- The handler extraction was a good moment to fix that cleanly:
+  - no compatibility shim
+  - no duplicate path
+  - just one corrected runtime action surface with direct regression coverage
+- The runtime decomposition pattern is now clearer and more reusable:
+  - diagnostics / hydration / runtime-memory / policy coordination are extracted
+  - `/memory` command routing is extracted
+  - `/skill` command routing is extracted
+  - the manager is increasingly a thin orchestration shell instead of a behavior god-object
+
+## 2026-04-12 P30.7l Session Memory Command Handler Extraction
+
+- After the lifecycle/policy extraction, the next manager hotspot was not infrastructure anymore but behavior routing:
+  - `/memory` still bundled action validation, selector resolution, durable-memory reads, runtime-memory reads, and mutation formatting inside one method
+  - at the same time the manager also owned the outer lock/transcript/persist envelope around that branch
+- That was a strong signal the next shrink step should be command-handler decomposition, starting with the memory surface.
+- A dedicated handler now owns the memory-command business branch:
+  - `src/mini_agent/runtime/session_memory_command_handler.py`
+  - it handles:
+    - supported-action validation
+    - read vs mutation routing
+    - durable-memory and runtime-memory payload assembly
+    - session/shared selector resolution
+    - mutation result shaping for `refresh`, `shared_clear`, `promote_*`, and `save_*`
+- `MainAgentRuntimeManager` now keeps the right outer responsibilities for `/memory`:
+  - load session
+  - enforce busy/lock boundaries
+  - append command transcript entries
+  - persist session state
+  - wrap transport response payloads
+- This is a healthier boundary than the previous inline branch:
+  - memory behavior has a runtime-local home without dragging transcript/persistence with it
+  - manager stays on orchestration duty instead of acting as both coordinator and command formatter
+  - later `/skill` and `/model` cuts can follow the same pattern
+- The architecture direction is now clearer:
+  - hydration structure -> `session_hydration_builder.py`
+  - runtime-state sync -> `session_runtime_state_hydrator.py`
+  - diagnostics -> `session_diagnostics_service.py`
+  - runtime-memory backend -> `session_runtime_memory_backend_adapter.py`
+  - persistence internals -> registry/store helpers
+  - policy/lifecycle rules -> `session_runtime_policy_coordinator.py`
+  - memory command routing -> `session_memory_command_handler.py`
+  - manager -> orchestration shell
+
+## 2026-04-12 P30.7k Lifecycle / Policy Coordination Extraction
+
+- After the persistence-wrapper cleanup, the next large non-orchestration cluster inside the manager was lifecycle/policy coordination:
+  - workspace guardrails
+  - single-main admission checks
+  - team saturation/workspace-conflict counters
+  - session lifecycle refresh/reset counting
+  - runtime diagnostics payload assembly for those counters
+- That was a good extraction target because it was:
+  - shared across several entrypoints (`get_or_create`, `create`, `import`, diagnostics)
+  - rule-heavy rather than hydration/persistence-heavy
+  - already conceptually separate from session structure and runtime backends
+- A dedicated coordinator now owns those rules and counters:
+  - `src/mini_agent/runtime/session_runtime_policy_coordinator.py`
+- The coordinator now handles:
+  - main-workspace enforcement
+  - single-main active-workspace admission checks
+  - team capacity enforcement
+  - team conflict/saturation counters
+  - expired-session id selection
+  - lifecycle refresh/reset counting
+  - runtime diagnostics payload construction
+- `MainAgentRuntimeManager` now keeps lifecycle/policy coordination as wrapper/delegation behavior rather than owning the counter and rule implementations directly.
+- This further sharpens the architecture:
+  - hydration structure -> `session_hydration_builder.py`
+  - runtime-state sync -> `session_runtime_state_hydrator.py`
+  - diagnostics -> `session_diagnostics_service.py`
+  - runtime-memory backend -> `session_runtime_memory_backend_adapter.py`
+  - persistence internals -> metadata registry + shared transcript store
+  - policy/lifecycle rules -> `session_runtime_policy_coordinator.py`
+- The manager is now much closer to what we wanted:
+  - orchestration and flow control
+  - not storage internals
+  - not backend wiring details
+  - not diagnostics implementation
+  - not policy counter ownership
+- The remaining large seams are now mostly higher-level decomposition questions:
+  - command-handler decomposition
+  - some memory/skill command branches
+  - possibly splitting model/runtime reconfiguration flows further
+
+## 2026-04-12 P30.7j Persistence Wrapper Internals Extraction
+
+- After the runtime-memory backend adapter cut, `_MainAgentRuntimePersistence` was already clearly a wrapper, but it still owned low-level file mechanics:
+  - metadata JSON read/write
+  - shared transcript path resolution
+  - shared transcript file read/write/delete
+- That meant the wrapper was conceptually thin, but still operationally doing too much.
+- Two dedicated persistence-internal helpers now own those concerns:
+  - `src/mini_agent/runtime/session_persistence_metadata_registry.py`
+  - `src/mini_agent/runtime/session_shared_transcript_store.py`
+- `_MainAgentRuntimePersistence` now composes them instead of carrying the details inline:
+  - `SessionPersistence` still handles session transcript/message persistence
+  - metadata registry handles runtime metadata upsert/list payload access
+  - shared transcript store handles the runtime shared transcript sidecar file lifecycle
+- This improves the boundary without changing the outer behavior:
+  - save/load/list/delete behavior remains stable
+  - loader/builder seams remain unchanged
+  - the wrapper is now closer to a composition root than a low-level file handler
+- The remaining larger seams are now mostly orchestration-level:
+  - lifecycle/policy coordination
+  - command-handler decomposition
+  - possibly splitting broader memory/skill command branches out of the manager later
+
+## 2026-04-12 P30.7i Runtime-Memory Backend Adapter Extraction
+
+- After diagnostics extraction, the next concrete dependency still leaking through the manager was direct `WorkspaceMemoriaRuntime` access.
+- The problem was not only duplication, but inconsistency of access style:
+  - hydration and snapshot flows used manager-owned helper methods
+  - cleanup/reset paths used manager-owned helper methods
+  - runtime-memory command flows instantiated `WorkspaceMemoriaRuntime` inline
+- That meant the same backend was being reached through multiple shapes from one coordinator class.
+- A dedicated runtime-memory backend adapter now owns those backend calls:
+  - `src/mini_agent/runtime/session_runtime_memory_backend_adapter.py`
+  - it wraps:
+    - session/workspace-shared snapshot payload export
+    - session/workspace-shared payload restore
+    - session/workspace-shared namespace clearing
+    - runtime-memory entry lookup
+    - runtime-memory promotion operations
+- `MainAgentRuntimeManager` no longer directly instantiates `WorkspaceMemoriaRuntime`.
+- The shared adapter is now used by:
+  - `session_read_model_builder.py` snapshot export wiring
+  - `session_runtime_state_hydrator.py` restore wiring (through manager injection)
+  - runtime-memory command flows in the manager
+  - reset/delete cleanup wrappers in the manager
+- This is a better infrastructure boundary:
+  - the manager no longer knows how to construct the backend
+  - runtime-memory backend access is consistent across hydration, snapshot, cleanup, and command paths
+  - future backend changes or testing seams now have a single runtime-layer entry point
+- The next remaining seams are now even more clearly orchestration-side:
+  - persistence wrapper internals
+  - lifecycle/policy coordination
+  - possibly command-handler decomposition inside the manager if we continue shrinking it
+
+## 2026-04-12 P30.7h Session Diagnostics Service Extraction
+
+- After the runtime-state hydrator cut, diagnostics remained the next shared concern still rooted in the manager:
+  - memory diagnostics served hydration, runtime capture, and read-model construction
+  - sandbox diagnostics served hydration, persistence refresh, and read-model construction
+- That was a strong sign diagnostics wanted their own service boundary:
+  - they are shared computations
+  - they are not orchestration
+  - and they are not part of session-structure assembly
+- A dedicated diagnostics service now owns those computations:
+  - `src/mini_agent/runtime/session_diagnostics_service.py`
+  - it handles:
+    - memory diagnostics from live sessions
+    - memory diagnostics from persisted records
+    - sandbox diagnostics from live sessions
+    - sandbox diagnostics from persisted records
+- The new service is now consumed by three different runtime seams:
+  - `session_hydration_builder.py` for persisted-record normalization
+  - `session_runtime_state_hydrator.py` for runtime refresh flows
+  - `session_read_model_builder.py` for summary/detail/snapshot construction
+- `MainAgentRuntimeManager` now mainly provides wrapper methods for diagnostics rather than owning their implementations.
+- This is a healthier direction for the runtime boundary:
+  - structure assembly lives in the hydration builder
+  - live runtime synchronization lives in the runtime-state hydrator
+  - diagnostics computation lives in the diagnostics service
+  - manager continues shrinking toward pure orchestration
+- The remaining candidates are now more infrastructural than structural:
+  - runtime-memory backend accessors (`WorkspaceMemoriaRuntime` adapters)
+  - persistence wrapper internals
+  - possibly a session-lifecycle/session-policy coordination service if we want the manager thinner still
+
+## 2026-04-12 P30.7g Session Runtime State Hydrator Extraction
+
+- After hydration unification, the next mixed responsibility became the shared hydration helper itself:
+  - `_hydrate_session_unlocked(...)` no longer duplicated session assembly
+  - but it still directly restored runtime-memory payloads, restored prepared-context state onto the live agent, and refreshed diagnostics
+- That was the wrong boundary:
+  - session hydration decides what state should exist
+  - runtime-state hydration decides how that state is synchronized into the live runtime host and workspace memory backends
+- A dedicated runtime-state hydrator now owns those runtime synchronization substeps:
+  - `src/mini_agent/runtime/session_runtime_state_hydrator.py`
+  - it handles:
+    - runtime task-memory restore
+    - workspace-shared runtime-memory merge
+    - prepared-context restore onto the live agent
+    - prepared-context capture from the live agent
+    - memory/sandbox diagnostics refresh
+- `MainAgentRuntimeManager` now delegates:
+  - post-build hydration substeps from `_hydrate_session_unlocked(...)`
+  - prepared-context restore wrapper
+  - prepared-context capture wrapper
+- This is a cleaner ownership split:
+  - `session_hydration_builder.py` owns normalized hydration payloads and session-structure assembly
+  - `session_runtime_state_hydrator.py` owns live runtime-state synchronization
+  - `MainAgentRuntimeManager` now sits more squarely as the coordinator between them
+- The remaining larger seams are now clearer:
+  - runtime-memory storage functions still live on the manager as static helpers
+  - diagnostics builders still live on the manager because read-model construction depends on them too
+  - if we keep shrinking, the next cuts are likely a `runtime memory adapter` or a `session diagnostics service`
+
+## 2026-04-12 P30.7f Session Hydration Unification
+
+- After the restore/load extraction, the next duplication moved into session hydration itself:
+  - `import_session_snapshot(...)` still assembled runtime sessions inline
+  - `_restore_persisted_session_unlocked(...)` had become smaller, but still ran a similar runtime assembly sequence
+- That was the wrong shape for the next phase:
+  - import and restore are different sources of session state
+  - but once normalized, they should flow through the same runtime hydration pipeline
+  - otherwise every future change to agent bootstrap, KB state, token restore, runtime memory restore, or prepared context restore has to be made twice
+- The restore-specific builder was replaced with a hydration builder:
+  - `src/mini_agent/runtime/session_hydration_builder.py`
+  - it now covers both:
+    - persisted-record hydration payload normalization
+    - imported-snapshot hydration payload normalization
+    - transcript import
+    - session-state assembly
+    - stored recovery projection application
+- `MainAgentRuntimeManager` now has a shared hydration path:
+  - `_hydrate_session_unlocked(...)`
+  - both persisted restore and snapshot import delegate to that same helper
+  - the helper now owns the common runtime assembly flow:
+    - build agent
+    - apply runtime policy overrides
+    - restore messages/tokens
+    - apply KB state
+    - build lifecycle/session state
+    - restore runtime-task/workspace-shared memory payloads when present
+    - restore prepared-context state
+    - refresh diagnostics
+    - register session
+- This is a better boundary for the next cut:
+  - source normalization lives in the hydration builder
+  - runtime assembly lives in a single helper
+  - the manager no longer has one import-specific session constructor and one restore-specific constructor
+- The hydration layer is still not the final endpoint:
+  - runtime-memory restore and prepared-context restore are still hydrated inline in the manager helper
+  - which makes them the next natural extraction target if we want to continue shrinking runtime orchestration further
+
+## 2026-04-12 P30.7e Runtime Restore/Load Boundary Extraction
+
+- After the persistence save builder cut, the next boundary problem was concentrated in restore/load:
+  - `MainAgentRuntimeManager._restore_persisted_session_unlocked(...)` still knew too much about persisted-record shape
+  - `_MainAgentRuntimePersistence.load_session_record(...)` still performed runtime-record normalization and transcript attachment inline
+- That was the wrong ownership split:
+  - transcript import and restore-payload normalization are reconstruction concerns
+  - persistence should only read/write persisted artifacts
+  - the runtime manager should orchestrate agent rebuild and runtime-only refresh, not hand-assemble recovered state buckets
+- A dedicated runtime restore builder now owns the pure reconstruction side:
+  - `src/mini_agent/runtime/session_restore_builder.py`
+  - it handles:
+    - transcript import from persisted records
+    - restore-payload normalization
+    - reconstructed `MainAgentSessionState` assembly
+    - stored recovery snapshot application onto projection state
+- A dedicated persistence loader now owns persisted runtime-record normalization:
+  - `src/mini_agent/runtime/session_persistence_loader.py`
+  - it filters runtime records by session kind
+  - it attaches shared transcript payloads to loaded records
+- The extracted seams improved boundary direction:
+  - `RuntimeSessionReadModelBuilder` now depends on the restore builder's transcript importer instead of the runtime manager carrying that logic inline
+  - `MainAgentRuntimeManager` now mainly coordinates:
+    - build agent
+    - apply runtime-policy override
+    - restore agent messages/tokens
+    - apply KB flag and prepared-context state
+    - register recovered session
+- The restore path is still not fully minimal yet:
+  - runtime-memory restore and imported-snapshot creation still have overlap with persisted restore
+  - but the large persisted-record reconstruction block is now extracted, which makes a later import/restore unification cut much more straightforward
+
+## 2026-04-12 P30.7d Runtime Persistence Record Builder Extraction
+
+- After the read-model builder extraction, the next persistence seam was easier to see:
+  - `_MainAgentRuntimePersistence.save_session(...)` still did two different jobs
+  - it performed file/metadata I/O
+  - and it assembled the full runtime metadata record while also refreshing sandbox diagnostics
+- That was the wrong ownership split:
+  - record assembly is a serialization concern
+  - sandbox refresh is runtime state maintenance
+  - only the actual writes belong to persistence
+- A dedicated runtime persistence builder now owns the serialization side:
+  - `src/mini_agent/runtime/session_persistence_record_builder.py`
+  - it builds:
+    - transcript-entry payloads
+    - persisted runtime metadata records
+    - pending-approval payload serialization for stored metadata
+- The runtime manager now owns the sandbox refresh explicitly inside `_persist_session_unlocked(...)` before calling persistence.
+- This is a better boundary for the next runtime cut:
+  - persistence save is no longer secretly reaching back into live runtime diagnostics collection
+  - serialization concerns now have their own module instead of living inline in the persistence writer
+  - `MainAgentRuntimeManager` remains the place where runtime state is refreshed before persistence
+- The persistence layer is not fully minimal yet:
+  - record loading and transcript attachment still live in `_MainAgentRuntimePersistence`
+  - but the biggest save-path mixing has been removed, which makes a later restore-path extraction much more straightforward
+
+## 2026-04-12 P30.7c Runtime Session Read-Model Builder Extraction
+
+- Once runtime session state was grouped, the next real decomposition seam became much easier to isolate:
+  - `MainAgentRuntimeManager` still contained the full summary/detail/snapshot assembly logic
+  - recovery/message/pending-approval read-model helpers were still living beside runtime coordination
+- The right next step was not persistence extraction yet:
+  - persistence save/load still depends on the same read-model and snapshot shapes
+  - extracting the read-model builder first means the later persistence cut can depend on a narrower builder seam instead of the whole runtime manager
+- A dedicated runtime builder module now owns that read-model assembly:
+  - `src/mini_agent/runtime/session_read_model_builder.py`
+  - it receives normalization/diagnostic/snapshot callbacks from the runtime manager rather than reaching into runtime internals directly
+- That design is important:
+  - the builder is extracted, but not turned into a new god-service
+  - it is still bounded to “assemble read models from already-owned data”
+  - runtime manager remains the owner of execution state and runtime-side helper orchestration
+- The manager still contains some thin wrapper methods after this cut:
+  - that is acceptable for now because call sites remain stable while the large builder bodies are gone
+  - the architectural win is that read-model construction now has a dedicated home and can evolve/test independently
+- This cut did not yet solve persistence mixing:
+  - `_MainAgentRuntimePersistence.save_session(...)` still shapes stored records inline
+  - runtime manager still participates directly in record/snapshot save paths
+  - that is now the most natural next runtime decomposition target
+
+## 2026-04-12 P30.7b Runtime Session State Composition Cut
+
+- After the TUI grouped-state cut and the projection-boundary cleanup, the runtime side still had the same structural smell in a different place:
+  - `MainAgentSessionState` was still one flat object carrying session truth, runtime host state, and transcript state together
+- The cleanest next cut was to split the data model before extracting more services:
+  - if we extracted builders/persistence first, they would still depend on the same mixed field bag
+  - once the grouped state exists, later extractions can be narrower and more honest
+- The runtime session is now grouped into:
+  - `projection`: session-facing truth, recovery caches, diagnostics, model selection
+  - `runtime`: live agent host, cancel/approval state, lock
+  - `transcript_state`: transcript entries plus turn/transcript indexing
+- This is materially better even though `MainAgentRuntimeManager` is still large:
+  - field ownership is now explicit in the core data model
+  - session-service and runtime-manager code must choose which bucket they are touching
+  - accidental mixing is harder because there is no longer a flat field bag to lean on
+- The cut also revealed a useful constraint:
+  - tests that reach into runtime session internals are currently part of the architecture contract for this refactor track
+  - updating those tests was not noise; it confirmed the grouped-state model is visible and consistent at the runtime seam
+- What this cut did not solve yet:
+  - `MainAgentRuntimeManager` still owns too many responsibilities
+  - persistence save/load logic is still inside the same manager path
+  - `SessionService` still depends on `MainAgentSessionState` rather than a narrower lease/session interface
+- That means the next clean runtime step is now clearer:
+  - extract session projection/snapshot builders and/or persistence helpers out of the runtime manager
+  - then narrow application-layer dependence on the grouped runtime session state
+
+## 2026-04-12 P30.7a Session Projection Boundary Cleanup
+
+- The runtime/session scan showed one cheap but important clean-up before the larger runtime-state split:
+  - shared session read models still lived beside terminal-only presentation state
+  - summary -> detail construction still depended on `summary.__dict__`
+- That combination was structurally awkward:
+  - `session/projection.py` could not honestly claim to be a shared read-model module while owning `TerminalSessionProjection`
+  - `summary.__dict__` worked today, but it coupled runtime/session builders to dataclass internals and made future `slots=True` tightening harder
+- The clean repair was to separate those two concerns now instead of carrying them into the next runtime refactor:
+  - `TerminalSessionProjection` now lives in `src/mini_agent/tui/session_projection.py`
+  - `SessionDetailProjection` now has an explicit `from_summary(...)` constructor
+- This is a better boundary for the next runtime cuts:
+  - shared session projections are now transport/application-facing only
+  - terminal presentation is now clearly terminal-owned
+  - detail-projection construction is explicit rather than relying on object internals
+- The slice intentionally did not try to solve the larger runtime-manager problem yet:
+  - `MainAgentSessionState` is still wide
+  - `MainAgentRuntimeManager` is still oversized
+  - but one source of projection/presentation mixing has been removed, which reduces noise for the next decomposition pass
+- Focused regression stayed green across session projection, TUI, interaction-surface, and gateway use-case coverage.
+
+## 2026-04-12 P30.2/P30.3 TUI Session State Composition Cut
+
+- `TuiSession` was still the biggest local boundary leak after the entrance-contract fix:
+  - projection data from remote/gateway sync
+  - local runtime handles and resume state
+  - chat-scroll / expand-collapse / cache state
+  - all lived on one flat struct
+- The safest next cut was not a one-shot rewrite of `app.py`, but a composition cut with bounded callsite migration.
+- `TuiSession` now groups state explicitly into:
+  - `projection`
+  - `runtime`
+  - `view`
+- The first migration wave deliberately focused on the places most likely to reintroduce ownership bugs:
+  - UI persistence/load
+  - remote session summary/detail application
+  - submission-loop attach/shutdown
+  - runtime reset and chat-scroll state
+- The second migration wave confirmed the same pattern holds deeper in the TUI:
+  - chat transcript storage and activity/detail expand-collapse are pure `view` concerns
+  - task ownership, resume payloads, active run handles, and local agent attachment are `runtime` concerns
+  - selected/pending model identity, KB enablement, recovery summaries, and operator diagnostics are `projection` concerns
+- Pulling the main `_run_chat_turn(...)` path onto grouped state is especially important:
+  - before this cut, the core local execution path still mutated the flat session object directly
+  - after this cut, the most important local run/resume path is structurally aligned with the intended boundary model
+- The third migration wave showed the same split is also correct for execution-control behavior:
+  - approvals, cancel, workflow, and remote-turn control are mostly `projection + runtime`
+  - channel metadata used by remote control (`channel_type / conversation_id / sender_id`) belongs to projection, not view/runtime
+  - local runtime rebuild actions like MCP reload belong to runtime lifecycle, while their operator-visible summaries belong to projection/view
+- This matters because the old flat structure made control flow deceptively simple while hiding responsibility drift:
+  - operator command handlers were mutating run-state, approval-state, and remote-control metadata through one undifferentiated object
+  - after this cut, the control layer is much closer to the intended “surface drives session projection and runtime host” model
+- This keeps the direction aligned with the target architecture:
+  - TUI is moving toward a session projection + runtime host + operator view
+  - instead of continuing as an accidental session owner
+- Internal flat-field delegation is still present for unchanged callsites:
+  - that is a temporary migration seam inside the TUI module
+  - not a public compatibility contract
+  - it lets us keep behavior stable while shrinking the ambiguous surface incrementally
+- The largest remaining flat-field clusters are now easier to isolate:
+  - sandbox/memory/context-policy diagnostics helpers
+  - some session/thread summary helpers
+  - a smaller set of command handlers that still mix diagnostics reads with control writes
+- The fourth migration wave confirmed that the remaining diagnostics/control cluster belongs to grouped state too:
+  - prepared context, prepared-context diagnostics, memory diagnostics, sandbox diagnostics, and context policy are all operator-visible session projection state
+  - the local agent only contributes runtime data used to refresh those diagnostics; it should not own the cached diagnostic snapshots themselves
+  - task listings, command-detail expand state, and token-estimate caches are pure `view` state rather than mixed session metadata
+- That matters because diagnostics were one of the last places where the old flat session shape still made ownership ambiguous:
+  - command handlers were validating, mutating, and re-rendering context/memory state through the same flat object path
+  - after this cut, the command layer reads/writes through `projection/runtime/view` in the same way as the main turn path
+- `src/mini_agent/tui/app.py` no longer contains direct flat access for the migrated grouped session fields.
+- The internal `TuiSession.__getattr__/__setattr__` delegation seam is therefore much more isolated now:
+  - still useful for stabilizing unchanged callsites
+  - but no longer carrying the core diagnostics/control flow
+- The final seam-removal cut is now complete:
+  - `TuiSession` and its grouped sub-state dataclasses are now `slots=True`
+  - the alias delegation layer has been removed instead of being left behind as a permanent escape hatch
+  - remaining helper paths that still used flat `target.*` access were migrated to explicit `projection/runtime/view`
+- This is a materially better boundary than the earlier migration stage:
+  - before, the code path was mostly explicit but the data model still tolerated old flat access
+  - now the data model itself rejects that drift, so the architectural rule is enforced by code shape rather than convention
+- The remaining intentional flat-access reference is only in test coverage:
+  - one regression test now confirms that old alias access raises `AttributeError`
+  - that protects the boundary from silently regressing in later TUI edits
+- A follow-up scan shows the next analogous boundary problem has shifted to the runtime layer rather than remaining inside TUI:
+  - `MainAgentRuntimeManager` is still a very large mixed unit (`4668` lines, `133` defs/classes)
+  - `MainAgentSessionState` is still a single flat object carrying runtime host state, session truth, recovery state, diagnostics, transcript state, and persistence-facing fields together
+- The runtime-side issue is therefore different from the old TUI alias seam:
+  - there is no hidden `__getattr__/__setattr__` shim like TUI had
+  - but there is still a “god state object” and a “god manager” that concentrate too many responsibilities in one place
+- The most obvious duplication seam is projection building:
+  - runtime manager builds summary/detail/snapshot from live session state
+  - runtime manager builds summary/detail/snapshot again from persisted records
+  - both paths repeat the same field mapping with only small differences
+- `session/projection.py` also shows a second boundary blur:
+  - transport read models (`SessionSummaryProjection`, `SessionDetailProjection`, etc.) live beside `TerminalSessionProjection`
+  - that means terminal presentation concerns are still bundled into the generic session projection module
+- The current projection code also still relies on dataclass internals in a brittle way:
+  - `SessionDetailProjection.from_transport_payload(...)` uses `**summary.__dict__`
+  - runtime manager does the same in `_build_session_detail(...)` and `_build_session_detail_from_record(...)`
+  - if these projections ever get the same `slots=True` tightening that TUI just received, those internal spreads will break
+- The clean next refactor cut is therefore:
+  - split runtime session state into narrower state groups
+  - extract projection builders out of `MainAgentRuntimeManager`
+  - move terminal-facing projection/presentation logic out of the generic `session/projection.py`
+- Focused regression confirms the first composition cut did not break:
+  - TUI UI-state restore behavior
+  - chat history/follow scrolling behavior
+  - P30.1 shared-session interaction-surface bundles
+- Follow-up regression now also locks grouped ownership more explicitly in:
+  - context command routing
+  - local-runtime remote-sync skip behavior
+  - memory command busy gating
+  - runtime policy updates
+  - completed-task listing and local clear behavior
+
+## 2026-04-12 P30.1 Code Guardrails - Interaction Surface Contract
+
+- Active runtime/application paths were still using loosely normalized free-form strings for `surface` and `channel_type`.
+- That made it easy to keep behavior working short-term, but hard to enforce the corrected architecture in code.
+- The right low-risk cut was not changing session semantics immediately, but adding one shared classifier seam and routing existing flows through it.
+- A dedicated resolver now explicitly classifies:
+  - normalized surface label
+  - normalized remote channel adapter
+  - user entrance (`cli/tui/webui/remote`)
+- We intentionally preserved the current external session behavior:
+  - `origin_surface/active_surface` for QQ flows still stay `qq`
+  - TUI takeover flows are still represented as `origin=qq active=tui`
+  - no API contract expansion was required for this slice
+- Runtime binding logic now reuses the same resolver and supports both:
+  - current direct channel surface (`surface=qq`)
+  - future explicit remote entrance mode (`surface=remote` + `channel_type=qq`)
+- The gateway turn-context metadata now carries explicit entrance/channel classification fields (`entrance`, `remote_channel`) for follow-up refactor phases.
+- Focused regression confirms no behavior drift in core shared-session paths.
+
+## 2026-04-12 P30 Four-Entrance Architecture Correction Sync
+
+- The previous active wording was still slightly off even after the session-boundary correction:
+  - it treated `QQ` as if it were a peer to `CLI / TUI / WebUI`
+  - that is an implementation shortcut, not the intended product model
+- The correct product-side entrance model is now:
+  - `CLI`
+  - `TUI`
+  - `WebUI`
+  - `Remote Interaction`
+- `Remote Interaction` should be treated as a first-class entrance category, not as a single bot.
+- `QQ / WeChat / Feishu` belong under a remote-channel adapter sub-layer:
+  - they are concrete implementations of the remote entrance
+  - they are not additional peer entrances
+- This correction matters structurally, not only semantically:
+  - if the project keeps flattening product entrances and concrete adapters together, later refactor work will keep smuggling channel-specific logic into architecture decisions
+- `headless` also needed to be clarified:
+  - it is a runtime mode, not a user-side entrance
+- The project still does need an API layer, but its place is the interface / transport layer:
+  - it serves WebUI and remote-channel adapters
+  - it must not become a duplicate business layer below the shared services
+- The active P30 execution order needed one correction after this design update:
+  - the first next cut should be a four-entrance boundary lock
+  - then the session-truth and TUI/channel normalization cuts should continue on top of that clarified taxonomy
+
+## 2026-04-12 P30.1 QQ Channel Hard Consolidation
+
+- The repo currently has one real QQ runtime path and two stale parallel implementations:
+  - live runtime path: `src/apps/qqbot_channel`
+  - stale Node/TypeScript package: `src/channels/qqbot`
+  - stale Python OneBot adapter: `src/mini_agent/channels/qqbot.py`
+- `RuntimeStackManager` already treats `src/apps/qqbot_channel` as the only runtime entry, so deleting the other QQ implementations aligns with the current production path instead of changing it.
+- The current problem is not the official SDK dependency itself:
+  - `qq-official-bot` is only the protocol/runtime bridge
+  - Mini-Agent-specific logic lives in the app-side adapter layer and the Python gateway/session services
+- `scripts/qq_wechat_smoke.py` still depends on the deleted-path assumption:
+  - it runs QQ smoke through `src/channels/qqbot/src/smoke_runner.ts`
+  - that smoke path must move before the old package can be removed cleanly
+- `tests/test_channels.py` still imports `mini_agent.channels.qqbot`, so the legacy Python adapter cannot be removed until those tests are updated or trimmed.
+- Several active docs still mention `src/channels/qqbot` as if it were the current QQ implementation:
+  - `docs/RUNTIME_FLOW.md`
+  - `docs/REFACTOR_TASKS.md`
+  - `docs/DEVELOPMENT_INDEX.md`
+- The P29/P30 architecture documents already support this cleanup direction:
+  - `P29` explicitly calls out the parallel QQ implementations as boundary debt
+  - `P30` explicitly locks QQ as an adapter only, not a second session system
+- The live QQ app path had drifted behind the retired package on several guardrails:
+  - gateway auth header passthrough
+  - `/workspace` allowed-root enforcement
+  - inbound message truncation
+  - configurable outbound reply chunking
+- Those capabilities had to be restored into `src/apps/qqbot_channel` before deleting the old package, otherwise the hard consolidation would have reduced real runtime behavior.
+- The old combined `scripts/qq_wechat_smoke.py` was stale on both channel paths:
+  - QQ still pointed at `channels/qqbot`
+  - WeChat still pointed at `channels/wechat`
+  - both had to be moved to `src/...` paths to remain executable against the current tree
+- Focused QQ verification is now clean:
+  - `npm run check --prefix src/apps/qqbot_channel`
+  - a mock-gateway run of `npm run smoke --prefix src/apps/qqbot_channel`
+  - `uv run pytest tests/test_channels.py tests/test_markdown_links.py -q`
+- The remaining combined smoke failure is outside the QQ path:
+  - `uv run python scripts/qq_wechat_smoke.py` now reaches both current channel roots
+  - but still fails on the pre-existing WeChat oversized-body `413` expectation
+  - that is a separate WeChat hardening issue, not a regression introduced by the QQ consolidation
+
 ## 2026-04-12 Repo Hygiene And Documentation Audit
 
 - The current root `README.md` is still an older upstream/demo-style document and no longer matches the real project surface:
@@ -1187,3 +3358,134 @@
 - The right final cleanup was to archive them and keep only archive links from the remaining active indexes.
 - Verification:
   - `uv run pytest tests/test_markdown_links.py -q` -> `1 passed`
+
+## 2026-04-12 Runtime-Policy and Session-Control Extraction
+
+- The runtime-policy extraction exposed an important read-model boundary:
+  - `update_session_runtime_policy(...)` can write `session.projection.sandbox_diagnostics`
+  - but `get_session_detail(...)` does not blindly trust that projection when a live agent exists
+  - it rebuilds sandbox diagnostics from the agent via `RuntimeSessionDiagnosticsService.collect_sandbox_diagnostics(...)`
+- That means a test that only monkeypatches the manager reconfigure method is incomplete:
+  - the write path can look correct
+  - the read path can still report old or empty policy values if the live agent test double has no runtime-policy state
+- The right fix was to harden the test seam, not to weaken the production read model:
+  - `_SelectableAgent` now exposes a minimal `runtime_policy_engine.policy`
+  - the fake reconfigure logic updates that live policy object
+  - the assertion now verifies the same user-visible diagnostics flow the product actually uses
+- Session-control logic was a good next extraction because it had become a mini-subsystem inside the manager:
+  - action normalization and validation
+  - busy-state gating
+  - compaction/drop-memory dispatch
+  - KB enable/disable toggles
+  - MCP status/list/reload flow and transcript formatting
+- Pulling that into `session_control_handler.py` improves the boundary without changing surface behavior:
+  - manager now orchestrates session lookup, locking, transcript recording, and persistence
+  - the handler owns the command semantics and response/detail rendering
+- One subtle constraint during the extraction was monkeypatch stability:
+  - existing tests patch MCP helpers on `mini_agent.runtime.main_agent_runtime_manager`
+  - injecting handler dependencies through manager-owned lambdas preserved that patch seam without adding a compatibility wrapper layer
+
+## 2026-04-12 Context-Policy Extraction
+
+- `update_session_context_policy(...)` was a strong next extraction target because it already had a clean semantic boundary:
+  - one command family
+  - one projection field (`session.projection.context_policy`)
+  - existing normalization and formatting helpers already lived in `turn_context.py`
+- The main logic inside the manager was no longer orchestration; it was command semantics:
+  - normalize action names
+  - validate allowed actions
+  - reject busy shared sessions
+  - normalize include/exclude source lists
+  - coerce budget minima
+  - render transcript command/summary/details
+  - build the response DTO
+- Pulling that into `session_context_policy_handler.py` keeps the boundary honest:
+  - the handler owns policy mutation rules
+  - the manager owns session lookup, locking, transcript append, and persistence
+- This extraction also highlights a useful rule for later cuts:
+  - when a branch mutates exactly one projection field and already depends on a dedicated domain helper module, it is usually ready to leave the manager
+- The additional `budget/reset` and busy-session tests matter:
+  - before this cut, the include path had coverage but the other action branches were mostly relying on incidental surface behavior
+  - now the handler seam has explicit behavior locks for non-default budgets and `409` rejection while busy
+
+## 2026-04-12 Interrupt / Approval Extraction
+
+- `cancel_session_turn(...)` and `resolve_pending_approval(...)` form one real subdomain:
+  - both operate on the currently running shared-session turn
+  - both coordinate pending approval waiters
+  - both must preserve transcript ordering relative to the live turn state machine
+- The useful boundary split here is:
+  - manager keeps session lookup and persisted-session conflict semantics
+  - interrupt handler owns live-session cancel/approval rules
+- This cut is slightly trickier than the previous ones because approval resolution has an ordering constraint:
+  - if the waiter is resumed too early, the live turn may race ahead of the command transcript entry
+  - the extracted handler therefore returns a small execution object with a `finalize()` step
+  - manager appends the transcript first, then finalizes the waiter, preserving the existing visible ordering
+- Cancel handling also has an important shared-session nuance:
+  - `/cancel` should release any approval waiters with `None` while also setting the cancel event
+  - that behavior now lives with the interrupt logic instead of remaining inline in the manager
+- Restart-recovery approval conflicts are now more clearly localized:
+  - the “interrupted after restart, send a new message” rule is part of the interrupt domain, not general manager plumbing
+
+## 2026-04-12 Snapshot Import / Export Extraction
+
+- The snapshot layer had reached the right extraction point because the deeper pieces were already separated:
+  - hydration payload construction already lived in `session_hydration_builder.py`
+  - snapshot DTO construction already lived in `session_read_model_builder.py`
+  - manager still owned the remaining gatekeeping/orchestration glue around them
+- That made snapshot import/export a good “thin coordinator” cut rather than a deep redesign:
+  - import path still needs store locking and final hydration
+  - but collision checks, auto-id allocation handoff, and payload preparation no longer need to stay inline in the manager
+  - export path only needs to resolve “live session vs persisted record vs missing”
+- One useful reminder from this cut:
+  - constructor wiring order matters once extracted handlers depend on other extracted builders
+  - `_session_snapshots` had to be initialized after `_session_hydration_builder` and read-model wiring existed
+  - this was a clean initialization-order bug, not a design bug
+- The new dedicated tests close a real seam that was only indirectly covered before:
+  - duplicate imported snapshot ids
+  - export from persisted record without reloading the session into memory first
+
+## 2026-04-12 Restore / Hydrate Extraction
+
+- The next clean cut after snapshot import/export was not more persistence metadata work; it was the restore/hydrate orchestration itself.
+- By this point the restore chain already had strong lower-level structure:
+  - `session_hydration_builder.py` knew how to normalize records and build session state
+  - `session_runtime_state_hydrator.py` knew how to restore runtime memory and prepared-context state
+  - manager still owned the glue that turned those pieces into a live restored session
+- That glue was substantial enough to deserve its own handler:
+  - payload preparation from persisted record
+  - agent rebuild for the selected identity
+  - restore-time runtime-policy reconfiguration
+  - agent message/token restoration
+  - knowledge-base enabled-state restoration
+  - lifecycle bootstrap and session-state instantiation
+  - post-state runtime hydration
+- The right boundary is:
+  - restore handler owns “how to hydrate”
+  - manager owns “where the hydrated session lives” (`_sessions`) and “when to persist”
+- One practical lesson from this cut:
+  - the best focused validation was not new micro-tests for every helper branch
+  - it was reusing the real restart/recovery tests that already exercise persisted restore semantics end-to-end
+  - this gives much stronger confidence than a purely synthetic handler-only test would
+
+## 2026-04-12 Session-Access Extraction
+
+- After restore/hydrate left the manager, the next heavy mixed branch was `get_or_create_session(...)`.
+- That method still combined two different responsibilities:
+  - deciding which path to take
+  - executing the chosen path
+- The path-decision part had enough structure to stand on its own:
+  - normalize request fields
+  - reuse existing active session by explicit id
+  - reuse same-workspace active session under team mode without id
+  - restore persisted session by explicit id
+  - restore latest persisted same-workspace session without id
+  - fall through to create-new while enforcing team capacity
+- Pulling that into `session_access_handler.py` improves the boundary cleanly:
+  - handler decides which branch applies
+  - manager performs the side effects for the chosen branch
+- This cut also reinforces a useful refactor pattern for the rest of the manager:
+  - “selection logic” and “mutation/orchestration logic” should not live in the same method when the selection tree is large
+- One small but worth-keeping cleanup happened during this slice:
+  - widening lint coverage surfaced an unused `asyncio` import in `tests/test_p19_runtime_matrix.py`
+  - removing it keeps the widened verification path clean without changing behavior

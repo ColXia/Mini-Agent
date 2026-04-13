@@ -1,4 +1,4 @@
-"""Shared session read-model projections for transport and terminal surfaces."""
+"""Shared session read-model projections for transport/application layers."""
 
 from __future__ import annotations
 
@@ -312,13 +312,60 @@ class SessionDetailProjection(SessionSummaryProjection):
     recent_messages: tuple[SessionMessageProjection, ...] = ()
 
     @classmethod
+    def from_summary(
+        cls,
+        summary: SessionSummaryProjection,
+        *,
+        context_policy: Mapping[str, Any] | None = None,
+        last_prepared_context: Mapping[str, Any] | None = None,
+        prepared_context_diagnostics: Mapping[str, Any] | None = None,
+        recent_messages: Sequence[SessionMessageProjection] | None = None,
+    ) -> SessionDetailProjection:
+        return cls(
+            session_id=summary.session_id,
+            workspace_dir=summary.workspace_dir,
+            created_at=summary.created_at,
+            updated_at=summary.updated_at,
+            title=summary.title,
+            message_count=summary.message_count,
+            origin_surface=summary.origin_surface,
+            active_surface=summary.active_surface,
+            reply_enabled=bool(summary.reply_enabled),
+            busy=bool(summary.busy),
+            running_state=summary.running_state,
+            channel_type=summary.channel_type,
+            conversation_id=summary.conversation_id,
+            sender_id=summary.sender_id,
+            token_usage=summary.token_usage,
+            token_limit=summary.token_limit,
+            shared=bool(summary.shared),
+            knowledge_base_enabled=bool(summary.knowledge_base_enabled),
+            selected_model_source=summary.selected_model_source,
+            selected_provider_id=summary.selected_provider_id,
+            selected_model_id=summary.selected_model_id,
+            pending_model_source=summary.pending_model_source,
+            pending_provider_id=summary.pending_provider_id,
+            pending_model_id=summary.pending_model_id,
+            pending_skill_reload=bool(summary.pending_skill_reload),
+            pending_skill_reload_reason=summary.pending_skill_reload_reason,
+            pending_approvals=tuple(summary.pending_approvals),
+            recovery=summary.recovery,
+            memory_diagnostics=dict(summary.memory_diagnostics),
+            sandbox_diagnostics=dict(summary.sandbox_diagnostics),
+            context_policy=_copy_dict(context_policy),
+            last_prepared_context=_copy_dict(last_prepared_context),
+            prepared_context_diagnostics=_copy_dict(prepared_context_diagnostics),
+            recent_messages=tuple(recent_messages or ()),
+        )
+
+    @classmethod
     def from_transport_payload(cls, payload: Any) -> SessionDetailProjection | None:
         summary = SessionSummaryProjection.from_transport_payload(payload)
         if summary is None:
             return None
         data = _payload_dict(payload)
-        return cls(
-            **summary.__dict__,
+        return cls.from_summary(
+            summary,
             context_policy=_copy_dict(data.get("context_policy")),
             last_prepared_context=_copy_dict(data.get("last_prepared_context")),
             prepared_context_diagnostics=_copy_dict(data.get("prepared_context_diagnostics")),
@@ -334,103 +381,10 @@ class SessionDetailProjection(SessionSummaryProjection):
             recent_messages=[item.to_transport() for item in self.recent_messages],
         )
 
-
-@dataclass(frozen=True)
-class TerminalSessionProjection:
-    source_tag: str
-    scope_summary: str
-    route_summary: str
-    share_state: str
-    share_summary: str
-    peer_summary: str
-    has_external_peer: bool
-    show_gateway_panel: bool
-    recovery_pending: bool
-    last_command_preview: str | None = None
-
-    @classmethod
-    def from_summary(
-        cls,
-        summary: SessionSummaryProjection,
-        *,
-        has_local_runtime_state: bool,
-        last_command_preview: str | None = None,
-    ) -> TerminalSessionProjection:
-        source_tag = (_safe_text(summary.channel_type) or _safe_text(summary.origin_surface) or "tui").lower()
-        origin_surface = _safe_text(summary.origin_surface) or "tui"
-        active_surface = _safe_text(summary.active_surface) or origin_surface
-        surface_flow = origin_surface if origin_surface == active_surface else f"{origin_surface} -> {active_surface}"
-
-        has_external_peer = any(
-            (
-                _safe_text(summary.channel_type),
-                _safe_text(summary.conversation_id),
-                _safe_text(summary.sender_id),
-            )
-        )
-        is_local_only_surface = not has_external_peer and source_tag in {"tui", "cli", "local"}
-
-        recovery = summary.recovery
-        recovery_pending = bool(
-            recovery is not None
-            and _safe_text(recovery.state).lower() == "interrupted"
-            and (
-                (not has_local_runtime_state)
-                or has_external_peer
-                or bool(_safe_text(recovery.summary))
-            )
-        )
-        show_gateway_panel = any(
-            (
-                has_external_peer,
-                recovery_pending,
-                bool(_safe_text(getattr(recovery, "last_activity", None))),
-                (not has_local_runtime_state) and source_tag not in {"tui", "cli"},
-            )
-        )
-
-        share_state = "shared" if bool(summary.shared) else ("local only" if is_local_only_surface else "private")
-        compact_share_state = {
-            "locked by origin": "locked",
-            "wait until idle": "wait idle",
-        }.get(share_state, share_state)
-        if is_local_only_surface:
-            share_summary = compact_share_state
-        elif surface_flow and surface_flow != source_tag:
-            share_summary = f"{compact_share_state} {surface_flow.replace(' -> ', '->')}"
-        else:
-            share_summary = compact_share_state
-
-        channel = _safe_text(summary.channel_type).lower()
-        conversation = _safe_text(summary.conversation_id)
-        if channel and conversation:
-            peer_summary = f"{channel}/{conversation}"
-        else:
-            peer_summary = conversation or channel or "no external peer"
-
-        return cls(
-            source_tag=source_tag,
-            scope_summary=f"{'shared' if bool(summary.shared) else 'private'} [{source_tag}]",
-            route_summary=(
-                f"{surface_flow.replace(' -> ', '->')} / "
-                f"{'reply' if bool(summary.reply_enabled) else 'own'} / "
-                f"{'local' if has_local_runtime_state else 'gateway'}"
-            ),
-            share_state=share_state,
-            share_summary=share_summary,
-            peer_summary=peer_summary,
-            has_external_peer=has_external_peer,
-            show_gateway_panel=show_gateway_panel,
-            recovery_pending=recovery_pending,
-            last_command_preview=_safe_text(last_command_preview) or None,
-        )
-
-
 __all__ = [
     "SessionDetailProjection",
     "SessionMessageProjection",
     "SessionPendingApprovalProjection",
     "SessionRecoveryProjection",
     "SessionSummaryProjection",
-    "TerminalSessionProjection",
 ]

@@ -8,7 +8,6 @@ from .projection import (
     SessionPendingApprovalProjection,
     SessionRecoveryProjection,
     SessionSummaryProjection,
-    TerminalSessionProjection,
 )
 
 __all__ = [
@@ -19,6 +18,5 @@ __all__ = [
     "SessionPendingApprovalProjection",
     "SessionRecoveryProjection",
     "SessionSummaryProjection",
-    "TerminalSessionProjection",
     "conversation_binding_store",
 ]

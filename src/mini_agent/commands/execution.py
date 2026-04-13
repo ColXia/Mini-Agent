@@ -103,6 +103,15 @@ class McpReloadOutcome:
     active_model_label: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class CatalogModelUseRequest:
+    """One validated `/model use` request resolved against a catalog snapshot."""
+
+    identity: tuple[str, str, str]
+    provider_id: str
+    model_id: str
+
+
 def parse_memory_show_target(surface: str, parts: Sequence[str]) -> tuple[str, str | None, str | None]:
     """Normalize `/memory show` arguments across terminal surfaces."""
 
@@ -118,6 +127,83 @@ def parse_memory_show_target(surface: str, parts: Sequence[str]) -> tuple[str, s
     if len(parts) > 1:
         return "full", None, build_command_usage_text(surface, "memory", action="show")
     return "full", first, None
+
+
+def resolve_catalog_model_use_request(
+    *,
+    surface: str,
+    providers: Sequence[dict[str, Any]],
+    args: Sequence[str],
+) -> CatalogModelUseRequest | CommandExecutionResult:
+    """Validate and resolve one `/model use` request against a provider catalog snapshot."""
+
+    if len(args) < 3:
+        return CommandExecutionResult(
+            command="model use",
+            summary="usage",
+            details=build_command_usage_text(surface, "model", action="use"),
+            status_text="Model use requires provider_id and model_id.",
+            kind="usage",
+        )
+
+    normalized_provider_id = _safe_text(args[1])
+    normalized_model_id = _safe_text(args[2])
+    if not normalized_provider_id or not normalized_model_id:
+        return CommandExecutionResult(
+            command="model use",
+            summary="usage",
+            details=build_command_usage_text(surface, "model", action="use"),
+            status_text="Model use requires provider_id and model_id.",
+            kind="usage",
+        )
+
+    matched_provider: dict[str, Any] | None = None
+    for provider in providers:
+        if _safe_text(provider.get("provider_id")) == normalized_provider_id:
+            matched_provider = provider
+            break
+
+    if matched_provider is None:
+        message = f"Provider not found: {normalized_provider_id}"
+        return CommandExecutionResult(
+            command="model use",
+            summary="provider not found",
+            details=message,
+            status_text=message,
+            kind="error",
+        )
+
+    models = matched_provider.get("models")
+    if not isinstance(models, Sequence):
+        message = f"Model not found in {normalized_provider_id}: {normalized_model_id}"
+        return CommandExecutionResult(
+            command="model use",
+            summary="model not found",
+            details=message,
+            status_text=message,
+            kind="error",
+        )
+
+    for model in models:
+        if not isinstance(model, dict):
+            continue
+        if _safe_text(model.get("model_id")) != normalized_model_id:
+            continue
+        source = _safe_text(matched_provider.get("source")) or "custom"
+        return CatalogModelUseRequest(
+            identity=(source, normalized_provider_id, normalized_model_id),
+            provider_id=normalized_provider_id,
+            model_id=normalized_model_id,
+        )
+
+    message = f"Model not found in {normalized_provider_id}: {normalized_model_id}"
+    return CommandExecutionResult(
+        command="model use",
+        summary="model not found",
+        details=message,
+        status_text=message,
+        kind="error",
+    )
 
 
 class LocalOperatorCommandService:
@@ -1332,7 +1418,13 @@ class LocalOperatorCommandService:
                 summary=context_policy_summary_line(updated_policy, include_default=True),
                 details=format_context_policy_details(updated_policy, include_header=True),
                 status_text=f"Context policy updated for {policy_owner}.",
-                payload={"policy": updated_policy},
+                payload={
+                    "policy": updated_policy,
+                    "remote_request": {
+                        "action": normalized_action,
+                        "sources": list(args[1:]),
+                    },
+                },
             )
 
         if normalized_action == "budget":
@@ -1367,7 +1459,15 @@ class LocalOperatorCommandService:
                 summary=context_policy_summary_line(updated_policy, include_default=True),
                 details=format_context_policy_details(updated_policy, include_header=True),
                 status_text=f"Context budget updated for {policy_owner}.",
-                payload={"policy": updated_policy},
+                payload={
+                    "policy": updated_policy,
+                    "remote_request": {
+                        "action": "budget",
+                        "max_items": max_items,
+                        "max_total_chars": max_total_chars,
+                        "max_items_per_source": max_items_per_source,
+                    },
+                },
             )
 
         if normalized_action == "reset":
@@ -1377,7 +1477,12 @@ class LocalOperatorCommandService:
                 summary=context_policy_summary_line(updated_policy, include_default=True),
                 details=format_context_policy_details(updated_policy, include_header=True),
                 status_text=f"Context policy reset for {policy_owner}.",
-                payload={"policy": {}},
+                payload={
+                    "policy": {},
+                    "remote_request": {
+                        "action": "reset",
+                    },
+                },
             )
 
         return CommandExecutionResult(

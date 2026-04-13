@@ -43,6 +43,42 @@ class SessionLineageStore:
         self._children.setdefault(key, set())
         return node
 
+    def restore_node(self, node: SessionLineageNode) -> SessionLineageNode:
+        """Restore or update one lineage node from persisted state."""
+
+        key = node.session_key.strip()
+        if not key:
+            raise ValueError("session_key must not be empty.")
+
+        parent = node.parent_session_key.strip() if node.parent_session_key else None
+        if parent == key:
+            raise ValueError("parent and child session keys must differ.")
+
+        existing = self._nodes.get(key)
+        if existing is not None and existing.parent_session_key:
+            previous_children = self._children.get(existing.parent_session_key)
+            if previous_children is not None:
+                previous_children.discard(key)
+
+        normalized = SessionLineageNode(
+            session_key=key,
+            parent_session_key=parent,
+            reason=node.reason.strip() or ("child" if parent else "root"),
+            created_utc=node.created_utc,
+            metadata=dict(node.metadata),
+        )
+
+        if parent is not None:
+            if parent not in self._nodes:
+                self.add_root(parent)
+            if self._creates_cycle(parent, key):
+                raise ValueError(f"lineage cycle detected: parent={parent}, child={key}")
+            self._children.setdefault(parent, set()).add(key)
+
+        self._nodes[key] = normalized
+        self._children.setdefault(key, set())
+        return normalized
+
     def add_child(
         self,
         *,
@@ -107,6 +143,34 @@ class SessionLineageStore:
 
     def all_nodes(self) -> list[SessionLineageNode]:
         return [self._nodes[key] for key in sorted(self._nodes)]
+
+    def remove(self, session_key: str) -> bool:
+        key = session_key.strip()
+        node = self._nodes.pop(key, None)
+        if node is None:
+            return False
+
+        if node.parent_session_key:
+            siblings = self._children.get(node.parent_session_key)
+            if siblings is not None:
+                siblings.discard(key)
+
+        child_keys = list(self._children.pop(key, set()))
+        for child_key in child_keys:
+            child = self._nodes.get(child_key)
+            if child is None:
+                continue
+            metadata = dict(child.metadata)
+            metadata["root_session_id"] = child.session_key
+            self._nodes[child_key] = SessionLineageNode(
+                session_key=child.session_key,
+                parent_session_key=None,
+                reason="root",
+                created_utc=child.created_utc,
+                metadata=metadata,
+            )
+
+        return True
 
     def _creates_cycle(self, parent: str, child: str) -> bool:
         if child not in self._nodes:

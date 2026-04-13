@@ -23,9 +23,10 @@ from mini_agent.agent import Agent
 from mini_agent.agent_core.kernel import AgentKernelBuildOptions, build_agent_kernel
 from mini_agent.application import (
     ChannelIngressUseCases,
-    MainAgentGatewayUseCases,
+    MainAgentSurfaceService,
     NovelAgentProfile,
     NovelServiceUseCases,
+    RemoteConversationBindingService,
 )
 from mini_agent.interfaces import (
     ApiEnvelope,
@@ -46,6 +47,7 @@ from mini_agent.interfaces import (
     MainAgentSessionControlResponse,
     MainAgentSessionCreateRequest,
     MainAgentSessionDetail,
+    MainAgentSessionForkRequest,
     MainAgentSessionMemoryRequest,
     MainAgentSessionMemoryResponse,
     MainAgentSessionMessage,
@@ -68,6 +70,7 @@ from mini_agent.interfaces import (
     SystemHealthResponse,
     StudioModelListResponse,
 )
+from mini_agent.session import conversation_binding_store
 from mini_agent.runtime.main_agent_runtime_manager import (
     MainAgentRuntimeManager,
     MainAgentRuntimeMode,
@@ -119,7 +122,8 @@ MAIN_AGENT_SESSION_STORE_DIR = Path(
     )
 ).expanduser()
 _STUDIO_INSTANCE_LOCK: GatewayInstanceLock | None = None
-_MAIN_AGENT_USE_CASES: MainAgentGatewayUseCases | None = None
+_MAIN_AGENT_SURFACE_SERVICE: MainAgentSurfaceService | None = None
+_MAIN_AGENT_USE_CASES: MainAgentSurfaceService | None = None
 _NOVEL_USE_CASES: NovelServiceUseCases | None = None
 _CHANNEL_INGRESS_USE_CASES: ChannelIngressUseCases | None = None
 
@@ -507,10 +511,13 @@ def _parse_novel_agent_profile() -> NovelAgentProfile:
     )
 
 
-def _main_agent_use_cases() -> MainAgentGatewayUseCases:
-    global _MAIN_AGENT_USE_CASES
-    if _MAIN_AGENT_USE_CASES is None:
-        _MAIN_AGENT_USE_CASES = MainAgentGatewayUseCases(
+def _main_agent_surface_service() -> MainAgentSurfaceService:
+    global _MAIN_AGENT_SURFACE_SERVICE, _MAIN_AGENT_USE_CASES
+    if _MAIN_AGENT_USE_CASES is not None:
+        _MAIN_AGENT_SURFACE_SERVICE = _MAIN_AGENT_USE_CASES
+        return _MAIN_AGENT_SURFACE_SERVICE
+    if _MAIN_AGENT_SURFACE_SERVICE is None:
+        _MAIN_AGENT_SURFACE_SERVICE = MainAgentSurfaceService(
             runtime_manager=_main_agent_runtime_manager(),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
@@ -518,7 +525,8 @@ def _main_agent_use_cases() -> MainAgentGatewayUseCases:
             format_bootstrap_error=_format_agent_bootstrap_error,
             stream_chunk_size=CHAT_STREAM_CHUNK_SIZE,
         )
-    return _MAIN_AGENT_USE_CASES
+        _MAIN_AGENT_USE_CASES = _MAIN_AGENT_SURFACE_SERVICE
+    return _MAIN_AGENT_SURFACE_SERVICE
 
 
 def _novel_use_cases() -> NovelServiceUseCases:
@@ -552,6 +560,9 @@ def _channel_ingress_use_cases() -> ChannelIngressUseCases:
             novel_use_cases=_novel_use_cases(),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
+            remote_binding_service=RemoteConversationBindingService(
+                binding_store=conversation_binding_store,
+            ),
         )
     return _CHANNEL_INGRESS_USE_CASES
 
@@ -620,13 +631,14 @@ async def _startup_instance_lock() -> None:
 
 
 async def _shutdown_cleanup() -> None:
-    global _STUDIO_INSTANCE_LOCK, _MAIN_AGENT_USE_CASES, _NOVEL_USE_CASES, _CHANNEL_INGRESS_USE_CASES
+    global _STUDIO_INSTANCE_LOCK, _MAIN_AGENT_SURFACE_SERVICE, _MAIN_AGENT_USE_CASES, _NOVEL_USE_CASES, _CHANNEL_INGRESS_USE_CASES
     try:
         await cleanup_mcp_connections()
     finally:
         try:
             if _MAIN_AGENT_RUNTIME_MANAGER is not None:
                 await _MAIN_AGENT_RUNTIME_MANAGER.clear()
+            _MAIN_AGENT_SURFACE_SERVICE = None
             _MAIN_AGENT_USE_CASES = None
             _NOVEL_USE_CASES = None
             _CHANNEL_INGRESS_USE_CASES = None
@@ -683,7 +695,7 @@ async def _build_health_response() -> SystemHealthResponse:
 
 
 async def _run_main_agent_chat(request: MainAgentChatRequest) -> MainAgentChatResponse:
-    return await _main_agent_use_cases().run_chat(request)
+    return await _main_agent_surface_service().run_chat(request)
 
 
 async def _run_channel_message(request: ChannelMessageRequest) -> ChannelMessageResponse:
@@ -711,7 +723,7 @@ async def v1_ops_runtime_diagnostics() -> MainAgentRuntimeDiagnostics:
     dependencies=[Depends(_require_studio_auth)],
 )
 async def v1_ops_routing_diagnostics() -> MainAgentRoutingDiagnostics:
-    return await _main_agent_use_cases().get_routing_diagnostics()
+    return await _main_agent_surface_service().get_routing_diagnostics()
 
 
 @app.post("/api/v1/agent/chat", response_model=ApiEnvelope[MainAgentChatResponse])
@@ -729,22 +741,29 @@ async def _list_main_agent_sessions(
     workspace_dir: str | None = None,
     shared_only: bool = False,
 ) -> list[MainAgentSessionSummary]:
-    return await _main_agent_use_cases().list_sessions(
+    return await _main_agent_surface_service().list_sessions(
         workspace_dir=workspace_dir,
         shared_only=shared_only,
     )
 
 
 async def _create_main_agent_session(request: MainAgentSessionCreateRequest) -> MainAgentSessionDetail:
-    return await _main_agent_use_cases().create_session(request)
+    return await _main_agent_surface_service().create_session(request)
+
+
+async def _create_main_agent_derived_session(
+    session_id: str,
+    request: MainAgentSessionForkRequest,
+) -> MainAgentSessionDetail:
+    return await _main_agent_surface_service().create_derived_session(session_id, request)
 
 
 async def _get_main_agent_session_detail(session_id: str, recent_limit: int = 50) -> MainAgentSessionDetail:
-    return await _main_agent_use_cases().get_session_detail(session_id, recent_limit=recent_limit)
+    return await _main_agent_surface_service().get_session_detail(session_id, recent_limit=recent_limit)
 
 
 async def _get_main_agent_session_messages(session_id: str, limit: int = 10) -> list[MainAgentSessionMessage]:
-    return await _main_agent_use_cases().get_session_messages(session_id, limit=limit)
+    return await _main_agent_surface_service().get_session_messages(session_id, limit=limit)
 
 
 def _list_main_agent_models() -> StudioModelListResponse:
@@ -752,81 +771,81 @@ def _list_main_agent_models() -> StudioModelListResponse:
 
 
 async def _delete_main_agent_session(session_id: str) -> MainAgentSessionMutationResponse:
-    return await _main_agent_use_cases().delete_session(session_id)
+    return await _main_agent_surface_service().delete_session(session_id)
 
 
 async def _rename_main_agent_session(
     session_id: str,
     request: MainAgentSessionRenameRequest,
 ) -> MainAgentSessionMutationResponse:
-    return await _main_agent_use_cases().rename_session(session_id, request)
+    return await _main_agent_surface_service().rename_session(session_id, request)
 
 
 async def _share_main_agent_session(
     session_id: str,
     request: MainAgentSessionShareRequest,
 ) -> MainAgentSessionMutationResponse:
-    return await _main_agent_use_cases().set_session_shared(session_id, request)
+    return await _main_agent_surface_service().set_session_shared(session_id, request)
 
 
 async def _reset_main_agent_session(session_id: str) -> MainAgentSessionMutationResponse:
-    return await _main_agent_use_cases().reset_session(session_id)
+    return await _main_agent_surface_service().reset_session(session_id)
 
 
 async def _cancel_main_agent_session(
     session_id: str,
     request: MainAgentSessionCancelRequest,
 ) -> MainAgentSessionMutationResponse:
-    return await _main_agent_use_cases().cancel_session(session_id, request)
+    return await _main_agent_surface_service().cancel_session(session_id, request)
 
 
 async def _control_main_agent_session(
     session_id: str,
     request: MainAgentSessionControlRequest,
 ) -> MainAgentSessionControlResponse:
-    return await _main_agent_use_cases().control_session(session_id, request)
+    return await _main_agent_surface_service().control_session(session_id, request)
 
 
 async def _update_main_agent_session_context(
     session_id: str,
     request: MainAgentSessionContextRequest,
 ) -> MainAgentSessionContextResponse:
-    return await _main_agent_use_cases().update_session_context(session_id, request)
+    return await _main_agent_surface_service().update_session_context(session_id, request)
 
 
 async def _manage_main_agent_session_memory(
     session_id: str,
     request: MainAgentSessionMemoryRequest,
 ) -> MainAgentSessionMemoryResponse:
-    return await _main_agent_use_cases().manage_session_memory(session_id, request)
+    return await _main_agent_surface_service().manage_session_memory(session_id, request)
 
 
 async def _manage_main_agent_session_skill(
     session_id: str,
     request: MainAgentSessionSkillRequest,
 ) -> MainAgentSessionSkillResponse:
-    return await _main_agent_use_cases().manage_session_skills(session_id, request)
+    return await _main_agent_surface_service().manage_session_skills(session_id, request)
 
 
 async def _update_main_agent_session_model(
     session_id: str,
     request: MainAgentSessionModelSelectionRequest,
 ) -> MainAgentSessionModelSelectionResponse:
-    return await _main_agent_use_cases().update_session_model_selection(session_id, request)
+    return await _main_agent_surface_service().update_session_model_selection(session_id, request)
 
 
 async def _respond_main_agent_session_approval(
     session_id: str,
     request: MainAgentSessionApprovalRequest,
 ) -> MainAgentSessionApprovalResponse:
-    return await _main_agent_use_cases().respond_to_approval(session_id, request)
+    return await _main_agent_surface_service().respond_to_approval(session_id, request)
 
 
 async def _update_main_agent_session_runtime_policy(
     session_id: str,
     request: MainAgentSessionRuntimePolicyRequest,
 ) -> MainAgentSessionRuntimePolicyResponse:
-    return await _main_agent_use_cases().update_session_runtime_policy(session_id, request)
+    return await _main_agent_surface_service().update_session_runtime_policy(session_id, request)
 
 
 @app.get("/api/v1/agent/sessions", response_model=ApiEnvelope[list[MainAgentSessionSummary]])
@@ -901,6 +920,17 @@ async def v1_share_session(
     return ApiEnvelope[MainAgentSessionMutationResponse](
         ok=True,
         data=await _share_main_agent_session(session_id, request),
+    )
+
+
+@app.post("/api/v1/agent/sessions/{session_id}/fork", response_model=ApiEnvelope[MainAgentSessionDetail])
+async def v1_fork_session(
+    session_id: str,
+    request: MainAgentSessionForkRequest,
+) -> ApiEnvelope[MainAgentSessionDetail]:
+    return ApiEnvelope[MainAgentSessionDetail](
+        ok=True,
+        data=await _create_main_agent_derived_session(session_id, request),
     )
 
 
@@ -1008,7 +1038,7 @@ async def chat_stream(
     conversation_id: str | None = None,
     sender_id: str | None = None,
 ) -> StreamingResponse:
-    stream = _main_agent_use_cases().stream_chat_events(
+    stream = _main_agent_surface_service().stream_chat_events(
         message=message,
         session_id=session_id,
         session_title_hint=session_title_hint,

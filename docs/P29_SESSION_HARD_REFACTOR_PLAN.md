@@ -130,7 +130,7 @@ They do not infer runtime truth from object shape.
 
 - `src/mini_agent/core/session.py`
 - `src/mini_agent/session/binding.py`
-- `src/channels/qqbot/src/*`
+- historical QQ package under `src/channels/qqbot/*` now that the single app-path adapter (`src/apps/qqbot_channel/*`) is the only maintained QQ runtime
 - `src/channels/wechat/src/*` if not on the active path
 - `src/gateway/channels/base.py`
 

@@ -1,15 +1,14 @@
-﻿"""Tests for TUI state and command interactions."""
+"""Tests for TUI state and command interactions."""
 
 from __future__ import annotations
 
 import asyncio
 from copy import deepcopy
-from datetime import datetime, timezone
-import json
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
 from prompt_toolkit.completion import CompleteEvent
 from prompt_toolkit.completion import Completion
 from prompt_toolkit.document import Document
@@ -19,15 +18,11 @@ from prompt_toolkit.layout.margins import ScrollbarMargin
 from prompt_toolkit.layout.menus import CompletionsMenu
 from prompt_toolkit.keys import Keys
 
-from mini_agent.agent import Agent
 from mini_agent.agent import TurnStopReason
-from mini_agent.code_agent import ApprovalEngine, InMemoryLoopMessageBus, PermissionPolicy
-from mini_agent.agent_core.session import SessionLifecyclePolicy, SessionLifecycleState, SessionResetMode
+from mini_agent.code_agent import InMemoryLoopMessageBus
 from mini_agent.config import AgentConfig, Config, LLMConfig, ToolsConfig
-from mini_agent.logger import AgentLogger
-from mini_agent.memory.service import MemoryService
-from mini_agent.runtime.session_lifecycle import SurfaceSessionLifecycleRuntime, build_surface_session_key
-from mini_agent.schema import FunctionCall, LLMResponse, Message, ToolCall
+from mini_agent.runtime.session_interrupt_handler import RuntimeSessionInterruptHandler
+from mini_agent.schema import LLMResponse, Message
 from mini_agent.tui.app import MiniAgentTuiApp
 from mini_agent.tools.base import Tool, ToolResult
 
@@ -283,17 +278,42 @@ def test_tui_runtime_state_restore_keeps_current_session_and_ui_flags(tmp_path: 
     asyncio.run(app._run_command("session rename Alpha"))
     asyncio.run(app._run_command("session new"))
     asyncio.run(app._run_command("session rename Beta"))
-    app.current_session.activity_details_expanded = True
-    app.current_session.command_details_expanded = True
+    app.current_session.view.activity_details_expanded = True
+    app.current_session.view.command_details_expanded = True
     app._persist_session_state()
 
     restored = _new_app(tmp_path, state_path=state_path, gateway_client=gateway)
 
     assert restored.current_session.session_id == "session-2"
     assert restored.current_session.title == "Beta"
-    assert restored.current_session.activity_details_expanded is True
-    assert restored.current_session.command_details_expanded is True
+    assert restored.current_session.view.activity_details_expanded is True
+    assert restored.current_session.view.command_details_expanded is True
     assert any(session.session_id == "session-1" and session.title == "Alpha" for session in restored.sessions)
+
+
+def test_tui_session_grouped_state_requires_explicit_nested_access(tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    app = _new_app(tmp_path, state_path=state_path)
+
+    session = app.current_session
+    session.operator.pending_skill_reload = True
+    session.runtime.pending_resume_task_id = "task-42"
+    session.view.chat_scroll_line = 7
+    session.view.chat_follow_output = False
+
+    session.operator.pending_skill_reload_reason = "workspace changed"
+    session.runtime.active_task_id = "task-live"
+    session.view.command_details_expanded = True
+
+    assert session.operator.pending_skill_reload_reason == "workspace changed"
+    assert session.runtime.active_task_id == "task-live"
+    assert session.view.command_details_expanded is True
+    assert session.view.chat_scroll_line == 7
+    assert session.view.chat_follow_output is False
+    assert session.runtime.pending_resume_task_id == "task-42"
+
+    with pytest.raises(AttributeError):
+        _ = session.pending_skill_reload
 
 
 def test_tui_runtime_skill_install_routes_through_gateway_feedback(tmp_path: Path) -> None:
@@ -315,9 +335,9 @@ def test_tui_runtime_skill_install_routes_through_gateway_feedback(tmp_path: Pat
         "conversation_id": None,
         "sender_id": None,
     }
-    assert app.current_session.messages[-1].metadata["command"] == "skill install C:/skills/repo-helper"
-    assert app.current_session.messages[-1].metadata["summary"] == "installed repo-helper"
-    assert "Installed Skill:" in app.current_session.messages[-1].content
+    assert app.current_session.view.messages[-1].metadata["command"] == "skill install C:/skills/repo-helper"
+    assert app.current_session.view.messages[-1].metadata["summary"] == "installed repo-helper"
+    assert "Installed Skill:" in app.current_session.view.messages[-1].content
     assert app.status == "Workspace skill installed."
 
 
@@ -356,7 +376,7 @@ def test_tui_runtime_model_filter_and_unknown_command_suggestion(tmp_path: Path)
 
     asyncio.run(app._run_command("sesion list"))
 
-    assert "Did you mean: session?" in app.current_session.messages[-1].content
+    assert "Did you mean: session?" in app.current_session.view.messages[-1].content
 
 
 def test_tui_runtime_session_numeric_command_switches_current_session(tmp_path: Path) -> None:
@@ -382,7 +402,7 @@ def test_tui_handle_prompt_prefers_local_runtime_when_agent_is_attached(tmp_path
     gateway = FakeGatewayClient(profile="local")
     app = _new_app(tmp_path, state_path=state_path, gateway_client=gateway)
     agent = FakeTurnAgent(final_message="local turn complete")
-    app.current_session.agent = agent
+    app.current_session.runtime.agent = agent
 
     async def _scenario() -> None:
         turn = asyncio.create_task(app._handle_prompt("run locally"))
@@ -394,9 +414,9 @@ def test_tui_handle_prompt_prefers_local_runtime_when_agent_is_attached(tmp_path
     asyncio.run(_scenario())
 
     assert gateway.chat_calls == []
-    assert app.current_session.messages[-1].role == "assistant"
-    assert app.current_session.messages[-1].content == "local turn complete"
-    assert app.current_session.tasks[-1].status == "completed"
+    assert app.current_session.view.messages[-1].role == "assistant"
+    assert app.current_session.view.messages[-1].content == "local turn complete"
+    assert app.current_session.view.tasks[-1].status == "completed"
 
 
 def test_tui_cancel_prefers_local_runtime_when_agent_is_attached(tmp_path: Path) -> None:
@@ -404,7 +424,7 @@ def test_tui_cancel_prefers_local_runtime_when_agent_is_attached(tmp_path: Path)
     gateway = FakeGatewayClient(profile="local")
     app = _new_app(tmp_path, state_path=state_path, gateway_client=gateway)
     agent = FakeTurnAgent(final_message="should not complete")
-    app.current_session.agent = agent
+    app.current_session.runtime.agent = agent
 
     async def _scenario() -> None:
         turn = asyncio.create_task(app._handle_prompt("cancel locally"))
@@ -419,8 +439,10 @@ def test_tui_cancel_prefers_local_runtime_when_agent_is_attached(tmp_path: Path)
     asyncio.run(_scenario())
 
     assert gateway.cancel_calls == []
-    assert app.current_session.tasks[-1].status == "cancelled"
-    assert "Task cancelled by user." in app.current_session.messages[-1].content
+    assert app.current_session.view.tasks[-1].status == "cancelled"
+    assert "Task cancelled by user." in app.current_session.view.messages[-1].content
+    assert app.current_session.projection.running_state == ""
+    assert app.current_session.runtime.active_task_id is None
 
 
 def test_tui_skill_list_discovers_workspace_local_skills_without_agent_boot(tmp_path: Path, monkeypatch) -> None:
@@ -467,7 +489,7 @@ def test_tui_skill_list_discovers_workspace_local_skills_without_agent_boot(tmp_
 
     asyncio.run(app._run_command("skill list"))
 
-    last_message = app.current_session.messages[-1]
+    last_message = app.current_session.view.messages[-1]
     assert last_message.metadata["kind"] == "command"
     assert last_message.metadata["command"] == "skill list"
     assert "repo-helper [workspace] active" in last_message.content
@@ -519,7 +541,7 @@ def test_tui_skill_change_notice_prompts_for_refresh_and_clears_after_refresh(
     monkeypatch.setattr("mini_agent.commands.skill_support.Config.load", lambda allow_interactive_setup=False: config)
 
     app = _new_app(tmp_path, state_path=state_path)
-    app.current_session.agent = SimpleNamespace(
+    app.current_session.runtime.agent = SimpleNamespace(
         llm=SimpleNamespace(model="gpt-5.4"),
         runtime_route=SimpleNamespace(provider_id="preset-openai", model="gpt-5.4"),
         messages=[Message(role="system", content="sys")],
@@ -557,7 +579,7 @@ def test_tui_skill_change_notice_prompts_for_refresh_and_clears_after_refresh(
     asyncio.run(app._run_command("skill refresh"))
 
     assert app._skill_catalog_change_notice == ""
-    assert app.current_session.messages[-1].metadata["command"] == "skill refresh"
+    assert app.current_session.view.messages[-1].metadata["command"] == "skill refresh"
 
 
 class FakeGatewayClient:
@@ -570,6 +592,7 @@ class FakeGatewayClient:
         self.model_calls: list[dict[str, Any]] = []
         self.policy_calls: list[dict[str, Any]] = []
         self.approval_calls: list[dict[str, Any]] = []
+        self.derived_create_calls: list[dict[str, Any]] = []
         self.delete_calls: list[str] = []
         self._profile = str(profile or "qq").strip().lower() or "qq"
         self._session_counter = 1
@@ -784,6 +807,54 @@ class FakeGatewayClient:
             surface=surface,
             shared=shared,
         )
+
+    async def create_derived_session(
+        self,
+        parent_session_id: str,
+        *,
+        title: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> dict[str, Any]:
+        parent = deepcopy(self._session(parent_session_id))
+        self._session_counter += 1
+        session_id = f"session-{self._session_counter}"
+        now = "2026-04-08T10:00:01+00:00"
+        origin_surface = str(surface or "").strip() or str(parent.get("origin_surface") or "tui")
+        active_surface = str(surface or "").strip() or str(parent.get("active_surface") or origin_surface)
+        detail = {
+            **parent,
+            "session_id": session_id,
+            "title": title or "Task",
+            "origin_surface": origin_surface,
+            "active_surface": active_surface,
+            "channel_type": channel_type,
+            "conversation_id": conversation_id,
+            "sender_id": sender_id,
+            "reply_enabled": False,
+            "busy": False,
+            "running_state": "",
+            "shared": False,
+            "message_count": 0,
+            "recent_messages": [],
+            "pending_approvals": [],
+            "updated_at": now,
+            "created_at": now,
+        }
+        self.derived_create_calls.append(
+            {
+                "parent_session_id": parent_session_id,
+                "title": title,
+                "surface": surface,
+                "channel_type": channel_type,
+                "conversation_id": conversation_id,
+                "sender_id": sender_id,
+            }
+        )
+        self._sessions[session_id] = detail
+        return deepcopy(detail)
 
     async def rename_session(self, session_id: str, *, title: str) -> dict[str, Any]:
         detail = self._session(session_id)
@@ -1303,6 +1374,12 @@ class FakeGatewayClient:
             if _text(item.get("token"))
         ]
         if not pending:
+            recovery = detail.get("recovery") if isinstance(detail.get("recovery"), dict) else {}
+            recovery_pending = recovery.get("pending_approvals") if isinstance(recovery, dict) else None
+            if isinstance(recovery_pending, list) and recovery_pending:
+                raise RuntimeError(
+                    f"Gateway HTTP 409: {RuntimeSessionInterruptHandler.restart_pending_approval_detail()}"
+                )
             raise RuntimeError("Gateway HTTP 409: Session has no pending approval.")
         resolved_token = _text(token)
         if resolved_token:
@@ -1373,6 +1450,8 @@ class FakeGatewayClient:
                 "sender_id": sender_id,
             }
         )
+        if detail.get("busy") and action not in {"mcp_status", "mcp_list"}:
+            raise RuntimeError("Gateway HTTP 409: Session is busy. Wait for the current turn to finish.")
         next_index = len(detail["recent_messages"]) + 1
         if action == "mcp_status":
             summary = "1 active server(s) | 2 tool(s)"
@@ -1677,10 +1756,14 @@ class FakeGatewayClient:
         )
         summary = "cons fresh | rtm 1+0 | profile 1"
         details = "Memory Diagnostics\nSummary: cons fresh | rtm 1+0 | profile 1"
+        command_name = f"memory {action.replace('_', ' ')}"
+        result_extra: dict[str, Any] = {}
         if action == "runtime":
             details = "Runtime Task Memory\nSession entries: 1\nShared entries: 0"
+            command_name = "memory runtime"
         elif action == "list":
             details = "Session Runtime Memory\nSession entries: 1\nShared entries: 0"
+            command_name = "memory list"
         elif action == "overview":
             details = (
                 "Memory Overview\nWorkspace: D:/file/Mini-Agent\nMemory root: D:/file/Mini-Agent\n"
@@ -1691,6 +1774,7 @@ class FakeGatewayClient:
                 "Durable Memory\n- global profile facts: 1 | workspace notes: 1 | daily files: 1\n\n"
                 "Consolidated Memory\n- state: fresh | items: 2 | pending sessions: 0"
             )
+            command_name = "memory overview"
         elif action == "export":
             details = (
                 "Memory Export\nWorkspace: D:/file/Mini-Agent\nMemory root: D:/file/Mini-Agent\n"
@@ -1702,12 +1786,15 @@ class FakeGatewayClient:
                     else "## MEMORY.md\n- [2026-04-10T00:00:00+00:00] [operator_note] remembered workspace note"
                 )
             )
+            command_name = "memory export"
         elif action == "session_show":
             details = (
                 f"Session Runtime Memory\nEngram: {engram_id or 'session-1'}\n"
                 "Layer: working\nImportance: 0.5\nUpdated: 2026-04-09T00:00:00+00:00\n"
                 "Content: remembered session detail"
             )
+            result_extra["engram_id"] = engram_id or "session-1"
+            command_name = "memory show"
         elif action == "consolidated_show":
             details = (
                 "Consolidated Memory\nMemory file: D:/file/Mini-Agent/MEMORY.md\n"
@@ -1715,17 +1802,20 @@ class FakeGatewayClient:
                 "- 1. restart recovery should preserve approval hints\n"
                 "- 2. routing guardrails remain workspace scoped"
             )
+            command_name = "memory consolidated"
         elif action == "consolidated_search":
             details = (
                 f"Consolidated Memory Search\nQuery: {query or 'routing'}\nMemory file: D:/file/Mini-Agent/MEMORY.md\n"
                 "State: fresh | reason: fresh\nReturned: 1 / 2 item(s)\n\nHits\n"
                 "- 1. (score=9.500 | drift=aligned) routing guardrails remain workspace scoped"
             )
+            command_name = "memory consolidated search"
         elif action == "profile":
             details = (
                 "Global Profile Memory\nUser file: global/USER.md\nFact count: 1\n\n"
                 "Facts\n- 1. User prefers Chinese replies during debugging"
             )
+            command_name = "memory profile"
         elif action == "notes":
             details = (
                 "Workspace Durable Notes\nWorkspace: D:/file/Mini-Agent\nMemory root: D:/file/Mini-Agent\n"
@@ -1733,41 +1823,120 @@ class FakeGatewayClient:
                 "Recent notes: 1\n\nRecent Workspace Notes\n"
                 "- 1. [2026-04-10T00:00:00+00:00] [operator_note] [MEMORY.md] remembered workspace note"
             )
+            command_name = "memory notes"
         elif action == "daily":
             details = (
                 f"Workspace Daily Memory\nWorkspace: D:/file/Mini-Agent\nDay: {day or '2026-04-10'}\n"
                 f"Path: D:/file/Mini-Agent/memory/{day or '2026-04-10'}.md\nNote count: 1\n\n"
                 "Daily Notes\n- 1. [2026-04-10T00:00:00+00:00] [operator_note] remembered daily note"
             )
+            command_name = "memory daily"
         elif action == "shared_list":
             details = "Workspace-Shared Runtime Memory\nShared namespace: workspace:shared\nShared entries: 1"
+            command_name = "memory shared list"
         elif action == "shared_show":
             details = (
                 f"Workspace-Shared Runtime Memory\nEngram: {engram_id or 'shared-1'}\n"
                 "Layer: working\nImportance: 0.5\nUpdated: 2026-04-09T00:00:00+00:00\n"
                 "Content: remembered shared detail"
             )
+            result_extra["engram_id"] = engram_id or "shared-1"
+            command_name = "memory shared show"
         elif action == "shared_clear":
             details = (
                 "Workspace-Shared Runtime Memory\nAction: shared_clear\nCleared: yes\n\n"
                 "Memory Diagnostics\nSummary: cons fresh | rtm 1+0 | profile 1"
             )
+            summary = "workspace-shared runtime memory cleared"
+            command_name = "memory shared clear"
         elif action == "refresh":
             details = "Memory Diagnostics\nSummary: cons fresh | rtm 1+0 | profile 1\nWorkspace: D:/file/Mini-Agent"
+            summary = "memory refreshed"
+            command_name = "memory refresh"
         elif action == "promote_note":
+            summary = "runtime memory promoted to workspace note"
             details = (
                 f"Action: promote_note\nEngram: {engram_id}\nTarget: workspace_note\n"
                 "Content: remembered detail"
             )
+            command_name = "memory promote note"
+            result_extra["engram_id"] = engram_id or "session-1"
+        elif action == "promote_profile":
+            summary = "runtime memory promoted to global profile"
+            details = (
+                f"Action: promote_profile\nEngram: {engram_id}\nTarget: global_profile\n"
+                "Content: remembered profile detail"
+            )
+            command_name = "memory promote profile"
+            result_extra["engram_id"] = engram_id or "session-1"
         elif action == "promote_shared":
+            summary = "runtime memory promoted to workspace-shared memory"
             details = (
                 f"Action: promote_shared\nEngram: {engram_id}\nTarget: workspace_shared\n"
                 "Content: remembered shared detail"
             )
+            command_name = "memory promote shared"
+            result_extra["engram_id"] = engram_id or "session-1"
         elif action == "save_note":
+            summary = "operator note saved to workspace memory"
             details = (
                 "Action: save_note\nTarget: workspace_note\nCategory: kb_confirmed\n"
                 f"Content: {content or 'remembered detail'}"
+            )
+            command_name = "memory save note"
+            result_extra["saved"] = {
+                "target": "workspace_note",
+                "category": "kb_confirmed",
+                "content": content or "remembered detail",
+            }
+        elif action == "save_profile":
+            summary = "operator profile fact saved"
+            details = (
+                "Action: save_profile\nTarget: global_profile\nCategory: preference\n"
+                f"Content: {content or 'remembered detail'}"
+            )
+            command_name = "memory save profile"
+            result_extra["saved"] = {
+                "target": "global_profile",
+                "category": "preference",
+                "content": content or "remembered detail",
+                "saved": True,
+            }
+        if action in {
+            "shared_clear",
+            "refresh",
+            "promote_note",
+            "promote_profile",
+            "promote_shared",
+            "save_note",
+            "save_profile",
+        }:
+            next_index = len(detail["recent_messages"]) + 1
+            detail["message_count"] += 1
+            detail["updated_at"] = "2026-04-08T10:00:03+00:00"
+            detail["recent_messages"].append(
+                {
+                    "index": next_index,
+                    "role": "system",
+                    "content": details,
+                    "surface": surface or detail["active_surface"],
+                    "created_at": "2026-04-08T10:00:03+00:00",
+                    "channel_type": channel_type,
+                    "conversation_id": conversation_id,
+                    "sender_id": sender_id,
+                    "metadata": {
+                        "kind": "command",
+                        "command": command_name,
+                        "summary": summary,
+                        "level": "info",
+                        "threads_visible": False,
+                        **(
+                            {"engram_id": result_extra["engram_id"]}
+                            if isinstance(result_extra.get("engram_id"), str) and result_extra.get("engram_id")
+                            else {}
+                        ),
+                    },
+                }
             )
         return {
             "status": "ok",
@@ -1778,6 +1947,7 @@ class FakeGatewayClient:
             "result": {
                 "summary": summary,
                 "details": details,
+                **result_extra,
             },
         }
 
@@ -2066,6 +2236,40 @@ def test_tui_session_rename_and_delete_commands(monkeypatch, tmp_path: Path) -> 
     assert app.current_session.title.startswith("Session")
 
 
+def test_tui_fork_command_creates_child_session_and_runs_prompt(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("mini_agent.memory.memoria_runtime.Path.home", classmethod(lambda cls: tmp_path))
+
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    gateway = FakeGatewayClient(profile="remote")
+    app = _new_app(tmp_path, state_path=state_path, gateway_client=gateway)
+
+    parent_id = app.current_session.session_id
+
+    asyncio.run(app._run_command("fork Investigate the startup regression"))
+
+    assert app.current_session.session_id != parent_id
+    assert app.current_session.title.startswith("Task:")
+    assert gateway.derived_create_calls[-1]["parent_session_id"] == parent_id
+    assert gateway.chat_calls[-1]["session_id"] == app.current_session.session_id
+    assert gateway.chat_calls[-1]["message"] == "Investigate the startup regression"
+
+
+def test_tui_task_new_command_creates_child_session_without_prompt(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("mini_agent.memory.memoria_runtime.Path.home", classmethod(lambda cls: tmp_path))
+
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    gateway = FakeGatewayClient(profile="remote")
+    app = _new_app(tmp_path, state_path=state_path, gateway_client=gateway)
+
+    parent_id = app.current_session.session_id
+
+    asyncio.run(app._run_command("task new"))
+
+    assert app.current_session.session_id != parent_id
+    assert gateway.derived_create_calls[-1]["parent_session_id"] == parent_id
+    assert gateway.chat_calls == []
+
+
 def test_tui_remote_context_command_routes_through_gateway_and_syncs_state(tmp_path: Path) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     gateway = FakeGatewayClient()
@@ -2094,28 +2298,68 @@ def test_tui_remote_context_command_routes_through_gateway_and_syncs_state(tmp_p
     app.session_index = remote_index
 
     asyncio.run(app._run_command("context include knowledge_base workspace_memory"))
-    assert gateway.control_calls[-1]["action"] == "context:include"
-    assert app.current_session.context_policy["include_sources"] == ["knowledge_base", "workspace_memory"]
+    assert gateway.control_calls[-1] == {
+        "session_id": "remote-qq-1",
+        "action": "context:include",
+        "sources": ["knowledge_base", "workspace_memory"],
+        "max_items": None,
+        "max_total_chars": None,
+        "max_items_per_source": None,
+        "surface": "tui",
+        "channel_type": "qq",
+        "conversation_id": "group:demo",
+        "sender_id": "user-1",
+    }
+    assert app.current_session.projection.context_policy["include_sources"] == ["knowledge_base", "workspace_memory"]
     status_text = app._render_status_panel()
     assert "command" in status_text
     assert "context include" in status_text
-    assert app.current_session.remote_last_command_summary.startswith("context include | ")
-    assert "knowledge_base" in app.current_session.remote_last_command_summary
-    assert "workspace_memory" in app.current_session.remote_last_command_summary
+    assert app.current_session.projection.supplemental.remote_last_command_summary.startswith("context include | ")
+    assert "knowledge_base" in app.current_session.projection.supplemental.remote_last_command_summary
+    assert "workspace_memory" in app.current_session.projection.supplemental.remote_last_command_summary
 
     asyncio.run(app._run_command("context show brief"))
-    assert "knowledge_base" in app.current_session.messages[-1].content
+    assert "knowledge_base" in app.current_session.view.messages[-1].content
 
     asyncio.run(app._run_command("context stats"))
-    assert "Context diagnostics:" in app.current_session.messages[-1].content
+    assert "Context diagnostics:" in app.current_session.view.messages[-1].content
+
+
+def test_tui_remote_context_budget_routes_structured_request_through_gateway(tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    gateway = FakeGatewayClient()
+    app = _new_app(tmp_path, state_path=state_path, gateway_client=gateway)
+
+    asyncio.run(app._sync_remote_sessions_once(focus_current=True))
+    remote_index = app._find_session_index("remote-qq-1")
+    assert remote_index is not None
+    app.session_index = remote_index
+
+    asyncio.run(app._run_command("context budget 6 3600 2"))
+
+    assert gateway.control_calls[-1] == {
+        "session_id": "remote-qq-1",
+        "action": "context:budget",
+        "sources": [],
+        "max_items": 6,
+        "max_total_chars": 3600,
+        "max_items_per_source": 2,
+        "surface": "tui",
+        "channel_type": "qq",
+        "conversation_id": "group:demo",
+        "sender_id": "user-1",
+    }
+    assert app.current_session.projection.context_policy["max_items"] == 6
+    assert app.current_session.projection.context_policy["max_total_chars"] == 3600
+    assert app.current_session.projection.context_policy["max_items_per_source"] == 2
 
 
 def test_tui_remote_tagged_local_runtime_routes_context_commands_locally(monkeypatch, tmp_path: Path) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     gateway = FakeGatewayClient(profile="local")
     app = _new_app(tmp_path, state_path=state_path, gateway_client=gateway)
-    app.current_session.agent = SimpleNamespace(last_memory_automation={}, last_runtime_task_memory={})
-    app.current_session.prepared_context_diagnostics = {
+    app.current_session.runtime.agent = SimpleNamespace(last_memory_automation={}, last_runtime_task_memory={})
+    app.current_session.projection.prepared_context_diagnostics = {
         "turn_count": 1,
         "turns_with_context": 1,
         "turns_without_context": 0,
@@ -2130,18 +2374,18 @@ def test_tui_remote_tagged_local_runtime_routes_context_commands_locally(monkeyp
 
     asyncio.run(app._run_command("context include knowledge_base workspace_memory"))
     assert gateway.control_calls == []
-    assert app.current_session.context_policy["include_sources"] == ["knowledge_base", "workspace_memory"]
+    assert app.current_session.projection.context_policy["include_sources"] == ["knowledge_base", "workspace_memory"]
 
     asyncio.run(app._run_command("context stats"))
-    assert "Context diagnostics:" in app.current_session.messages[-1].content
+    assert "Context diagnostics:" in app.current_session.view.messages[-1].content
 
 
 def test_tui_remote_session_detail_sync_skips_local_runtime_state(monkeypatch, tmp_path: Path) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     gateway = FakeGatewayClient(profile="local")
     app = _new_app(tmp_path, state_path=state_path, gateway_client=gateway)
-    app.current_session.loop_bus = InMemoryLoopMessageBus()
-    app.current_session.messages = [
+    app.current_session.runtime.loop_bus = InMemoryLoopMessageBus()
+    app.current_session.view.messages = [
         SimpleNamespace(role="assistant", content="keep local detail", timestamp="10:00:00"),
     ]
 
@@ -2153,15 +2397,15 @@ def test_tui_remote_session_detail_sync_skips_local_runtime_state(monkeypatch, t
 
     asyncio.run(app._sync_remote_session_detail(app.current_session))
 
-    assert app.current_session.messages[-1].content == "keep local detail"
+    assert app.current_session.view.messages[-1].content == "keep local detail"
 
 
 def test_tui_remote_sync_once_preserves_local_runtime_messages(monkeypatch, tmp_path: Path) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     gateway = FakeGatewayClient(profile="local")
     app = _new_app(tmp_path, state_path=state_path, gateway_client=gateway)
-    app.current_session.loop_bus = InMemoryLoopMessageBus()
-    app.current_session.messages = [
+    app.current_session.runtime.loop_bus = InMemoryLoopMessageBus()
+    app.current_session.view.messages = [
         SimpleNamespace(role="assistant", content="keep local transcript", timestamp="10:00:00"),
     ]
 
@@ -2178,7 +2422,7 @@ def test_tui_remote_sync_once_preserves_local_runtime_messages(monkeypatch, tmp_
 
     asyncio.run(app._sync_remote_sessions_once())
 
-    assert app.current_session.messages[-1].content == "keep local transcript"
+    assert app.current_session.view.messages[-1].content == "keep local transcript"
 
 
 def test_tui_local_memory_consolidated_show_and_search_commands(monkeypatch, tmp_path: Path) -> None:
@@ -2197,19 +2441,19 @@ def test_tui_local_memory_consolidated_show_and_search_commands(monkeypatch, tmp
     )
 
     asyncio.run(app._run_command("memory consolidated"))
-    assert "Consolidated Memory" in app.current_session.messages[-1].content
-    assert "restart recovery should preserve approval hints" in app.current_session.messages[-1].content
+    assert "Consolidated Memory" in app.current_session.view.messages[-1].content
+    assert "restart recovery should preserve approval hints" in app.current_session.view.messages[-1].content
 
     asyncio.run(app._run_command("memory consolidated search routing"))
-    assert "Consolidated Memory Search" in app.current_session.messages[-1].content
-    assert "routing guardrails remain workspace scoped" in app.current_session.messages[-1].content
+    assert "Consolidated Memory Search" in app.current_session.view.messages[-1].content
+    assert "routing guardrails remain workspace scoped" in app.current_session.view.messages[-1].content
 
 
 def test_tui_remote_tagged_local_runtime_routes_memory_commands_locally(monkeypatch, tmp_path: Path) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     gateway = FakeGatewayClient(profile="local")
     app = _new_app(tmp_path, state_path=state_path, gateway_client=gateway)
-    app.current_session.agent = SimpleNamespace(last_memory_automation={}, last_runtime_task_memory={})
+    app.current_session.runtime.agent = SimpleNamespace(last_memory_automation={}, last_runtime_task_memory={})
     local_calls: list[dict[str, Any]] = []
 
     def _fake_local_memory_action(self, session, **kwargs):  # noqa: ANN001
@@ -2232,7 +2476,7 @@ def test_tui_remote_tagged_local_runtime_routes_memory_commands_locally(monkeypa
     assert local_calls[-1]["detail_mode"] == "brief"
     assert gateway.memory_calls == []
 
-    app.current_session.busy = True
+    app.current_session.projection.busy = True
     before_calls = len(local_calls)
     asyncio.run(app._run_command("memory refresh"))
     assert len(local_calls) == before_calls
@@ -2253,11 +2497,11 @@ def test_tui_remote_memory_command_routes_through_gateway(tmp_path: Path) -> Non
 
     assert gateway.memory_calls[-1]["action"] == "show"
     assert gateway.memory_calls[-1]["detail_mode"] == "brief"
-    assert "Memory Diagnostics" in app.current_session.messages[-1].content
+    assert "Memory Diagnostics" in app.current_session.view.messages[-1].content
     status_text = app._render_status_panel()
     assert "command" in status_text
     assert "memory show" in status_text
-    assert app.current_session.remote_last_command_summary == (
+    assert app.current_session.projection.supplemental.remote_last_command_summary == (
         "memory show | cons fresh | rtm 1+0 | profile 1"
     )
 
@@ -2265,7 +2509,7 @@ def test_tui_remote_memory_command_routes_through_gateway(tmp_path: Path) -> Non
 def test_tui_remote_tagged_local_runtime_uses_local_sandbox_diagnostics(monkeypatch, tmp_path: Path) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     app = _new_app(tmp_path, state_path=state_path, gateway_client=FakeGatewayClient(profile="local"))
-    app.current_session.agent = SimpleNamespace()
+    app.current_session.runtime.agent = SimpleNamespace()
 
     def _fake_collect_sandbox_diagnostics(*, agent):  # noqa: ANN001
         _ = agent
@@ -2279,9 +2523,9 @@ def test_tui_remote_tagged_local_runtime_uses_local_sandbox_diagnostics(monkeypa
 
     asyncio.run(app._run_command("sandbox status"))
 
-    assert app.current_session.sandbox_diagnostics["approval_profile"] == "plan"
-    assert app.current_session.sandbox_diagnostics["access_level"] == "full-access"
-    assert app.current_session.sandbox_diagnostics["sandbox_mode"] == "unrestricted"
+    assert app.current_session.projection.sandbox_diagnostics["approval_profile"] == "plan"
+    assert app.current_session.projection.sandbox_diagnostics["access_level"] == "full-access"
+    assert app.current_session.projection.sandbox_diagnostics["sandbox_mode"] == "unrestricted"
 
 
 def test_tui_remote_memory_overview_and_export_route_through_gateway(tmp_path: Path) -> None:
@@ -2296,13 +2540,13 @@ def test_tui_remote_memory_overview_and_export_route_through_gateway(tmp_path: P
 
     asyncio.run(app._run_command("memory overview"))
     assert gateway.memory_calls[-1]["action"] == "overview"
-    assert "Memory Overview" in app.current_session.messages[-1].content
-    assert "Session Context" in app.current_session.messages[-1].content
+    assert "Memory Overview" in app.current_session.view.messages[-1].content
+    assert "Session Context" in app.current_session.view.messages[-1].content
 
     asyncio.run(app._run_command("memory export markdown"))
     assert gateway.memory_calls[-1]["action"] == "export"
     assert gateway.memory_calls[-1]["export_format"] == "markdown"
-    assert "Memory Export" in app.current_session.messages[-1].content
+    assert "Memory Export" in app.current_session.view.messages[-1].content
 
 
 def test_tui_remote_durable_memory_commands_route_through_gateway(tmp_path: Path) -> None:
@@ -2318,17 +2562,17 @@ def test_tui_remote_durable_memory_commands_route_through_gateway(tmp_path: Path
     asyncio.run(app._run_command("memory profile Chinese replies"))
     assert gateway.memory_calls[-1]["action"] == "profile"
     assert gateway.memory_calls[-1]["query"] == "Chinese replies"
-    assert "Global Profile Memory" in app.current_session.messages[-1].content
+    assert "Global Profile Memory" in app.current_session.view.messages[-1].content
 
     asyncio.run(app._run_command("memory notes routing"))
     assert gateway.memory_calls[-1]["action"] == "notes"
     assert gateway.memory_calls[-1]["query"] == "routing"
-    assert "Workspace Durable Notes" in app.current_session.messages[-1].content
+    assert "Workspace Durable Notes" in app.current_session.view.messages[-1].content
 
     asyncio.run(app._run_command("memory daily 2026-04-10"))
     assert gateway.memory_calls[-1]["action"] == "daily"
     assert gateway.memory_calls[-1]["day"] == "2026-04-10"
-    assert "Workspace Daily Memory" in app.current_session.messages[-1].content
+    assert "Workspace Daily Memory" in app.current_session.view.messages[-1].content
 
 
 def test_tui_remote_consolidated_commands_route_through_gateway(tmp_path: Path) -> None:
@@ -2343,12 +2587,12 @@ def test_tui_remote_consolidated_commands_route_through_gateway(tmp_path: Path) 
 
     asyncio.run(app._run_command("memory consolidated"))
     assert gateway.memory_calls[-1]["action"] == "consolidated_show"
-    assert "Consolidated Memory" in app.current_session.messages[-1].content
+    assert "Consolidated Memory" in app.current_session.view.messages[-1].content
 
     asyncio.run(app._run_command("memory consolidated search routing"))
     assert gateway.memory_calls[-1]["action"] == "consolidated_search"
     assert gateway.memory_calls[-1]["query"] == "routing"
-    assert "Consolidated Memory Search" in app.current_session.messages[-1].content
+    assert "Consolidated Memory Search" in app.current_session.view.messages[-1].content
 
 
 def test_tui_remote_memory_show_latest_routes_through_gateway(tmp_path: Path) -> None:
@@ -2365,8 +2609,8 @@ def test_tui_remote_memory_show_latest_routes_through_gateway(tmp_path: Path) ->
 
     assert gateway.memory_calls[-1]["action"] == "session_show"
     assert gateway.memory_calls[-1]["engram_id"] == "latest"
-    assert "Session Runtime Memory" in app.current_session.messages[-1].content
-    assert "remembered session detail" in app.current_session.messages[-1].content
+    assert "Session Runtime Memory" in app.current_session.view.messages[-1].content
+    assert "remembered session detail" in app.current_session.view.messages[-1].content
 
 
 def test_tui_remote_memory_list_routes_through_gateway(tmp_path: Path) -> None:
@@ -2397,11 +2641,54 @@ def test_tui_remote_memory_shared_commands_route_through_gateway(tmp_path: Path)
 
     asyncio.run(app._run_command("memory shared list"))
     assert gateway.memory_calls[-1]["action"] == "shared_list"
-    assert "Workspace-Shared Runtime Memory" in app.current_session.messages[-1].content
+    assert "Workspace-Shared Runtime Memory" in app.current_session.view.messages[-1].content
 
     asyncio.run(app._run_command("memory shared clear"))
     assert gateway.memory_calls[-1]["action"] == "shared_clear"
     assert gateway.memory_calls[-1]["detail_mode"] == "full"
+
+
+def test_tui_remote_memory_mutation_commands_route_through_gateway(tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    gateway = FakeGatewayClient()
+    app = _new_app(tmp_path, state_path=state_path, gateway_client=gateway)
+
+    asyncio.run(app._sync_remote_sessions_once(focus_current=True))
+    remote_index = app._find_session_index("remote-qq-1")
+    assert remote_index is not None
+    app.session_index = remote_index
+
+    asyncio.run(app._run_command("memory promote note latest"))
+    assert gateway.memory_calls[-1]["action"] == "promote_note"
+    assert gateway.memory_calls[-1]["engram_id"] == "latest"
+    assert app.current_session.view.messages[-1].metadata["command"] == "memory promote note"
+    assert app.current_session.view.messages[-1].metadata["engram_id"] == "latest"
+    assert "Action: promote_note" in app.current_session.view.messages[-1].content
+    assert app.current_session.projection.supplemental.remote_last_command_summary == (
+        "memory promote note | runtime memory promoted to workspace note"
+    )
+
+    asyncio.run(app._run_command("memory promote profile latest"))
+    assert gateway.memory_calls[-1]["action"] == "promote_profile"
+    assert gateway.memory_calls[-1]["engram_id"] == "latest"
+    assert app.current_session.view.messages[-1].metadata["command"] == "memory promote profile"
+    assert app.current_session.view.messages[-1].metadata["engram_id"] == "latest"
+    assert "Target: global_profile" in app.current_session.view.messages[-1].content
+
+    asyncio.run(app._run_command("memory save note remember routing guardrails"))
+    assert gateway.memory_calls[-1]["action"] == "save_note"
+    assert gateway.memory_calls[-1]["content"] == "remember routing guardrails"
+    assert app.current_session.view.messages[-1].metadata["command"] == "memory save note"
+    assert "Action: save_note" in app.current_session.view.messages[-1].content
+
+    asyncio.run(app._run_command("memory save profile user prefers concise updates"))
+    assert gateway.memory_calls[-1]["action"] == "save_profile"
+    assert gateway.memory_calls[-1]["content"] == "user prefers concise updates"
+    assert app.current_session.view.messages[-1].metadata["command"] == "memory save profile"
+    assert "Action: save_profile" in app.current_session.view.messages[-1].content
+    assert app.current_session.projection.supplemental.remote_last_command_summary == (
+        "memory save profile | operator profile fact saved"
+    )
 
 
 def test_tui_remote_skill_commands_route_through_gateway(tmp_path: Path) -> None:
@@ -2416,17 +2703,17 @@ def test_tui_remote_skill_commands_route_through_gateway(tmp_path: Path) -> None
 
     asyncio.run(app._run_command("skill list"))
     assert gateway.skill_calls[-1]["action"] == "list"
-    assert "repo-helper [workspace] active" in app.current_session.messages[-1].content
+    assert "repo-helper [workspace] active" in app.current_session.view.messages[-1].content
 
     asyncio.run(app._run_command("skill show repo-helper"))
     assert gateway.skill_calls[-1]["action"] == "show"
     assert gateway.skill_calls[-1]["skill_name"] == "repo-helper"
-    assert "Skill: repo-helper" in app.current_session.messages[-1].content
+    assert "Skill: repo-helper" in app.current_session.view.messages[-1].content
 
     asyncio.run(app._run_command("skill search repo"))
     assert gateway.skill_calls[-1]["action"] == "search"
     assert gateway.skill_calls[-1]["query"] == "repo"
-    assert 'Skill matches for "repo"' in app.current_session.messages[-1].content
+    assert 'Skill matches for "repo"' in app.current_session.view.messages[-1].content
 
 
 def test_tui_remote_skill_refresh_routes_through_gateway_and_updates_status(tmp_path: Path) -> None:
@@ -2443,8 +2730,8 @@ def test_tui_remote_skill_refresh_routes_through_gateway_and_updates_status(tmp_
 
     assert gateway.skill_calls[-1]["action"] == "refresh"
     assert app.status == f"Skill catalog refreshed for {app.current_session.title}."
-    assert app.current_session.messages[-1].metadata["command"] == "skill refresh"
-    assert "repo-helper [workspace] active" in app.current_session.messages[-1].content
+    assert app.current_session.view.messages[-1].metadata["command"] == "skill refresh"
+    assert "repo-helper [workspace] active" in app.current_session.view.messages[-1].content
     threads_text = app._render_sessions()
     assert "cmd" in threads_text
     assert "skill refresh | 2" in threads_text
@@ -2453,6 +2740,57 @@ def test_tui_remote_skill_refresh_routes_through_gateway_and_updates_status(tmp_
     assert "command" in status_text
     assert "skill refresh | 2" in status_text
     assert "skill(s) refreshed" in status_text
+
+
+def test_tui_remote_skill_uninstall_and_rollback_trigger_remote_sync(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    gateway = FakeGatewayClient()
+
+    async def _manage_session_skill(session_id: str, **kwargs: Any) -> dict[str, Any]:
+        gateway.skill_calls.append({"session_id": session_id, **kwargs})
+        action = str(kwargs.get("action") or "")
+        skill_name = str(kwargs.get("skill_name") or "")
+        return {
+            "status": "ok",
+            "session_id": session_id,
+            "action": action,
+            "active_surface": "qq",
+            "result": {
+                "summary": f"{action}ed {skill_name}",
+                "details": f"Action: {action}\nSkill: {skill_name}",
+            },
+        }
+
+    monkeypatch.setattr(gateway, "manage_session_skill", _manage_session_skill)
+    app = _new_app(tmp_path, state_path=state_path, gateway_client=gateway)
+
+    sync_calls: list[tuple[str, int]] = []
+
+    async def _sync_remote_session_detail(session, recent_limit: int = 80):
+        sync_calls.append((session.session_id, recent_limit))
+
+    refresh_calls: list[str] = []
+    monkeypatch.setattr(app, "_sync_remote_session_detail", _sync_remote_session_detail)
+    monkeypatch.setattr(
+        app,
+        "_refresh_skill_catalog_signature_baseline",
+        lambda: refresh_calls.append("refreshed"),
+    )
+
+    asyncio.run(app._sync_remote_sessions_once(focus_current=True))
+    remote_index = app._find_session_index("remote-qq-1")
+    assert remote_index is not None
+    app.session_index = remote_index
+
+    asyncio.run(app._run_command("skill uninstall repo-helper"))
+    asyncio.run(app._run_command("skill rollback repo-helper"))
+
+    assert [call["action"] for call in gateway.skill_calls[-2:]] == ["uninstall", "rollback"]
+    assert sync_calls == [("remote-qq-1", 80), ("remote-qq-1", 80)]
+    assert refresh_calls == ["refreshed", "refreshed"]
 
 
 def test_tui_remote_skill_show_missing_routes_through_gateway(tmp_path: Path) -> None:
@@ -2470,8 +2808,8 @@ def test_tui_remote_skill_show_missing_routes_through_gateway(tmp_path: Path) ->
     assert gateway.skill_calls[-1]["action"] == "show"
     assert gateway.skill_calls[-1]["skill_name"] == "missing-skill"
     assert app.status == "Skill not found."
-    assert "Skill not found: missing-skill" in app.current_session.messages[-1].content
-    assert app.current_session.remote_last_command_summary == "skill show | skill not found"
+    assert "Skill not found: missing-skill" in app.current_session.view.messages[-1].content
+    assert app.current_session.projection.supplemental.remote_last_command_summary == "skill show | skill not found"
 
 
 def test_tui_remote_skill_policy_commands_route_through_gateway(tmp_path: Path) -> None:
@@ -2486,42 +2824,42 @@ def test_tui_remote_skill_policy_commands_route_through_gateway(tmp_path: Path) 
 
     asyncio.run(app._run_command("skill active"))
     assert gateway.skill_calls[-1]["action"] == "active"
-    assert "Workspace Skill Policy:" in app.current_session.messages[-1].content
-    assert app.current_session.remote_last_command_summary == "skill active | 2 active skill(s) | mode all"
+    assert "Workspace Skill Policy:" in app.current_session.view.messages[-1].content
+    assert app.current_session.projection.supplemental.remote_last_command_summary == "skill active | 2 active skill(s) | mode all"
 
     asyncio.run(app._run_command("skill mode allowlist"))
     assert gateway.skill_calls[-1]["action"] == "mode"
     assert gateway.skill_calls[-1]["mode"] == "allowlist"
-    assert app.current_session.messages[-1].metadata["command"] == "skill mode allowlist"
-    assert "- mode allowlist" in app.current_session.messages[-1].content
-    assert app.current_session.remote_last_command_summary == (
+    assert app.current_session.view.messages[-1].metadata["command"] == "skill mode allowlist"
+    assert "- mode allowlist" in app.current_session.view.messages[-1].content
+    assert app.current_session.projection.supplemental.remote_last_command_summary == (
         "skill mode allowlist | skill mode set to allowlist"
     )
 
     asyncio.run(app._run_command("skill enable doc-coauthoring"))
     assert gateway.skill_calls[-1]["action"] == "enable"
     assert gateway.skill_calls[-1]["skill_name"] == "doc-coauthoring"
-    assert app.current_session.messages[-1].metadata["command"] == "skill enable doc-coauthoring"
-    assert "active skills: doc-coauthoring" in app.current_session.messages[-1].content
-    assert app.current_session.remote_last_command_summary == (
+    assert app.current_session.view.messages[-1].metadata["command"] == "skill enable doc-coauthoring"
+    assert "active skills: doc-coauthoring" in app.current_session.view.messages[-1].content
+    assert app.current_session.projection.supplemental.remote_last_command_summary == (
         "skill enable doc-coauthoring | enabled doc-coauthoring in workspace policy"
     )
 
     asyncio.run(app._run_command("skill disable repo-helper"))
     assert gateway.skill_calls[-1]["action"] == "disable"
     assert gateway.skill_calls[-1]["skill_name"] == "repo-helper"
-    assert app.current_session.messages[-1].metadata["command"] == "skill disable repo-helper"
-    assert "denylist repo-helper" in app.current_session.messages[-1].content
-    assert app.current_session.remote_last_command_summary == (
+    assert app.current_session.view.messages[-1].metadata["command"] == "skill disable repo-helper"
+    assert "denylist repo-helper" in app.current_session.view.messages[-1].content
+    assert app.current_session.projection.supplemental.remote_last_command_summary == (
         "skill disable repo-helper | disabled repo-helper in workspace policy"
     )
 
     asyncio.run(app._run_command("skill reset"))
     assert gateway.skill_calls[-1]["action"] == "reset"
-    assert app.current_session.messages[-1].metadata["command"] == "skill reset"
-    assert "- mode all" in app.current_session.messages[-1].content
-    assert "active skills: doc-coauthoring, repo-helper" in app.current_session.messages[-1].content
-    assert app.current_session.remote_last_command_summary == "skill reset | workspace skill policy reset"
+    assert app.current_session.view.messages[-1].metadata["command"] == "skill reset"
+    assert "- mode all" in app.current_session.view.messages[-1].content
+    assert "active skills: doc-coauthoring, repo-helper" in app.current_session.view.messages[-1].content
+    assert app.current_session.projection.supplemental.remote_last_command_summary == "skill reset | workspace skill policy reset"
 
 
 def test_tui_remote_skill_list_handles_disabled_status(tmp_path: Path, monkeypatch) -> None:
@@ -2554,8 +2892,8 @@ def test_tui_remote_skill_list_handles_disabled_status(tmp_path: Path, monkeypat
 
     assert gateway.skill_calls[-1]["action"] == "list"
     assert app.status == "Skill support is disabled."
-    assert "Skill support is disabled in the active configuration." in app.current_session.messages[-1].content
-    assert app.current_session.remote_last_command_summary == "skill list | skill support disabled"
+    assert "Skill support is disabled in the active configuration." in app.current_session.view.messages[-1].content
+    assert app.current_session.projection.supplemental.remote_last_command_summary == "skill list | skill support disabled"
 
 
 def test_tui_remote_skill_list_handles_unavailable_status(tmp_path: Path, monkeypatch) -> None:
@@ -2588,8 +2926,8 @@ def test_tui_remote_skill_list_handles_unavailable_status(tmp_path: Path, monkey
 
     assert gateway.skill_calls[-1]["action"] == "list"
     assert app.status == "Skill catalog unavailable."
-    assert "Skill catalog unavailable: boom" in app.current_session.messages[-1].content
-    assert app.current_session.remote_last_command_summary == "skill list | skill catalog unavailable"
+    assert "Skill catalog unavailable: boom" in app.current_session.view.messages[-1].content
+    assert app.current_session.projection.supplemental.remote_last_command_summary == "skill list | skill catalog unavailable"
 
 
 def test_tui_remote_skill_mode_handles_disabled_status_consistently(tmp_path: Path, monkeypatch) -> None:
@@ -2623,7 +2961,7 @@ def test_tui_remote_skill_mode_handles_disabled_status_consistently(tmp_path: Pa
     assert gateway.skill_calls[-1]["action"] == "mode"
     assert gateway.skill_calls[-1]["mode"] == "allowlist"
     assert app.status == "Skill support is disabled."
-    assert "Skill support is disabled in the active configuration." in app.current_session.messages[-1].content
+    assert "Skill support is disabled in the active configuration." in app.current_session.view.messages[-1].content
 
 
 def test_tui_remote_skill_mode_handles_unavailable_status_consistently(tmp_path: Path, monkeypatch) -> None:
@@ -2657,7 +2995,7 @@ def test_tui_remote_skill_mode_handles_unavailable_status_consistently(tmp_path:
     assert gateway.skill_calls[-1]["action"] == "mode"
     assert gateway.skill_calls[-1]["mode"] == "allowlist"
     assert app.status == "Skill catalog unavailable."
-    assert "Skill catalog unavailable: boom" in app.current_session.messages[-1].content
+    assert "Skill catalog unavailable: boom" in app.current_session.view.messages[-1].content
 
 
 def test_tui_remote_skill_unknown_action_shows_consistent_operator_message(tmp_path: Path) -> None:
@@ -2674,7 +3012,7 @@ def test_tui_remote_skill_unknown_action_shows_consistent_operator_message(tmp_p
 
     assert gateway.skill_calls == []
     assert app.status == "Unknown skill action."
-    assert "Unknown skill action: frob." in app.current_session.messages[-1].content
+    assert "Unknown skill action: frob." in app.current_session.view.messages[-1].content
 
 
 def test_tui_local_skill_unknown_action_shows_consistent_operator_message(tmp_path: Path, monkeypatch) -> None:
@@ -2713,7 +3051,7 @@ def test_tui_local_skill_unknown_action_shows_consistent_operator_message(tmp_pa
     asyncio.run(app._run_command("skill frob"))
 
     assert app.status == "Unknown skill action."
-    assert "Unknown skill action: frob." in app.current_session.messages[-1].content
+    assert "Unknown skill action: frob." in app.current_session.view.messages[-1].content
 
 
 def test_tui_models_assign_color_bands_for_selected_and_adjacent_items(tmp_path: Path) -> None:
@@ -2822,7 +3160,7 @@ def test_tui_model_limit_show_uses_selected_model(tmp_path: Path) -> None:
 
     asyncio.run(app._run_command("model limit show"))
 
-    last_message = app.current_session.messages[-1]
+    last_message = app.current_session.view.messages[-1]
     assert "learned  | 128,000" in str(last_message.content)
     assert "context  | 1,050,000" in str(last_message.content)
     assert "effective| 128,000 (learned_token_limit)" in str(last_message.content)
@@ -2896,8 +3234,8 @@ def test_tui_header_stays_static_without_activity_indicator(tmp_path: Path, monk
 def test_tui_status_panel_omits_global_activity_bar(tmp_path: Path, monkeypatch) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     app = _new_app(tmp_path, state_path=state_path)
-    app.current_session.busy = True
-    app.current_session.running_state = "step 1: running search"
+    app.current_session.projection.busy = True
+    app.current_session.projection.running_state = "step 1: running search"
 
     monkeypatch.setattr("mini_agent.tui.app.time.monotonic", lambda: 0.16)
     header = "".join(fragment for _style, fragment in app._render_header())
@@ -2912,8 +3250,8 @@ def test_tui_status_panel_omits_global_activity_bar(tmp_path: Path, monkeypatch)
 def test_tui_prompt_title_shows_activity_indicator(tmp_path: Path, monkeypatch) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     app = _new_app(tmp_path, state_path=state_path)
-    app.current_session.busy = True
-    app.current_session.running_state = "step 1: running search"
+    app.current_session.projection.busy = True
+    app.current_session.projection.running_state = "step 1: running search"
 
     monkeypatch.setattr("mini_agent.tui.app.time.monotonic", lambda: 0.16)
     title = "".join(fragment for _style, fragment in app._render_prompt_title())
@@ -2926,8 +3264,8 @@ def test_tui_prompt_title_shows_activity_indicator(tmp_path: Path, monkeypatch) 
 def test_tui_prompt_title_uses_active_bracket_style_when_busy(tmp_path: Path, monkeypatch) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     app = _new_app(tmp_path, state_path=state_path)
-    app.current_session.busy = True
-    app.current_session.running_state = "step 1: running search"
+    app.current_session.projection.busy = True
+    app.current_session.projection.running_state = "step 1: running search"
 
     monkeypatch.setattr("mini_agent.tui.app.time.monotonic", lambda: 0.16)
     fragments = app._render_prompt_title()
@@ -2939,8 +3277,8 @@ def test_tui_prompt_title_uses_active_bracket_style_when_busy(tmp_path: Path, mo
 def test_tui_threads_activity_bar_uses_prompt_activity_styles(tmp_path: Path, monkeypatch) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     app = _new_app(tmp_path, state_path=state_path)
-    app.current_session.busy = True
-    app.current_session.running_state = "step 1: running search"
+    app.current_session.projection.busy = True
+    app.current_session.projection.running_state = "step 1: running search"
 
     monkeypatch.setattr("mini_agent.tui.app.time.monotonic", lambda: 0.16)
     app._before_render(app.application)
@@ -2982,7 +3320,7 @@ def test_tui_chat_render_separates_user_and_assistant_blocks(tmp_path: Path) -> 
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     app = _new_app(tmp_path, state_path=state_path)
 
-    app.current_session.messages = [
+    app.current_session.view.messages = [
         SimpleNamespace(role="user", content="hello there", timestamp="10:00:00"),
         SimpleNamespace(role="assistant", content="hi back", timestamp="10:00:01"),
     ]
@@ -3006,7 +3344,7 @@ def test_tui_chat_render_normalizes_multiline_content_for_terminal_display(tmp_p
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     app = _new_app(tmp_path, state_path=state_path)
 
-    app.current_session.messages = [
+    app.current_session.view.messages = [
         SimpleNamespace(role="user", content="hello\r\nworld\t!", timestamp="10:00:00"),
     ]
 
@@ -3021,7 +3359,7 @@ def test_tui_chat_render_preserves_assistant_paragraphs(tmp_path: Path) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     app = _new_app(tmp_path, state_path=state_path)
 
-    app.current_session.messages = [
+    app.current_session.view.messages = [
         SimpleNamespace(
             role="assistant",
             content="First paragraph.\n\n- Current state\n- Next action\n\nWrap up.",
@@ -3043,7 +3381,7 @@ def test_tui_chat_render_assigns_assistant_hierarchy_styles(tmp_path: Path) -> N
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     app = _new_app(tmp_path, state_path=state_path)
 
-    app.current_session.messages = [
+    app.current_session.view.messages = [
         SimpleNamespace(
             role="assistant",
             content="# Title\n- Bullet\n> Quote\n```py\nprint('ok')\n```",
@@ -3128,15 +3466,15 @@ def test_tui_running_feedback_from_turn_hooks(tmp_path: Path) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     app = _new_app(tmp_path, state_path=state_path)
     fake_agent = FakeTurnAgent(final_message="done")
-    app.current_session.agent = fake_agent
+    app.current_session.runtime.agent = fake_agent
 
     async def _scenario() -> None:
         turn_task = asyncio.create_task(app._run_chat_turn("hello"))
         await fake_agent.started.wait()
         await fake_agent.ready_for_cancel.wait()
         await asyncio.sleep(0)
-        assert app.current_session.busy is True
-        assert "step 1" in app.current_session.running_state.lower()
+        assert app.current_session.projection.busy is True
+        assert "step 1" in app.current_session.projection.running_state.lower()
         assert "step 1" in app.status.lower()
         running_chat = app._render_chat()
         assert "ACTIVITY" in running_chat
@@ -3147,10 +3485,10 @@ def test_tui_running_feedback_from_turn_hooks(tmp_path: Path) -> None:
 
     asyncio.run(_scenario())
 
-    assert app.current_session.busy is False
-    assert app.current_session.running_state == ""
-    assert app.current_session.messages[-1].role == "assistant"
-    assert app.current_session.messages[-1].content == "done"
+    assert app.current_session.projection.busy is False
+    assert app.current_session.projection.running_state == ""
+    assert app.current_session.view.messages[-1].role == "assistant"
+    assert app.current_session.view.messages[-1].content == "done"
     rendered = app._render_chat()
     assert "ACTIVITY" in rendered
     assert "thinking" in rendered
@@ -3165,7 +3503,7 @@ def test_tui_run_turn_preserves_assistant_multiline_reply(tmp_path: Path) -> Non
     fake_agent = FakeTurnAgent(
         final_message="First paragraph.\n\n- Check config\n- Fix issue\n\nDone.",
     )
-    app.current_session.agent = fake_agent
+    app.current_session.runtime.agent = fake_agent
 
     async def _scenario() -> None:
         turn_task = asyncio.create_task(app._run_chat_turn("hello"))
@@ -3198,7 +3536,7 @@ def test_tui_activity_block_shows_shell_command_preview(tmp_path: Path) -> None:
             content="M README.md\n?? notes.txt",
         ),
     )
-    app.current_session.agent = fake_agent
+    app.current_session.runtime.agent = fake_agent
 
     async def _scenario() -> None:
         turn_task = asyncio.create_task(app._run_chat_turn("inspect repo"))
@@ -3236,7 +3574,7 @@ def test_tui_activity_expand_command_reveals_shell_output(tmp_path: Path) -> Non
             content="M README.md\n?? notes.txt",
         ),
     )
-    app.current_session.agent = fake_agent
+    app.current_session.runtime.agent = fake_agent
 
     async def _scenario() -> None:
         turn_task = asyncio.create_task(app._run_chat_turn("inspect repo"))
@@ -3289,22 +3627,22 @@ def test_tui_remote_model_use_routes_through_gateway_and_updates_hint(tmp_path: 
             "sender_id": "user-1",
         }
     ]
-    assert app.current_session.selected_model_source == "preset"
-    assert app.current_session.selected_provider_id == "openai"
-    assert app.current_session.selected_model_id == "gpt-5.3"
+    assert app.current_session.projection.selected_model_source == "preset"
+    assert app.current_session.projection.selected_provider_id == "openai"
+    assert app.current_session.projection.selected_model_id == "gpt-5.3"
     assert app._current_model_hint() == "openai/gpt-5.3"
     assert app.status == "Applied openai/gpt-5.3 to QQ group:demo."
     status_text = app._render_status_panel()
     assert "command" in status_text
     assert "model use | applied" in status_text
-    assert app.current_session.remote_last_command_summary == "model use | applied openai/gpt-5.3"
+    assert app.current_session.projection.supplemental.remote_last_command_summary == "model use | applied openai/gpt-5.3"
 
 
 def test_tui_remote_tagged_local_runtime_routes_model_use_locally(monkeypatch, tmp_path: Path) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     gateway = FakeGatewayClient(profile="local")
     app = _new_app(tmp_path, state_path=state_path, gateway_client=gateway)
-    app.current_session.agent = SimpleNamespace(
+    app.current_session.runtime.agent = SimpleNamespace(
         llm=SimpleNamespace(model="gpt-5.4"),
         runtime_route=SimpleNamespace(provider_id="preset-openai", model="gpt-5.4"),
         messages=[Message(role="system", content="sys")],
@@ -3314,8 +3652,8 @@ def test_tui_remote_tagged_local_runtime_routes_model_use_locally(monkeypatch, t
     asyncio.run(app._run_command("model use openai gpt-5.3"))
 
     assert gateway.model_calls == []
-    assert app.current_session.selected_provider_id == "openai"
-    assert app.current_session.selected_model_id == "gpt-5.3"
+    assert app.current_session.projection.selected_provider_id == "openai"
+    assert app.current_session.projection.selected_model_id == "gpt-5.3"
     assert app._current_model_hint() == "openai/gpt-5.3"
 
 
@@ -3348,13 +3686,13 @@ def test_tui_remote_model_use_queues_while_remote_session_busy(tmp_path: Path) -
 
     asyncio.run(app._run_command("model use openai gpt-5.3"))
 
-    assert app.current_session.selected_model_id == "gpt-5.4"
-    assert app.current_session.pending_model_id == "gpt-5.3"
+    assert app.current_session.projection.selected_model_id == "gpt-5.4"
+    assert app.current_session.operator.pending_model_id == "gpt-5.3"
     assert app._current_model_hint() == "openai/gpt-5.4 -> openai/gpt-5.3 queued"
     status_text = app._render_status_panel()
     assert "command" in status_text
     assert "model use | queued" in status_text
-    assert app.current_session.remote_last_command_summary == "model use | queued openai/gpt-5.3"
+    assert app.current_session.projection.supplemental.remote_last_command_summary == "model use | queued openai/gpt-5.3"
 
 
 def test_tui_remote_compact_command_routes_through_gateway_and_syncs_transcript(tmp_path: Path) -> None:
@@ -3375,18 +3713,47 @@ def test_tui_remote_compact_command_routes_through_gateway_and_syncs_transcript(
             "action": "compact",
             "reason": "trim history",
             "surface": "tui",
-            "channel_type": None,
-            "conversation_id": None,
-            "sender_id": None,
+            "channel_type": "qq",
+            "conversation_id": "group:demo",
+            "sender_id": "user-1",
         }
     ]
-    assert app.current_session.active_surface == "qq"
-    assert app.current_session.reply_enabled is True
-    assert app.current_session.messages[-1].metadata["kind"] == "command"
-    assert app.current_session.messages[-1].metadata["summary"] == "context compacted"
-    assert app.current_session.messages[-1].metadata["surface"] == "tui"
-    assert "Messages: 12 -> 6" in app.current_session.messages[-1].content
+    assert app.current_session.projection.active_surface == "qq"
+    assert app.current_session.projection.reply_enabled is True
+    assert app.current_session.view.messages[-1].metadata["kind"] == "command"
+    assert app.current_session.view.messages[-1].metadata["summary"] == "context compacted"
+    assert app.current_session.view.messages[-1].metadata["surface"] == "tui"
+    assert "Messages: 12 -> 6" in app.current_session.view.messages[-1].content
     assert "Compacted shared session" in app.status
+
+
+def test_tui_remote_compact_busy_relies_on_gateway_conflict(tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    gateway = FakeGatewayClient()
+    gateway._detail["busy"] = True
+    app = _new_app(tmp_path, state_path=state_path, gateway_client=gateway)
+
+    asyncio.run(app._sync_remote_sessions_once())
+    remote_index = app._find_session_index("remote-qq-1")
+    assert remote_index is not None
+    app.session_index = remote_index
+
+    asyncio.run(app._run_command("compact trim history"))
+
+    assert gateway.control_calls == [
+        {
+            "session_id": "remote-qq-1",
+            "action": "compact",
+            "reason": "trim history",
+            "surface": "tui",
+            "channel_type": "qq",
+            "conversation_id": "group:demo",
+            "sender_id": "user-1",
+        }
+    ]
+    assert app.current_session.view.messages[-1].metadata["summary"] == "session busy"
+    assert "Session is busy. Wait for the current turn to finish." in app.current_session.view.messages[-1].content
+    assert app.status == "Session is busy. Wait for the current turn to finish."
 
 
 def test_tui_local_kb_command_updates_session_state(tmp_path: Path) -> None:
@@ -3395,13 +3762,14 @@ def test_tui_local_kb_command_updates_session_state(tmp_path: Path) -> None:
 
     asyncio.run(app._run_command("kb off"))
 
-    assert app.current_session.knowledge_base_enabled is False
-    assert app.current_session.messages[-1].metadata["summary"] == "knowledge base disabled"
+    assert app.current_session.projection.knowledge_base_enabled is False
+    assert app.current_session.projection.knowledge_base_enabled is False
+    assert app.current_session.view.messages[-1].metadata["summary"] == "knowledge base disabled"
     assert "Knowledge base disabled" in app.status
 
     asyncio.run(app._run_command("kb status"))
 
-    assert app.current_session.messages[-1].metadata["summary"] == "knowledge base disabled"
+    assert app.current_session.view.messages[-1].metadata["summary"] == "knowledge base disabled"
 
 
 def test_tui_remote_tagged_local_runtime_routes_kb_and_approval_locally(monkeypatch, tmp_path: Path) -> None:
@@ -3425,9 +3793,9 @@ def test_tui_remote_tagged_local_runtime_routes_kb_and_approval_locally(monkeypa
             self.calls.append({"approved": approved, "token": token})
 
     loop = _FakeLoop()
-    app.current_session.agent = _FakeKbAgent()
-    app.current_session.submission_loop = loop
-    app.current_session.pending_approvals = [
+    app.current_session.runtime.agent = _FakeKbAgent()
+    app.current_session.runtime.submission_loop = loop
+    app.current_session.projection.pending_approvals = [
         {
             "token": "approval-local-1",
             "tool_name": "shell",
@@ -3437,12 +3805,12 @@ def test_tui_remote_tagged_local_runtime_routes_kb_and_approval_locally(monkeypa
 
     asyncio.run(app._run_command("kb off"))
     assert gateway.control_calls == []
-    assert app.current_session.knowledge_base_enabled is False
+    assert app.current_session.projection.knowledge_base_enabled is False
 
     asyncio.run(app._run_command("approve"))
     assert gateway.approval_calls == []
     assert loop.calls == [{"approved": True, "token": "approval-local-1"}]
-    assert app.current_session.pending_approvals == []
+    assert app.current_session.projection.pending_approvals == []
 
 
 def test_tui_remote_kb_command_routes_through_gateway_and_syncs_state(tmp_path: Path) -> None:
@@ -3466,8 +3834,8 @@ def test_tui_remote_kb_command_routes_through_gateway_and_syncs_state(tmp_path: 
         "conversation_id": "group:demo",
         "sender_id": "user-1",
     }
-    assert app.current_session.knowledge_base_enabled is False
-    assert app.current_session.messages[-1].metadata["summary"] == "knowledge base disabled"
+    assert app.current_session.projection.knowledge_base_enabled is False
+    assert app.current_session.view.messages[-1].metadata["summary"] == "knowledge base disabled"
     assert "Knowledge base disabled" in app.status
 
 
@@ -3483,7 +3851,7 @@ def test_tui_remote_mcp_status_routes_through_gateway(tmp_path: Path) -> None:
 
     asyncio.run(app._run_command("mcp status"))
 
-    last_message = app.current_session.messages[-1]
+    last_message = app.current_session.view.messages[-1]
     assert gateway.control_calls[-1] == {
         "session_id": "remote-qq-1",
         "action": "mcp_status",
@@ -3511,7 +3879,7 @@ def test_tui_remote_mcp_reload_routes_through_gateway(tmp_path: Path) -> None:
 
     asyncio.run(app._run_command("mcp reload"))
 
-    last_message = app.current_session.messages[-1]
+    last_message = app.current_session.view.messages[-1]
     assert gateway.control_calls[-1] == {
         "session_id": "remote-qq-1",
         "action": "mcp_reload",
@@ -3526,6 +3894,33 @@ def test_tui_remote_mcp_reload_routes_through_gateway(tmp_path: Path) -> None:
     assert "MCP Status:" in last_message.content
     assert "MCP Servers:" in last_message.content
     assert app.status == "Shared MCP bindings reloaded."
+
+
+def test_tui_remote_mcp_reload_busy_relies_on_gateway_conflict(tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    gateway = FakeGatewayClient()
+    gateway._detail["busy"] = True
+    app = _new_app(tmp_path, state_path=state_path, gateway_client=gateway)
+
+    asyncio.run(app._sync_remote_sessions_once())
+    remote_index = app._find_session_index("remote-qq-1")
+    assert remote_index is not None
+    app.session_index = remote_index
+
+    asyncio.run(app._run_command("mcp reload"))
+
+    assert gateway.control_calls[-1] == {
+        "session_id": "remote-qq-1",
+        "action": "mcp_reload",
+        "reason": None,
+        "surface": "tui",
+        "channel_type": "qq",
+        "conversation_id": "group:demo",
+        "sender_id": "user-1",
+    }
+    assert app.current_session.view.messages[-1].metadata["summary"] == "session busy"
+    assert "Session is busy. Wait for the current turn to finish." in app.current_session.view.messages[-1].content
+    assert app.status == "Session is busy. Wait for the current turn to finish."
 
 
 def test_tui_remote_cancel_command_routes_through_gateway(tmp_path: Path) -> None:
@@ -3552,9 +3947,10 @@ def test_tui_remote_cancel_command_routes_through_gateway(tmp_path: Path) -> Non
             "sender_id": None,
         }
     ]
-    assert app.current_session.running_state == "cancellation requested"
-    assert app.current_session.messages[-1].metadata["command"] == "cancel"
-    assert app.current_session.messages[-1].metadata["summary"] == "cancellation requested"
+    assert app.current_session.projection.running_state == "cancellation requested"
+    assert app.current_session.projection.running_state == "cancellation requested"
+    assert app.current_session.view.messages[-1].metadata["command"] == "cancel"
+    assert app.current_session.view.messages[-1].metadata["summary"] == "cancellation requested"
     assert "Cancelling turn" in app.status
 
 
@@ -3570,10 +3966,10 @@ def test_tui_remote_session_prompt_uses_gateway_shared_session(tmp_path: Path) -
 
     assert gateway.chat_calls[-1]["session_id"] == "remote-qq-1"
     assert gateway.chat_calls[-1]["surface"] == "tui"
-    assert app.current_session.messages[-1].content == "remote:continue from tui"
-    assert app.current_session.active_surface == "tui"
-    assert app.current_session.reply_enabled is False
-    assert app.current_session.tasks[-1].status == "completed"
+    assert app.current_session.view.messages[-1].content == "remote:continue from tui"
+    assert app.current_session.projection.active_surface == "tui"
+    assert app.current_session.projection.reply_enabled is False
+    assert app.current_session.view.tasks[-1].status == "completed"
 
 
 def test_tui_remote_session_prompt_renders_streamed_activity_blocks(tmp_path: Path) -> None:
@@ -3609,15 +4005,15 @@ def test_tui_remote_session_prompt_consumes_delta_reply_stream(tmp_path: Path, m
 
     asyncio.run(app._handle_prompt("stream reply only"))
 
-    assert app.current_session.messages[-1].role == "assistant"
-    assert app.current_session.messages[-1].content == "remote:stream reply only"
-    assert app.current_session.messages[-1].metadata.get("streaming") is False
+    assert app.current_session.view.messages[-1].role == "assistant"
+    assert app.current_session.view.messages[-1].content == "remote:stream reply only"
+    assert app.current_session.view.messages[-1].metadata.get("streaming") is False
 
 
 def test_tui_activity_render_assigns_tool_type_styles(tmp_path: Path) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     app = _new_app(tmp_path, state_path=state_path)
-    app.current_session.messages = [
+    app.current_session.view.messages = [
         SimpleNamespace(
             role="tool",
             content="",
@@ -3650,10 +4046,10 @@ def test_tui_activity_render_assigns_tool_type_styles(tmp_path: Path) -> None:
 def test_tui_usage_prefers_model_context_window_over_reported_token_limit(tmp_path: Path) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     app = _new_app(tmp_path, state_path=state_path)
-    app.current_session.selected_model_source = "preset"
-    app.current_session.selected_provider_id = "openai"
-    app.current_session.selected_model_id = "gpt-5.4"
-    app.current_session.agent = SimpleNamespace(
+    app.current_session.projection.selected_model_source = "preset"
+    app.current_session.projection.selected_provider_id = "openai"
+    app.current_session.projection.selected_model_id = "gpt-5.4"
+    app.current_session.runtime.agent = SimpleNamespace(
         api_total_tokens=16000,
         token_limit=80000,
         messages=[
@@ -3758,17 +4154,17 @@ def test_tui_stream_assistant_reply_updates_message_incrementally(tmp_path: Path
     app._last_stream_render_at = -1.0
 
     def _capture_render() -> None:
-        if app.current_session.messages:
-            snapshots.append(app.current_session.messages[-1].content)
+        if app.current_session.view.messages:
+            snapshots.append(app.current_session.view.messages[-1].content)
 
     app._render_all = _capture_render  # type: ignore[method-assign]
     monkeypatch.setattr("mini_agent.tui.app.time.monotonic", lambda: 0.0)
 
     asyncio.run(app._stream_assistant_reply(app.current_session, content))
 
-    assert app.current_session.messages[-1].role == "assistant"
-    assert app.current_session.messages[-1].content == content
-    assert app.current_session.messages[-1].metadata.get("streaming") is False
+    assert app.current_session.view.messages[-1].role == "assistant"
+    assert app.current_session.view.messages[-1].content == content
+    assert app.current_session.view.messages[-1].metadata.get("streaming") is False
     assert len(snapshots) >= 2
     assert len(snapshots) <= 3
     assert snapshots[0] != snapshots[-1]
@@ -3822,14 +4218,14 @@ def test_tui_run_chat_turn_uses_streaming_reply_helper(tmp_path: Path, monkeypat
         streamed.append(content)
         return self._append_session_message(session, "assistant", content, metadata={"streaming": False}, persist=False)
 
-    app.current_session.agent = SimpleNamespace(
+    app.current_session.runtime.agent = SimpleNamespace(
         llm=SimpleNamespace(model="gpt-test"),
         messages=[{"role": "system", "content": "sys"}],
         max_steps=3,
         max_tool_calls_per_step=None,
     )
-    app.current_session.submission_loop = _FakeLoop()
-    app.current_session.loop_bus = InMemoryLoopMessageBus()
+    app.current_session.runtime.submission_loop = _FakeLoop()
+    app.current_session.runtime.loop_bus = InMemoryLoopMessageBus()
 
     monkeypatch.setattr(
         MiniAgentTuiApp,
@@ -3845,7 +4241,7 @@ def test_tui_run_chat_turn_uses_streaming_reply_helper(tmp_path: Path, monkeypat
     asyncio.run(app._run_chat_turn("stream locally"))
 
     assert streamed == ["stream me"]
-    assert app.current_session.messages[-1].content == "stream me"
+    assert app.current_session.view.messages[-1].content == "stream me"
 
 
 def test_tui_usage_prefers_learned_token_limit_over_context_window(tmp_path: Path) -> None:
@@ -3853,10 +4249,10 @@ def test_tui_usage_prefers_learned_token_limit_over_context_window(tmp_path: Pat
     registry = DummyRegistry()
     registry.providers[0]["models"][0]["learned_token_limit"] = 128_000
     app = _new_app(tmp_path, state_path=state_path, registry=registry)
-    app.current_session.selected_model_source = "preset"
-    app.current_session.selected_provider_id = "openai"
-    app.current_session.selected_model_id = "gpt-5.4"
-    app.current_session.agent = SimpleNamespace(
+    app.current_session.projection.selected_model_source = "preset"
+    app.current_session.projection.selected_provider_id = "openai"
+    app.current_session.projection.selected_model_id = "gpt-5.4"
+    app.current_session.runtime.agent = SimpleNamespace(
         api_total_tokens=16000,
         token_limit=80000,
         messages=[
@@ -3907,7 +4303,7 @@ def test_tui_remote_interrupted_session_shows_recovery_summary(tmp_path: Path) -
 def test_tui_status_panel_separates_source_and_execution_for_local_runtime(tmp_path: Path) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     app = _new_app(tmp_path, state_path=state_path, gateway_client=FakeGatewayClient(profile="local"))
-    app.current_session.agent = SimpleNamespace()
+    app.current_session.runtime.agent = SimpleNamespace()
 
     status_text = app._render_status_panel()
 
@@ -3936,77 +4332,77 @@ def test_tui_status_panel_separates_source_and_execution_for_gateway_session(tmp
 def test_tui_chat_history_scroll_updates_status_and_follow_mode(tmp_path: Path) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     app = _new_app(tmp_path, state_path=state_path)
-    app.current_session.messages = [
+    app.current_session.view.messages = [
         SimpleNamespace(role="user", content=f"line {index}", timestamp=f"10:00:{index:02d}")
         for index in range(12)
     ]
 
     app._scroll_chat_home()
 
-    assert app.current_session.chat_follow_output is False
-    assert app.current_session.chat_scroll_line == 0
+    assert app.current_session.view.chat_follow_output is False
+    assert app.current_session.view.chat_scroll_line == 0
     assert "chat     | history" in app._render_status_panel()
 
     app._scroll_chat_end()
 
-    assert app.current_session.chat_follow_output is True
+    assert app.current_session.view.chat_follow_output is True
     assert "chat     | live" in app._render_status_panel()
 
 
 def test_tui_page_scroll_moves_in_fifteen_line_steps(tmp_path: Path) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     app = _new_app(tmp_path, state_path=state_path)
-    app.current_session.messages = [
+    app.current_session.view.messages = [
         SimpleNamespace(role="user", content=f"line {index}", timestamp=f"10:00:{index:02d}")
         for index in range(30)
     ]
 
     app._scroll_chat_page(1)
-    assert app.current_session.chat_scroll_line == 15
-    assert app.current_session.chat_follow_output is False
+    assert app.current_session.view.chat_scroll_line == 15
+    assert app.current_session.view.chat_follow_output is False
 
     app._scroll_chat_page(1)
-    assert app.current_session.chat_scroll_line == 30
+    assert app.current_session.view.chat_scroll_line == 30
 
     app._scroll_chat_page(-1)
-    assert app.current_session.chat_scroll_line == 15
+    assert app.current_session.view.chat_scroll_line == 15
 
 
 def test_tui_single_line_scroll_moves_one_line_at_a_time(tmp_path: Path) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     app = _new_app(tmp_path, state_path=state_path)
-    app.current_session.messages = [
+    app.current_session.view.messages = [
         SimpleNamespace(role="user", content=f"line {index}", timestamp=f"10:00:{index:02d}")
         for index in range(30)
     ]
 
     app._scroll_chat_lines(1)
-    assert app.current_session.chat_scroll_line == 1
-    assert app.current_session.chat_follow_output is False
+    assert app.current_session.view.chat_scroll_line == 1
+    assert app.current_session.view.chat_follow_output is False
 
     app._scroll_chat_lines(1)
-    assert app.current_session.chat_scroll_line == 2
+    assert app.current_session.view.chat_scroll_line == 2
 
     app._scroll_chat_lines(-1)
-    assert app.current_session.chat_scroll_line == 1
+    assert app.current_session.view.chat_scroll_line == 1
 
 
 def test_tui_single_line_down_uses_session_scroll_state_when_viewport_is_stale(tmp_path: Path) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     app = _new_app(tmp_path, state_path=state_path)
-    app.current_session.messages = [
+    app.current_session.view.messages = [
         SimpleNamespace(role="user", content=f"line {index}", timestamp=f"10:00:{index:02d}")
         for index in range(30)
     ]
-    app.current_session.chat_scroll_line = 4
-    app.current_session.chat_follow_output = False
+    app.current_session.view.chat_scroll_line = 4
+    app.current_session.view.chat_follow_output = False
     app.chat_panel.vertical_scroll = 0
 
     app._scroll_chat_lines(1)
 
-    assert app.current_session.chat_scroll_line == 5
+    assert app.current_session.view.chat_scroll_line == 5
     assert app.chat_panel.vertical_scroll == 5
-    assert app.current_session.chat_follow_output is False
+    assert app.current_session.view.chat_follow_output is False
 
 
 def test_tui_remote_sync_keeps_history_mode_for_current_session(tmp_path: Path) -> None:
@@ -4033,8 +4429,8 @@ def test_tui_remote_sync_keeps_history_mode_for_current_session(tmp_path: Path) 
     assert remote_index is not None
     app.session_index = remote_index
     app.chat_panel.vertical_scroll = 4
-    app.current_session.chat_scroll_line = 4
-    app.current_session.chat_follow_output = False
+    app.current_session.view.chat_scroll_line = 4
+    app.current_session.view.chat_follow_output = False
 
     gateway._detail["message_count"] = 22
     gateway._detail["recent_messages"].extend(
@@ -4064,26 +4460,26 @@ def test_tui_remote_sync_keeps_history_mode_for_current_session(tmp_path: Path) 
 
     asyncio.run(app._sync_remote_sessions_once())
 
-    assert app.current_session.chat_follow_output is False
-    assert app.current_session.chat_scroll_line == 4
-    assert app.current_session.messages[-1].content == "new qq reply"
+    assert app.current_session.view.chat_follow_output is False
+    assert app.current_session.view.chat_scroll_line == 4
+    assert app.current_session.view.messages[-1].content == "new qq reply"
 
 
 def test_tui_appending_message_keeps_history_mode_for_current_session(tmp_path: Path) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     app = _new_app(tmp_path, state_path=state_path)
-    app.current_session.messages = [
+    app.current_session.view.messages = [
         SimpleNamespace(role="user", content=f"line {index}", timestamp=f"10:00:{index:02d}")
         for index in range(20)
     ]
     app.chat_panel.vertical_scroll = 3
-    app.current_session.chat_scroll_line = 3
-    app.current_session.chat_follow_output = False
+    app.current_session.view.chat_scroll_line = 3
+    app.current_session.view.chat_follow_output = False
 
     app._append_message("assistant", "new line", persist=False)
 
-    assert app.current_session.chat_follow_output is False
-    assert app.current_session.chat_scroll_line == 3
+    assert app.current_session.view.chat_follow_output is False
+    assert app.current_session.view.chat_scroll_line == 3
 
 
 def test_tui_submit_input_buffer_clears_prompt_immediately(tmp_path: Path) -> None:
@@ -4108,7 +4504,7 @@ def test_tui_submit_input_buffer_clears_prompt_immediately(tmp_path: Path) -> No
 def test_tui_ensure_agent_does_not_append_internal_init_message(monkeypatch, tmp_path: Path) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     app = _new_app(tmp_path, state_path=state_path)
-    baseline_count = len(app.current_session.messages)
+    baseline_count = len(app.current_session.view.messages)
 
     fake_agent = SimpleNamespace(llm=SimpleNamespace(model="gpt-test"))
 
@@ -4123,7 +4519,7 @@ def test_tui_ensure_agent_does_not_append_internal_init_message(monkeypatch, tmp
     resolved = asyncio.run(app._ensure_agent(app.current_session))
 
     assert resolved is fake_agent
-    assert len(app.current_session.messages) == baseline_count
+    assert len(app.current_session.view.messages) == baseline_count
     assert app.status == "Agent ready on gpt-test."
 
 
@@ -4131,23 +4527,23 @@ def test_tui_cancel_feedback_when_idle(tmp_path: Path) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     app = _new_app(tmp_path, state_path=state_path)
 
-    before_count = len(app.current_session.messages)
+    before_count = len(app.current_session.view.messages)
     assert app._request_cancel_current_turn(emit_system_when_idle=False) is False
     assert app.status == "No running turn to cancel."
-    assert len(app.current_session.messages) == before_count
+    assert len(app.current_session.view.messages) == before_count
 
     assert app._request_cancel_current_turn(emit_system_when_idle=True) is False
     assert app.status == "No running turn to cancel."
-    assert len(app.current_session.messages) == before_count + 1
-    assert app.current_session.messages[-1].content == "No running turn to cancel."
-    assert app.current_session.messages[-1].metadata["kind"] == "command"
+    assert len(app.current_session.view.messages) == before_count + 1
+    assert app.current_session.view.messages[-1].content == "No running turn to cancel."
+    assert app.current_session.view.messages[-1].metadata["kind"] == "command"
 
 
 def test_tui_tasks_list_tracks_completed_turn(tmp_path: Path) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     app = _new_app(tmp_path, state_path=state_path)
     fake_agent = FakeTurnAgent(final_message="done")
-    app.current_session.agent = fake_agent
+    app.current_session.runtime.agent = fake_agent
 
     async def _scenario() -> None:
         turn_task = asyncio.create_task(app._run_chat_turn("build core"))
@@ -4158,16 +4554,16 @@ def test_tui_tasks_list_tracks_completed_turn(tmp_path: Path) -> None:
 
     asyncio.run(_scenario())
 
-    assert len(app.current_session.tasks) == 1
-    task = app.current_session.tasks[0]
+    assert len(app.current_session.view.tasks) == 1
+    task = app.current_session.view.tasks[0]
     assert task.task_id == "task-1"
     assert task.status == "completed"
     assert task.submission_id.startswith("sub_")
     assert task.stop_reason == "end_turn"
-    assert app.current_session.active_task_id is None
+    assert app.current_session.runtime.active_task_id is None
 
     asyncio.run(app._run_command("tasks list"))
-    summary = app.current_session.messages[-1].content
+    summary = app.current_session.view.messages[-1].content
     assert "Tasks" in summary
     assert "task-1" in summary
     assert "status=completed" in summary
@@ -4192,8 +4588,8 @@ def test_tui_workflow_command_requires_objective(tmp_path: Path) -> None:
     app = _new_app(tmp_path, state_path=state_path)
 
     asyncio.run(app._run_command("workflow run"))
-    assert app.current_session.messages[-1].content == "Usage: /workflow run <objective>"
-    assert app.current_session.messages[-1].metadata["kind"] == "command"
+    assert app.current_session.view.messages[-1].content == "Usage: /workflow run <objective>"
+    assert app.current_session.view.messages[-1].metadata["kind"] == "command"
 
 
 def test_tui_remote_approve_command_routes_through_gateway(tmp_path: Path) -> None:
@@ -4214,7 +4610,7 @@ def test_tui_remote_approve_command_routes_through_gateway(tmp_path: Path) -> No
     remote_index = app._find_session_index("remote-qq-1")
     assert remote_index is not None
     app.session_index = remote_index
-    app.current_session.pending_approvals = app._normalize_pending_approvals_payload(gateway._detail["pending_approvals"])
+    app.current_session.projection.pending_approvals = app._normalize_pending_approvals_payload(gateway._detail["pending_approvals"])
 
     asyncio.run(app._run_command("approve"))
 
@@ -4222,14 +4618,14 @@ def test_tui_remote_approve_command_routes_through_gateway(tmp_path: Path) -> No
         {
             "session_id": "remote-qq-1",
             "approved": True,
-            "token": "approval-gateway-1",
+            "token": None,
             "surface": "tui",
-            "channel_type": None,
-            "conversation_id": None,
-            "sender_id": None,
+            "channel_type": "qq",
+            "conversation_id": "group:demo",
+            "sender_id": "user-1",
         }
     ]
-    assert app.current_session.pending_approvals == []
+    assert app.current_session.projection.pending_approvals == []
     assert "Approved shell" in app.status
 
 
@@ -4250,8 +4646,65 @@ def test_tui_remote_approve_after_restart_loss_suggests_continue(tmp_path: Path)
 
     asyncio.run(app._run_command("approve"))
 
-    assert gateway.approval_calls == []
+    assert gateway.approval_calls == [
+        {
+            "session_id": "remote-qq-1",
+            "approved": True,
+            "token": None,
+            "surface": "tui",
+            "channel_type": "qq",
+            "conversation_id": "group:demo",
+            "sender_id": "user-1",
+        }
+    ]
     assert "continue with recovery context" in app.status
+
+
+def test_tui_remote_approve_multiple_pending_relies_on_gateway_token_resolution(tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    gateway = FakeGatewayClient()
+    gateway._detail["pending_approvals"] = [
+        {
+            "token": "approval-gateway-1",
+            "tool_name": "shell",
+            "arguments": {"command": "pytest -q"},
+            "kind": "exec",
+            "reason": "needs manual approval",
+            "step": 1,
+        },
+        {
+            "token": "approval-gateway-2",
+            "tool_name": "shell",
+            "arguments": {"command": "ruff check"},
+            "kind": "exec",
+            "reason": "needs manual approval",
+            "step": 2,
+        },
+    ]
+    app = _new_app(tmp_path, state_path=state_path, gateway_client=gateway)
+    asyncio.run(app._sync_remote_sessions_once())
+    remote_index = app._find_session_index("remote-qq-1")
+    assert remote_index is not None
+    app.session_index = remote_index
+    app.current_session.projection.pending_approvals = app._normalize_pending_approvals_payload(
+        gateway._detail["pending_approvals"]
+    )
+
+    asyncio.run(app._run_command("approve"))
+
+    assert gateway.approval_calls == [
+        {
+            "session_id": "remote-qq-1",
+            "approved": True,
+            "token": None,
+            "surface": "tui",
+            "channel_type": "qq",
+            "conversation_id": "group:demo",
+            "sender_id": "user-1",
+        }
+    ]
+    assert app.status == "Specify approval token."
+    assert "Multiple approvals pending. Specify a token." in app.current_session.view.messages[-1].content
 
 
 def test_tui_run_chat_turn_surfaces_prepared_context(tmp_path: Path, monkeypatch) -> None:
@@ -4273,14 +4726,14 @@ def test_tui_run_chat_turn_surfaces_prepared_context(tmp_path: Path, monkeypatch
             _ = (policy_overrides, metadata, start_new_run)
             return "sub-prepared"
 
-    app.current_session.agent = SimpleNamespace(
+    app.current_session.runtime.agent = SimpleNamespace(
         llm=SimpleNamespace(model="gpt-test"),
         messages=[{"role": "system", "content": "sys"}],
         max_steps=3,
         max_tool_calls_per_step=None,
     )
-    app.current_session.submission_loop = _FakeLoop()
-    app.current_session.loop_bus = InMemoryLoopMessageBus()
+    app.current_session.runtime.submission_loop = _FakeLoop()
+    app.current_session.runtime.loop_bus = InMemoryLoopMessageBus()
 
     async def _fake_wait_for_submission_payload(
         self,
@@ -4324,7 +4777,7 @@ def test_tui_run_chat_turn_surfaces_prepared_context(tmp_path: Path, monkeypatch
 
     context_entries = [
         message
-        for message in app.current_session.messages
+        for message in app.current_session.view.messages
         if isinstance(getattr(message, "metadata", None), dict)
         and message.metadata.get("kind") == "command"
         and message.metadata.get("command") == "context"
@@ -4335,7 +4788,7 @@ def test_tui_run_chat_turn_surfaces_prepared_context(tmp_path: Path, monkeypatch
     assert "Relevant knowledge base context" in context_entries[0].content
     assert "ranking: basis knowledge_base_rrf | raw 0.0294 | item-relevance 0.881" in context_entries[0].content
     assert "selection: provider-weight 1.000 | priority 100 | final-selection 1.881" in context_entries[0].content
-    assert app.current_session.last_prepared_context["item_count"] == 1
+    assert app.current_session.projection.last_prepared_context["item_count"] == 1
     status_panel = app._render_status_panel()
     assert "ctx" in status_panel
     assert "knowledge_base" in status_panel
@@ -4364,19 +4817,19 @@ def test_tui_run_chat_turn_includes_context_policy_metadata(tmp_path: Path, monk
             captured["start_new_run"] = start_new_run
             return "sub-context-policy"
 
-    app.current_session.context_policy = {
+    app.current_session.projection.context_policy = {
         "include_sources": ["knowledge_base"],
         "exclude_sources": ["mcp_catalog"],
         "max_items": 2,
     }
-    app.current_session.agent = SimpleNamespace(
+    app.current_session.runtime.agent = SimpleNamespace(
         llm=SimpleNamespace(model="gpt-test"),
         messages=[{"role": "system", "content": "sys"}],
         max_steps=3,
         max_tool_calls_per_step=None,
     )
-    app.current_session.submission_loop = _FakeLoop()
-    app.current_session.loop_bus = InMemoryLoopMessageBus()
+    app.current_session.runtime.submission_loop = _FakeLoop()
+    app.current_session.runtime.loop_bus = InMemoryLoopMessageBus()
 
     async def _fake_wait_for_submission_payload(
         self,
@@ -4413,10 +4866,10 @@ def test_tui_runtime_policy_commands_update_local_session(tmp_path: Path) -> Non
     app = _new_app(tmp_path, state_path=state_path)
 
     asyncio.run(app._run_command("plan"))
-    assert app.current_session.sandbox_diagnostics["approval_profile"] == "plan"
+    assert app.current_session.projection.sandbox_diagnostics["approval_profile"] == "plan"
 
     asyncio.run(app._run_command("fill-access"))
-    assert app.current_session.sandbox_diagnostics["access_level"] == "full-access"
+    assert app.current_session.projection.sandbox_diagnostics["access_level"] == "full-access"
 
     header_text = "".join(text for _style, text in app._render_header())
     assert "mode=plan" in header_text
@@ -4438,30 +4891,30 @@ def test_tui_runtime_policy_commands_route_remote_session_through_gateway(tmp_pa
 
     assert gateway.policy_calls[-2]["approval_profile"] == "plan"
     assert gateway.policy_calls[-1]["access_level"] == "full-access"
-    assert app.current_session.sandbox_diagnostics["approval_profile"] == "plan"
-    assert app.current_session.sandbox_diagnostics["access_level"] == "full-access"
+    assert app.current_session.projection.sandbox_diagnostics["approval_profile"] == "plan"
+    assert app.current_session.projection.sandbox_diagnostics["access_level"] == "full-access"
 
 
 def test_tui_remote_tagged_local_runtime_routes_runtime_policy_locally(tmp_path: Path) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     gateway = FakeGatewayClient(profile="local")
     app = _new_app(tmp_path, state_path=state_path, gateway_client=gateway)
-    app.current_session.loop_bus = InMemoryLoopMessageBus()
+    app.current_session.runtime.loop_bus = InMemoryLoopMessageBus()
 
     asyncio.run(app._run_command("plan"))
     asyncio.run(app._run_command("full-access"))
 
     assert gateway.policy_calls == []
-    assert app.current_session.sandbox_diagnostics["approval_profile"] == "plan"
-    assert app.current_session.sandbox_diagnostics["access_level"] == "full-access"
+    assert app.current_session.projection.sandbox_diagnostics["approval_profile"] == "plan"
+    assert app.current_session.projection.sandbox_diagnostics["access_level"] == "full-access"
 
 
 def test_tui_remote_tagged_local_runtime_clear_resets_local_session(monkeypatch, tmp_path: Path) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     gateway = FakeGatewayClient(profile="local")
     app = _new_app(tmp_path, state_path=state_path, gateway_client=gateway)
-    app.current_session.loop_bus = InMemoryLoopMessageBus()
-    app.current_session.messages = [
+    app.current_session.runtime.loop_bus = InMemoryLoopMessageBus()
+    app.current_session.view.messages = [
         SimpleNamespace(role="user", content="hello", timestamp="10:00:00"),
         SimpleNamespace(role="assistant", content="world", timestamp="10:00:01"),
     ]
@@ -4473,15 +4926,15 @@ def test_tui_remote_tagged_local_runtime_clear_resets_local_session(monkeypatch,
 
     asyncio.run(app._run_command("clear"))
 
-    assert app.current_session.messages == []
-    assert app.current_session.token_usage == 0
+    assert app.current_session.view.messages == []
+    assert app.current_session.projection.token_usage == 0
     assert app.status == "Cleared Session 1."
 
 
 def test_tui_approval_modal_opens_for_current_pending_request(tmp_path: Path) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     app = _new_app(tmp_path, state_path=state_path)
-    app.current_session.pending_approvals = [
+    app.current_session.projection.pending_approvals = [
         {
             "token": "approval-1",
             "tool_name": "shell_command",
@@ -4496,4 +4949,5 @@ def test_tui_approval_modal_opens_for_current_pending_request(tmp_path: Path) ->
     modal_text = "".join(text for _style, text in app._render_approval_modal_fragments())
     assert "approval-1" in modal_text
     assert "shell_command" in modal_text
+
 

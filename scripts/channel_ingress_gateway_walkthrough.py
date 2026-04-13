@@ -7,6 +7,8 @@ Exercises the QQ-like channel ingress mainline without requiring a real login:
 - TUI can take over the same ingress-created session and continue work
 """
 
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import argparse
@@ -25,9 +27,14 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from mini_agent.agent import TurnExecutionResult, TurnStopReason
-from mini_agent.application import ChannelIngressUseCases, MainAgentGatewayUseCases
+from mini_agent.application import (
+    ChannelIngressUseCases,
+    MainAgentGatewayUseCases,
+    RemoteConversationBindingService,
+)
 from mini_agent.interfaces import ChannelMessageRequest, MainAgentChatRequest
 from mini_agent.runtime.main_agent_runtime_manager import MainAgentRuntimeManager
+from mini_agent.session import ConversationBindingStore
 
 
 @dataclass(frozen=True)
@@ -200,12 +207,15 @@ def _new_gateway_use_cases(
     )
 
 
-def _new_channel_use_cases(gateway_use_cases: MainAgentGatewayUseCases) -> ChannelIngressUseCases:
+def _new_channel_use_cases(gateway_use_cases: MainAgentGatewayUseCases, *, root: Path) -> ChannelIngressUseCases:
     return ChannelIngressUseCases(
         run_main_agent_chat=gateway_use_cases.run_chat,
         novel_use_cases=_UnusedNovelUseCases(),
         resolve_workspace_dir=_resolve_workspace_dir,
         to_utc_iso=_to_utc_iso,
+        remote_binding_service=RemoteConversationBindingService(
+            binding_store=ConversationBindingStore(root / "conversation-bindings.json"),
+        ),
     )
 
 
@@ -217,7 +227,7 @@ async def _check_channel_reuse_and_continue_contract(root: Path) -> WalkthroughR
         return _DummyAgent(prefix="qq")
 
     gateway_use_cases = _new_gateway_use_cases(storage_dir=storage_dir, build_agent=_build_agent)
-    channel_use_cases = _new_channel_use_cases(gateway_use_cases)
+    channel_use_cases = _new_channel_use_cases(gateway_use_cases, root=root)
 
     first = await channel_use_cases.handle_message(
         ChannelMessageRequest(
@@ -236,7 +246,6 @@ async def _check_channel_reuse_and_continue_contract(root: Path) -> WalkthroughR
             conversation_id="group:alpha",
             sender_id="user-1",
             message="continue from qq",
-            session_id=first.session_id,
             workspace_dir=str(workspace),
         )
     )
@@ -297,7 +306,7 @@ async def _check_channel_activity_and_takeover(root: Path) -> WalkthroughResult:
         return _HookedAgent(prefix="hooked")
 
     gateway_use_cases = _new_gateway_use_cases(storage_dir=storage_dir, build_agent=_build_agent)
-    channel_use_cases = _new_channel_use_cases(gateway_use_cases)
+    channel_use_cases = _new_channel_use_cases(gateway_use_cases, root=root)
 
     first = await channel_use_cases.handle_message(
         ChannelMessageRequest(

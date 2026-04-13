@@ -4,6 +4,52 @@
 > 维护方式: 每完成一项即更新勾选和验证证据  
 > 原则: 先主链、后增强；先可用、后优化；不保留兼容壳
 
+## P23.29 Explicit Task Fork Commands (completed)
+
+- [x] Add one explicit derived-session request/API on top of the existing runtime lineage seam
+- [x] Reuse `MainAgentRuntimeManager.create_derived_session(...)` instead of introducing a second task-fork path
+- [x] Add TUI `/fork [task_prompt]`
+- [x] Add TUI `/task new [task_prompt]` as the canonical alias form
+- [x] Reuse the normal child-session chat path when the fork command includes a first task prompt
+- [x] Add focused regressions for gateway explicit-fork creation and TUI command behavior
+
+Verification:
+
+- [x] `uv run ruff check src/mini_agent/interfaces/agent.py src/mini_agent/interfaces/__init__.py src/mini_agent/application/session_service.py src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/application/session_remote_service.py src/mini_agent/tui/gateway_client.py src/apps/agent_studio_gateway/main.py src/mini_agent/tui/app.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py`
+- [x] `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "explicit_derived_session or delegation" -q`
+- [x] `uv run pytest tests/test_tui_app.py -k "fork_command or task_new_command" -q`
+- [x] `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py -q`
+
+## P23.28 Delegation-Derived Session Lineage (completed)
+
+- [x] Add one runtime/application derived-session creation path
+- [x] Rewire `/delegate` to execute inside a derived child session
+- [x] Inherit parent model/runtime-policy/KB/context settings for delegated children
+- [x] Keep failed delegated child sessions as inspectable task records instead of dropping them
+- [x] Expose `child_session_id` in delegation results for future UI/CLI use
+
+Verification:
+
+- [x] `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "delegation" -q`
+- [x] `uv run pytest tests/test_agent_core_delegation.py tests/test_main_agent_gateway_use_cases.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py tests/test_tui_app.py -q`
+- [x] `uv run python scripts/shared_session_gateway_walkthrough.py`
+- [x] `uv run ruff check src/mini_agent/agent_core/delegation.py src/mini_agent/application/gateway_route_execution_handler.py src/mini_agent/application/session_service.py src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_main_agent_gateway_use_cases.py`
+
+## P23.27 Session Lineage Runtime Integration (completed)
+
+- [x] Add runtime-private lineage state to managed sessions and connect `SessionLineageStore`
+- [x] Persist lineage through runtime snapshot import/export and session metadata records
+- [x] Rehydrate lineage on persisted restore and imported sessions
+- [x] Extend the lineage store with restore/remove support for restart ordering
+- [x] Add focused regressions for child-import lineage and persisted restore lineage
+
+Verification:
+
+- [x] `uv run pytest tests/test_agent_core_session.py tests/test_main_agent_gateway_use_cases.py -k "lineage or import_session_snapshot or export_snapshot or persisted_export" -q`
+- [x] `uv run pytest tests/test_agent_core_session.py tests/test_main_agent_gateway_use_cases.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py tests/test_tui_app.py -q`
+- [x] `uv run python scripts/shared_session_gateway_walkthrough.py`
+- [x] `uv run ruff check src/mini_agent/agent_core/session/lineage.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_creation_handler.py src/mini_agent/runtime/session_hydration_builder.py src/mini_agent/runtime/session_persistence_record_builder.py src/mini_agent/runtime/session_read_model_builder.py src/mini_agent/runtime/session_registry_handler.py src/mini_agent/runtime/session_snapshot.py src/mini_agent/runtime/session_snapshot_handler.py tests/test_agent_core_session.py tests/test_main_agent_gateway_use_cases.py`
+
 ## P23.1 会话生命周期接线（已完成）
 
 - [x] 在 `MainAgentRuntimeManager` 接入 `SessionLifecycleManager`
@@ -348,3 +394,15 @@ Verification:
 
 Verification:
 - [x] `uv run pytest tests/test_knowledge_base_tool.py tests/test_agent_turn_context.py tests/test_config_local_env.py tests/test_agent_core_kernel.py -q`
+
+## P23.26 Agent Kernel Bootstrap Diagnostics (completed)
+- [x] Extend unified tool bootstrap so it returns structured diagnostics, not only tools/runtime handles
+- [x] Add one canonical `agent.kernel_diagnostics` payload on top of the unified kernel builder
+- [x] Include route, runtime policy, workspace/shared tool summary, skills summary, MCP summary, and turn-context provider inventory
+- [x] Keep optional skills/MCP bootstrap non-fatal while surfacing failure reasons in diagnostics
+- [x] Add focused kernel regressions for diagnostics presence and non-fatal bootstrap failure reporting
+
+Verification:
+- [x] `uv run pytest tests/test_agent_core_kernel.py -q`
+- [x] `uv run pytest tests/test_agent_core_kernel.py tests/test_code_agent_loop.py tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py -q`
+- [x] `uv run python -m compileall src/mini_agent/agent_core/kernel.py src/mini_agent/runtime/tooling.py tests/test_agent_core_kernel.py`

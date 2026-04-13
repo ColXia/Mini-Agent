@@ -2,7 +2,7 @@
  * WeChat channel implementation.
  *
  * This channel runs as a lightweight webhook server and forwards messages
- * to Mini-Agent Gateway while preserving channel/session binding metadata.
+ * to Mini-Agent Gateway while preserving channel conversation-binding metadata.
  */
 
 import * as crypto from "crypto";
@@ -12,11 +12,11 @@ import {
   ChannelReply,
   IChannel,
   IGatewayClient,
-  ISessionStore,
-  SessionState,
+  IRemoteConversationBindingStore,
+  RemoteConversationBindingState,
 } from "@mini-agent/channel-types";
 import { HTTPGatewayClient } from "./gateway_client";
-import { MemorySessionStore } from "./session_store";
+import { MemoryConversationBindingStore } from "./conversation_binding_store";
 
 export interface WeChatChannelConfig {
   token: string;
@@ -55,7 +55,7 @@ interface WeChatIncomingMessage {
 export class WeChatChannel implements IChannel {
   private server: http.Server | null = null;
   private _gatewayClient: IGatewayClient;
-  private _sessionStore: ISessionStore;
+  private _conversationBindingStore: IRemoteConversationBindingStore;
   private config: WeChatChannelConfig;
   private defaultWorkspace: string;
   private defaultDryRun: boolean;
@@ -70,7 +70,7 @@ export class WeChatChannel implements IChannel {
   constructor(
     config: WeChatChannelConfig,
     gatewayClient?: IGatewayClient,
-    sessionStore?: ISessionStore,
+    conversationBindingStore?: IRemoteConversationBindingStore,
     defaultWorkspace: string = "./workspace",
     defaultDryRun: boolean = false
   ) {
@@ -82,7 +82,8 @@ export class WeChatChannel implements IChannel {
     };
     this._gatewayClient =
       gatewayClient || new HTTPGatewayClient({ baseUrl: "http://127.0.0.1:8008", timeout: 120000 });
-    this._sessionStore = sessionStore || new MemorySessionStore();
+    this._conversationBindingStore =
+      conversationBindingStore || new MemoryConversationBindingStore();
     this.allowedWorkspaceRoots = this.normalizeAllowedWorkspaceRoots(this.config.allowedWorkspaceRoots || []);
     this.defaultWorkspace = this.ensureWorkspaceInAllowed(defaultWorkspace);
     this.defaultDryRun = defaultDryRun;
@@ -101,8 +102,8 @@ export class WeChatChannel implements IChannel {
     return this._gatewayClient;
   }
 
-  get sessionStore(): ISessionStore {
-    return this._sessionStore;
+  get conversationBindingStore(): IRemoteConversationBindingStore {
+    return this._conversationBindingStore;
   }
 
   async start(): Promise<void> {
@@ -228,7 +229,7 @@ export class WeChatChannel implements IChannel {
 
   private async handleIncomingMessage(incoming: WeChatIncomingMessage): Promise<string> {
     const conversationId = `dm:${incoming.toUser}:${incoming.fromUser}`;
-    let state = await this.sessionStore.get(conversationId);
+    let state = await this.conversationBindingStore.get(conversationId);
     if (!state) {
       state = {
         conversation_id: conversationId,
@@ -264,12 +265,15 @@ export class WeChatChannel implements IChannel {
     });
 
     state.session_id = response.session_id;
-    await this.sessionStore.set(conversationId, state);
+    await this.conversationBindingStore.set(conversationId, state);
 
     return this.limitReplyText(response.reply || "OK");
   }
 
-  private async handleCommand(incoming: WeChatIncomingMessage, state: SessionState): Promise<string | null> {
+  private async handleCommand(
+    incoming: WeChatIncomingMessage,
+    state: RemoteConversationBindingState
+  ): Promise<string | null> {
     if (incoming.msgType !== "text") {
       if (incoming.msgType === "event" && incoming.event === "subscribe") {
         return "Mini-Agent connected. Send /help to view commands.";
@@ -313,7 +317,7 @@ export class WeChatChannel implements IChannel {
         } catch (error: any) {
           return `Workspace rejected: ${error?.message || String(error)}`;
         }
-        await this.sessionStore.set(state.conversation_id, state);
+        await this.conversationBindingStore.set(state.conversation_id, state);
         return `Workspace set to: ${state.workspace_dir}`;
 
       case "/dryrun":
@@ -321,7 +325,7 @@ export class WeChatChannel implements IChannel {
           return "Usage: /dryrun <on|off>";
         }
         state.dry_run = arg.toLowerCase() === "on" || arg.toLowerCase() === "true";
-        await this.sessionStore.set(state.conversation_id, state);
+        await this.conversationBindingStore.set(state.conversation_id, state);
         return `Dry Run set to: ${state.dry_run}`;
 
       case "/reset":
@@ -332,7 +336,7 @@ export class WeChatChannel implements IChannel {
         return `Session reset: ${state.session_id}`;
 
       case "/clear":
-        await this.sessionStore.delete(state.conversation_id);
+        await this.conversationBindingStore.delete(state.conversation_id);
         return "Local session cache cleared.";
 
       case "/ping":

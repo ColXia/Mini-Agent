@@ -1,4 +1,4 @@
-﻿"""Unit tests for main-agent gateway application-layer use cases."""
+"""Unit tests for main-agent gateway application-layer use cases."""
 
 from __future__ import annotations
 
@@ -13,15 +13,17 @@ from fastapi import HTTPException
 from mini_agent.agent import ToolApprovalRequest, TurnExecutionResult, TurnStopReason
 from mini_agent.agent_core.session import SessionLifecyclePolicy, SessionLifecycleState, SessionResetMode
 from mini_agent.agent_core.skills.policy import WorkspaceSkillPolicyStore
-from mini_agent.application import MainAgentGatewayUseCases
+from mini_agent.application import MainAgentGatewayUseCases, MainAgentSurfaceService
 from mini_agent.config import AgentConfig, Config, LLMConfig, ToolsConfig
 from mini_agent.interfaces import (
     MainAgentChatRequest,
     MainAgentSessionApprovalRequest,
     MainAgentSessionCancelRequest,
     MainAgentSessionContextRequest,
+    MainAgentSessionForkRequest,
     MainAgentSessionMemoryRequest,
     MainAgentSessionModelSelectionRequest,
+    MainAgentSessionRuntimePolicyRequest,
     MainAgentSessionSummary,
     MainAgentSessionSkillRequest,
 )
@@ -33,6 +35,9 @@ from mini_agent.runtime.main_agent_runtime_manager import (
     MainAgentRuntimeMode,
     MainAgentRuntimePolicy,
 )
+from mini_agent.runtime.session_agent_runtime_handler import RuntimeSessionAgentRuntimeHandler
+from mini_agent.runtime.session_catalog_handler import RuntimeSessionCatalogHandler
+from mini_agent.runtime.session_snapshot_handler import RuntimeSessionSnapshotImportCommand
 
 
 def _write_consolidated_memory(path: Path, *, items: list[str], last_updated_utc: str) -> None:
@@ -47,6 +52,10 @@ def _write_consolidated_memory(path: Path, *, items: list[str], last_updated_utc
         "# Long-Term Memory\n\n" + "\n".join(section_lines) + "\n",
         encoding="utf-8",
     )
+
+
+def test_main_agent_surface_service_aliases_gateway_use_cases() -> None:
+    assert MainAgentGatewayUseCases is MainAgentSurfaceService
 
 
 class _DummyAgent:
@@ -100,6 +109,13 @@ class _SelectableAgent(_DummyAgent):
         runtime_provider_id = f"preset-{provider_id}" if provider_source == "preset" else provider_id
         self.runtime_route = SimpleNamespace(provider_id=runtime_provider_id, model=model_id)
         self.llm = SimpleNamespace(model=model_id)
+        self.runtime_policy_engine = SimpleNamespace(
+            policy=SimpleNamespace(
+                approval_profile="build",
+                access_level="default",
+                sandbox_mode="workspace",
+            )
+        )
 
 
 class _HookedAgent(_DummyAgent):
@@ -303,9 +319,11 @@ async def _import_runtime_session(
     resolved_workspace = use_cases._resolve_workspace_dir(workspace_dir)
     use_cases._runtime_manager.validate_workspace(resolved_workspace)
     session = await use_cases._runtime_manager.import_session_snapshot(
-        session_id=session_id,
-        workspace_dir=resolved_workspace,
-        **kwargs,
+        RuntimeSessionSnapshotImportCommand(
+            session_id=session_id,
+            workspace_dir=resolved_workspace,
+            **kwargs,
+        )
     )
     transcript = kwargs.get("transcript")
     recent_limit = max(50, len(transcript) if isinstance(transcript, list) else 0)
@@ -648,6 +666,62 @@ def test_use_case_can_export_shared_session_snapshot(tmp_path: Path) -> None:
         assert snapshot.token_limit == 80000
         assert [item.content for item in snapshot.transcript] == ["hello local", "hello shared"]
         assert [item["role"] for item in snapshot.agent_messages] == ["system", "user", "assistant"]
+        assert snapshot.lineage_parent_session_id is None
+        assert snapshot.lineage_root_session_id == detail.session_id
+        assert snapshot.lineage_reason == "root"
+
+    asyncio.run(_run())
+
+
+def test_runtime_manager_import_session_snapshot_can_register_lineage_child(tmp_path: Path) -> None:
+    async def _run() -> None:
+        async def _build_agent(_workspace: Path):
+            return _DummyAgent()
+
+        workspace = Path(".").resolve()
+        runtime = MainAgentRuntimeManager(
+            ttl_seconds=3600,
+            build_agent=_build_agent,
+            storage_dir=tmp_path / "lineage-import-store",
+            policy=MainAgentRuntimePolicy(
+                mode=MainAgentRuntimeMode.TEAM,
+                main_workspace_dir=workspace,
+                max_active_sessions=4,
+                reserved_team_slots=4,
+            ),
+        )
+
+        parent = await runtime.get_or_create_session("sess-parent", workspace)
+        imported = await runtime.import_session_snapshot(
+            RuntimeSessionSnapshotImportCommand(
+                session_id="sess-child",
+                workspace_dir=workspace,
+                title="Imported Child",
+                lineage_parent_session_id=parent.session_id,
+                lineage_root_session_id=parent.session_id,
+                lineage_reason="snapshot_import",
+                lineage_metadata={"source": "test"},
+                transcript=[
+                    {
+                        "role": "user",
+                        "content": "hello child",
+                        "surface": "tui",
+                    }
+                ],
+            )
+        )
+
+        assert imported.lineage_state.parent_session_id == "sess-parent"
+        assert imported.lineage_state.root_session_id == "sess-parent"
+        assert imported.lineage_state.reason == "snapshot_import"
+        assert runtime._session_lineage.parent_of("sess-child") is not None
+        assert runtime._session_lineage.parent_of("sess-child").session_key == "sess-parent"
+
+        snapshot = await runtime.export_session_snapshot("sess-child")
+        assert snapshot.lineage_parent_session_id == "sess-parent"
+        assert snapshot.lineage_root_session_id == "sess-parent"
+        assert snapshot.lineage_reason == "snapshot_import"
+        assert snapshot.lineage_metadata["source"] == "test"
 
     asyncio.run(_run())
 
@@ -747,6 +821,156 @@ def test_use_case_export_session_includes_workspace_shared_runtime_task_memory_p
         assert snapshot.workspace_shared_runtime_memory_payload["entry_count"] >= 1
         engine_payload = snapshot.workspace_shared_runtime_memory_payload.get("engine")
         assert isinstance(engine_payload, dict)
+
+    asyncio.run(_run())
+
+
+def test_runtime_manager_import_session_snapshot_rejects_duplicate_session_id() -> None:
+    async def _run() -> None:
+        async def _build_agent(_workspace: Path):
+            return _DummyAgent()
+
+        runtime = MainAgentRuntimeManager(
+            ttl_seconds=3600,
+            build_agent=_build_agent,
+            policy=MainAgentRuntimePolicy(
+                mode=MainAgentRuntimeMode.TEAM,
+                main_workspace_dir=Path(".").resolve(),
+                max_active_sessions=4,
+                reserved_team_slots=4,
+            ),
+        )
+        workspace = Path(".").resolve()
+
+        await runtime.import_session_snapshot(
+            RuntimeSessionSnapshotImportCommand(
+                session_id="dup-import",
+                workspace_dir=workspace,
+                title="Imported Once",
+                transcript=[],
+            )
+        )
+
+        with pytest.raises(HTTPException, match="Session already exists."):
+            await runtime.import_session_snapshot(
+                RuntimeSessionSnapshotImportCommand(
+                    session_id="dup-import",
+                    workspace_dir=workspace,
+                    title="Imported Twice",
+                    transcript=[],
+                )
+            )
+
+    asyncio.run(_run())
+
+
+def test_runtime_manager_can_export_snapshot_from_persisted_record(tmp_path: Path) -> None:
+    async def _run() -> None:
+        async def _build_agent(_workspace: Path):
+            return _DummyAgent()
+
+        workspace = Path(".").resolve()
+        storage_dir = tmp_path / "persisted-export-store"
+
+        seed_runtime = MainAgentRuntimeManager(
+            ttl_seconds=3600,
+            build_agent=_build_agent,
+            storage_dir=storage_dir,
+            policy=MainAgentRuntimePolicy(
+                mode=MainAgentRuntimeMode.TEAM,
+                main_workspace_dir=workspace,
+                max_active_sessions=4,
+                reserved_team_slots=4,
+            ),
+        )
+        imported = await seed_runtime.import_session_snapshot(
+            RuntimeSessionSnapshotImportCommand(
+                session_id="persisted-export-session",
+                workspace_dir=workspace,
+                title="Persisted Export",
+                origin_surface="qq",
+                active_surface="qq",
+                transcript=[
+                    {
+                        "role": "user",
+                        "content": "persisted snapshot should still export",
+                        "surface": "qq",
+                    }
+                ],
+            )
+        )
+        assert imported.session_id == "persisted-export-session"
+
+        fresh_runtime = MainAgentRuntimeManager(
+            ttl_seconds=3600,
+            build_agent=_build_agent,
+            storage_dir=storage_dir,
+        )
+        snapshot = await fresh_runtime.export_session_snapshot("persisted-export-session")
+
+        assert snapshot.session_id == "persisted-export-session"
+        assert snapshot.title == "Persisted Export"
+        assert [item.content for item in snapshot.transcript] == ["persisted snapshot should still export"]
+
+    asyncio.run(_run())
+
+
+def test_runtime_manager_restore_persisted_session_preserves_lineage(tmp_path: Path) -> None:
+    async def _run() -> None:
+        async def _build_agent(_workspace: Path):
+            return _DummyAgent()
+
+        workspace = Path(".").resolve()
+        storage_dir = tmp_path / "persisted-lineage-store"
+
+        seed_runtime = MainAgentRuntimeManager(
+            ttl_seconds=3600,
+            build_agent=_build_agent,
+            storage_dir=storage_dir,
+            policy=MainAgentRuntimePolicy(
+                mode=MainAgentRuntimeMode.TEAM,
+                main_workspace_dir=workspace,
+                max_active_sessions=4,
+                reserved_team_slots=4,
+            ),
+        )
+        await seed_runtime.get_or_create_session("sess-root", workspace)
+        await seed_runtime.import_session_snapshot(
+            RuntimeSessionSnapshotImportCommand(
+                session_id="sess-child",
+                workspace_dir=workspace,
+                title="Persisted Child",
+                lineage_parent_session_id="sess-root",
+                lineage_root_session_id="sess-root",
+                lineage_reason="snapshot_import",
+                transcript=[
+                    {
+                        "role": "user",
+                        "content": "persisted child",
+                        "surface": "tui",
+                    }
+                ],
+            )
+        )
+
+        restored_runtime = MainAgentRuntimeManager(
+            ttl_seconds=3600,
+            build_agent=_build_agent,
+            storage_dir=storage_dir,
+        )
+        restored = await restored_runtime.get_or_create_session("sess-child", workspace)
+
+        assert restored.lineage_state.parent_session_id == "sess-root"
+        assert restored.lineage_state.root_session_id == "sess-root"
+        assert restored.lineage_state.reason == "snapshot_import"
+        parent = restored_runtime._session_lineage.parent_of("sess-child")
+        assert parent is not None
+        assert parent.session_key == "sess-root"
+
+        snapshot = await restored_runtime.export_session_snapshot("sess-child")
+        assert snapshot.lineage_parent_session_id == "sess-root"
+        assert snapshot.lineage_root_session_id == "sess-root"
+        assert snapshot.lineage_reason == "snapshot_import"
 
     asyncio.run(_run())
 
@@ -1117,6 +1341,134 @@ def test_use_case_can_install_workspace_skill_for_shared_session(tmp_path: Path,
     asyncio.run(_run())
 
 
+def test_use_case_can_uninstall_and_rollback_workspace_skill_for_shared_session(tmp_path: Path, monkeypatch) -> None:
+    builtin_dir = tmp_path / "builtin-skills"
+    workspace_dir = tmp_path / "workspace"
+    source_skill_dir = tmp_path / "source-skill"
+    builtin_dir.mkdir(parents=True, exist_ok=True)
+    source_skill_dir.mkdir(parents=True, exist_ok=True)
+    (source_skill_dir / "SKILL.md").write_text(
+        "---\nname: repo-helper\ndescription: Workspace-local guidance.\n---\nUse for this repo.\n",
+        encoding="utf-8",
+    )
+
+    config = Config(
+        llm=LLMConfig(
+            api_key="sk-test",
+            api_base="https://api.example.com/v1",
+            model="gpt-5.4",
+            provider="openai",
+        ),
+        agent=AgentConfig(
+            max_steps=8,
+            max_tool_calls_per_step=2,
+            system_prompt_path="system_prompt.md",
+        ),
+        tools=ToolsConfig(
+            enable_file_tools=False,
+            enable_bash=False,
+            enable_note=False,
+            enable_skills=True,
+            enable_mcp=False,
+            skills_dir=str(builtin_dir),
+        ),
+    )
+    monkeypatch.setattr("mini_agent.commands.skill_support.Config.load", lambda allow_interactive_setup=False: config)
+
+    async def _run() -> None:
+        build_calls: list[tuple[str | None, str | None, str | None]] = []
+
+        async def _build_agent(_workspace: Path):
+            build_calls.append((None, None, None))
+            return _SelectableAgent(provider_source="preset", provider_id="openai", model_id="gpt-5.4")
+
+        async def _build_agent_with_selection(
+            _workspace: Path,
+            provider_source: str | None,
+            provider_id: str | None,
+            model_id: str | None,
+        ):
+            build_calls.append((provider_source, provider_id, model_id))
+            return _SelectableAgent(
+                provider_source=provider_source or "preset",
+                provider_id=provider_id or "openai",
+                model_id=model_id or "gpt-5.4",
+            )
+
+        runtime = MainAgentRuntimeManager(
+            ttl_seconds=3600,
+            build_agent=_build_agent,
+            build_agent_with_selection=_build_agent_with_selection,
+            storage_dir=tmp_path / "skill-uninstall-rollback-store",
+        )
+        use_cases = MainAgentGatewayUseCases(
+            runtime_manager=runtime,
+            resolve_workspace_dir=lambda value: Path(str(value or workspace_dir)).resolve(),
+            to_utc_iso=_to_utc_iso,
+            sse_event=_sse_event,
+            format_bootstrap_error=_format_bootstrap_error,
+            stream_chunk_size=64,
+        )
+
+        detail = await _import_runtime_session(
+            use_cases,
+                workspace_dir=str(workspace_dir),
+                title="Remote Skill Uninstall Test",
+                origin_surface="qq",
+                active_surface="qq",
+                selected_model_source="preset",
+                selected_provider_id="openai",
+                selected_model_id="gpt-5.4",
+                agent_messages=[
+                    {"role": "system", "content": "system"},
+                    {"role": "assistant", "content": "ready"},
+                ],
+                transcript=[
+                    {"role": "assistant", "content": "ready", "surface": "qq"},
+                ],
+        )
+
+        await use_cases.manage_session_skills(
+            detail.session_id,
+            MainAgentSessionSkillRequest(
+                action="install",
+                path=str(source_skill_dir),
+                surface="qq",
+            ),
+        )
+
+        uninstall = await use_cases.manage_session_skills(
+            detail.session_id,
+            MainAgentSessionSkillRequest(
+                action="uninstall",
+                skill_name="repo-helper",
+                surface="qq",
+            ),
+        )
+        assert uninstall.status == "ok"
+        assert uninstall.result["summary"] == "uninstalled repo-helper"
+        assert "Uninstalled Skill:" in uninstall.result["details"]
+        assert "repo-helper" in uninstall.result["details"]
+        installed_skill_dir = workspace_dir / ".mini-agent" / "skills" / "repo-helper"
+        assert installed_skill_dir.exists() is False
+
+        rollback = await use_cases.manage_session_skills(
+            detail.session_id,
+            MainAgentSessionSkillRequest(
+                action="rollback",
+                skill_name="repo-helper",
+                surface="qq",
+            ),
+        )
+        assert rollback.status == "ok"
+        assert rollback.result["summary"] == "rolled back repo-helper"
+        assert "Rolled Back Skill:" in rollback.result["details"]
+        assert installed_skill_dir.joinpath("SKILL.md").exists()
+        assert build_calls[-1] == ("preset", "openai", "gpt-5.4")
+
+    asyncio.run(_run())
+
+
 def test_use_case_updates_shared_session_skill_policy_while_busy_without_rebuild(tmp_path: Path, monkeypatch) -> None:
     builtin_dir = tmp_path / "builtin-skills"
     workspace_dir = tmp_path / "workspace"
@@ -1228,7 +1580,7 @@ def test_use_case_updates_shared_session_skill_policy_while_busy_without_rebuild
         )
 
         session = runtime._sessions[detail.session_id]
-        session.busy = True
+        session.projection.busy = True
         sibling_session = runtime._sessions[sibling.session_id]
         build_count_before = len(build_calls)
 
@@ -1243,18 +1595,18 @@ def test_use_case_updates_shared_session_skill_policy_while_busy_without_rebuild
         assert response.result["reload_queued_current_session"] is True
         assert response.result["reload_queued_other_sessions"] == 1
         assert len(build_calls) == build_count_before
-        assert session.pending_skill_reload is True
-        assert sibling_session.pending_skill_reload is True
+        assert session.projection.pending_skill_reload is True
+        assert sibling_session.projection.pending_skill_reload is True
         detail_after = await use_cases.get_session_detail(detail.session_id)
         sibling_after = await use_cases.get_session_detail(sibling.session_id)
         assert detail_after.pending_skill_reload is True
         assert sibling_after.pending_skill_reload is True
         persisted_policy = WorkspaceSkillPolicyStore(workspace_dir).load()
         assert persisted_policy.mode == "allowlist"
-        session.busy = False
+        session.projection.busy = False
         reapplied = await runtime.apply_pending_session_skill_reload(session)
         assert reapplied is True
-        assert session.pending_skill_reload is False
+        assert session.projection.pending_skill_reload is False
         assert build_calls[-1] == ("preset", "openai", "gpt-5.4")
 
     asyncio.run(_run())
@@ -1437,7 +1789,7 @@ def test_use_case_reports_shared_session_skill_catalog_unavailable(tmp_path: Pat
         )
 
         monkeypatch.setattr(
-            "mini_agent.runtime.main_agent_runtime_manager.resolve_skill_catalog_loader",
+            "mini_agent.runtime.session_skill_command_handler.resolve_skill_catalog_loader",
             lambda **kwargs: (_ for _ in ()).throw(RuntimeError("loader boom")),
         )
         response = await use_cases.manage_session_skills(
@@ -1531,6 +1883,93 @@ def test_use_case_can_update_shared_session_model_selection(tmp_path: Path) -> N
     asyncio.run(_run())
 
 
+def test_use_case_can_update_shared_session_model_selection_without_provider_source(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    async def _run() -> None:
+        build_calls: list[tuple[str | None, str | None, str | None]] = []
+
+        async def _build_agent(_workspace: Path):
+            build_calls.append((None, None, None))
+            return _SelectableAgent(provider_source="preset", provider_id="openai", model_id="gpt-5.4")
+
+        async def _build_agent_with_selection(
+            _workspace: Path,
+            provider_source: str | None,
+            provider_id: str | None,
+            model_id: str | None,
+        ):
+            build_calls.append((provider_source, provider_id, model_id))
+            return _SelectableAgent(
+                provider_source=provider_source or "preset",
+                provider_id=provider_id or "openai",
+                model_id=model_id or "gpt-5.4",
+            )
+
+        monkeypatch.setattr(
+            "mini_agent.runtime.main_agent_runtime_manager.resolve_session_model_selection_identity",
+            lambda _config, *, provider_id, model_id, provider_source=None, catalog_path=None: (
+                "custom",
+                provider_id,
+                model_id,
+            ),
+        )
+
+        runtime = MainAgentRuntimeManager(
+            ttl_seconds=3600,
+            build_agent=_build_agent,
+            build_agent_with_selection=_build_agent_with_selection,
+            storage_dir=tmp_path / "shared-model-selection-inferred-store",
+        )
+        use_cases = MainAgentGatewayUseCases(
+            runtime_manager=runtime,
+            resolve_workspace_dir=_resolve_workspace_dir,
+            to_utc_iso=_to_utc_iso,
+            sse_event=_sse_event,
+            format_bootstrap_error=_format_bootstrap_error,
+            stream_chunk_size=64,
+        )
+
+        detail = await _import_runtime_session(
+            use_cases,
+            workspace_dir=str(tmp_path / "workspace"),
+            title="Remote Model Selection Inferred Source Test",
+            origin_surface="qq",
+            active_surface="qq",
+            selected_model_source="preset",
+            selected_provider_id="openai",
+            selected_model_id="gpt-5.4",
+            agent_messages=[
+                {"role": "system", "content": "system"},
+                {"role": "user", "content": "hello"},
+                {"role": "assistant", "content": "mock:hello"},
+            ],
+            transcript=[
+                {"role": "user", "content": "hello", "surface": "qq"},
+                {"role": "assistant", "content": "mock:hello", "surface": "qq"},
+            ],
+        )
+
+        response = await use_cases.update_session_model_selection(
+            detail.session_id,
+            MainAgentSessionModelSelectionRequest(
+                provider_id="maas",
+                model_id="astron-code-latest",
+                surface="qq",
+            ),
+        )
+
+        assert response.applied is True
+        assert response.queued is False
+        assert response.selected_model_source == "custom"
+        assert response.selected_provider_id == "maas"
+        assert response.selected_model_id == "astron-code-latest"
+        assert build_calls[-1] == ("custom", "maas", "astron-code-latest")
+
+    asyncio.run(_run())
+
+
 def test_use_case_queued_shared_session_model_applies_on_next_turn(tmp_path: Path) -> None:
     async def _run() -> None:
         build_calls: list[tuple[str | None, str | None, str | None]] = []
@@ -1568,8 +2007,8 @@ def test_use_case_queued_shared_session_model_applies_on_next_turn(tmp_path: Pat
         )
 
         session = await runtime.get_or_create_session("sess-model-queued", Path(".").resolve())
-        session.busy = True
-        session.running_state = "qq request running"
+        session.projection.busy = True
+        session.projection.running_state = "qq request running"
         runtime._set_selected_model_identity(session, ("preset", "openai", "gpt-5.4"))
 
         queued = await use_cases.update_session_model_selection(
@@ -1585,8 +2024,8 @@ def test_use_case_queued_shared_session_model_applies_on_next_turn(tmp_path: Pat
         assert queued.queued is True
         assert queued.pending_model_id == "gpt-5.3"
 
-        session.busy = False
-        session.running_state = ""
+        session.projection.busy = False
+        session.projection.running_state = ""
 
         result = await use_cases.run_chat(
             MainAgentChatRequest(
@@ -1606,6 +2045,107 @@ def test_use_case_queued_shared_session_model_applies_on_next_turn(tmp_path: Pat
     asyncio.run(_run())
 
 
+def test_use_case_can_update_shared_session_runtime_policy(tmp_path: Path, monkeypatch) -> None:
+    async def _run() -> None:
+        async def _build_agent(_workspace: Path):
+            return _SelectableAgent(provider_source="preset", provider_id="openai", model_id="gpt-5.4")
+
+        runtime = MainAgentRuntimeManager(
+            ttl_seconds=3600,
+            build_agent=_build_agent,
+            storage_dir=tmp_path / "runtime-policy-store",
+        )
+        use_cases = MainAgentGatewayUseCases(
+            runtime_manager=runtime,
+            resolve_workspace_dir=_resolve_workspace_dir,
+            to_utc_iso=_to_utc_iso,
+            sse_event=_sse_event,
+            format_bootstrap_error=_format_bootstrap_error,
+            stream_chunk_size=64,
+        )
+
+        session = await runtime.get_or_create_session("sess-policy", Path(".").resolve())
+
+        def _fake_reconfigure(
+            _handler,
+            target_session,
+            *,
+            approval_profile: str | None,
+            access_level: str | None,
+        ) -> dict[str, str]:
+            policy = getattr(getattr(target_session.runtime.agent, "runtime_policy_engine", None), "policy", None)
+            if policy is not None:
+                policy.approval_profile = str(approval_profile or "")
+                policy.access_level = str(access_level or "")
+                policy.sandbox_mode = "unrestricted" if access_level == "full-access" else "workspace"
+            diagnostics = {
+                "approval_profile": str(approval_profile or ""),
+                "access_level": str(access_level or ""),
+                "sandbox_mode": "unrestricted" if access_level == "full-access" else "workspace",
+            }
+            target_session.projection.sandbox_diagnostics = dict(diagnostics)
+            return diagnostics
+
+        monkeypatch.setattr(RuntimeSessionAgentRuntimeHandler, "reconfigure_runtime_policy", _fake_reconfigure)
+
+        response = await use_cases.update_session_runtime_policy(
+            session.session_id,
+            MainAgentSessionRuntimePolicyRequest(
+                approval_profile="plan",
+                access_level="full-access",
+                surface="tui",
+            ),
+        )
+
+        assert response.status == "updated"
+        assert response.approval_profile == "plan"
+        assert response.access_level == "full-access"
+        assert response.sandbox_diagnostics["sandbox_mode"] == "unrestricted"
+
+        detail = await use_cases.get_session_detail(session.session_id, recent_limit=10)
+        assert detail.sandbox_diagnostics["approval_profile"] == "plan"
+        assert detail.sandbox_diagnostics["access_level"] == "full-access"
+        assert detail.recent_messages[-1].metadata["command"] == "policy"
+
+    asyncio.run(_run())
+
+
+def test_use_case_rejects_runtime_policy_change_while_busy_without_pending_approval(tmp_path: Path) -> None:
+    async def _run() -> None:
+        async def _build_agent(_workspace: Path):
+            return _SelectableAgent(provider_source="preset", provider_id="openai", model_id="gpt-5.4")
+
+        runtime = MainAgentRuntimeManager(
+            ttl_seconds=3600,
+            build_agent=_build_agent,
+            storage_dir=tmp_path / "runtime-policy-busy-store",
+        )
+        use_cases = MainAgentGatewayUseCases(
+            runtime_manager=runtime,
+            resolve_workspace_dir=_resolve_workspace_dir,
+            to_utc_iso=_to_utc_iso,
+            sse_event=_sse_event,
+            format_bootstrap_error=_format_bootstrap_error,
+            stream_chunk_size=64,
+        )
+
+        session = await runtime.get_or_create_session("sess-policy-busy", Path(".").resolve())
+        session.projection.busy = True
+        session.runtime.pending_approvals = []
+
+        with pytest.raises(HTTPException, match="Runtime mode can only change while idle or waiting on approval"):
+            await use_cases.update_session_runtime_policy(
+                session.session_id,
+                MainAgentSessionRuntimePolicyRequest(
+                    approval_profile="plan",
+                    access_level="default",
+                    surface="qq",
+                ),
+            )
+
+    asyncio.run(_run())
+
+
 def test_use_case_persisted_interrupted_session_exposes_recovery_snapshot_after_restart(tmp_path: Path) -> None:
     async def _run() -> None:
         async def _build_agent(_workspace: Path):
@@ -1617,7 +2157,7 @@ def test_use_case_persisted_interrupted_session_exposes_recovery_snapshot_after_
             build_agent=_build_agent,
             storage_dir=tmp_path / "recovery-store",
         )
-        use_cases_first = MainAgentGatewayUseCases(
+        _use_cases_first = MainAgentGatewayUseCases(
             runtime_manager=runtime_first,
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
@@ -1807,6 +2347,36 @@ def test_use_case_restarted_shared_session_keeps_recovery_until_next_turn_consum
         metadata_second = recovery_agent.captured_turn_contexts[-1].get("metadata")
         assert isinstance(metadata_second, dict)
         assert metadata_second.get("recovery") is None
+
+    asyncio.run(_run())
+
+
+def test_runtime_record_turn_persists_user_and_assistant_messages(tmp_path: Path) -> None:
+    async def _run() -> None:
+        async def _build_agent(_workspace: Path):
+            return _DummyAgent()
+
+        workspace = tmp_path / "workspace-record-turn"
+        workspace.mkdir(parents=True, exist_ok=True)
+        runtime = MainAgentRuntimeManager(
+            ttl_seconds=3600,
+            build_agent=_build_agent,
+            storage_dir=tmp_path / "record-turn-store",
+        )
+
+        session = await runtime.get_or_create_session("sess-record-turn", workspace)
+        runtime.record_turn(
+            session,
+            user_message="hello",
+            assistant_reply="world",
+            surface="tui",
+        )
+
+        detail = await runtime.get_session_detail("sess-record-turn", recent_limit=10)
+
+        assert [item.role for item in detail.recent_messages] == ["user", "assistant"]
+        assert detail.recent_messages[0].content == "hello"
+        assert detail.recent_messages[1].content == "world"
 
     asyncio.run(_run())
 
@@ -2213,7 +2783,7 @@ def test_use_case_control_session_rejects_busy_shared_session() -> None:
         )
 
         session = await runtime.get_or_create_session("sess-busy-control", Path(".").resolve())
-        session.busy = True
+        session.projection.busy = True
 
         with pytest.raises(Exception) as exc_info:
             await use_cases.control_session(
@@ -2288,6 +2858,90 @@ def test_use_case_update_session_context_persists_and_applies_on_next_turn() -> 
             "knowledge_base",
             "workspace_memory",
         ]
+
+    asyncio.run(_run())
+
+
+def test_use_case_update_session_context_budget_and_reset() -> None:
+    async def _run() -> None:
+        async def _build_agent(_workspace: Path):
+            return _DummyAgent()
+
+        runtime = MainAgentRuntimeManager(ttl_seconds=3600, build_agent=_build_agent)
+        use_cases = MainAgentGatewayUseCases(
+            runtime_manager=runtime,
+            resolve_workspace_dir=_resolve_workspace_dir,
+            to_utc_iso=_to_utc_iso,
+            sse_event=_sse_event,
+            format_bootstrap_error=_format_bootstrap_error,
+            stream_chunk_size=64,
+        )
+
+        await use_cases.run_chat(
+            MainAgentChatRequest(
+                message="seed context budget session",
+                workspace_dir=".",
+                session_id="sess-context-budget",
+                surface="tui",
+            )
+        )
+
+        updated = await use_cases.update_session_context(
+            "sess-context-budget",
+            MainAgentSessionContextRequest(
+                action="budget",
+                max_items=2,
+                max_total_chars=900,
+                max_items_per_source=1,
+                surface="tui",
+            ),
+        )
+        assert updated.context_policy["max_items"] == 2
+        assert updated.context_policy["max_total_chars"] == 900
+        assert updated.context_policy["max_items_per_source"] == 1
+        assert updated.context_policy["active"] is True
+
+        reset = await use_cases.update_session_context(
+            "sess-context-budget",
+            MainAgentSessionContextRequest(
+                action="reset",
+                surface="tui",
+            ),
+        )
+        assert reset.context_policy["include_sources"] == []
+        assert reset.context_policy["exclude_sources"] == []
+        assert reset.context_policy["max_items"] == 4
+        assert reset.context_policy["max_total_chars"] == 2400
+        assert reset.context_policy["max_items_per_source"] == 1
+        assert reset.context_policy["active"] is False
+
+    asyncio.run(_run())
+
+
+def test_use_case_rejects_context_update_while_busy() -> None:
+    async def _run() -> None:
+        async def _build_agent(_workspace: Path):
+            return _DummyAgent()
+
+        runtime = MainAgentRuntimeManager(ttl_seconds=3600, build_agent=_build_agent)
+        use_cases = MainAgentGatewayUseCases(
+            runtime_manager=runtime,
+            resolve_workspace_dir=_resolve_workspace_dir,
+            to_utc_iso=_to_utc_iso,
+            sse_event=_sse_event,
+            format_bootstrap_error=_format_bootstrap_error,
+            stream_chunk_size=64,
+        )
+
+        session = await runtime.get_or_create_session("sess-context-busy", Path(".").resolve())
+        session.projection.busy = True
+
+        with pytest.raises(Exception) as exc_info:
+            await use_cases.update_session_context(
+                "sess-context-busy",
+                MainAgentSessionContextRequest(action="reset"),
+            )
+        assert getattr(exc_info.value, "status_code", None) == 409
 
     asyncio.run(_run())
 
@@ -2500,7 +3154,7 @@ def test_use_case_manage_session_memory_can_save_distilled_note_and_profile(
             )
         )
 
-        runtime._sessions["sess-memory-save"].last_prepared_context = {
+        runtime._sessions["sess-memory-save"].projection.last_prepared_context = {
             "sources": ["knowledge_base"],
             "items": [
                 {
@@ -2825,11 +3479,11 @@ def test_runtime_manager_reset_session_clears_runtime_task_memory_and_runtime_st
         )
 
         session = await runtime.get_or_create_session("sess-reset", workspace)
-        session.pending_approvals = [{"token": "tok-1", "tool_name": "bash", "arguments": {}}]
-        session.last_prepared_context = {"item_count": 1}
-        session.prepared_context_diagnostics = {"turn_count": 2}
-        session.busy = True
-        session.running_state = "running"
+        session.runtime.pending_approvals = [{"token": "tok-1", "tool_name": "bash", "arguments": {}}]
+        session.projection.last_prepared_context = {"item_count": 1}
+        session.projection.prepared_context_diagnostics = {"turn_count": 2}
+        session.projection.busy = True
+        session.projection.running_state = "running"
 
         runtime_memory = WorkspaceMemoriaRuntime(workspace)
         runtime_memory.save_session_memory(
@@ -2840,13 +3494,13 @@ def test_runtime_manager_reset_session_clears_runtime_task_memory_and_runtime_st
         await runtime.reset_session("sess-reset")
 
         restored = await runtime.get_or_create_session("sess-reset", workspace)
-        assert len(restored.agent.messages) == 1
-        assert restored.agent.api_total_tokens == 0
-        assert restored.pending_approvals == []
-        assert restored.last_prepared_context == {}
-        assert restored.prepared_context_diagnostics == {}
-        assert restored.busy is False
-        assert restored.running_state == ""
+        assert len(restored.runtime.agent.messages) == 1
+        assert restored.runtime.agent.api_total_tokens == 0
+        assert restored.runtime.pending_approvals == []
+        assert restored.projection.last_prepared_context == {}
+        assert restored.projection.prepared_context_diagnostics == {}
+        assert restored.projection.busy is False
+        assert restored.projection.running_state == ""
         assert "session:sess-reset" not in runtime_memory.stats()["namespaces"]
 
     asyncio.run(_run())
@@ -3217,8 +3871,8 @@ def test_runtime_manager_assigns_human_readable_session_title_hints() -> None:
             session_title_hint="nyonyo",
         )
 
-        assert first.title == "nyonyo"
-        assert second.title == "nyonyo 1"
+        assert first.projection.title == "nyonyo"
+        assert second.projection.title == "nyonyo 1"
 
     asyncio.run(_run())
 
@@ -3241,28 +3895,32 @@ def test_runtime_manager_list_sessions_dedupes_exact_remote_channel_duplicates()
         )
 
         await runtime.import_session_snapshot(
-            session_id="dup-qq-1",
-            workspace_dir=workspace,
-            title="nyonyo",
-            origin_surface="qq",
-            active_surface="qq",
-            reply_enabled=True,
-            channel_type="qq",
-            conversation_id="group:demo",
-            sender_id="user-1",
-            transcript=[],
+            RuntimeSessionSnapshotImportCommand(
+                session_id="dup-qq-1",
+                workspace_dir=workspace,
+                title="nyonyo",
+                origin_surface="qq",
+                active_surface="qq",
+                reply_enabled=True,
+                channel_type="qq",
+                conversation_id="group:demo",
+                sender_id="user-1",
+                transcript=[],
+            )
         )
         await runtime.import_session_snapshot(
-            session_id="dup-qq-2",
-            workspace_dir=workspace,
-            title="nyonyo",
-            origin_surface="qq",
-            active_surface="qq",
-            reply_enabled=True,
-            channel_type="qq",
-            conversation_id="group:demo",
-            sender_id="user-1",
-            transcript=[],
+            RuntimeSessionSnapshotImportCommand(
+                session_id="dup-qq-2",
+                workspace_dir=workspace,
+                title="nyonyo",
+                origin_surface="qq",
+                active_surface="qq",
+                reply_enabled=True,
+                channel_type="qq",
+                conversation_id="group:demo",
+                sender_id="user-1",
+                transcript=[],
+            )
         )
 
         sessions = await runtime.list_sessions()
@@ -3356,37 +4014,41 @@ def test_use_case_chat_without_session_id_restores_latest_persisted_shared_sessi
             ),
         )
         await seed_runtime.import_session_snapshot(
-            session_id="sess-old",
-            workspace_dir=workspace,
-            title="nyonyo",
-            origin_surface="qq",
-            active_surface="qq",
-            reply_enabled=True,
-            channel_type="qq",
-            conversation_id="group:demo",
-            sender_id="user-1",
-            transcript=[
-                {
-                    "role": "user",
-                    "content": "older task",
-                    "surface": "qq",
-                }
-            ],
+            RuntimeSessionSnapshotImportCommand(
+                session_id="sess-old",
+                workspace_dir=workspace,
+                title="nyonyo",
+                origin_surface="qq",
+                active_surface="qq",
+                reply_enabled=True,
+                channel_type="qq",
+                conversation_id="group:demo",
+                sender_id="user-1",
+                transcript=[
+                    {
+                        "role": "user",
+                        "content": "older task",
+                        "surface": "qq",
+                    }
+                ],
+            )
         )
         await seed_runtime.import_session_snapshot(
-            session_id="sess-new",
-            workspace_dir=workspace,
-            title="Session 2",
-            origin_surface="tui",
-            active_surface="tui",
-            reply_enabled=False,
-            transcript=[
-                {
-                    "role": "user",
-                    "content": "newer task",
-                    "surface": "tui",
-                }
-            ],
+            RuntimeSessionSnapshotImportCommand(
+                session_id="sess-new",
+                workspace_dir=workspace,
+                title="Session 2",
+                origin_surface="tui",
+                active_surface="tui",
+                reply_enabled=False,
+                transcript=[
+                    {
+                        "role": "user",
+                        "content": "newer task",
+                        "surface": "tui",
+                    }
+                ],
+            )
         )
 
         runtime = MainAgentRuntimeManager(
@@ -3504,7 +4166,7 @@ def test_runtime_manager_list_sessions_hides_untitled_channel_stub_when_shared_t
         knowledge_base_enabled=True,
     )
 
-    deduped = MainAgentRuntimeManager._dedupe_session_summaries([shared, stub])
+    deduped = RuntimeSessionCatalogHandler.dedupe_session_summaries([shared, stub])
 
     assert [item.session_id for item in deduped] == ["shared-session-10"]
 
@@ -3723,8 +4385,8 @@ def test_runtime_manager_session_lifecycle_idle_reset_applied_on_reuse(monkeypat
         )
 
         session = await runtime.get_or_create_session("sess-lifecycle", workspace)
-        session.agent.add_user_message("before-reset")
-        session.agent.messages.append(SimpleNamespace(role="assistant", content="mock:before-reset"))
+        session.runtime.agent.add_user_message("before-reset")
+        session.runtime.agent.messages.append(SimpleNamespace(role="assistant", content="mock:before-reset"))
         stale_state = SessionLifecycleState(
             session_key=session.lifecycle_state.session_key,
             created_utc=session.lifecycle_state.created_utc,
@@ -3735,8 +4397,8 @@ def test_runtime_manager_session_lifecycle_idle_reset_applied_on_reuse(monkeypat
 
         reused = await runtime.get_or_create_session("sess-lifecycle", workspace)
         assert reused.session_id == "sess-lifecycle"
-        assert len(reused.agent.messages) == 1
-        assert str(getattr(reused.agent.messages[0], "role", "")).lower() == "system"
+        assert len(reused.runtime.agent.messages) == 1
+        assert str(getattr(reused.runtime.agent.messages[0], "role", "")).lower() == "system"
         assert reused.lifecycle_state.revision == 1
 
         diag = await runtime.get_runtime_diagnostics()
@@ -3780,8 +4442,60 @@ def test_use_case_chat_delegation_success_runs_sub_agent() -> None:
         assert response.delegation is not None
         assert response.delegation["used"] is True
         assert response.delegation["fallback_used"] is False
+        child_session_id = response.delegation.get("child_session_id")
+        assert isinstance(child_session_id, str) and child_session_id
         event_types = [item.get("event_type") for item in response.delegation.get("events", [])]
         assert event_types == ["delegation.started", "delegation.completed"]
+        child_detail = await use_cases.get_session_detail(child_session_id, recent_limit=20)
+        assert child_detail.title and child_detail.title.startswith("Task:")
+        child_contents = [item.content for item in child_detail.recent_messages]
+        assert "ship p23.3" in child_contents
+        assert "delegated:ship p23.3" in child_contents
+        parent = runtime._session_lineage.parent_of(child_session_id)
+        assert parent is not None
+        assert parent.session_key == "sess-delegate-success"
+        sessions = await use_cases.list_sessions()
+        assert len(sessions) == 2
+
+    asyncio.run(_run())
+
+
+def test_use_case_can_create_explicit_derived_session() -> None:
+    async def _run() -> None:
+        async def _build_agent(_workspace: Path):
+            return _SelectableAgent(provider_source="preset", provider_id="openai", model_id="gpt-5.4")
+
+        runtime = MainAgentRuntimeManager(ttl_seconds=3600, build_agent=_build_agent)
+        use_cases = MainAgentGatewayUseCases(
+            runtime_manager=runtime,
+            resolve_workspace_dir=_resolve_workspace_dir,
+            to_utc_iso=_to_utc_iso,
+            sse_event=_sse_event,
+            format_bootstrap_error=_format_bootstrap_error,
+            stream_chunk_size=64,
+        )
+
+        parent_response = await use_cases.run_chat(
+            MainAgentChatRequest(
+                message="Parent session context",
+                workspace_dir=".",
+                session_id="sess-explicit-parent",
+            )
+        )
+        child_detail = await use_cases.create_derived_session(
+            parent_response.session_id,
+            MainAgentSessionForkRequest(title="Task: Focused follow-up", surface="tui"),
+        )
+
+        assert child_detail.session_id != parent_response.session_id
+        assert child_detail.title == "Task: Focused follow-up"
+        assert child_detail.selected_model_source == "preset"
+        assert child_detail.selected_provider_id == "openai"
+        assert child_detail.selected_model_id == "gpt-5.4"
+        assert child_detail.message_count == 0
+        parent = runtime._session_lineage.parent_of(child_detail.session_id)
+        assert parent is not None
+        assert parent.session_key == parent_response.session_id
 
     asyncio.run(_run())
 
@@ -3846,8 +4560,17 @@ def test_use_case_chat_delegation_failure_falls_back_to_main_agent() -> None:
         assert response.delegation is not None
         assert response.delegation["used"] is True
         assert response.delegation["fallback_used"] is True
+        child_session_id = response.delegation.get("child_session_id")
+        assert isinstance(child_session_id, str) and child_session_id
         event_types = [item.get("event_type") for item in response.delegation.get("events", [])]
         assert event_types == ["delegation.started", "delegation.failed", "delegation.completed"]
+        child_detail = await use_cases.get_session_detail(child_session_id, recent_limit=20)
+        child_contents = [item.content for item in child_detail.recent_messages]
+        assert "recover task" in child_contents
+        assert any("delegated-failure" in item for item in child_contents)
+        parent = runtime._session_lineage.parent_of(child_session_id)
+        assert parent is not None
+        assert parent.session_key == "sess-delegate-fallback"
 
     asyncio.run(_run())
 

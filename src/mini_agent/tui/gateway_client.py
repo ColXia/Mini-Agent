@@ -5,16 +5,58 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from dataclasses import dataclass
 from typing import Any, AsyncIterator
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
 import httpx
+from mini_agent.runtime.interaction_surface import resolve_interaction_binding
 
 
 def _safe_text(value: Any) -> str:
     return " ".join(str(value or "").split())
+
+
+@dataclass(frozen=True)
+class _GatewaySessionBinding:
+    surface: str | None = None
+    channel_type: str | None = None
+    conversation_id: str | None = None
+    sender_id: str | None = None
+
+    @classmethod
+    def from_values(
+        cls,
+        *,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+        default_surface: str | None = None,
+    ) -> _GatewaySessionBinding:
+        binding = resolve_interaction_binding(
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+            default_surface=default_surface,
+        )
+        return cls(
+            surface=binding.surface,
+            channel_type=binding.channel_type,
+            conversation_id=binding.conversation_id,
+            sender_id=binding.sender_id,
+        )
+
+    def as_payload(self) -> dict[str, str | None]:
+        return {
+            "surface": self.surface,
+            "channel_type": self.channel_type,
+            "conversation_id": self.conversation_id,
+            "sender_id": self.sender_id,
+        }
 
 
 class TuiGatewayClient:
@@ -29,6 +71,39 @@ class TuiGatewayClient:
         configured = _safe_text(base_url or os.getenv("MINI_AGENT_GATEWAY_BASE") or "http://127.0.0.1:8008")
         self.base_url = configured.rstrip("/")
         self.timeout_seconds = max(1.0, float(timeout_seconds))
+
+    @staticmethod
+    def _create_session_payload(
+        *,
+        workspace_dir: str,
+        title: str | None = None,
+        surface: str = "tui",
+        shared: bool = False,
+    ) -> dict[str, Any]:
+        binding = _GatewaySessionBinding.from_values(surface=surface, default_surface="tui")
+        return {
+            "workspace_dir": str(workspace_dir),
+            "title": _safe_text(title) or None,
+            "surface": binding.surface or "tui",
+            "shared": bool(shared),
+        }
+
+    @staticmethod
+    def _chat_payload(
+        *,
+        session_id: str,
+        message: str,
+        workspace_dir: str,
+        surface: str = "tui",
+    ) -> dict[str, Any]:
+        binding = _GatewaySessionBinding.from_values(surface=surface, default_surface="tui")
+        return {
+            "message": str(message),
+            "session_id": _safe_text(session_id) or None,
+            "workspace_dir": str(workspace_dir),
+            "surface": binding.surface or "tui",
+            "dry_run": False,
+        }
 
     async def list_sessions(
         self,
@@ -98,16 +173,45 @@ class TuiGatewayClient:
         surface: str = "tui",
         shared: bool = False,
     ) -> dict[str, Any]:
-        payload = {
-            "workspace_dir": str(workspace_dir),
-            "title": _safe_text(title) or None,
-            "surface": _safe_text(surface) or "tui",
-            "shared": bool(shared),
-        }
+        payload = self._create_session_payload(
+            workspace_dir=workspace_dir,
+            title=title,
+            surface=surface,
+            shared=shared,
+        )
         return await asyncio.to_thread(
             self._request_json,
             "POST",
             "/api/v1/agent/sessions",
+            payload=payload,
+        )
+
+    async def create_derived_session(
+        self,
+        parent_session_id: str,
+        *,
+        title: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> dict[str, Any]:
+        safe_id = quote(_safe_text(parent_session_id), safe="")
+        binding = _GatewaySessionBinding.from_values(
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+            default_surface="tui",
+        )
+        payload = {
+            "title": _safe_text(title) or None,
+            **binding.as_payload(),
+        }
+        return await asyncio.to_thread(
+            self._request_json,
+            "POST",
+            f"/api/v1/agent/sessions/{safe_id}/fork",
             payload=payload,
         )
 
@@ -119,12 +223,12 @@ class TuiGatewayClient:
         surface: str = "tui",
         shared: bool = False,
     ) -> dict[str, Any]:
-        payload = {
-            "workspace_dir": str(workspace_dir),
-            "title": _safe_text(title) or None,
-            "surface": _safe_text(surface) or "tui",
-            "shared": bool(shared),
-        }
+        payload = self._create_session_payload(
+            workspace_dir=workspace_dir,
+            title=title,
+            surface=surface,
+            shared=shared,
+        )
         return self._request_json(
             "POST",
             "/api/v1/agent/sessions",
@@ -168,12 +272,15 @@ class TuiGatewayClient:
         sender_id: str | None = None,
     ) -> dict[str, Any]:
         safe_id = quote(_safe_text(session_id), safe="")
+        binding = _GatewaySessionBinding.from_values(
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
         payload = {
             "reason": reason,
-            "surface": _safe_text(surface) or None,
-            "channel_type": _safe_text(channel_type) or None,
-            "conversation_id": _safe_text(conversation_id) or None,
-            "sender_id": _safe_text(sender_id) or None,
+            **binding.as_payload(),
         }
         return await asyncio.to_thread(
             self._request_json,
@@ -194,13 +301,16 @@ class TuiGatewayClient:
         sender_id: str | None = None,
     ) -> dict[str, Any]:
         safe_id = quote(_safe_text(session_id), safe="")
+        binding = _GatewaySessionBinding.from_values(
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
         payload = {
             "action": _safe_text(action),
             "reason": reason,
-            "surface": _safe_text(surface) or None,
-            "channel_type": _safe_text(channel_type) or None,
-            "conversation_id": _safe_text(conversation_id) or None,
-            "sender_id": _safe_text(sender_id) or None,
+            **binding.as_payload(),
         }
         return await asyncio.to_thread(
             self._request_json,
@@ -224,16 +334,19 @@ class TuiGatewayClient:
         sender_id: str | None = None,
     ) -> dict[str, Any]:
         safe_id = quote(_safe_text(session_id), safe="")
+        binding = _GatewaySessionBinding.from_values(
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
         payload = {
             "action": _safe_text(action),
             "sources": [item for item in list(sources or []) if _safe_text(item)],
             "max_items": max_items,
             "max_total_chars": max_total_chars,
             "max_items_per_source": max_items_per_source,
-            "surface": _safe_text(surface) or None,
-            "channel_type": _safe_text(channel_type) or None,
-            "conversation_id": _safe_text(conversation_id) or None,
-            "sender_id": _safe_text(sender_id) or None,
+            **binding.as_payload(),
         }
         return await asyncio.to_thread(
             self._request_json,
@@ -259,6 +372,12 @@ class TuiGatewayClient:
         sender_id: str | None = None,
     ) -> dict[str, Any]:
         safe_id = quote(_safe_text(session_id), safe="")
+        binding = _GatewaySessionBinding.from_values(
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
         payload = {
             "action": _safe_text(action),
             "engram_id": _safe_text(engram_id) or None,
@@ -267,10 +386,7 @@ class TuiGatewayClient:
             "day": _safe_text(day) or None,
             "export_format": _safe_text(export_format) or None,
             "detail_mode": _safe_text(detail_mode) or None,
-            "surface": _safe_text(surface) or None,
-            "channel_type": _safe_text(channel_type) or None,
-            "conversation_id": _safe_text(conversation_id) or None,
-            "sender_id": _safe_text(sender_id) or None,
+            **binding.as_payload(),
         }
         return await asyncio.to_thread(
             self._request_json,
@@ -294,16 +410,19 @@ class TuiGatewayClient:
         sender_id: str | None = None,
     ) -> dict[str, Any]:
         safe_id = quote(_safe_text(session_id), safe="")
+        binding = _GatewaySessionBinding.from_values(
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
         payload = {
             "action": _safe_text(action),
             "skill_name": _safe_text(skill_name) or None,
             "path": _safe_text(path) or None,
             "query": _safe_text(query) or None,
             "mode": _safe_text(mode) or None,
-            "surface": _safe_text(surface) or None,
-            "channel_type": _safe_text(channel_type) or None,
-            "conversation_id": _safe_text(conversation_id) or None,
-            "sender_id": _safe_text(sender_id) or None,
+            **binding.as_payload(),
         }
         return await asyncio.to_thread(
             self._request_json,
@@ -316,7 +435,7 @@ class TuiGatewayClient:
         self,
         session_id: str,
         *,
-        provider_source: str,
+        provider_source: str | None,
         provider_id: str,
         model_id: str,
         surface: str | None = None,
@@ -325,14 +444,17 @@ class TuiGatewayClient:
         sender_id: str | None = None,
     ) -> dict[str, Any]:
         safe_id = quote(_safe_text(session_id), safe="")
+        binding = _GatewaySessionBinding.from_values(
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
         payload = {
-            "provider_source": _safe_text(provider_source),
+            "provider_source": _safe_text(provider_source) or None,
             "provider_id": _safe_text(provider_id),
             "model_id": _safe_text(model_id),
-            "surface": _safe_text(surface) or None,
-            "channel_type": _safe_text(channel_type) or None,
-            "conversation_id": _safe_text(conversation_id) or None,
-            "sender_id": _safe_text(sender_id) or None,
+            **binding.as_payload(),
         }
         return await asyncio.to_thread(
             self._request_json,
@@ -353,13 +475,16 @@ class TuiGatewayClient:
         sender_id: str | None = None,
     ) -> dict[str, Any]:
         safe_id = quote(_safe_text(session_id), safe="")
+        binding = _GatewaySessionBinding.from_values(
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
         payload = {
             "approval_profile": _safe_text(approval_profile) or None,
             "access_level": _safe_text(access_level) or None,
-            "surface": _safe_text(surface) or None,
-            "channel_type": _safe_text(channel_type) or None,
-            "conversation_id": _safe_text(conversation_id) or None,
-            "sender_id": _safe_text(sender_id) or None,
+            **binding.as_payload(),
         }
         return await asyncio.to_thread(
             self._request_json,
@@ -380,13 +505,16 @@ class TuiGatewayClient:
         sender_id: str | None = None,
     ) -> dict[str, Any]:
         safe_id = quote(_safe_text(session_id), safe="")
+        binding = _GatewaySessionBinding.from_values(
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
         payload = {
             "approved": bool(approved),
             "token": _safe_text(token) or None,
-            "surface": _safe_text(surface) or None,
-            "channel_type": _safe_text(channel_type) or None,
-            "conversation_id": _safe_text(conversation_id) or None,
-            "sender_id": _safe_text(sender_id) or None,
+            **binding.as_payload(),
         }
         return await asyncio.to_thread(
             self._request_json,
@@ -411,13 +539,12 @@ class TuiGatewayClient:
         workspace_dir: str,
         surface: str = "tui",
     ) -> dict[str, Any]:
-        payload = {
-            "message": str(message),
-            "session_id": _safe_text(session_id) or None,
-            "workspace_dir": str(workspace_dir),
-            "surface": _safe_text(surface) or "tui",
-            "dry_run": False,
-        }
+        payload = self._chat_payload(
+            session_id=session_id,
+            message=message,
+            workspace_dir=workspace_dir,
+            surface=surface,
+        )
         return await asyncio.to_thread(self._request_json, "POST", "/api/v1/agent/chat", payload=payload)
 
     async def stream_chat_events(
@@ -429,10 +556,12 @@ class TuiGatewayClient:
         surface: str = "tui",
     ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
         params = {
-            "message": str(message),
-            "session_id": _safe_text(session_id) or None,
-            "workspace_dir": str(workspace_dir),
-            "surface": _safe_text(surface) or "tui",
+            **self._chat_payload(
+                session_id=session_id,
+                message=message,
+                workspace_dir=workspace_dir,
+                surface=surface,
+            ),
             "dry_run": "false",
         }
         timeout = httpx.Timeout(connect=self.timeout_seconds, read=None, write=self.timeout_seconds, pool=self.timeout_seconds)

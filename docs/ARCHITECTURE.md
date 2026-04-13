@@ -1,59 +1,94 @@
-﻿# Mini-Agent Architecture
+# Mini-Agent Architecture
 
 > Status: active
-> Last updated: 2026-04-12
-> Primary delivery mode: terminal-first (`TUI / CLI / headless`)
+> Last updated: 2026-04-13
+> Product entrance model: `CLI / TUI / DesktopUI / Remote Interaction`
+> Current implementation focus: terminal-first delivery plus `DesktopUI(PySide6)` planning, with `QQ` as the only active remote-channel path; `WeChat / Feishu` remain future extension targets and browser `WebUI` is now a paused compatibility/prototype path rather than the canonical third entrance
+> Framework skeleton lock: [`FRAMEWORK_SKELETON.md`](./FRAMEWORK_SKELETON.md)
 
 ## 1. Architectural Position
 
-Mini-Agent is currently a terminal-first agent platform.
+Mini-Agent is a shared agent platform with four user-side entrances:
 
-The active product and development reality is:
+- `CLI`
+- `TUI`
+- `DesktopUI`
+- `Remote Interaction`
 
-- `TUI`, `CLI`, and `headless` are the primary surfaces
-- gateway is the shared API/runtime host
-- QQ is an optional remote channel adapter
-- WebUI is paused as the primary product surface
+`Remote Interaction` is a product entrance, not a single bot implementation.
+Its concrete channel adapters conceptually include:
+
+- `QQ bot`
+- `WeChat bot`
+- `Feishu bot`
+
+Current delivery scope:
+
+- `QQ bot` is the active implementation path
+- `WeChat bot` is future extension only
+- `Feishu bot` is future extension only
+- `DesktopUI (PySide6)` is the planned graphical mainline
+- browser `WebUI` is paused as a compatibility/prototype path
+
+At the same time:
+
+- `headless` is a runtime mode, not a fifth user entrance
+- `gateway` is the shared host / access path, not a user entrance
+- channel adapters are protocol bridges, not session owners
 
 ## 2. Core Rule
 
-The most important current rule is:
+The most important rule remains unchanged:
 
 - `Session` is the single source of truth
-- surfaces do not own sessions
-- channels do not own sessions
-- surfaces and channels operate sessions through shared application services
+- entrances do not own sessions
+- channel adapters do not own sessions
+- every entrance operates sessions through shared application services
 
 See:
 
 - [`P29_SESSION_BOUNDARY_AUDIT_2026-04-12.md`](./P29_SESSION_BOUNDARY_AUDIT_2026-04-12.md)
 - [`P30_SURFACE_SESSION_ARCHITECTURE_CORRECTION_2026-04-12.md`](./P30_SURFACE_SESSION_ARCHITECTURE_CORRECTION_2026-04-12.md)
 - [`P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md`](./P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md)
+- [`FRAMEWORK_SKELETON.md`](./FRAMEWORK_SKELETON.md)
 
 ## 3. Layering
 
-### Surface layer
+### User entrance layer
 
-- `TUI`
-- `CLI`
-- `headless terminal execution`
-- optional browser/admin surfaces
-- remote channels such as `QQ`
+- `CLI`: the canonical base interaction surface
+- `TUI`: the developer-facing visual terminal surface
+- `DesktopUI`: the primary end-user graphical surface
+- `Remote Interaction`: the remote conversational entrance
 
-### Transport / adapter layer
+### Remote channel adapter sub-layer
 
-- terminal adapters
+- `QQ adapter` (active path)
+- `WeChat adapter` (future extension)
+- `Feishu adapter` (future extension)
+
+This sub-layer exists under the remote entrance and is not parallel to the four entrances themselves.
+
+### Interface / transport layer
+
+- terminal input/output adapters
+- browser HTTP / WebSocket API
 - gateway HTTP API
-- QQ bot adapter
-- compatibility adapters such as OpenWebUI-facing paths when enabled
+- remote channel ingress / egress adapters
 
-### Application layer
+This layer translates protocols and presentation contracts.
+It must not become a second business layer.
+
+### Application service layer
 
 - session service
-- shared command execution services
-- main gateway use cases
-- channel ingress use cases
-- studio ops use cases
+- chat / turn service
+- command execution service
+- model service
+- memory / RAG / skill / MCP application services
+- workspace and approval services
+
+This is the shared service layer used by all four entrances.
 
 ### Runtime orchestration layer
 
@@ -70,36 +105,50 @@ See:
 - RAG
 - skills
 - MCP
-- session persistence / projection / search
+- session and workspace domain contracts
+
+### Infrastructure layer
+
+- persistence stores
+- LLM clients
+- channel SDKs
+- browser runtimes
+- local filesystem / workspace state
 
 ## 4. Current Runtime Topology
 
 ```text
-TUI / CLI / headless
-        |
-        v
-shared commands + application services
-        |
-        v
-runtime orchestration
-        |
-        v
+CLI / TUI / DesktopUI / Remote Interaction
+                 |
+                 v
+        interface / transport adapters
+                 |
+                 v
+      shared application services
+                 |
+                 v
+      runtime orchestration
+                 |
+                 v
 agent / models / memory / RAG / skills / MCP
-        |
-        v
-session persistence + transcripts + workspace state
+                 |
+                 v
+session persistence + workspace state + external integrations
 ```
 
-Optional remote path:
+Remote path detail:
 
 ```text
-QQ channel
-   |
-   v
-gateway adapter
-   |
-   v
-same application services and session contracts
+Remote Interaction
+       |
+       v
+QQ / WeChat / Feishu adapters
+       |
+       v
+gateway ingress + shared application services
+       |
+       v
+same session truth and runtime contracts
 ```
 
 ## 5. Repository Mapping
@@ -107,7 +156,7 @@ same application services and session contracts
 ```text
 src/mini_agent/
   agent_core/          agent-core domain and orchestration pieces
-  application/         use cases and shared application services
+  application/         shared use cases and application services
   code_agent/          tool loop, scheduler, sandbox, MCP client, context
   commands/            shared operator command semantics
   memory/              global/workspace memory runtime
@@ -115,15 +164,31 @@ src/mini_agent/
   model_manager/       preset/custom providers and unified model registry
   runtime/             runtime manager and execution wiring
   session/             session persistence, projections, search
-  tui/                 terminal UI surface
-  tools/               runtime tools
+  tui/                 TUI surface
+  desktop/             DesktopUI surface state and view-model helpers
 
 src/apps/agent_studio_gateway/
-  shared API host and gateway routes
+  shared gateway host and browser/remote API routes
+
+src/apps/desktop_ui/
+  PySide6 desktop bootstrap and packaging entry
 
 src/apps/qqbot_channel/
-  optional QQ channel app
+  active QQ remote-channel adapter app
+
+src/apps/agent_studio/
+  paused browser compatibility/prototype path; not the canonical graphical mainline
+
+src/channels/wechat/
+  future-extension WeChat integration code; not part of the current delivery roadmap
 ```
+
+Planned but not yet landed as a first-class maintained path:
+
+- `DesktopUI (PySide6)` as the canonical maintained graphical path
+- `WeChat remote-channel adapter` as a maintained product path
+- `Feishu remote-channel adapter`
+- browser `WebUI` only if revived later as an optional compatibility surface on the same shared service contract
 
 ## 6. Configuration Model
 
@@ -145,23 +210,59 @@ Custom providers:
 
 - persisted in `~/.mini-agent/providers.json`
 
-### Other config assets
+### Channel configuration
 
-The repo still contains config assets under [`../src/mini_agent/config`](../src/mini_agent/config),
-but the active preset-provider path is env-first rather than README-level `config.yaml` setup.
+Remote-channel adapters are allowed to hold:
 
-## 7. Skills and MCP
+- channel credentials
+- conversation-to-session bindings
+- delivery preferences
+- channel display metadata
 
-- builtin skills are bundled in-repo under [`../src/mini_agent/skills`](../src/mini_agent/skills)
-- workspace skills are layered on top of the builtin catalog
-- MCP is integrated through runtime policy, registry, and command surfaces
-- the project no longer treats an external skill submodule as the default runtime model
+They must not persist a second session truth model.
+
+## 7. Architectural Clarifications
+
+### Why there is still an API layer
+
+Yes, the project still needs an API layer, but it belongs to the interface / transport layer.
+It exists to expose the shared application services to:
+
+- DesktopUI
+- remote-channel adapters
+- optional external integrations
+
+It must not duplicate business rules that belong in the application layer.
+
+### What CLI and TUI relationship means
+
+- `CLI` is the base interaction entrance and the lowest-complexity operator path
+- `TUI` is a richer visual entrance that should reuse CLI command semantics and the same application services
+
+### What the remote entrance means
+
+The remote entrance is not "QQ mode in TUI".
+It is a separate product entrance whose concrete implementations are channel adapters such as:
+
+- `QQ`
+- `WeChat`
+- `Feishu`
+
+Those adapters may reuse the same commands and services, but they must stay thin.
+
+### What DesktopUI means now
+
+- `DesktopUI` is not a browser-first Studio continuation
+- `DesktopUI` is not a wrapper around the current TUI renderer
+- `DesktopUI` should reuse the same application/runtime/session truth through a thin local gateway transport in the first delivery slices
+- if browser Studio remains in the repo, it should be treated as paused compatibility/prototype material rather than the mainline UX direction
 
 ## 8. Current Non-Goals
 
-- WebUI-first product flow
 - surface-owned session truth
 - channel-specific business logic forks
+- treating `headless` as an independent user product entrance
+- treating one concrete channel adapter as the definition of the whole remote entrance
 - documenting reference projects as runtime dependencies
 
 ## 9. Architecture References

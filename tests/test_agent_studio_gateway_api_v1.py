@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+from pathlib import Path
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from uuid import uuid4
 
 import apps.agent_studio_gateway.main as gateway_main
 from apps.agent_studio_gateway.main import app
+from mini_agent.application import ChannelIngressUseCases, RemoteConversationBindingService
 from mini_agent.interfaces import (
+    MainAgentChatRequest,
+    MainAgentChatResponse,
     MainAgentSessionApprovalResponse,
     MainAgentSessionContextResponse,
     MainAgentSessionDetail,
@@ -20,6 +25,7 @@ from mini_agent.interfaces import (
     MainAgentSessionSkillResponse,
     MainAgentSessionSummary,
 )
+from mini_agent.session import ConversationBindingStore
 
 
 def test_v1_system_health_envelope() -> None:
@@ -188,6 +194,69 @@ def test_v1_channel_message_novel_action_metadata_dispatch() -> None:
         assert payload["ok"] is True
         assert "\"action\": \"config\"" in payload["data"]["reply"]
         assert "channel-novel-meta" in payload["data"]["reply"]
+
+
+def test_v1_channel_message_reuses_central_binding_without_explicit_session_id(tmp_path: Path, monkeypatch) -> None:
+    requests: list[MainAgentChatRequest] = []
+
+    async def _run_main_agent_chat(request: MainAgentChatRequest) -> MainAgentChatResponse:
+        requests.append(request)
+        return MainAgentChatResponse(
+            session_id="sess-central",
+            reply=f"echo:{request.message}",
+            message_count=len(requests),
+            token_usage=5,
+            workspace_dir=str(tmp_path / "workspace"),
+            updated_at=datetime.now(timezone.utc).isoformat(),
+        )
+
+    class _UnusedNovelUseCases:
+        async def get_config(self, project_dir: str | None = None) -> dict[str, object]:
+            _ = project_dir
+            raise AssertionError("novel actions are outside this test scope")
+
+    monkeypatch.setattr(
+        gateway_main,
+        "_CHANNEL_INGRESS_USE_CASES",
+        ChannelIngressUseCases(
+            run_main_agent_chat=_run_main_agent_chat,
+            novel_use_cases=_UnusedNovelUseCases(),
+            resolve_workspace_dir=lambda value: Path(value or ".").resolve(),
+            to_utc_iso=lambda value: value.astimezone(timezone.utc).isoformat(),
+            remote_binding_service=RemoteConversationBindingService(
+                binding_store=ConversationBindingStore(tmp_path / "conversation-bindings.json"),
+            ),
+        ),
+    )
+
+    with TestClient(app) as client:
+        first = client.post(
+            "/api/v1/channel/message",
+            json={
+                "channel_type": "qq",
+                "conversation_id": "group:central",
+                "sender_id": "user-1",
+                "message": "hello",
+                "workspace_dir": str(tmp_path / "workspace"),
+            },
+        )
+        assert first.status_code == 200
+
+        second = client.post(
+            "/api/v1/channel/message",
+            json={
+                "channel_type": "qq",
+                "conversation_id": "group:central",
+                "sender_id": "user-1",
+                "message": "continue",
+                "workspace_dir": str(tmp_path / "workspace"),
+            },
+        )
+        assert second.status_code == 200
+
+    assert len(requests) == 2
+    assert requests[0].session_id is None
+    assert requests[1].session_id == "sess-central"
 
 
 def test_v1_agent_sessions_envelope_empty() -> None:

@@ -6,7 +6,7 @@ import * as dotenv from "dotenv";
 import * as path from "path";
 import { WeChatChannel } from "./channel";
 import { HTTPGatewayClient } from "./gateway_client";
-import { MemorySessionStore } from "./session_store";
+import { MemoryConversationBindingStore } from "./conversation_binding_store";
 
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
@@ -24,7 +24,7 @@ async function main(): Promise<void> {
     "";
   const defaultWorkspace = process.env.WECHAT_DEFAULT_WORKSPACE || process.cwd();
   const defaultDryRun = process.env.WECHAT_DEFAULT_DRY_RUN?.toLowerCase() === "true";
-  const sessionStorePath =
+  const bindingStorePath =
     process.env.WECHAT_SESSION_STORE_PATH || path.resolve(process.cwd(), ".wechat_sessions.json");
   const allowedWorkspaceRoots = (
     process.env.WECHAT_ALLOWED_WORKSPACE_ROOTS ||
@@ -52,7 +52,7 @@ async function main(): Promise<void> {
     timeout: 120000,
     gatewayAuthToken,
   });
-  const sessionStore = new MemorySessionStore({ filePath: sessionStorePath });
+  const conversationBindingStore = new MemoryConversationBindingStore({ filePath: bindingStorePath });
 
   const channel = new WeChatChannel(
     {
@@ -69,7 +69,7 @@ async function main(): Promise<void> {
       dedupeWindowSize,
     },
     gatewayClient,
-    sessionStore,
+    conversationBindingStore,
     defaultWorkspace,
     defaultDryRun
   );
@@ -90,7 +90,7 @@ async function main(): Promise<void> {
     console.log("[wechat-channel] Starting...");
     console.log(`[wechat-channel] Gateway: ${gatewayBaseUrl}`);
     console.log(`[wechat-channel] Webhook: ${host}:${port}${webhookPath}`);
-    console.log(`[wechat-channel] Session store: ${sessionStorePath}`);
+    console.log(`[wechat-channel] Conversation binding store: ${bindingStorePath}`);
     console.log(`[wechat-channel] Allowed roots: ${allowedWorkspaceRoots.join(", ")}`);
     console.log(`[wechat-channel] Max message chars: ${maxMessageChars}`);
     console.log(`[wechat-channel] Max response chars: ${maxResponseChars}`);

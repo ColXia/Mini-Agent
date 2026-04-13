@@ -425,6 +425,83 @@ def resolve_pinned_llm_candidate(
     )
 
 
+def resolve_session_model_selection_identity(
+    config: Any,
+    *,
+    provider_id: str,
+    model_id: str | None = None,
+    provider_source: str | None = None,
+    catalog_path: str | Path | None = None,
+) -> tuple[str, str, str]:
+    """Resolve one session-scoped model-selection identity, inferring source when unique."""
+
+    requested_provider_id = _normalize_text(provider_id)
+    if not requested_provider_id:
+        raise ValueError("provider_id must not be empty")
+
+    requested_model = _normalize_text(model_id or str(config.llm.model))
+    if not requested_model:
+        raise ValueError("model_id must not be empty")
+
+    requested_source = _normalize_text(provider_source).lower()
+    if requested_source:
+        resolve_pinned_llm_candidate(
+            config,
+            provider_source=requested_source,
+            provider_id=requested_provider_id,
+            model_id=requested_model,
+            catalog_path=catalog_path,
+        )
+        return requested_source, requested_provider_id, requested_model
+
+    from mini_agent.model_manager.model_registry_service import ModelRegistryService
+
+    service = ModelRegistryService(catalog_path=_resolve_catalog_path(catalog_path))
+    provider_rows = [
+        item
+        for item in service.list_registry()
+        if bool(item.get("enabled", True))
+        and _normalize_text(str(item.get("provider_id") or "")) == requested_provider_id
+    ]
+    if not provider_rows:
+        raise ValueError(f"provider not configured: {requested_provider_id}")
+
+    matched_sources: set[str] = set()
+    for item in provider_rows:
+        source = _normalize_text(str(item.get("source") or "")).lower()
+        if source not in {"custom", "preset"}:
+            continue
+        models = item.get("models")
+        if not isinstance(models, list):
+            continue
+        for model in models:
+            if not isinstance(model, dict):
+                continue
+            current_model_id = _normalize_text(str(model.get("model_id") or ""))
+            if current_model_id == requested_model:
+                matched_sources.add(source)
+                break
+
+    if not matched_sources:
+        raise ValueError(
+            f"model '{requested_model}' is not available in provider '{requested_provider_id}'"
+        )
+    if len(matched_sources) > 1:
+        raise ValueError(
+            f"provider '{requested_provider_id}' with model '{requested_model}' is ambiguous across sources; specify provider_source"
+        )
+
+    resolved_source = next(iter(matched_sources))
+    resolve_pinned_llm_candidate(
+        config,
+        provider_source=resolved_source,
+        provider_id=requested_provider_id,
+        model_id=requested_model,
+        catalog_path=catalog_path,
+    )
+    return resolved_source, requested_provider_id, requested_model
+
+
 def resolve_routed_llm_settings(
     config: Any,
     *,

@@ -15,6 +15,7 @@ from mini_agent.interfaces import (
     MainAgentSessionControlResponse,
     MainAgentSessionCreateRequest,
     MainAgentSessionDetail,
+    MainAgentSessionForkRequest,
     MainAgentSessionMemoryRequest,
     MainAgentSessionMemoryResponse,
     MainAgentSessionMessage,
@@ -29,7 +30,10 @@ from mini_agent.interfaces import (
     MainAgentSessionSkillResponse,
     MainAgentSessionSummary,
 )
-from mini_agent.runtime.main_agent_runtime_manager import MainAgentRuntimeManager, MainAgentSessionState
+from mini_agent.runtime.main_agent_runtime_manager import MainAgentRuntimeManager
+from mini_agent.runtime.interaction_surface import resolve_interaction_binding
+from mini_agent.runtime.session_state import MainAgentSessionState
+from mini_agent.runtime.session_turn_scope_handler import RuntimeSessionTurnScopeHandler
 
 
 @dataclass(frozen=True)
@@ -39,6 +43,53 @@ class SessionSurfaceBinding:
     conversation_id: str | None = None
     sender_id: str | None = None
 
+    @classmethod
+    def from_values(
+        cls,
+        *,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+        default_surface: str | None = None,
+    ) -> SessionSurfaceBinding:
+        binding = resolve_interaction_binding(
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+            default_surface=default_surface,
+        )
+        return cls(
+            surface=binding.surface,
+            channel_type=binding.channel_type,
+            conversation_id=binding.conversation_id,
+            sender_id=binding.sender_id,
+        )
+
+    @classmethod
+    def from_request(
+        cls,
+        request: Any,
+        *,
+        default_surface: str | None = None,
+    ) -> SessionSurfaceBinding:
+        return cls.from_values(
+            surface=getattr(request, "surface", None),
+            channel_type=getattr(request, "channel_type", None),
+            conversation_id=getattr(request, "conversation_id", None),
+            sender_id=getattr(request, "sender_id", None),
+            default_surface=default_surface,
+        )
+
+    def as_kwargs(self) -> dict[str, str | None]:
+        return {
+            "surface": self.surface,
+            "channel_type": self.channel_type,
+            "conversation_id": self.conversation_id,
+            "sender_id": self.sender_id,
+        }
+
 
 class ManagedSessionTurn(AbstractAsyncContextManager["ManagedSessionTurn"]):
     """Scoped session turn lease that owns lock/lifecycle boundaries."""
@@ -46,13 +97,13 @@ class ManagedSessionTurn(AbstractAsyncContextManager["ManagedSessionTurn"]):
     def __init__(
         self,
         *,
-        runtime_manager: MainAgentRuntimeManager,
+        turn_scope: RuntimeSessionTurnScopeHandler,
         session: MainAgentSessionState,
         binding: SessionSurfaceBinding,
         user_message: str,
         running_detail: str,
     ) -> None:
-        self._runtime_manager = runtime_manager
+        self._turn_scope = turn_scope
         self._session = session
         self._binding = binding
         self._user_message = user_message
@@ -70,51 +121,51 @@ class ManagedSessionTurn(AbstractAsyncContextManager["ManagedSessionTurn"]):
 
     @property
     def agent(self) -> Agent:
-        return self._session.agent
+        return self._session.runtime.agent
 
     @property
     def active_surface(self) -> str:
-        return self._session.active_surface
+        return self._session.projection.active_surface
 
     @property
     def origin_surface(self) -> str:
-        return self._session.origin_surface
+        return self._session.projection.origin_surface
 
     @property
     def channel_type(self) -> str | None:
-        return self._session.channel_type
+        return self._session.projection.channel_type
 
     @property
     def conversation_id(self) -> str | None:
-        return self._session.conversation_id
+        return self._session.projection.conversation_id
 
     @property
     def sender_id(self) -> str | None:
-        return self._session.sender_id
+        return self._session.projection.sender_id
 
     @property
     def context_policy(self) -> dict[str, Any]:
-        return self._session.context_policy
+        return self._session.projection.context_policy
 
     @property
     def cancel_event(self):  # noqa: ANN201
-        return self._session.cancel_event
+        return self._session.runtime.cancel_event
 
     @property
     def busy(self) -> bool:
-        return bool(self._session.busy)
+        return bool(self._session.projection.busy)
 
     @property
     def running_state(self) -> str:
-        return self._session.running_state
+        return self._session.projection.running_state
 
     @running_state.setter
     def running_state(self, value: str) -> None:
-        self._session.running_state = str(value or "")
+        self._session.projection.running_state = str(value or "")
 
     @property
     def pending_approvals(self) -> list[dict[str, Any]]:
-        return list(self._session.pending_approvals)
+        return list(self._session.runtime.pending_approvals)
 
     @property
     def updated_at(self):  # noqa: ANN201
@@ -126,66 +177,42 @@ class ManagedSessionTurn(AbstractAsyncContextManager["ManagedSessionTurn"]):
 
     @property
     def token_usage(self) -> int:
-        return int(getattr(self._session.agent, "api_total_tokens", 0) or 0)
+        return int(getattr(self._session.runtime.agent, "api_total_tokens", 0) or 0)
 
     @property
     def message_count(self) -> int:
-        messages = getattr(self._session.agent, "messages", None)
+        messages = getattr(self._session.runtime.agent, "messages", None)
         return len(messages) if isinstance(messages, list) else 0
 
     async def __aenter__(self) -> ManagedSessionTurn:
-        await self._session.lock.acquire()
-        try:
-            self._runtime_manager.bind_session_surface(
-                self._session,
-                surface=self._binding.surface,
-                channel_type=self._binding.channel_type,
-                conversation_id=self._binding.conversation_id,
-                sender_id=self._binding.sender_id,
-            )
-            await self._runtime_manager.apply_pending_session_model_selection(self._session)
-            await self._runtime_manager.apply_pending_session_skill_reload(self._session)
-            self._recovery_context = self._runtime_manager.build_recovery_turn_context(self._session)
-            self._runtime_manager.mark_turn_started(
-                self._session,
-                surface=self._binding.surface,
-                detail=self._running_detail,
-            )
-            self._runtime_manager.record_message(
-                self._session,
-                role="user",
-                content=self._user_message,
-                surface=self._binding.surface,
-                channel_type=self._binding.channel_type,
-                conversation_id=self._binding.conversation_id,
-                sender_id=self._binding.sender_id,
-            )
-        except Exception:
-            self._session.lock.release()
-            raise
+        self._recovery_context = await self._turn_scope.enter(
+            self._session,
+            surface=self._binding.surface,
+            channel_type=self._binding.channel_type,
+            conversation_id=self._binding.conversation_id,
+            sender_id=self._binding.sender_id,
+            user_message=self._user_message,
+            running_detail=self._running_detail,
+        )
         self._entered = True
         return self
 
     async def __aexit__(self, exc_type, exc, tb) -> None:  # noqa: ANN001
-        try:
-            self._runtime_manager.mark_turn_finished(self._session)
-            await self._runtime_manager.apply_pending_session_skill_reload(self._session)
-        finally:
-            if self._entered:
-                self._entered = False
-                self._session.lock.release()
+        if self._entered:
+            self._entered = False
+            await self._turn_scope.exit(self._session)
 
     def touch(self) -> None:
-        self._session.touch()
+        self._turn_scope.touch(self._session)
 
     def restore_prepared_context_state(self) -> None:
-        self._runtime_manager.restore_agent_prepared_context_state(self._session)
+        self._turn_scope.restore_prepared_context_state(self._session)
 
     def capture_prepared_context_state(self) -> None:
-        self._runtime_manager.capture_agent_prepared_context_state(self._session)
+        self._turn_scope.capture_prepared_context_state(self._session)
 
     def clear_recovery_context(self) -> None:
-        self._runtime_manager.clear_recovery_context(self._session)
+        self._turn_scope.clear_recovery_context(self._session)
         self._recovery_context = None
 
     def record_message(
@@ -199,7 +226,7 @@ class ManagedSessionTurn(AbstractAsyncContextManager["ManagedSessionTurn"]):
         conversation_id: str | None = None,
         sender_id: str | None = None,
     ) -> None:
-        self._runtime_manager.record_message(
+        self._turn_scope.record_message(
             self._session,
             role=role,
             content=content,
@@ -224,7 +251,7 @@ class ManagedSessionTurn(AbstractAsyncContextManager["ManagedSessionTurn"]):
         conversation_id: str | None = None,
         sender_id: str | None = None,
     ) -> dict[str, Any]:
-        return self._runtime_manager.record_activity(
+        return self._turn_scope.record_activity(
             self._session,
             label=label,
             detail=detail,
@@ -244,14 +271,14 @@ class ManagedSessionTurn(AbstractAsyncContextManager["ManagedSessionTurn"]):
         payload: dict[str, Any],
         future,
     ) -> dict[str, Any]:  # noqa: ANN001
-        return self._runtime_manager.record_pending_approval(
+        return self._turn_scope.record_pending_approval(
             self._session,
             payload=payload,
             future=future,
         )
 
     def clear_pending_approval(self, *, token: str | None = None) -> None:
-        self._runtime_manager.clear_pending_approval(self._session, token=token)
+        self._turn_scope.clear_pending_approval(self._session, token=token)
 
 
 class SessionApplicationService:
@@ -280,6 +307,20 @@ class SessionApplicationService:
             title=request.title,
             surface=request.surface,
             shared=request.shared,
+        )
+        return await self._runtime_manager.get_session_detail(session.session_id, recent_limit=50)
+
+    async def create_derived_session(
+        self,
+        parent_session_id: str,
+        request: MainAgentSessionForkRequest,
+    ) -> MainAgentSessionDetail:
+        binding = SessionSurfaceBinding.from_request(request, default_surface="tui")
+        session = await self._runtime_manager.create_derived_session(
+            parent_session_id=parent_session_id,
+            title=request.title,
+            reason="fork",
+            **binding.as_kwargs(),
         )
         return await self._runtime_manager.get_session_detail(session.session_id, recent_limit=50)
 
@@ -335,13 +376,16 @@ class SessionApplicationService:
         conversation_id: str | None,
         sender_id: str | None,
     ) -> MainAgentSessionMutationResponse:
-        return await self._runtime_manager.cancel_session_turn(
-            session_id,
-            reason=reason,
+        binding = SessionSurfaceBinding.from_values(
             surface=surface,
             channel_type=channel_type,
             conversation_id=conversation_id,
             sender_id=sender_id,
+        )
+        return await self._runtime_manager.cancel_session_turn(
+            session_id,
+            reason=reason,
+            **binding.as_kwargs(),
         )
 
     async def control_session(
@@ -355,14 +399,17 @@ class SessionApplicationService:
         conversation_id: str | None,
         sender_id: str | None,
     ) -> MainAgentSessionControlResponse:
-        return await self._runtime_manager.control_session_context(
-            session_id,
-            action=action,
-            reason=reason,
+        binding = SessionSurfaceBinding.from_values(
             surface=surface,
             channel_type=channel_type,
             conversation_id=conversation_id,
             sender_id=sender_id,
+        )
+        return await self._runtime_manager.control_session_context(
+            session_id,
+            action=action,
+            reason=reason,
+            **binding.as_kwargs(),
         )
 
     async def update_session_context(
@@ -370,6 +417,7 @@ class SessionApplicationService:
         session_id: str,
         request: MainAgentSessionContextRequest,
     ) -> MainAgentSessionContextResponse:
+        binding = SessionSurfaceBinding.from_request(request)
         return await self._runtime_manager.update_session_context_policy(
             session_id,
             action=request.action,
@@ -377,10 +425,7 @@ class SessionApplicationService:
             max_items=request.max_items,
             max_total_chars=request.max_total_chars,
             max_items_per_source=request.max_items_per_source,
-            surface=request.surface,
-            channel_type=request.channel_type,
-            conversation_id=request.conversation_id,
-            sender_id=request.sender_id,
+            **binding.as_kwargs(),
         )
 
     async def manage_session_memory(
@@ -388,6 +433,7 @@ class SessionApplicationService:
         session_id: str,
         request: MainAgentSessionMemoryRequest,
     ) -> MainAgentSessionMemoryResponse:
+        binding = SessionSurfaceBinding.from_request(request)
         return await self._runtime_manager.manage_session_memory(
             session_id,
             action=request.action,
@@ -397,10 +443,7 @@ class SessionApplicationService:
             day=request.day,
             export_format=request.export_format,
             detail_mode=request.detail_mode,
-            surface=request.surface,
-            channel_type=request.channel_type,
-            conversation_id=request.conversation_id,
-            sender_id=request.sender_id,
+            **binding.as_kwargs(),
         )
 
     async def manage_session_skills(
@@ -408,6 +451,7 @@ class SessionApplicationService:
         session_id: str,
         request: MainAgentSessionSkillRequest,
     ) -> MainAgentSessionSkillResponse:
+        binding = SessionSurfaceBinding.from_request(request)
         return await self._runtime_manager.manage_session_skills(
             session_id,
             action=request.action,
@@ -415,10 +459,7 @@ class SessionApplicationService:
             path=request.path,
             query=request.query,
             mode=request.mode,
-            surface=request.surface,
-            channel_type=request.channel_type,
-            conversation_id=request.conversation_id,
-            sender_id=request.sender_id,
+            **binding.as_kwargs(),
         )
 
     async def update_session_model_selection(
@@ -426,15 +467,13 @@ class SessionApplicationService:
         session_id: str,
         request: MainAgentSessionModelSelectionRequest,
     ) -> MainAgentSessionModelSelectionResponse:
+        binding = SessionSurfaceBinding.from_request(request)
         return await self._runtime_manager.update_session_model_selection(
             session_id,
             provider_source=request.provider_source,
             provider_id=request.provider_id,
             model_id=request.model_id,
-            surface=request.surface,
-            channel_type=request.channel_type,
-            conversation_id=request.conversation_id,
-            sender_id=request.sender_id,
+            **binding.as_kwargs(),
         )
 
     async def respond_to_approval(
@@ -448,14 +487,17 @@ class SessionApplicationService:
         conversation_id: str | None,
         sender_id: str | None,
     ) -> MainAgentSessionApprovalResponse:
-        return await self._runtime_manager.resolve_pending_approval(
-            session_id,
-            approved=approved,
-            token=token,
+        binding = SessionSurfaceBinding.from_values(
             surface=surface,
             channel_type=channel_type,
             conversation_id=conversation_id,
             sender_id=sender_id,
+        )
+        return await self._runtime_manager.resolve_pending_approval(
+            session_id,
+            approved=approved,
+            token=token,
+            **binding.as_kwargs(),
         )
 
     async def update_session_runtime_policy(
@@ -463,18 +505,51 @@ class SessionApplicationService:
         session_id: str,
         request: MainAgentSessionRuntimePolicyRequest,
     ) -> MainAgentSessionRuntimePolicyResponse:
+        binding = SessionSurfaceBinding.from_request(request)
         return await self._runtime_manager.update_session_runtime_policy(
             session_id,
             approval_profile=request.approval_profile,
             access_level=request.access_level,
-            surface=request.surface,
-            channel_type=request.channel_type,
-            conversation_id=request.conversation_id,
-            sender_id=request.sender_id,
+            **binding.as_kwargs(),
         )
 
     async def build_ephemeral_agent(self, workspace_dir: Path) -> Agent:
         return await self._runtime_manager.build_ephemeral_agent(workspace_dir)
+
+    async def prepare_derived_chat_turn(
+        self,
+        *,
+        parent_session_id: str,
+        message: str,
+        title: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+        running_detail: str,
+        reason: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> ManagedSessionTurn:
+        binding = SessionSurfaceBinding.from_values(
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
+        session = await self._runtime_manager.create_derived_session(
+            parent_session_id=parent_session_id,
+            title=title,
+            reason=reason,
+            metadata=metadata,
+            **binding.as_kwargs(),
+        )
+        return ManagedSessionTurn(
+            turn_scope=self._runtime_manager.turn_scope_handler,
+            session=session,
+            binding=binding,
+            user_message=message,
+            running_detail=running_detail,
+        )
 
     async def prepare_chat_turn(
         self,
@@ -489,24 +564,22 @@ class SessionApplicationService:
         sender_id: str | None = None,
         running_detail: str,
     ) -> ManagedSessionTurn:
-        session = await self._runtime_manager.get_or_create_session(
-            session_id,
-            workspace_dir,
+        binding = SessionSurfaceBinding.from_values(
             surface=surface,
             channel_type=channel_type,
             conversation_id=conversation_id,
             sender_id=sender_id,
+        )
+        session = await self._runtime_manager.get_or_create_session(
+            session_id,
+            workspace_dir,
+            **binding.as_kwargs(),
             session_title_hint=session_title_hint,
         )
         return ManagedSessionTurn(
-            runtime_manager=self._runtime_manager,
+            turn_scope=self._runtime_manager.turn_scope_handler,
             session=session,
-            binding=SessionSurfaceBinding(
-                surface=surface,
-                channel_type=channel_type,
-                conversation_id=conversation_id,
-                sender_id=sender_id,
-            ),
+            binding=binding,
             user_message=message,
             running_detail=running_detail,
         )

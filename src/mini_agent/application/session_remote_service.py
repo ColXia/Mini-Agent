@@ -13,6 +13,7 @@ from mini_agent.interfaces import (
     MainAgentSessionControlResponse,
     MainAgentSessionCreateRequest,
     MainAgentSessionDetail,
+    MainAgentSessionForkRequest,
     MainAgentSessionMemoryRequest,
     MainAgentSessionMemoryResponse,
     MainAgentSessionMessage,
@@ -27,6 +28,7 @@ from mini_agent.interfaces import (
     MainAgentSessionSkillResponse,
     MainAgentSessionSummary,
 )
+from mini_agent.application.session_service import SessionSurfaceBinding
 
 
 class RemoteSessionService:
@@ -38,6 +40,16 @@ class RemoteSessionService:
     @staticmethod
     def _list_model(model: type, payload: Sequence[Any]) -> list[Any]:
         return [model.model_validate(item) for item in payload if isinstance(item, dict)]
+
+    @staticmethod
+    def _create_session_payload(request: MainAgentSessionCreateRequest) -> dict[str, Any]:
+        binding = SessionSurfaceBinding.from_values(surface=request.surface or "tui")
+        return {
+            "workspace_dir": request.workspace_dir or ".",
+            "title": request.title,
+            "surface": binding.surface or "tui",
+            "shared": request.shared,
+        }
 
     async def list_sessions(
         self,
@@ -70,20 +82,23 @@ class RemoteSessionService:
         return self._list_model(MainAgentSessionMessage, payload if isinstance(payload, list) else [])
 
     async def create_session(self, request: MainAgentSessionCreateRequest) -> MainAgentSessionDetail:
-        payload = await self._gateway_client.create_session(
-            workspace_dir=request.workspace_dir or ".",
-            title=request.title,
-            surface=request.surface or "tui",
-            shared=request.shared,
-        )
+        payload = await self._gateway_client.create_session(**self._create_session_payload(request))
         return MainAgentSessionDetail.model_validate(payload)
 
     def create_session_sync(self, request: MainAgentSessionCreateRequest) -> MainAgentSessionDetail:
-        payload = self._gateway_client.create_session_sync(
-            workspace_dir=request.workspace_dir or ".",
+        payload = self._gateway_client.create_session_sync(**self._create_session_payload(request))
+        return MainAgentSessionDetail.model_validate(payload)
+
+    async def create_derived_session(
+        self,
+        parent_session_id: str,
+        request: MainAgentSessionForkRequest,
+    ) -> MainAgentSessionDetail:
+        binding = SessionSurfaceBinding.from_request(request, default_surface="tui")
+        payload = await self._gateway_client.create_derived_session(
+            parent_session_id,
             title=request.title,
-            surface=request.surface or "tui",
-            shared=request.shared,
+            **binding.as_kwargs(),
         )
         return MainAgentSessionDetail.model_validate(payload)
 
@@ -121,13 +136,16 @@ class RemoteSessionService:
         conversation_id: str | None = None,
         sender_id: str | None = None,
     ) -> MainAgentSessionMutationResponse:
-        payload = await self._gateway_client.cancel_session(
-            session_id,
-            reason=reason,
+        binding = SessionSurfaceBinding.from_values(
             surface=surface,
             channel_type=channel_type,
             conversation_id=conversation_id,
             sender_id=sender_id,
+        )
+        payload = await self._gateway_client.cancel_session(
+            session_id,
+            reason=reason,
+            **binding.as_kwargs(),
         )
         return MainAgentSessionMutationResponse.model_validate(payload)
 
@@ -136,14 +154,12 @@ class RemoteSessionService:
         session_id: str,
         request: MainAgentSessionControlRequest,
     ) -> MainAgentSessionControlResponse:
+        binding = SessionSurfaceBinding.from_request(request)
         payload = await self._gateway_client.control_session(
             session_id,
             action=request.action,
             reason=request.reason,
-            surface=request.surface,
-            channel_type=request.channel_type,
-            conversation_id=request.conversation_id,
-            sender_id=request.sender_id,
+            **binding.as_kwargs(),
         )
         return MainAgentSessionControlResponse.model_validate(payload)
 
@@ -152,6 +168,7 @@ class RemoteSessionService:
         session_id: str,
         request: MainAgentSessionContextRequest,
     ) -> MainAgentSessionContextResponse:
+        binding = SessionSurfaceBinding.from_request(request)
         payload = await self._gateway_client.update_session_context(
             session_id,
             action=request.action,
@@ -159,10 +176,7 @@ class RemoteSessionService:
             max_items=request.max_items,
             max_total_chars=request.max_total_chars,
             max_items_per_source=request.max_items_per_source,
-            surface=request.surface,
-            channel_type=request.channel_type,
-            conversation_id=request.conversation_id,
-            sender_id=request.sender_id,
+            **binding.as_kwargs(),
         )
         return MainAgentSessionContextResponse.model_validate(payload)
 
@@ -171,6 +185,7 @@ class RemoteSessionService:
         session_id: str,
         request: MainAgentSessionMemoryRequest,
     ) -> MainAgentSessionMemoryResponse:
+        binding = SessionSurfaceBinding.from_request(request)
         payload = await self._gateway_client.manage_session_memory(
             session_id,
             action=request.action,
@@ -180,10 +195,7 @@ class RemoteSessionService:
             day=request.day,
             export_format=request.export_format,
             detail_mode=request.detail_mode,
-            surface=request.surface,
-            channel_type=request.channel_type,
-            conversation_id=request.conversation_id,
-            sender_id=request.sender_id,
+            **binding.as_kwargs(),
         )
         return MainAgentSessionMemoryResponse.model_validate(payload)
 
@@ -192,6 +204,7 @@ class RemoteSessionService:
         session_id: str,
         request: MainAgentSessionSkillRequest,
     ) -> MainAgentSessionSkillResponse:
+        binding = SessionSurfaceBinding.from_request(request)
         payload = await self._gateway_client.manage_session_skill(
             session_id,
             action=request.action,
@@ -199,10 +212,7 @@ class RemoteSessionService:
             path=request.path,
             query=request.query,
             mode=request.mode,
-            surface=request.surface,
-            channel_type=request.channel_type,
-            conversation_id=request.conversation_id,
-            sender_id=request.sender_id,
+            **binding.as_kwargs(),
         )
         return MainAgentSessionSkillResponse.model_validate(payload)
 
@@ -211,15 +221,13 @@ class RemoteSessionService:
         session_id: str,
         request: MainAgentSessionModelSelectionRequest,
     ) -> MainAgentSessionModelSelectionResponse:
+        binding = SessionSurfaceBinding.from_request(request)
         payload = await self._gateway_client.update_session_model(
             session_id,
             provider_source=request.provider_source,
             provider_id=request.provider_id,
             model_id=request.model_id,
-            surface=request.surface,
-            channel_type=request.channel_type,
-            conversation_id=request.conversation_id,
-            sender_id=request.sender_id,
+            **binding.as_kwargs(),
         )
         return MainAgentSessionModelSelectionResponse.model_validate(payload)
 
@@ -228,14 +236,12 @@ class RemoteSessionService:
         session_id: str,
         request: MainAgentSessionRuntimePolicyRequest,
     ) -> MainAgentSessionRuntimePolicyResponse:
+        binding = SessionSurfaceBinding.from_request(request)
         payload = await self._gateway_client.update_session_runtime_policy(
             session_id,
             approval_profile=request.approval_profile,
             access_level=request.access_level,
-            surface=request.surface,
-            channel_type=request.channel_type,
-            conversation_id=request.conversation_id,
-            sender_id=request.sender_id,
+            **binding.as_kwargs(),
         )
         return MainAgentSessionRuntimePolicyResponse.model_validate(payload)
 
@@ -244,14 +250,12 @@ class RemoteSessionService:
         session_id: str,
         request: MainAgentSessionApprovalRequest,
     ) -> MainAgentSessionApprovalResponse:
+        binding = SessionSurfaceBinding.from_request(request)
         payload = await self._gateway_client.respond_to_approval(
             session_id,
             approved=request.approved,
             token=request.token,
-            surface=request.surface,
-            channel_type=request.channel_type,
-            conversation_id=request.conversation_id,
-            sender_id=request.sender_id,
+            **binding.as_kwargs(),
         )
         return MainAgentSessionApprovalResponse.model_validate(payload)
 

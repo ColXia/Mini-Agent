@@ -22,7 +22,9 @@ from mini_agent.interfaces import (
     NovelWriteRequest,
 )
 
+from .interaction_request_adapter import ApplicationInteractionBinding
 from .novel_service_use_cases import NovelServiceUseCases
+from .remote_conversation_binding_service import RemoteConversationBindingService
 
 
 RunMainAgentChatFn = Callable[[MainAgentChatRequest], Awaitable[MainAgentChatResponse]]
@@ -40,11 +42,13 @@ class ChannelIngressUseCases:
         novel_use_cases: NovelServiceUseCases,
         resolve_workspace_dir: ResolveWorkspaceDirFn,
         to_utc_iso: ToUtcIsoFn,
+        remote_binding_service: RemoteConversationBindingService | None = None,
     ) -> None:
         self._run_main_agent_chat = run_main_agent_chat
         self._novel_use_cases = novel_use_cases
         self._resolve_workspace_dir = resolve_workspace_dir
         self._to_utc_iso = to_utc_iso
+        self._remote_binding_service = remote_binding_service or RemoteConversationBindingService()
 
     async def handle_message(self, request: ChannelMessageRequest) -> ChannelMessageResponse:
         novel_action = self._extract_novel_action(request)
@@ -63,17 +67,27 @@ class ChannelIngressUseCases:
                 updated_at=self._to_utc_iso(datetime.now(timezone.utc)),
             )
 
+        binding = ApplicationInteractionBinding.from_channel_message_request(request)
+        resolved_session_id = self._remote_binding_service.resolve_session_id(
+            channel_type=binding.channel_type,
+            conversation_id=binding.conversation_id,
+            explicit_session_id=request.session_id,
+            dry_run=bool(request.dry_run),
+        )
         chat_response = await self._run_main_agent_chat(
-            MainAgentChatRequest(
+            binding.to_main_agent_chat_request(
                 message=request.message,
-                session_id=request.session_id,
+                session_id=resolved_session_id,
                 workspace_dir=request.workspace_dir,
                 dry_run=request.dry_run,
-                surface=request.channel_type,
-                channel_type=request.channel_type,
-                conversation_id=request.conversation_id,
-                sender_id=request.sender_id,
             )
+        )
+        self._remote_binding_service.persist_binding(
+            channel_type=binding.channel_type,
+            conversation_id=binding.conversation_id,
+            session_id=chat_response.session_id,
+            workspace_dir=chat_response.workspace_dir,
+            dry_run=bool(request.dry_run),
         )
         return ChannelMessageResponse(
             session_id=chat_response.session_id,

@@ -13,6 +13,7 @@
 - OSS implementation index: `docs/OSS_REFERENCE_INDEX.md`
 - Published development index: `docs/DEVELOPMENT_INDEX.md`
 - Current execution anchor: `docs/P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md`
+- Framework skeleton lock: `docs/FRAMEWORK_SKELETON.md`
 - Dev habit and mistake ledger: `docs/MINIAGENT_DEV_HABIT_LEDGER.md`
 - API v1 contract skeleton: `docs/API_V1_CONTRACT_SKELETON.md`
 - Archived P18 route deletion backlog: `docs/archive/P18_ROUTE_DELETION_BACKLOG.md`
@@ -34,6 +35,14 @@
 Mini execution contract:
 - `Mini` = full-strength core capabilities with lean architecture.
 - Not a feature downgrade; only non-core platform complexity is deferred.
+
+Framework guardrail update (2026-04-13):
+- future refactor work must obey `docs/FRAMEWORK_SKELETON.md`
+- that document now freezes:
+  - entrance model
+  - layer ownership
+  - repository mapping
+  - no-go drift patterns
 
 ## External Sources Reviewed
 - `openclaw-main` (gateway/session/memory/plugin/sandbox/acp docs)
@@ -762,35 +771,32 @@ Mini execution contract:
 - [x] Add QQ/WeChat channel completion baseline with session-binding contracts (P17 T5.3).
   - core implementation:
     - `src/channels/types/src/index.ts`
-    - `src/channels/qqbot/src/channel.ts`
-    - `src/channels/qqbot/src/gateway_client.ts`
-    - `src/channels/qqbot/src/session_store.ts`
-    - `src/channels/qqbot/src/index.ts`
-    - `src/channels/qqbot/package.json`
+    - historical QQ package baseline later consolidated into `src/apps/qqbot_channel/`
     - `src/channels/wechat/manifest.json`
     - `src/channels/wechat/package.json`
     - `src/channels/wechat/tsconfig.json`
     - `src/channels/wechat/.env.example`
     - `src/channels/wechat/src/channel.ts`
     - `src/channels/wechat/src/gateway_client.ts`
-    - `src/channels/wechat/src/session_store.ts`
+    - `src/channels/wechat/src/conversation_binding_store.ts`
     - `src/channels/wechat/src/index.ts`
     - `scripts/archive/run_qqbot_channel.ps1`
     - `scripts/archive/run_wechat_channel.ps1`
   - capabilities:
     - QQ channel forwards `channel_type/conversation_id/sender_id` to Gateway and supports attachment-aware prompt wrapping
-    - QQ and WeChat channels use lightweight file-backed session stores for restart-safe continuity
+    - QQ and WeChat channels use lightweight file-backed conversation binding stores for restart-safe continuity
     - WeChat webhook channel implements signature verification, XML text/media intake, and Gateway roundtrip replies
     - later terminal-first consolidation replaced per-channel launchers with `uv run mini-agent stack up` / `scripts/start_runtime_stack.ps1`
   - tests:
     - `tests/test_gateway_routers.py` (sender-specific conversation binding coverage)
 - [x] Add QQ/WeChat hardening slice with delivery guardrails and live smoke checks (P17 T5.3 hardening).
   - core implementation:
-    - `src/channels/qqbot/src/channel.ts`
-    - `src/channels/qqbot/src/gateway_client.ts`
-    - `src/channels/qqbot/src/index.ts`
-    - `src/channels/qqbot/src/smoke_runner.ts`
-    - `src/channels/qqbot/.env.example`
+    - current QQ runtime path:
+      - `src/apps/qqbot_channel/bot.mjs`
+      - `src/apps/qqbot_channel/gateway_io.mjs`
+      - `src/apps/qqbot_channel/guardrails.mjs`
+      - `src/apps/qqbot_channel/smoke_runner.mjs`
+      - `src/apps/qqbot_channel/.env.example`
     - `src/channels/wechat/src/channel.ts`
     - `src/channels/wechat/src/gateway_client.ts`
     - `src/channels/wechat/src/index.ts`
