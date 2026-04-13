@@ -35,6 +35,8 @@ def test_resolve_user_entrance_for_remote_channels() -> None:
 def test_resolve_user_entrance_for_local_and_web_variants() -> None:
     assert resolve_user_entrance("headless", None) == "cli"
     assert resolve_user_entrance("tui", None) == "tui"
+    assert resolve_user_entrance("desktopui", None) == "desktop"
+    assert resolve_user_entrance("desktop", None) == "desktop"
     assert resolve_user_entrance("browser", None) == "webui"
     assert resolve_user_entrance("webui", None) == "webui"
 
@@ -63,6 +65,12 @@ def test_resolve_interaction_surface_exposes_entrance_and_remote_channel() -> No
     assert local.channel_type == "qq"
     assert local.entrance == "tui"
     assert local.remote_channel == "qq"
+
+    desktop = resolve_interaction_surface(surface="desktopui", channel_type=None)
+    assert desktop.surface == "desktop"
+    assert desktop.channel_type is None
+    assert desktop.entrance == "desktop"
+    assert desktop.remote_channel is None
 
 
 def test_resolve_interaction_binding_normalizes_aliases_without_forcing_empty_surface() -> None:

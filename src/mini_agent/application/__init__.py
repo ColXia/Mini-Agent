@@ -2,7 +2,7 @@
 
 from .channel_ingress_use_cases import ChannelIngressUseCases
 from .interaction_request_adapter import ApplicationInteractionBinding
-from .main_agent_gateway_use_cases import MainAgentGatewayUseCases, MainAgentSurfaceService
+from .main_agent_surface_service import MainAgentGatewayUseCases, MainAgentSurfaceService
 from .novel_agent_profile import NovelAgentProfile
 from .novel_service_use_cases import NovelServiceUseCases
 from .remote_conversation_binding_service import RemoteConversationBindingService

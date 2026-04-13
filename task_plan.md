@@ -1,5 +1,174 @@
 # Task Plan
 
+## Latest Sync: 2026-04-13 DesktopUI Freeze And Service-Layer Return
+
+## Current Execution Slice: Application Service Seam Hardening Return (2026-04-13)
+
+### Why This Slice Is Next
+
+- DesktopUI has crossed the minimum usable threshold:
+  - it can launch
+  - it can attach/start local gateway
+  - it can create/select/fork sessions
+  - it can stream replies and show operator activity
+- the latest真人联调 also confirmed the current bottleneck is no longer "missing frontend shell"
+- the bigger risk is now architectural:
+  - core/service seams are still not reduced enough
+  - frontend polishing can easily start compensating for backend boundary debt
+  - that would make later CLI / TUI / DesktopUI / Remote convergence harder, not easier
+- so the right move is:
+  - freeze DesktopUI at the current first-usable cut
+  - return to service-layer / application-layer refactor
+  - continue strengthening the core before spending more effort on front-end polish
+
+### What This Decision Means
+
+- DesktopUI is **not** abandoned
+- DesktopUI is now treated as:
+  - first usable graphical shell
+  - paused for deeper visual/interaction polishing
+  - limited to break-fix only until the core/service layer is in a better state
+- active development focus returns to:
+  - shared application services
+  - gateway/use-case seam reduction
+  - surface-neutral orchestration
+  - runtime/session/service boundary cleanup
+
+### Scope
+
+- continue shrinking transport-owned orchestration out of gateway-facing layers
+- keep `MainAgentSurfaceService` and adjacent shared application services as the canonical top seam
+- reduce duplicated or surface-specific orchestration still living in:
+  - gateway route composition
+  - TUI-side application behavior
+  - remote-adapter convenience paths
+- prefer service/core correctness over new frontend affordances
+
+### Out Of Scope
+
+- no more DesktopUI visual polishing for now
+- no DesktopUI feature expansion beyond break-fix
+- no browser WebUI revival
+
+### Acceptance
+
+- the next refactor slices clearly improve service-layer boundaries
+- shared behaviors move toward one application/service implementation instead of per-surface copies
+- DesktopUI / TUI / remote adapters remain consumers of the same service seam rather than regaining business ownership
+
+### Next Concrete Targets
+
+- continue reducing `MainAgentGatewayUseCases` toward transport composition instead of top-level orchestration ownership
+- audit remaining surface-shared flows that still branch in surface adapters before reaching the application layer
+- prioritize seams that affect all entrances:
+  - session lifecycle
+  - turn execution orchestration
+  - model / approval / control routing
+  - remote-binding normalization
+
+### What Just Landed In This Slice
+
+- canonical service implementation now lives in:
+  - src/mini_agent/application/main_agent_surface_service.py
+- shared service callable aliases now live in:
+  - src/mini_agent/application/surface_service_types.py
+- legacy src/mini_agent/application/main_agent_gateway_use_cases.py is now only a thin compatibility export
+- gateway app composition no longer keeps _MAIN_AGENT_USE_CASES
+- targeted regression passed:
+  - uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py
+  - result: 95 passed
+
+### Refactor Focus After This Cut
+
+- keep shrinking remaining gateway-* naming/ownership that still represents shared application behavior instead of transport behavior
+- inspect whether the next safest slice is:
+  - session lifecycle service extraction
+  - model / approval / control application routing cleanup
+  - remote-binding normalization at the application seam
+
+### Status
+
+- in_progress
+
+## Latest Sync: 2026-04-13 P31.4 Desktop Session Ops And Activity Shell
+
+## Current Execution Slice: P31.4 Desktop Core Shell Expansion (2026-04-13)
+
+### Why This Slice Is Next
+
+- the DesktopUI path now has a real executable bootstrap
+- local gateway ownership is no longer ambiguous for the desktop entrance
+- the next useful move is therefore no longer host bootstrapping
+- it is shell quality and operator flow shaping on top of the working host connection
+
+### What Just Landed
+
+- `mini-agent desktop` is now a real CLI entrance
+- DesktopUI now has:
+  - local gateway attach/start supervision
+  - a minimal `PySide6` bootstrap path
+  - a first working window that reads:
+    - runtime health
+    - session list
+    - session detail
+    - managed gateway log excerpts
+- DesktopUI now also has the first actual operator path:
+  - create/select session
+  - main conversation area
+  - prompt composer
+  - streamed assistant reply rendering
+  - activity pane updates from gateway stream events
+- DesktopUI now also has first operator controls beyond chatting:
+  - session-scoped model switch
+  - approval dialog handling
+  - minimal command palette
+- DesktopUI now also has first session-operator controls:
+  - rename selected session
+  - share / unshare selected session
+  - fork selected session
+  - compact selected session
+- DesktopUI has now absorbed the first真人联调 corrections:
+  - `New Session` follows current runtime capacity constraints more naturally by creating a blank derived session when a current session already exists
+  - desktop client timeout budget is no longer unrealistically low for operator actions
+  - layout pressure is being pushed back toward the center conversation area
+- DesktopUI activity rendering is no longer only a raw append-only log:
+  - stream events are normalized into structured operator activity entries
+  - the activity pane now renders those entries as compact cards
+- the desktop refresh path now avoids duplicate session-detail loads while restoring selection
+- runtime entrance normalization now includes `desktop` as a first-class local surface
+- the DesktopUI bootstrap still reuses the existing local gateway transport instead of inventing a second backend seam
+
+### Scope
+
+- improve the DesktopUI shell from bootstrap-grade to first operator-usable shell
+- keep session truth in the shared runtime/gateway layer
+- continue building DesktopUI as a real separate frontend rather than a TUI wrapper
+- harden first-use operator ergonomics before widening into richer desktop-only affordances
+
+### Out Of Scope
+
+- no browser-first WebUI revival
+- no direct session ownership inside DesktopUI
+- no remote-channel expansion in this slice
+
+### Acceptance
+
+- DesktopUI shell grows beyond bootstrap-only visibility
+- session/work activity presentation becomes more usable
+- DesktopUI keeps consuming shared gateway contracts without adding backend ownership drift
+- session operations remain thin UI calls over shared gateway/session APIs instead of creating desktop-owned state
+
+### Remaining Focus In This Slice
+
+- keep improving conversation/task rendering quality
+- add more runtime/session controls only when they can still reuse existing shared contracts
+- avoid drifting into desktop-owned backend semantics while the shell grows
+- keep using真人联调 findings to tighten shell behavior before adding richer desktop-only features
+
+### Status
+
+- in_progress
+
 ## Latest Sync: 2026-04-13 P31.2 Thin Application Seam Hardening Landed
 
 ## Current Execution Slice: P31.3 Desktop Runtime Host Integration Prep (2026-04-13)
@@ -6232,3 +6401,5 @@ Primary doc:
   - result: `207 passed`
   - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
   - result: `11 passed`
+
+

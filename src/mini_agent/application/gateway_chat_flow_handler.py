@@ -15,7 +15,7 @@ from mini_agent.application.session_service import ManagedSessionTurn, SessionAp
 from mini_agent.interfaces import MainAgentChatResponse
 
 if TYPE_CHECKING:
-    from mini_agent.application.main_agent_gateway_use_cases import FormatBootstrapErrorFn, SseEventFn, ToUtcIsoFn
+    from mini_agent.application.surface_service_types import FormatBootstrapErrorFn, SseEventFn, ToUtcIsoFn
 
 
 @dataclass(frozen=True)

@@ -538,7 +538,7 @@ def test_v1_agent_session_detail_and_operation_routes(monkeypatch) -> None:
                 active_surface="qq",
             )
 
-    monkeypatch.setattr(gateway_main, "_MAIN_AGENT_USE_CASES", _UseCaseStub())
+    monkeypatch.setattr(gateway_main, "_MAIN_AGENT_SURFACE_SERVICE", _UseCaseStub())
 
     with TestClient(app) as client:
         detail_response = client.get("/api/v1/agent/sessions/sess-qq", params={"recent_limit": 5})
@@ -748,7 +748,7 @@ def test_v1_runtime_session_create_share_rename_routes(monkeypatch) -> None:
                 shared=True,
             )
 
-    monkeypatch.setattr(gateway_main, "_MAIN_AGENT_USE_CASES", _UseCaseStub())
+    monkeypatch.setattr(gateway_main, "_MAIN_AGENT_SURFACE_SERVICE", _UseCaseStub())
 
     with TestClient(app) as client:
         list_response = client.get("/api/v1/agent/sessions", params={"workspace_dir": ".", "shared_only": True})
@@ -809,7 +809,7 @@ def test_v1_main_agent_control_route_accepts_mcp_actions(monkeypatch) -> None:
                 },
             )
 
-    monkeypatch.setattr(gateway_main, "_MAIN_AGENT_USE_CASES", _UseCaseStub())
+    monkeypatch.setattr(gateway_main, "_MAIN_AGENT_SURFACE_SERVICE", _UseCaseStub())
 
     with TestClient(app) as client:
         response = client.post(
@@ -853,7 +853,7 @@ def test_v1_main_agent_skill_mode_route_forwards_mode_field(monkeypatch) -> None
                 },
             )
 
-    monkeypatch.setattr(gateway_main, "_MAIN_AGENT_USE_CASES", _UseCaseStub())
+    monkeypatch.setattr(gateway_main, "_MAIN_AGENT_SURFACE_SERVICE", _UseCaseStub())
 
     with TestClient(app) as client:
         response = client.post(
@@ -892,7 +892,7 @@ def test_v1_main_agent_skill_install_route_forwards_path_field(monkeypatch) -> N
                 },
             )
 
-    monkeypatch.setattr(gateway_main, "_MAIN_AGENT_USE_CASES", _UseCaseStub())
+    monkeypatch.setattr(gateway_main, "_MAIN_AGENT_SURFACE_SERVICE", _UseCaseStub())
 
     with TestClient(app) as client:
         response = client.post(
@@ -916,7 +916,7 @@ def test_v1_main_agent_skill_mode_invalid_returns_http_400(monkeypatch) -> None:
             _ = (session_id, request)
             raise HTTPException(status_code=400, detail="Unsupported skill policy mode: invalid-mode")
 
-    monkeypatch.setattr(gateway_main, "_MAIN_AGENT_USE_CASES", _UseCaseStub())
+    monkeypatch.setattr(gateway_main, "_MAIN_AGENT_SURFACE_SERVICE", _UseCaseStub())
 
     with TestClient(app) as client:
         response = client.post(
@@ -981,3 +981,4 @@ def test_legacy_api_prefix_routes_are_removed() -> None:
             "/api/novel/setup",
             json={"topic": "x", "genre": "y", "num_chapters": 2, "words_per_chapter": 500},
         ).status_code in {404, 405}
+

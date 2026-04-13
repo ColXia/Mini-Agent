@@ -122,6 +122,34 @@ class TuiGatewayClient:
         )
         return data if isinstance(data, list) else []
 
+    async def get_system_health(self) -> dict[str, Any]:
+        return await asyncio.to_thread(
+            self._request_json,
+            "GET",
+            "/api/v1/system/health",
+        )
+
+    def get_system_health_sync(self) -> dict[str, Any]:
+        data = self._request_json(
+            "GET",
+            "/api/v1/system/health",
+        )
+        return data if isinstance(data, dict) else {}
+
+    async def list_agent_models(self) -> dict[str, Any]:
+        return await asyncio.to_thread(
+            self._request_json,
+            "GET",
+            "/api/v1/agent/models",
+        )
+
+    def list_agent_models_sync(self) -> dict[str, Any]:
+        data = self._request_json(
+            "GET",
+            "/api/v1/agent/models",
+        )
+        return data if isinstance(data, dict) else {}
+
     def list_sessions_sync(
         self,
         *,
@@ -215,6 +243,35 @@ class TuiGatewayClient:
             payload=payload,
         )
 
+    def create_derived_session_sync(
+        self,
+        parent_session_id: str,
+        *,
+        title: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> dict[str, Any]:
+        safe_id = quote(_safe_text(parent_session_id), safe="")
+        binding = _GatewaySessionBinding.from_values(
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+            default_surface="tui",
+        )
+        payload = {
+            "title": _safe_text(title) or None,
+            **binding.as_payload(),
+        }
+        data = self._request_json(
+            "POST",
+            f"/api/v1/agent/sessions/{safe_id}/fork",
+            payload=payload,
+        )
+        return data if isinstance(data, dict) else {}
+
     def create_session_sync(
         self,
         *,
@@ -244,6 +301,15 @@ class TuiGatewayClient:
             payload={"title": _safe_text(title)},
         )
 
+    def rename_session_sync(self, session_id: str, *, title: str) -> dict[str, Any]:
+        safe_id = quote(_safe_text(session_id), safe="")
+        data = self._request_json(
+            "PATCH",
+            f"/api/v1/agent/sessions/{safe_id}",
+            payload={"title": _safe_text(title)},
+        )
+        return data if isinstance(data, dict) else {}
+
     async def set_session_shared(self, session_id: str, *, shared: bool) -> dict[str, Any]:
         safe_id = quote(_safe_text(session_id), safe="")
         return await asyncio.to_thread(
@@ -252,6 +318,15 @@ class TuiGatewayClient:
             f"/api/v1/agent/sessions/{safe_id}/share",
             payload={"shared": bool(shared)},
         )
+
+    def set_session_shared_sync(self, session_id: str, *, shared: bool) -> dict[str, Any]:
+        safe_id = quote(_safe_text(session_id), safe="")
+        data = self._request_json(
+            "POST",
+            f"/api/v1/agent/sessions/{safe_id}/share",
+            payload={"shared": bool(shared)},
+        )
+        return data if isinstance(data, dict) else {}
 
     async def reset_session(self, session_id: str) -> dict[str, Any]:
         safe_id = quote(_safe_text(session_id), safe="")
@@ -318,6 +393,36 @@ class TuiGatewayClient:
             f"/api/v1/agent/sessions/{safe_id}/control",
             payload=payload,
         )
+
+    def control_session_sync(
+        self,
+        session_id: str,
+        *,
+        action: str,
+        reason: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> dict[str, Any]:
+        safe_id = quote(_safe_text(session_id), safe="")
+        binding = _GatewaySessionBinding.from_values(
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
+        payload = {
+            "action": _safe_text(action),
+            "reason": reason,
+            **binding.as_payload(),
+        }
+        data = self._request_json(
+            "POST",
+            f"/api/v1/agent/sessions/{safe_id}/control",
+            payload=payload,
+        )
+        return data if isinstance(data, dict) else {}
 
     async def update_session_context(
         self,
@@ -463,6 +568,38 @@ class TuiGatewayClient:
             payload=payload,
         )
 
+    def update_session_model_sync(
+        self,
+        session_id: str,
+        *,
+        provider_source: str | None,
+        provider_id: str,
+        model_id: str,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> dict[str, Any]:
+        safe_id = quote(_safe_text(session_id), safe="")
+        binding = _GatewaySessionBinding.from_values(
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
+        payload = {
+            "provider_source": _safe_text(provider_source) or None,
+            "provider_id": _safe_text(provider_id),
+            "model_id": _safe_text(model_id),
+            **binding.as_payload(),
+        }
+        data = self._request_json(
+            "POST",
+            f"/api/v1/agent/sessions/{safe_id}/model",
+            payload=payload,
+        )
+        return data if isinstance(data, dict) else {}
+
     async def update_session_runtime_policy(
         self,
         session_id: str,
@@ -522,6 +659,36 @@ class TuiGatewayClient:
             f"/api/v1/agent/sessions/{safe_id}/approval",
             payload=payload,
         )
+
+    def respond_to_approval_sync(
+        self,
+        session_id: str,
+        *,
+        approved: bool,
+        token: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> dict[str, Any]:
+        safe_id = quote(_safe_text(session_id), safe="")
+        binding = _GatewaySessionBinding.from_values(
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
+        payload = {
+            "approved": bool(approved),
+            "token": _safe_text(token) or None,
+            **binding.as_payload(),
+        }
+        data = self._request_json(
+            "POST",
+            f"/api/v1/agent/sessions/{safe_id}/approval",
+            payload=payload,
+        )
+        return data if isinstance(data, dict) else {}
 
     async def delete_session(self, session_id: str) -> dict[str, Any]:
         safe_id = quote(_safe_text(session_id), safe="")

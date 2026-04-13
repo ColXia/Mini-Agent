@@ -123,7 +123,6 @@ MAIN_AGENT_SESSION_STORE_DIR = Path(
 ).expanduser()
 _STUDIO_INSTANCE_LOCK: GatewayInstanceLock | None = None
 _MAIN_AGENT_SURFACE_SERVICE: MainAgentSurfaceService | None = None
-_MAIN_AGENT_USE_CASES: MainAgentSurfaceService | None = None
 _NOVEL_USE_CASES: NovelServiceUseCases | None = None
 _CHANNEL_INGRESS_USE_CASES: ChannelIngressUseCases | None = None
 
@@ -512,10 +511,7 @@ def _parse_novel_agent_profile() -> NovelAgentProfile:
 
 
 def _main_agent_surface_service() -> MainAgentSurfaceService:
-    global _MAIN_AGENT_SURFACE_SERVICE, _MAIN_AGENT_USE_CASES
-    if _MAIN_AGENT_USE_CASES is not None:
-        _MAIN_AGENT_SURFACE_SERVICE = _MAIN_AGENT_USE_CASES
-        return _MAIN_AGENT_SURFACE_SERVICE
+    global _MAIN_AGENT_SURFACE_SERVICE
     if _MAIN_AGENT_SURFACE_SERVICE is None:
         _MAIN_AGENT_SURFACE_SERVICE = MainAgentSurfaceService(
             runtime_manager=_main_agent_runtime_manager(),
@@ -525,7 +521,6 @@ def _main_agent_surface_service() -> MainAgentSurfaceService:
             format_bootstrap_error=_format_agent_bootstrap_error,
             stream_chunk_size=CHAT_STREAM_CHUNK_SIZE,
         )
-        _MAIN_AGENT_USE_CASES = _MAIN_AGENT_SURFACE_SERVICE
     return _MAIN_AGENT_SURFACE_SERVICE
 
 
@@ -631,7 +626,7 @@ async def _startup_instance_lock() -> None:
 
 
 async def _shutdown_cleanup() -> None:
-    global _STUDIO_INSTANCE_LOCK, _MAIN_AGENT_SURFACE_SERVICE, _MAIN_AGENT_USE_CASES, _NOVEL_USE_CASES, _CHANNEL_INGRESS_USE_CASES
+    global _STUDIO_INSTANCE_LOCK, _MAIN_AGENT_SURFACE_SERVICE, _NOVEL_USE_CASES, _CHANNEL_INGRESS_USE_CASES
     try:
         await cleanup_mcp_connections()
     finally:
@@ -639,7 +634,6 @@ async def _shutdown_cleanup() -> None:
             if _MAIN_AGENT_RUNTIME_MANAGER is not None:
                 await _MAIN_AGENT_RUNTIME_MANAGER.clear()
             _MAIN_AGENT_SURFACE_SERVICE = None
-            _MAIN_AGENT_USE_CASES = None
             _NOVEL_USE_CASES = None
             _CHANNEL_INGRESS_USE_CASES = None
         finally:

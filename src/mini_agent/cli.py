@@ -6,6 +6,7 @@ Usage:
     mini-agent --mode tui                 # Force full-screen TUI
     mini-agent --mode cli                 # Force line-based CLI
     mini-agent --prompt "hello"           # Headless single prompt
+    mini-agent desktop                    # Start DesktopUI and attach/spawn local gateway
     mini-agent serve --port 8080          # Studio API host mode (explicit)
     mini-agent stack up                   # Start gateway/qqbot stack and attach TUI
     mini qq                               # Shortcut: start gateway + qqbot + TUI
@@ -14,6 +15,7 @@ Usage:
 
 Subcommands:
     mini-agent serve              # Start Studio API host explicitly
+    mini-agent desktop            # Start DesktopUI shell
     mini-agent stack up           # Start runtime stack (gateway + optional qqbot + TUI)
     mini-agent qq                 # Shortcut to boot gateway + qqbot + TUI
     mini-agent qq status          # Shortcut to inspect qq runtime stack
@@ -108,6 +110,7 @@ Examples:
   mini-agent --prompt "hello"       Run one prompt in headless mode
   mini-agent --prompt "hello" --output-format json
                                     Run headless and emit JSON
+  mini-agent desktop                Start DesktopUI shell
   mini-agent serve --port 8080      Start Studio API host on port 8080
   mini-agent stack up               Start gateway/qqbot and attach TUI
   mini qq                           Shortcut: start gateway + qqbot + TUI
@@ -303,6 +306,56 @@ Examples:
         type=str,
         default=None,
         help="Optional initial prompt text",
+    )
+
+    desktop_parser = subparsers.add_parser(
+        "desktop",
+        help="Start DesktopUI shell",
+    )
+    desktop_parser.add_argument(
+        "--workspace",
+        "-w",
+        type=str,
+        default=None,
+        help="Workspace directory",
+    )
+    desktop_parser.add_argument(
+        "--host",
+        type=str,
+        default="127.0.0.1",
+        help="Gateway host to attach/start (default: 127.0.0.1)",
+    )
+    desktop_parser.add_argument(
+        "--port",
+        type=int,
+        default=8008,
+        help="Gateway port to attach/start (default: 8008)",
+    )
+    desktop_parser.add_argument(
+        "--agent-mode",
+        dest="approval_profile",
+        type=str,
+        choices=["plan", "build"],
+        default=None,
+        help="Execution mode override for a newly started local gateway",
+    )
+    desktop_parser.add_argument(
+        "--access-level",
+        type=str,
+        choices=["default", "full-access"],
+        default=None,
+        help="Access level override for a newly started local gateway",
+    )
+    desktop_parser.add_argument(
+        "--startup-timeout",
+        type=float,
+        default=20.0,
+        help="Seconds to wait for a newly started local gateway (default: 20)",
+    )
+    desktop_parser.add_argument(
+        "--attach-only",
+        action="store_true",
+        help="Only attach to an existing gateway; do not start one if absent",
     )
 
     # List subcommand
@@ -2229,6 +2282,19 @@ def run_stack_command(args: argparse.Namespace) -> None:
         raise SystemExit(1) from exc
 
 
+def run_desktop_command(args: argparse.Namespace) -> None:
+    """Run DesktopUI bootstrap command."""
+    try:
+        from apps.desktop_ui.main import run_desktop_from_cli
+
+        exit_code = int(run_desktop_from_cli(args) or 0)
+        if exit_code:
+            raise SystemExit(exit_code)
+    except RuntimeError as exc:
+        print(f"{Colors.RED}Error: {exc}{Colors.RESET}")
+        raise SystemExit(1) from exc
+
+
 def run_qq_command(args: argparse.Namespace) -> None:
     """Shortcut command for gateway + qqbot + TUI startup."""
     action = getattr(args, "action", "up")
@@ -2263,6 +2329,8 @@ def main() -> None:
         run_cli_mode(args)
     elif args.command == "tui":
         run_tui_mode(args)
+    elif args.command == "desktop":
+        run_desktop_command(args)
     elif args.command == "models":
         run_models_command(args)
     elif args.command == "list":

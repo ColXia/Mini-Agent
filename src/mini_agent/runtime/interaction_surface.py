@@ -5,12 +5,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-USER_ENTRANCES: tuple[str, ...] = ("cli", "tui", "webui", "remote")
+USER_ENTRANCES: tuple[str, ...] = ("cli", "tui", "desktop", "webui", "remote")
 REMOTE_CHANNEL_ADAPTERS: tuple[str, ...] = ("qq", "wechat", "feishu")
 
 _SURFACE_ALIASES: dict[str, str] = {
     "qqbot": "qq",
     "qq-bot": "qq",
+    "desktopui": "desktop",
+    "desktop-ui": "desktop",
+    "pyside6": "desktop",
+    "qt": "desktop",
     "weixin": "wechat",
     "wx": "wechat",
     "feishu-bot": "feishu",
