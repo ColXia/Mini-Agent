@@ -1,5 +1,26 @@
 # Findings
 
+## 2026-04-16 P40.15 Runtime Snapshot Default-Session Contract
+
+- After `P40.14`, `session_snapshot.py` was the last obviously independent runtime seam.
+- This slice matters less for raw code volume and more for contract truth:
+  - default sessions already existed as a runtime concept
+  - snapshot DTOs needed to preserve that truth for import/export consistency
+- Structural effect:
+  - total dirty paths: `147 -> 146`
+  - `runtime-session-contract`: `17 -> 16`
+- More importantly, the post-slice audit changed the next-step picture:
+  - the remaining runtime residue is no longer hiding any similarly clean micro-slice
+  - deletion-only closure is not honest yet because clean-clone safety still depends on unlanded adoption in:
+    - `session_operator_handler.py`
+    - `main_agent_runtime_manager.py`
+    - `interaction/`
+    - `agent_core` skill command support
+    - model-selection support
+- Practical implication:
+  - continuing to force `runtime-session-contract` as runtime-only micro-cuts would now risk fake progress
+  - the next good anti-chaos move should acknowledge the cross-bucket dependency truth explicitly
+
 ## 2026-04-16 P40.14 Runtime Memory Command Compatibility Bridge
 
 - After `P40.13`, the memory-command runtime seam was one of the last compatibility-friendly cuts left inside the runtime bucket.

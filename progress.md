@@ -1,5 +1,38 @@
 # Progress
 
+## 2026-04-16 P40.15 Runtime Snapshot Default-Session Contract
+
+- [completed] re-audited the post-`P40.14` runtime residue and confirmed `session_snapshot.py` was the last clearly independent runtime seam
+- [completed] landed the runtime snapshot contract update:
+  - `src/mini_agent/runtime/session_snapshot.py`
+- [completed] extended focused builder coverage so the default-session field is part of the tested snapshot contract:
+  - `tests/test_runtime_session_snapshot_builder.py`
+- [completed] verified the narrowed snapshot slice:
+  - `uv run ruff check src/mini_agent/runtime/session_snapshot.py tests/test_runtime_session_snapshot_builder.py`
+  - result: `All checks passed!`
+  - `uv run pytest tests/test_runtime_session_snapshot_builder.py tests/test_runtime_session_snapshot_handler.py -q`
+  - result: `4 passed`
+  - adjacent snapshot surface checks:
+    - `uv run pytest tests/test_main_agent_surface_service.py -k "can_import_local_session_snapshot or can_export_shared_session_snapshot or import_session_snapshot_can_register_lineage_child or import_session_snapshot_rejects_duplicate_session_id" -q`
+    - result: `4 passed, 72 deselected`
+- [completed] committed the narrowed snapshot slice:
+  - commit: `8b60c23`
+  - message: `p40: land runtime snapshot default-session contract`
+- [completed] re-ran the dirty-worktree classifier after the commit:
+  - `python scripts/worktree_slice_report.py`
+  - result:
+    - total dirty paths: `146`
+    - `runtime-session-contract`: `16`
+    - recommended next slice still reports `runtime-session-contract`
+- [completed] ran a stricter residual audit after this cut:
+  - deletion-only runtime closure is not yet honest because clean-clone safety still depends on unlanded adoption in:
+    - `session_operator_handler.py`
+    - `main_agent_runtime_manager.py`
+    - `interaction/`
+    - `agent_core` skill command support
+    - model-selection support
+- [next] choose the next anti-chaos move based on true cross-bucket dependency ownership, not just the classifier label
+
 ## 2026-04-16 P40.14 Runtime Memory Command Compatibility Bridge
 
 - [completed] re-audited the post-`P40.13` runtime residue and narrowed the next honest cut to the remaining memory-command compatibility seam

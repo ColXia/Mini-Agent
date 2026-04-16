@@ -1,5 +1,72 @@
 # Task Plan
 
+## Latest Sync: 2026-04-16 P40.15 Runtime Snapshot Default-Session Contract
+
+## Current Execution Slice: P40.15 Runtime Snapshot Default-Session Contract (2026-04-16)
+
+### Why This Slice Is Next
+
+- after `P40.14`, the remaining runtime bucket still recommended `runtime-session-contract`, but most of that residue had become mixed adoption/deletion work
+- `session_snapshot.py` was the one clearly independent seam left:
+  - it had a tiny DTO contract drift
+  - it did not require reopening `session_operator_handler.py` or `main_agent_runtime_manager.py`
+- the honest next move was therefore to land the missing default-session snapshot field rather than force a larger mixed runtime commit
+
+### Scope
+
+- land the snapshot DTO contract update:
+  - `src/mini_agent/runtime/session_snapshot.py`
+- extend focused builder coverage:
+  - `tests/test_runtime_session_snapshot_builder.py`
+- verify adjacent snapshot import/export surfaces still pass
+
+### Acceptance
+
+- runtime snapshot DTOs preserve `is_default`
+- live-session snapshot building preserves `is_default`
+- persisted-record snapshot building preserves `is_default`
+- focused tests and adjacent snapshot regressions are green
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- landed commit:
+  - `8b60c23`
+  - `p40: land runtime snapshot default-session contract`
+- focused verification:
+  - `uv run ruff check src/mini_agent/runtime/session_snapshot.py tests/test_runtime_session_snapshot_builder.py`
+  - result: `All checks passed!`
+  - `uv run pytest tests/test_runtime_session_snapshot_builder.py tests/test_runtime_session_snapshot_handler.py -q`
+  - result: `4 passed`
+  - adjacent snapshot surface checks:
+    - `uv run pytest tests/test_main_agent_surface_service.py -k "can_import_local_session_snapshot or can_export_shared_session_snapshot or import_session_snapshot_can_register_lineage_child or import_session_snapshot_rejects_duplicate_session_id" -q`
+    - result: `4 passed, 72 deselected`
+- post-commit residual snapshot from `python scripts/worktree_slice_report.py`:
+  - total dirty paths: `147 -> 146`
+  - `runtime-session-contract`: `17 -> 16`
+- important boundary result:
+  - the runtime bucket no longer has another obviously independent DTO/compatibility seam of similar size
+  - the remaining residue is now dominated by mixed adoption/deletion work across:
+    - `main_agent_runtime_manager.py`
+    - `session_operator_handler.py`
+    - legacy handler deletions
+    - staged `interaction` extraction
+    - staged skill/model-selection support extractions
+
+### Next Likely Seam
+
+- current recommended next slice still reports `runtime-session-contract`, but a stricter audit now says:
+  - no more clean runtime-only micro-slice is obvious
+  - the next honest move is either:
+    - a bounded cross-bucket adoption slice spanning runtime + tracked replacements
+    - or closing the blocking upstream buckets first:
+      - `surface-transport-orchestration` for `interaction/`
+      - `agent-core-and-cli-surface` for skill command support
+      - `model-runtime-substrate` for session model-selection support
+
 ## Latest Sync: 2026-04-16 P40.14 Runtime Memory Command Compatibility Bridge
 
 ## Current Execution Slice: P40.14 Runtime Memory Command Compatibility Bridge (2026-04-16)
