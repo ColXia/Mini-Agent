@@ -8,8 +8,10 @@ from pathlib import Path
 import pytest
 
 from mini_agent import LLMClient
-from mini_agent.agent import Agent
+from mini_agent.agent_core.engine import Agent
 from mini_agent.config import Config
+from mini_agent.llm import build_protocol_execution_profile
+from mini_agent.schema import LLMProvider
 from mini_agent.tools import BashTool, EditTool, ReadTool, WriteTool
 from mini_agent.tools.mcp_loader import load_mcp_tools_async
 from mini_agent.tools.note_tool import RecallNoteTool, SessionNoteTool
@@ -44,6 +46,16 @@ def _find_mcp_config() -> Path | None:
     )
 
 
+def _build_live_llm_client(config: Config) -> LLMClient:
+    profile = build_protocol_execution_profile(
+        api_key=config.llm.api_key,
+        provider=LLMProvider(config.llm.provider),
+        api_base=config.llm.api_base,
+        model=config.llm.model,
+    )
+    return LLMClient(profile=profile)
+
+
 @pytest.mark.asyncio
 async def test_basic_agent_usage():
     """Test basic agent usage with file creation task.
@@ -66,11 +78,7 @@ async def test_basic_agent_usage():
         system_prompt = _load_system_prompt()
 
         # Initialize LLM client
-        llm_client = LLMClient(
-            api_key=config.llm.api_key,
-            api_base=config.llm.api_base,
-            model=config.llm.model,
-        )
+        llm_client = _build_live_llm_client(config)
 
         # Initialize basic tools
         tools = [
@@ -98,12 +106,12 @@ async def test_basic_agent_usage():
             if mcp_config_path is not None:
                 mcp_tools = await load_mcp_tools_async(config_path=str(mcp_config_path))
             if mcp_tools:
-                print(f"✓ Loaded {len(mcp_tools)} MCP tools")
+                print(f"[ok] Loaded {len(mcp_tools)} MCP tools")
                 tools.extend(mcp_tools)
             else:
-                print("⚠️  No MCP tools configured or enabled")
+                print("[warn] No MCP tools configured or enabled")
         except Exception as e:
-            print(f"⚠️  MCP tools not loaded: {e}")
+            print(f"[warn] MCP tools not loaded: {e}")
 
         # Create agent
         agent = Agent(
@@ -136,7 +144,7 @@ async def test_basic_agent_usage():
             "Agent should create the file or indicate completion"
         )
 
-        print("\n✅ Basic agent usage test passed")
+        print("\n[ok] Basic agent usage test passed")
 
 
 @pytest.mark.asyncio
@@ -167,11 +175,7 @@ You have record_note and recall_notes tools:
 """
 
         # Initialize LLM
-        llm_client = LLMClient(
-            api_key=config.llm.api_key,
-            api_base=config.llm.api_base,
-            model=config.llm.model,
-        )
+        llm_client = _build_live_llm_client(config)
 
         memory_root = Path(workspace_dir)
 
@@ -181,7 +185,7 @@ You have record_note and recall_notes tools:
             RecallNoteTool(memory_root=str(memory_root)),
         ]
 
-        print("\n📝 Creating Agent with Session Note tools...")
+        print("\n[note] Creating Agent with Session Note tools...")
         agent = Agent(
             llm_client=llm_client,
             system_prompt=system_prompt,
@@ -201,7 +205,7 @@ You have record_note and recall_notes tools:
         Use record_note to save this information.
         """
 
-        print(f"\n📌 First Conversation:\n{task1}")
+        print(f"\n[step] First Conversation:\n{task1}")
         print("=" * 80)
 
         agent.add_user_message(task1)
@@ -219,12 +223,12 @@ You have record_note and recall_notes tools:
                 for line in long_term_file.read_text(encoding="utf-8").splitlines()
                 if line.startswith("- [")
             ]
-            print(f"\n✅ Agent recorded {len(note_lines)} long-term notes:")
+            print(f"\n[ok] Agent recorded {len(note_lines)} long-term notes:")
             for line in note_lines:
                 print(f"  - {line}")
             assert len(note_lines) > 0, "Agent should have recorded some notes"
         else:
-            print("\n⚠️  No notes found - agent may not have used record_note tool")
+            print("\n[warn] No notes found - agent may not have used record_note tool")
 
         print("\n\n" + "=" * 80)
         print("Simulating New Session (Agent should recall previous information)")
@@ -243,7 +247,7 @@ You have record_note and recall_notes tools:
         Use recall_notes to check: What do you know about me and my project?
         """
 
-        print(f"\n📌 Second Conversation (new session):\n{task2}")
+        print(f"\n[step] Second Conversation (new session):\n{task2}")
         print("=" * 80)
 
         agent2.add_user_message(task2)
@@ -253,7 +257,7 @@ You have record_note and recall_notes tools:
         print(f"Agent response: {result2}")
         print("=" * 80)
 
-        print("\n✅ Session Note Tool test completed!")
+        print("\n[ok] Session Note Tool test completed!")
         print("\nKey Points Verified:")
         print("  1. Agent can record important information")
         print("  2. Notes persist in memory file")
@@ -271,12 +275,12 @@ async def main():
     try:
         await test_basic_agent_usage()
     except Exception as e:
-        print(f"❌ Basic usage test failed: {e}")
+        print(f"[fail] Basic usage test failed: {e}")
 
     try:
         await test_session_memory_demo()
     except Exception as e:
-        print(f"❌ Session memory test failed: {e}")
+        print(f"[fail] Session memory test failed: {e}")
 
     print("\n" + "=" * 80)
     print("Integration tests completed!")

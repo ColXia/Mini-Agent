@@ -365,14 +365,15 @@ def parse_promotion_advisory_status(path: Path) -> str:
     status_marker = "- Status: "
     for line in lines:
         if line.startswith("### "):
-            in_advisory_gate = line.strip() == "### OpenWebUI no-dry-run gate"
+            title = line.strip()[4:].strip().lower()
+            in_advisory_gate = "no-dry-run gate" in title
             continue
         if not in_advisory_gate:
             continue
         if line.startswith(status_marker):
             return line[len(status_marker) :].strip().upper()
 
-    advisory_signal_pattern = re.compile(r"^- OpenWebUI no-dry-run gate:\s*([A-Za-z]+)\b")
+    advisory_signal_pattern = re.compile(r"^- .*no-dry-run gate:\s*([A-Za-z]+)\b", re.IGNORECASE)
     for line in lines:
         matched = advisory_signal_pattern.match(line.strip())
         if matched:

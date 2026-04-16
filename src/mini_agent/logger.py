@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .schema import Message, ToolCall
+from .schema import LLMCompletionResult, Message, ToolCall
 
 
 def _utc_now_iso() -> str:
@@ -320,6 +320,40 @@ class AgentLogger:
             },
         )
 
+    def log_completion(self, result: LLMCompletionResult) -> None:
+        self.log_index += 1
+
+        response_data: dict[str, Any] = {
+            "content": result.content,
+            "events": [event.model_dump() for event in result.events],
+        }
+        if result.thinking:
+            response_data["thinking"] = result.thinking
+        if result.tool_calls:
+            response_data["tool_calls"] = [call.model_dump() for call in result.tool_calls]
+        if result.finish_reason:
+            response_data["finish_reason"] = result.finish_reason
+        if result.usage is not None:
+            response_data["usage"] = result.usage.model_dump()
+        if result.error:
+            response_data["error"] = result.error
+
+        log_content = "LLM Response:\n\n"
+        log_content += json.dumps(response_data, indent=2, ensure_ascii=False)
+        self._write_log("RESPONSE", log_content)
+
+        preview = result.content[:200] + ("..." if len(result.content) > 200 else "")
+        self.log_event(
+            event_type="llm.response",
+            payload={
+                "finish_reason": result.finish_reason,
+                "tool_call_count": len(result.tool_calls or []),
+                "event_count": len(result.events),
+                "content_preview": preview,
+                "error": result.error,
+            },
+        )
+
     def log_response(
         self,
         content: str,
@@ -327,30 +361,15 @@ class AgentLogger:
         tool_calls: list[ToolCall] | None = None,
         finish_reason: str | None = None,
     ) -> None:
-        self.log_index += 1
+        """Backward-compatible wrapper over ``log_completion``."""
 
-        response_data: dict[str, Any] = {
-            "content": content,
-        }
-        if thinking:
-            response_data["thinking"] = thinking
-        if tool_calls:
-            response_data["tool_calls"] = [call.model_dump() for call in tool_calls]
-        if finish_reason:
-            response_data["finish_reason"] = finish_reason
-
-        log_content = "LLM Response:\n\n"
-        log_content += json.dumps(response_data, indent=2, ensure_ascii=False)
-        self._write_log("RESPONSE", log_content)
-
-        preview = content[:200] + ("..." if len(content) > 200 else "")
-        self.log_event(
-            event_type="llm.response",
-            payload={
-                "finish_reason": finish_reason,
-                "tool_call_count": len(tool_calls or []),
-                "content_preview": preview,
-            },
+        self.log_completion(
+            LLMCompletionResult(
+                content=content,
+                thinking=thinking,
+                tool_calls=tool_calls,
+                finish_reason=finish_reason,
+            )
         )
 
     def log_tool_result(

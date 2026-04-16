@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from mini_agent.logger import AgentLogger
-from mini_agent.schema import Message
+from mini_agent.schema import LLMCompletionResult, Message
 
 
 def test_event_journal_is_written_and_replayable(tmp_path: Path):
@@ -12,7 +12,7 @@ def test_event_journal_is_written_and_replayable(tmp_path: Path):
 
     logger.log_event("step.start", {"step": 1})
     logger.log_request(messages=[Message(role="user", content="hello")], tools=None)
-    logger.log_response(content="world", finish_reason="stop")
+    logger.log_completion(LLMCompletionResult(content="world", finish_reason="stop"))
     logger.log_tool_result(
         tool_name="read_file",
         arguments={"path": "README.md"},
@@ -38,3 +38,18 @@ def test_event_journal_is_written_and_replayable(tmp_path: Path):
     assert "Run Event Replay" in replay
     assert "Schema:" in replay
     assert "Total events:" in replay
+
+
+def test_log_response_compatibility_wrapper_still_records_llm_response(tmp_path: Path) -> None:
+    logger = AgentLogger(log_dir=tmp_path)
+    logger.start_new_run(workspace=tmp_path / "workspace")
+
+    logger.log_response(content="legacy", finish_reason="stop")
+
+    event_file = logger.get_event_file_path()
+    assert event_file is not None
+
+    events = AgentLogger.read_events(event_file)
+    response_event = next(event for event in events if event["type"] == "llm.response")
+    assert response_event["payload"]["content_preview"] == "legacy"
+    assert response_event["payload"]["finish_reason"] == "stop"

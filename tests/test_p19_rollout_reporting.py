@@ -70,7 +70,7 @@ def test_parse_report_fields_and_runtime_snapshot(tmp_path: Path) -> None:
                 "- Decision: READY",
                 f"- Started: {now}",
                 "",
-                "### OpenWebUI no-dry-run gate",
+                "### Remote no-dry-run gate",
                 "- Role: ADVISORY",
                 "- Status: SKIP",
             ]
@@ -114,7 +114,7 @@ def test_summarize_weekly_rollout_ready_with_trend_and_delta(tmp_path: Path) -> 
                 "- Decision: READY",
                 "- Started: 2026-04-07T10:20:00+00:00",
                 "",
-                "### OpenWebUI no-dry-run gate",
+                "### Remote no-dry-run gate",
                 "- Role: ADVISORY",
                 "- Status: SKIP",
             ]
@@ -145,7 +145,7 @@ def test_summarize_weekly_rollout_ready_with_trend_and_delta(tmp_path: Path) -> 
                 "- Decision: READY",
                 "- Started: 2026-04-14T10:20:00+00:00",
                 "",
-                "### OpenWebUI no-dry-run gate",
+                "### Remote no-dry-run gate",
                 "- Role: ADVISORY",
                 "- Status: WARN",
             ]
@@ -196,7 +196,7 @@ def test_summarize_weekly_rollout_attention_when_matrix_missing(tmp_path: Path) 
     )
     _write(
         tmp_path / "workspace" / "release_promotion" / "release_promotion_20260407T102000Z.md",
-        "- Decision: READY\n- Started: 2026-04-07T10:20:00+00:00\n### OpenWebUI no-dry-run gate\n- Status: PASS\n",
+        "- Decision: READY\n- Started: 2026-04-07T10:20:00+00:00\n### Remote no-dry-run gate\n- Status: PASS\n",
     )
 
     summary = summarize_weekly_rollout(repo_root=tmp_path, now=now, window_days=7)
@@ -217,7 +217,7 @@ def test_target_profile_prod_detects_runtime_pressure(tmp_path: Path) -> None:
     )
     _write(
         tmp_path / "workspace" / "release_promotion" / "release_promotion_20260407T102000Z.md",
-        "- Decision: READY\n- Started: 2026-04-07T10:20:00+00:00\n### OpenWebUI no-dry-run gate\n- Status: PASS\n",
+        "- Decision: READY\n- Started: 2026-04-07T10:20:00+00:00\n### Remote no-dry-run gate\n- Status: PASS\n",
     )
     _write_runtime_snapshot(
         tmp_path / "workspace" / "release_gate" / "studio_ops_runtime_20260407T101000Z.json",

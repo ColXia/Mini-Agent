@@ -11,7 +11,7 @@ from typing import Any
 
 from dotenv import dotenv_values
 
-from mini_agent.agent import PlannerExecutorHooks
+from mini_agent.agent_core.engine import PlannerExecutorHooks
 from mini_agent.agent_core.kernel import AgentKernelBuildOptions, build_agent_kernel
 
 
@@ -19,14 +19,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 OFFICIAL_PRESET_ENV_KEYS = (
     "OPENAI_API_KEY",
     "ANTHROPIC_API_KEY",
-    "GEMINI_API_KEY",
     "MINIMAX_API_KEY",
 )
 PLACEHOLDER_KEYS = {
     "YOUR_API_KEY_HERE",
     "YOUR_OPENAI_API_KEY_HERE",
     "YOUR_ANTHROPIC_API_KEY_HERE",
-    "YOUR_GEMINI_API_KEY_HERE",
     "YOUR_MINIMAX_API_KEY_HERE",
     "your_api_key",
     "your-api-key",
@@ -37,19 +35,19 @@ PLACEHOLDER_KEYS = {
 DEFAULT_CASES: list[tuple[str, str]] = [
     (
         "frontend-dev",
-        "帮我重做这个 React 管理后台页面布局和交互。现在先不要改代码、不要执行 bash、不要联网，只判断你会调用什么能力以及你的实施思路。",
+        "帮我重做这个 React 管理后台页面布局和交互。现在先不要改代码，不要执行 bash，不要联网，只判断你会调用什么能力以及实施思路。",
     ),
     (
         "fullstack-dev",
-        "给这个项目做一个前后端打通的设置页和保存接口。现在先不要改代码、不要执行 bash、不要联网，只判断你会调用什么能力以及你的实施思路。",
+        "给这个项目做一个前后端打通的设置页和保存接口。现在先不要改代码，不要执行 bash，不要联网，只判断你会调用什么能力以及实施思路。",
     ),
     (
         "buddy-sings",
-        "给 nyonyo 做一段简短的欢迎歌曲。现在先不要实际生成音频，只判断你会调用什么能力以及你的实施思路。",
+        "给 nyonyo 做一段简短的欢迎歌曲。现在先不要实际生成音频，只判断你会调用什么能力以及实施思路。",
     ),
     (
         "minimax-music-playlist",
-        "给这个 demo 设计一个三首曲子的背景音乐播放列表。现在先不要实际生成音频，只判断你会调用什么能力以及你的实施思路。",
+        "给这个 demo 设计一个三首曲子的背景音乐播放列表。现在先不要实际生成音频，只判断你会调用什么能力以及实施思路。",
     ),
 ]
 

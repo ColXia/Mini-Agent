@@ -1,4 +1,4 @@
-"""Runtime stack manager for gateway + QQ bot orchestration."""
+"""Runtime stack manager for gateway + the active QQ remote adapter."""
 
 from __future__ import annotations
 
@@ -6,14 +6,13 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
+import signal
 import shutil
+import socket
 import subprocess
 import sys
 import time
 from typing import Any
-
-from .studio_dev_manager import is_port_listening, is_process_alive, _terminate_process
-
 
 def _utc_now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
@@ -42,6 +41,69 @@ def _to_int(value: Any, default: int | None = None) -> int | None:
         return default
 
 
+def is_port_listening(host: str, port: int, *, timeout: float = 0.25) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def is_process_alive(pid: int | None) -> bool:
+    if not pid or pid <= 0:
+        return False
+    if os.name == "nt":
+        result = subprocess.run(
+            ["tasklist", "/FI", f"PID eq {int(pid)}", "/NH"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        stdout = (result.stdout or "").strip()
+        if result.returncode != 0 or not stdout:
+            return False
+        lowered = stdout.lower()
+        return str(pid) in stdout and "no tasks are running" not in lowered
+    try:
+        os.kill(int(pid), 0)
+    except OSError:
+        return False
+    return True
+
+
+def _terminate_process(pid: int | None, *, force: bool = False) -> bool:
+    if not pid or pid <= 0:
+        return False
+    if not is_process_alive(pid):
+        return True
+    if os.name == "nt":
+        command = ["taskkill", "/PID", str(int(pid)), "/T"]
+        if force:
+            command.append("/F")
+        subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+    else:
+        sig = signal.SIGKILL if force else signal.SIGTERM
+        try:
+            os.kill(int(pid), sig)
+        except OSError:
+            return not is_process_alive(pid)
+    deadline = time.time() + 3.0
+    while time.time() < deadline:
+        if not is_process_alive(pid):
+            return True
+        time.sleep(0.1)
+    return not is_process_alive(pid)
+
+
 @dataclass(slots=True)
 class RuntimeStackStatus:
     running: bool
@@ -61,7 +123,7 @@ class RuntimeStackStatus:
 
 
 class RuntimeStackManager:
-    """Manage the local runtime stack used by TUI/QQ shared-session workflows."""
+    """Manage the local runtime stack used by TUI plus the active QQ remote adapter."""
 
     def __init__(
         self,
