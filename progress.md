@@ -1,5 +1,40 @@
 # Progress
 
+## 2026-04-16 P40.9 Runtime Interrupt / Pending-Approval Support Landing
+
+- [completed] re-audited the remaining `runtime-session-contract` residue after the docs closure and confirmed the larger operator/control line was still mixed
+- [completed] narrowed the next honest runtime cut to the independent interrupt/approval semantic core instead of forcing the broader manager/operator adoption line
+- [completed] landed shared interrupt/approval support owners:
+  - `src/mini_agent/runtime/session_cancel_service.py`
+  - `src/mini_agent/runtime/session_control_error_service.py`
+  - `src/mini_agent/runtime/session_pending_approval_service.py`
+  - `src/mini_agent/runtime/session_pending_approval_state_handler.py`
+- [completed] rewired the maintained interrupt owner to the extracted support services:
+  - `src/mini_agent/runtime/session_interrupt_handler.py`
+- [completed] added focused runtime regressions for the landed support seam:
+  - `tests/test_runtime_session_error_services.py`
+  - `tests/test_runtime_session_pending_approval_state_handler.py`
+  - `tests/test_runtime_session_interrupt_handler.py`
+- [completed] verified the narrowed slice:
+  - `uv run pytest tests/test_runtime_policy_service.py tests/test_runtime_session_admin_handler.py tests/test_runtime_session_agent_control_handler.py tests/test_runtime_session_agent_runtime_handler.py tests/test_runtime_session_error_services.py tests/test_runtime_session_mcp_control_handler.py tests/test_runtime_session_operator_handler.py tests/test_runtime_session_pending_approval_state_handler.py -q`
+  - result: `22 passed`
+  - `uv run ruff check src/mini_agent/runtime/runtime_policy_service.py src/mini_agent/runtime/session_admin_handler.py src/mini_agent/runtime/session_agent_control_handler.py src/mini_agent/runtime/session_cancel_service.py src/mini_agent/runtime/session_control_error_service.py src/mini_agent/runtime/session_control_models.py src/mini_agent/runtime/session_mcp_control_handler.py src/mini_agent/runtime/session_pending_approval_service.py src/mini_agent/runtime/session_pending_approval_state_handler.py src/mini_agent/runtime/session_interrupt_handler.py src/mini_agent/runtime/session_operator_handler.py src/mini_agent/runtime/session_agent_runtime_handler.py src/mini_agent/runtime/session_live_state_handler.py src/mini_agent/runtime/__init__.py tests/test_runtime_policy_service.py tests/test_runtime_session_admin_handler.py tests/test_runtime_session_agent_control_handler.py tests/test_runtime_session_agent_runtime_handler.py tests/test_runtime_session_error_services.py tests/test_runtime_session_mcp_control_handler.py tests/test_runtime_session_operator_handler.py tests/test_runtime_session_pending_approval_state_handler.py`
+  - result: `All checks passed!`
+  - `uv run pytest tests/test_runtime_session_interrupt_handler.py tests/test_runtime_session_error_services.py tests/test_runtime_session_pending_approval_state_handler.py -q`
+  - result: `7 passed`
+  - `uv run ruff check src/mini_agent/runtime/session_cancel_service.py src/mini_agent/runtime/session_pending_approval_service.py src/mini_agent/runtime/session_pending_approval_state_handler.py src/mini_agent/runtime/session_interrupt_handler.py tests/test_runtime_session_interrupt_handler.py tests/test_runtime_session_error_services.py tests/test_runtime_session_pending_approval_state_handler.py`
+  - result: `All checks passed!`
+- [completed] committed the narrowed runtime slice:
+  - commit: `e4176ab`
+  - message: `p40: land runtime interrupt approval support`
+- [completed] re-ran the dirty-worktree classifier after the commit:
+  - `python scripts/worktree_slice_report.py`
+  - result:
+    - total dirty paths: `165`
+    - `runtime-session-contract`: `33`
+    - recommended next slice remains `runtime-session-contract`
+- [next] continue narrowing the remaining runtime residue around operator/control adoption without dragging the full `main_agent_runtime_manager.py` convergence into one commit
+
 ## 2026-04-16 P40.8 Historical Architecture Docs Landing
 
 - [completed] audited the second-stage `docs-planning-governance` residue after `P40.7`

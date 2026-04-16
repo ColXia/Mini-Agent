@@ -1,5 +1,33 @@
 # Findings
 
+## 2026-04-16 P40.9 Runtime Interrupt / Pending-Approval Support Landing
+
+- The remaining `runtime-session-contract` bucket was still too mixed to attack as one more "support layer" commit.
+- The audit confirmed a real dependency boundary problem inside the larger operator/control residue:
+  - `session_operator_handler.py` now depends on new context/skill/model/runtime-policy services that still live across other dirty slices
+  - `main_agent_runtime_manager.py` now mixes operator/control adoption with broader manager convergence and previously separated support seams
+- That meant the honest next move was not the whole operator/control story.
+- The honest next move was the narrow interrupt/approval semantic core that was already independent:
+  - cancel wording and requested-state semantics
+  - pending-approval target resolution
+  - restart-recovery approval conflict semantics
+  - waiter validation and approve/deny decision formatting
+  - pending-approval state normalization/mutation
+- This slice matters because interruption and approval semantics are exactly the kind of behavior that become chaotic fast when multiple surfaces each carry their own wording and token-resolution rules.
+- The new direct interrupt-handler coverage was worth adding even though the shared service tests were already green.
+- It validates the actual runtime owner behavior for:
+  - cancel-event setting
+  - waiter release on cancel
+  - approve transcript formatting
+  - waiter finalization on approval resolution
+- Structural effect:
+  - total dirty paths: `172 -> 165`
+  - `runtime-session-contract`: `40 -> 33`
+- This reduction is more valuable than the raw count suggests because it removes one entire class of runtime-control ambiguity before touching the larger operator/manager convergence line.
+- Practical implication:
+  - the next runtime cut can now focus on operator/control adoption without also carrying the interrupt/pending-approval semantic cleanup
+  - if the next operator cut still drags in cross-slice service adoption, it should be split again rather than forcing a premature manager commit
+
 ## 2026-04-16 P40.8 Historical Architecture Docs Landing
 
 - The second-stage docs residue turned out to be fully legitimate repo content, not optional scratch notes.

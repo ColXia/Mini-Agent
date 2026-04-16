@@ -1,5 +1,88 @@
 # Task Plan
 
+## Latest Sync: 2026-04-16 P40.9 Runtime Interrupt / Pending-Approval Support Landing
+
+## Current Execution Slice: P40.9 Runtime Interrupt / Pending-Approval Support Landing (2026-04-16)
+
+### Why This Slice Is Next
+
+- after closing docs and landing the smaller memory/runtime support cuts, `runtime-session-contract` was still the recommended next slice
+- a stricter audit of the remaining dirty runtime files showed that the larger `operator/control` convergence line was still mixed:
+  - `session_operator_handler.py` now depends on new context/skill/model/runtime-policy services from other still-dirty slices
+  - `main_agent_runtime_manager.py` still bundles broader manager adoption that would reopen already-separated runtime support lines
+- the safest honest next move was therefore to cut the most independent sub-slice inside the runtime control area first:
+  - cancel semantics
+  - pending-approval resolution semantics
+  - pending-approval state normalization
+  - shared control-error wording
+
+### Scope
+
+- land the interrupt/approval support helpers:
+  - `src/mini_agent/runtime/session_cancel_service.py`
+  - `src/mini_agent/runtime/session_control_error_service.py`
+  - `src/mini_agent/runtime/session_pending_approval_service.py`
+  - `src/mini_agent/runtime/session_pending_approval_state_handler.py`
+- rewire the maintained interrupt owner to the extracted shared services:
+  - `src/mini_agent/runtime/session_interrupt_handler.py`
+- add focused runtime regressions for the extracted semantics:
+  - `tests/test_runtime_session_error_services.py`
+  - `tests/test_runtime_session_pending_approval_state_handler.py`
+  - `tests/test_runtime_session_interrupt_handler.py`
+
+### Acceptance
+
+- cancel semantics have one shared owner for:
+  - no-running-turn detail
+  - not-cancellable detail
+  - requested summary/status/transcript text
+- pending-approval resolution has one shared owner for:
+  - token resolution
+  - restart-recovery conflict detail
+  - waiter validation
+  - approve/deny transcript text
+- pending-approval state normalization/mutation is covered directly by focused tests
+- the narrowed slice lands without dragging in the broader manager/operator adoption line
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- landed commit:
+  - `e4176ab`
+  - `p40: land runtime interrupt approval support`
+- focused verification:
+  - `uv run pytest tests/test_runtime_policy_service.py tests/test_runtime_session_admin_handler.py tests/test_runtime_session_agent_control_handler.py tests/test_runtime_session_agent_runtime_handler.py tests/test_runtime_session_error_services.py tests/test_runtime_session_mcp_control_handler.py tests/test_runtime_session_operator_handler.py tests/test_runtime_session_pending_approval_state_handler.py -q`
+  - result: `22 passed`
+  - `uv run ruff check src/mini_agent/runtime/runtime_policy_service.py src/mini_agent/runtime/session_admin_handler.py src/mini_agent/runtime/session_agent_control_handler.py src/mini_agent/runtime/session_cancel_service.py src/mini_agent/runtime/session_control_error_service.py src/mini_agent/runtime/session_control_models.py src/mini_agent/runtime/session_mcp_control_handler.py src/mini_agent/runtime/session_pending_approval_service.py src/mini_agent/runtime/session_pending_approval_state_handler.py src/mini_agent/runtime/session_interrupt_handler.py src/mini_agent/runtime/session_operator_handler.py src/mini_agent/runtime/session_agent_runtime_handler.py src/mini_agent/runtime/session_live_state_handler.py src/mini_agent/runtime/__init__.py tests/test_runtime_policy_service.py tests/test_runtime_session_admin_handler.py tests/test_runtime_session_agent_control_handler.py tests/test_runtime_session_agent_runtime_handler.py tests/test_runtime_session_error_services.py tests/test_runtime_session_mcp_control_handler.py tests/test_runtime_session_operator_handler.py tests/test_runtime_session_pending_approval_state_handler.py`
+  - result: `All checks passed!`
+  - `uv run pytest tests/test_runtime_session_interrupt_handler.py tests/test_runtime_session_error_services.py tests/test_runtime_session_pending_approval_state_handler.py -q`
+  - result: `7 passed`
+  - `uv run ruff check src/mini_agent/runtime/session_cancel_service.py src/mini_agent/runtime/session_pending_approval_service.py src/mini_agent/runtime/session_pending_approval_state_handler.py src/mini_agent/runtime/session_interrupt_handler.py tests/test_runtime_session_interrupt_handler.py tests/test_runtime_session_error_services.py tests/test_runtime_session_pending_approval_state_handler.py`
+  - result: `All checks passed!`
+- post-commit residual snapshot from `python scripts/worktree_slice_report.py`:
+  - total dirty paths: `172 -> 165`
+  - `runtime-session-contract`: `40 -> 33`
+- important boundary result:
+  - the runtime interrupt/approval semantics are now landable independently of the broader operator/manager convergence
+  - the remaining runtime residue is more honestly concentrated in:
+    - `main_agent_runtime_manager.py`
+    - `session_operator_handler.py`
+    - `session_agent_runtime_handler.py`
+    - `session_live_state_handler.py`
+    - deleted legacy handler cleanup plus the still-untracked operator/control support files
+
+### Next Likely Seam
+
+- keep `runtime-session-contract` as the next recommended slice, but continue narrowing inside it
+- the next honest candidate is now the broader `operator/control` support layer only if it can be landed without reopening:
+  - `agent_core` skill command support
+  - model-selection support adoption
+  - full runtime-manager convergence
+- if that still proves mixed, split again rather than bundling the manager rewrite
+
 ## Latest Sync: 2026-04-16 P40.8 Historical Architecture Docs Landing
 
 ## Current Execution Slice: P40.8 Historical Architecture Docs Landing (2026-04-16)
