@@ -1,5 +1,38 @@
 # Findings
 
+## 2026-04-16 P40.6 Memory Governance Support Landing
+
+- The remaining `memory-governance` residue was a real clean-clone integrity problem, not cosmetic drift.
+- Committed code already imported all four support modules:
+  - `memory.command_service`
+  - `memory.diagnostics`
+  - `memory.runtime_backend`
+  - `tools.knowledge_base_control_service`
+- That meant the repo still had one false sense of progress:
+  - runtime and command refactors looked landed
+  - but part of their support layer still lived only in the dirty tree
+- The right correction was to land the support layer directly instead of reopening a larger runtime bundle.
+- This slice is coherent because the files form one ownership line:
+  - shared `/memory` command semantics
+  - operator-facing memory diagnostics and selectors
+  - workspace runtime-memory backend access
+  - shared KB toggle semantics
+- Existing focused tests already provided stronger coverage than expected:
+  - local operator command execution
+  - runtime diagnostics service
+  - CLI memory flows
+  - TUI remote memory routing
+- One small but necessary compatibility detail surfaced in the process:
+  - `tests/test_knowledge_base_tool.py` still referenced pre-refactor import paths
+  - landing the support files without that test import update would have left a misleading residual dirty path inside the same ownership line
+- The post-commit reduction is small in raw count but meaningful in structure:
+  - total dirty paths: `196 -> 191`
+  - `memory-governance`: `5 -> 0`
+- This matters more than the raw delta suggests because one whole residual category is now closed.
+- Practical implication:
+  - the project is less likely to regress into memory/runtime ownership confusion during the next iteration
+  - the next safest anti-chaos move is back to `docs-planning-governance`, not another rushed runtime cut
+
 ## 2026-04-16 P40.5 Runtime Session Orchestration Support Landing
 
 - The next honest runtime cut after `P40.4` was not the whole runtime-manager rewrite.

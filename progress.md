@@ -1,5 +1,42 @@
 # Progress
 
+## 2026-04-16 P40.6 Memory Governance Support Landing
+
+- [completed] re-audited the remaining `memory-governance` residue after `P40.5`
+- [completed] confirmed the slice was still a clean-clone integrity issue rather than optional cleanup:
+  - committed runtime and command code already imported the missing support files
+  - the residual bucket was narrow enough to land without reopening larger runtime or TUI work
+- [completed] landed the remaining memory-governance support modules:
+  - `src/mini_agent/memory/command_service.py`
+  - `src/mini_agent/memory/diagnostics.py`
+  - `src/mini_agent/memory/runtime_backend.py`
+  - `src/mini_agent/tools/knowledge_base_control_service.py`
+- [completed] carried the required compatibility test import update:
+  - `tests/test_knowledge_base_tool.py`
+- [completed] verified the narrowed memory-governance slice:
+  - `python -m pytest tests/test_command_execution_service.py tests/test_runtime_session_diagnostics_service.py tests/test_knowledge_base_tool.py`
+  - result: `33 passed`
+  - `python -m pytest tests/test_cli_submission_loop.py -k test_run_interactive_session_memory_promote_and_save_commands`
+  - result: `1 passed`
+  - `python -m pytest tests/test_tui_app.py -k "test_tui_remote_memory_shared_commands_route_through_gateway or test_tui_remote_memory_mutation_commands_route_through_gateway"`
+  - result: `2 passed`
+  - `ruff check src/mini_agent/memory/command_service.py src/mini_agent/memory/diagnostics.py src/mini_agent/memory/runtime_backend.py src/mini_agent/tools/knowledge_base_control_service.py tests/test_knowledge_base_tool.py tests/test_command_execution_service.py tests/test_runtime_session_diagnostics_service.py`
+  - result: `All checks passed!`
+- [completed] landed the narrowed memory-governance slice:
+  - commit: `0dea687`
+  - message: `p40: land memory governance support`
+- [completed] re-ran the dirty-worktree classifier after the commit:
+  - `python scripts/worktree_slice_report.py`
+  - result:
+    - total dirty paths: `191`
+    - `agent-core-and-cli-surface`: `62`
+    - `surface-transport-orchestration`: `42`
+    - `runtime-session-contract`: `40`
+    - `docs-planning-governance`: `19`
+    - `memory-governance`: `0`
+- [next] current safest anti-chaos slice is `docs-planning-governance`
+  - after that, reopen `runtime-session-contract` only if the cut stays narrow again
+
 ## 2026-04-16 P40.5 Runtime Session Orchestration Support Landing
 
 - [completed] re-audited the next runtime seam above `P40.4` and kept the manager rewrite out of the cut

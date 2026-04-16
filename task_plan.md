@@ -1,5 +1,74 @@
 # Task Plan
 
+## Latest Sync: 2026-04-16 P40.6 Memory Governance Support Landing
+
+## Current Execution Slice: P40.6 Memory Governance Support Landing (2026-04-16)
+
+### Why This Slice Is Next
+
+- after `P40.5`, the smallest remaining code-bearing anti-chaos slice was the residual `memory-governance` bundle
+- that bundle was no longer speculative cleanup:
+  - committed runtime and command surfaces already imported the still-untracked memory governance helpers
+  - committed CLI/TUI and runtime flows already depended on those helpers for `/memory`, runtime diagnostics, and KB toggle semantics
+- the honest next move was therefore to land the missing support layer itself, not to reopen larger runtime or TUI bundles
+
+### Scope
+
+- land the remaining memory-governance support files:
+  - `src/mini_agent/memory/command_service.py`
+  - `src/mini_agent/memory/diagnostics.py`
+  - `src/mini_agent/memory/runtime_backend.py`
+  - `src/mini_agent/tools/knowledge_base_control_service.py`
+- carry the one required compatibility test import update:
+  - `tests/test_knowledge_base_tool.py`
+- keep broader runtime/control/TUI adoption work out of this cut
+
+### Acceptance
+
+- committed code no longer depends on untracked memory-governance support modules
+- `/memory` command semantics, runtime diagnostics shaping, runtime-memory backend access, and KB toggle semantics all exist as maintained repo code
+- focused local-command, runtime-diagnostics, CLI, and TUI regressions for these seams are green
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- this slice closes the remaining memory-governance clean-clone gap by landing the shared support layer that committed code already imports:
+  - `MemoryCommandService` now owns shared `/memory` semantics for local and runtime surfaces
+  - `build_memory_diagnostics(...)` and related formatting/selectors now live in maintained memory diagnostics code
+  - `WorkspaceRuntimeMemoryBackend` now provides the workspace-scoped runtime-memory adapter from the memory package itself
+  - `KnowledgeBaseControlService` now owns shared KB status/toggle semantics across local and runtime control paths
+- the only required test-surface change in this slice was the maintained import path update in `tests/test_knowledge_base_tool.py`
+- focused verification for this slice:
+  - `python -m pytest tests/test_command_execution_service.py tests/test_runtime_session_diagnostics_service.py tests/test_knowledge_base_tool.py`
+  - result: `33 passed`
+  - `python -m pytest tests/test_cli_submission_loop.py -k test_run_interactive_session_memory_promote_and_save_commands`
+  - result: `1 passed`
+  - `python -m pytest tests/test_tui_app.py -k "test_tui_remote_memory_shared_commands_route_through_gateway or test_tui_remote_memory_mutation_commands_route_through_gateway"`
+  - result: `2 passed`
+  - `ruff check src/mini_agent/memory/command_service.py src/mini_agent/memory/diagnostics.py src/mini_agent/memory/runtime_backend.py src/mini_agent/tools/knowledge_base_control_service.py tests/test_knowledge_base_tool.py tests/test_command_execution_service.py tests/test_runtime_session_diagnostics_service.py`
+  - result: `All checks passed!`
+- landed commit:
+  - `0dea687` `p40: land memory governance support`
+- post-commit residual snapshot from `python scripts/worktree_slice_report.py`:
+  - total dirty paths: `191`
+  - `agent-core-and-cli-surface`: `62`
+  - `surface-transport-orchestration`: `42`
+  - `runtime-session-contract`: `40`
+  - `docs-planning-governance`: `19`
+  - `memory-governance`: `0` (closed)
+
+### Next Likely Seam
+
+- with `memory-governance` now closed, the next safest anti-chaos slice is again the non-code status/documentation residue:
+  - `docs-planning-governance`
+- after that, reopen code-bearing slices conservatively in this order:
+  - `runtime-session-contract`
+  - `surface-transport-orchestration`
+  - `agent-core-and-cli-surface`
+
 ## Latest Sync: 2026-04-16 P40.5 Runtime Session Orchestration Support Landing
 
 ## Current Execution Slice: P40.5 Runtime Session Orchestration Support Landing (2026-04-16)
