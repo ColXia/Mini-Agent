@@ -83,11 +83,11 @@ Updated: 2026-04-06
    - error classification (`mini_agent/model_manager/error_classifier.py`) drives failover behavior
    - per-attempt success/failure updates health monitor + breaker stats
 6. Runtime entrypoints (`mini_agent/cli_interactive.py`, `src/apps/agent_studio_gateway/main.py`, `mini_agent/acp/__init__.py`) build `FailoverLLMClient` with the candidate chain.
-7. Studio Ops APIs (`src/apps/agent_studio_gateway/studio_router.py`) expose:
+7. Ops APIs (`src/apps/agent_studio_gateway/ops_router.py`) expose:
    - `GET /api/v1/ops/providers`
    - `GET /api/v1/ops/providers/{provider_id}/health`
    - `GET /api/v1/system/health`
-8. If catalog routing is unavailable or invalid, runtime falls back to `config.llm`.
+8. If the provider registry is empty, runtime synthesizes one bootstrap provider from the minimal `config.llm` route input and still routes through the same registry selector path.
 9. Request rectifier (`mini_agent/model_manager/rectifier.py`) normalizes provider payloads before outbound requests:
    - OpenAI request normalization (reasoning details cleanup + optional MiniMax thinking budget)
    - Anthropic request normalization (thinking signature cleanup + optional budget + cache-control injection)
@@ -98,30 +98,34 @@ Updated: 2026-04-06
 11. Rectifier/runtime health counters are exposed via system health:
    - `GET /api/v1/system/health`
    - fields: request counts, budget/cache/signature mutation counts, conversion counts.
+12. Active runtime request-policy and rectifier defaults are loaded from `config.runtime` and passed into protocol binding/profile creation:
+   - retry: `config.runtime.retry`
+   - request policy: `config.runtime.request_policy`
+   - rectifier defaults: `config.runtime.rectifier`
 
 ## Code Agent Loop Flow (P14+)
 1. Submission loop receives events over `asyncio.Queue`:
    - `user_input`, `interrupt`, `exec_approval`, `compact`, `drop_memories`
-   - implementation: `mini_agent/code_agent/agent_loop.py`
+   - implementation: `mini_agent/agent_core/execution/agent_loop.py`
 2. Turn context snapshot is captured at submission time:
    - immutable per-turn policy (`max_steps`, `max_tool_calls_per_step`)
    - isolated from later config mutation
-   - implementation: `mini_agent/code_agent/context.py`
+   - implementation: `mini_agent/agent_core/context/loop_context.py`
 3. Scheduler executes one turn with explicit state transitions:
    - `validating` -> `scheduled` -> `executing` -> (`completed` | `interrupted` | `errored`)
-   - implementation: `mini_agent/code_agent/scheduler.py`
+   - implementation: `mini_agent/agent_core/execution/scheduler.py`
 4. Interrupt events trigger immediate cancel dispatch to running turn while retaining queued audit events.
 
 ## Code Agent Sandbox Flow (P14 T2.2)
 1. `SandboxManager` selects backend at runtime:
    - `sandbox_mode=workspace` + Windows -> `windows_restricted_token`
    - `sandbox_mode=unrestricted` or non-Windows -> passthrough (`none`)
-   - implementation: `mini_agent/code_agent/sandbox/manager.py`
+   - implementation: `mini_agent/agent_core/execution/sandbox/manager.py`
 2. Command transform path for Windows-restricted backend:
    - elevated-command checks (e.g. `Start-Process -Verb RunAs`, execution-policy mutations, privileged service/registry/host shutdown paths)
    - domain-level network checks (`allow_all` / `deny_all` / `allowlist` / `blocklist`)
    - workspace-root `cwd` boundary validation
-   - implementation: `mini_agent/code_agent/sandbox/windows.py`, `mini_agent/code_agent/sandbox/network.py`
+   - implementation: `mini_agent/agent_core/execution/sandbox/windows.py`, `mini_agent/agent_core/execution/sandbox/network.py`
 3. Sandbox metadata is attached for runtime/tool diagnostics:
    - env keys: `MINI_AGENT_SANDBOX_BACKEND`, `MINI_AGENT_SANDBOX_RESTRICTED_TOKEN`, `MINI_AGENT_SANDBOX_WORKSPACE`, `MINI_AGENT_SANDBOX_NETWORK_MODE`
    - return payload includes backend metadata (`readable_roots`, `writable_roots`, `network_mode`)
@@ -129,24 +133,24 @@ Updated: 2026-04-06
 ## Declarative Tool Flow (P14 T2.3)
 1. Legacy runtime tools are mapped into schema-first contracts:
    - contract fields: `name`, `description`, `schema`, `attributes`, `executor`
-   - implementation: `mini_agent/code_agent/tools/builder.py`
+   - implementation: `mini_agent/agent_core/execution/tools/builder.py`
 2. Per-call invocation builds validated execution objects:
    - JSON-schema required/type checks
    - confirmation signal for write/edit/delete/execute classes
    - tool location extraction for permission/sandbox integration
-   - implementation: `mini_agent/code_agent/tools/invocation.py`
+   - implementation: `mini_agent/agent_core/execution/tools/invocation.py`
 3. Extended attributes keep behavior explicit and compact:
    - `kind`, `is_read_only`, `destructive`, `interrupt_behavior`, `max_result_size_chars`
-   - implementation: `mini_agent/code_agent/tools/attributes.py`
+   - implementation: `mini_agent/agent_core/execution/tools/attributes.py`
 4. Runtime adapter path keeps current executor interface while using declarative contracts:
    - `Tool` -> `DeclarativeTool` registry
    - `DeclarativeTool` -> runtime `Tool` adapter
-   - implementation: `mini_agent/code_agent/tools/runtime_adapter.py`
+   - implementation: `mini_agent/agent_core/execution/tools/runtime_adapter.py`
 
 ## Coordinator Flow (P14 T2.4)
 1. Coordinator accepts worker tasks with explicit stage and ownership metadata:
    - `WorkerTask(task_id, stage, prompt, owner, metadata)`
-   - implementation: `mini_agent/code_agent/coordinator.py`
+   - implementation: `mini_agent/agent_core/execution/coordinator.py`
 2. Stage execution follows fixed pipeline order:
    - `research -> synthesis -> implementation -> verification`
    - same-stage tasks run with bounded concurrency (`max_concurrent_workers`)
@@ -159,7 +163,7 @@ Updated: 2026-04-06
 
 ## Context Management Flow (P14 T2.5)
 1. Layered compactor receives full turn message history:
-   - implementation: `mini_agent/code_agent/context_compression.py`
+   - implementation: `mini_agent/agent_core/context/context_compaction.py`
 2. Compression stages:
    - snip old tool outputs to tail lines (`snip_tail_lines`, keeping recent tool outputs untouched)
    - mask irrelevant old tool outputs based on active query (`ToolOutputMasker`)
@@ -169,29 +173,29 @@ Updated: 2026-04-06
    - compacted message tuple + `CompressionStats`
    - fields: original/compressed counts, token counts, masked/snipped/merged counters
 4. Masking behavior:
-   - implementation: `mini_agent/code_agent/output_masking.py`
+   - implementation: `mini_agent/agent_core/execution/output_masking.py`
    - older tool outputs can be replaced by short placeholders to reduce context noise
 
 ## MCP Client Flow (P14 T2.6)
 1. Code-agent MCP client discovers server definitions from `mcp.json`:
-   - implementation: `mini_agent/code_agent/mcp_client.py`
+   - implementation: `mini_agent/agent_core/execution/mcp_client.py`
 2. Connection lifecycle reuses MCP transport stack (`stdio`/`sse`/`streamable_http`) via existing registry layer.
 3. Runtime surfaces:
    - list available MCP tools per server
    - invoke tools by explicit `server_name + tool_name`
 4. Declarative wrapper path:
    - MCP runtime tools are wrapped into namespaced declarative contracts (`mcp_<server>_<tool>`)
-   - implementation: `mini_agent/code_agent/mcp_tools.py`
+   - implementation: `mini_agent/agent_core/execution/mcp_tools.py`
 
 ## Permission Flow (P14 T2.7)
 1. Permission policy resolves ask/allow/deny decisions:
    - ordered rules by tool pattern and optional tool kind
    - read-only defaults to allow unless overridden
-   - implementation: `mini_agent/code_agent/permissions/policy.py`
+   - implementation: `mini_agent/agent_core/execution/permissions/policy.py`
 2. Approval engine evaluates invocation with cache key:
    - fingerprint = tool name + arguments + kind
    - cache hit can auto-allow/deny repeated identical operations
-   - implementation: `mini_agent/code_agent/permissions/approval.py`
+   - implementation: `mini_agent/agent_core/execution/permissions/approval.py`
 3. Escalation path:
    - denied high-impact tool classes (`write/edit/delete/execute/network/delegate`) can request escalation to user confirmation
 4. Decision envelope:
@@ -359,40 +363,10 @@ Updated: 2026-04-06
    - search: `/api/memory/search`
    - export: `/api/memory/export` (`jsonl` / `markdown`)
 
-## Open WebUI Adapter Flow (P17 T5.1)
-1. Open WebUI uses OpenAI-compatible endpoints on adapter:
-   - `GET /v1/models`
-   - `POST /v1/chat/completions`
-2. Adapter auth gate validates `Authorization: Bearer ...` or `x-api-key` against:
-   - `MINI_AGENT_OPENWEBUI_API_KEYS`
-   - empty key list means adapter auth is disabled.
-3. Request normalization path:
-   - latest user message is converted into gateway prompt text
-   - conversation key uses `user + conversation_id/thread_id/chat_id`
-   - in-memory mapping syncs Open WebUI conversation with gateway `session_id`
-4. Gateway forwarding path:
-   - adapter calls `POST /api/v1/agent/chat`
-   - payload includes `message`, `session_id`, `channel_type`, conversation/sender metadata
-   - optional gateway bearer comes from `MINI_AGENT_GATEWAY_AUTH_TOKEN`
-5. Response adaptation:
-   - non-stream mode: OpenAI `chat.completion` payload (+ `usage` and `session_id`)
-   - stream mode: SSE `chat.completion.chunk` frames + terminal `data: [DONE]`
-6. Failure mapping:
-   - empty `messages` -> `400`
-   - gateway/adapter failures -> `502`.
-7. Deployment guardrail diagnostics:
-   - adapter `GET /health` reports:
-     - `guardrail_warning_count`
-     - `guardrail_warnings`
-   - warnings cover auth-disabled adapter, non-local gateway without gateway token, model list mismatch, and timeout risk.
-8. Real-endpoint smoke path:
-   - script: `scripts/ci/open_webui_smoke.py`
-   - verifies `/health`, `/v1/models`, non-stream + stream completions, and same-conversation session continuity.
-
-## Agent Studio Ops Flow (P17 T5.2)
+## Gateway Ops Flow (P17 T5.2)
 1. Gateway contract mounting:
-   - `src/apps/agent_studio_gateway/main.py` mounts `studio_router` under `/api/v1/ops/*`.
-2. Studio auth boundary:
+   - `src/apps/agent_studio_gateway/main.py` mounts `ops_router` under `/api/v1/ops/*`.
+2. Ops auth boundary:
    - route-level auth is controlled by `MINI_AGENT_STUDIO_API_KEYS`.
    - when token list is non-empty, `/api/v1/ops/*` requires:
      - `Authorization: Bearer <token>` or
@@ -424,25 +398,84 @@ Updated: 2026-04-06
      - `GET /api/v1/ops/memory/search`
      - `GET /api/v1/ops/memory/daily/{day}`
    - daily endpoint validates `YYYY-MM-DD` and returns explicit `400`/`404` on invalid or missing targets.
-6. Studio frontend contract usage:
-   - mode registration: `studio_ops` in `src/apps/agent_studio/src/App.tsx`
-   - UI implementation: `src/apps/agent_studio/src/components/StudioOpsMode.tsx`
-   - typed API clients: `src/apps/agent_studio/src/api/*`
-   - provider/memory contract types: `src/apps/agent_studio/src/types.ts`
+6. Current consumer surfaces:
+   - CLI / TUI / Desktop / remote adapters consume the same `/api/v1/ops/*` contract
+   - browser Studio assets were removed and are no longer part of this flow
+
+## Novel Transport Flow (P32.12)
+1. Gateway contract mounting:
+   - `src/apps/agent_studio_gateway/main.py` mounts `subprograms.novel_generator.gateway.router` under `/api/v1/novel/*`.
+2. Contract ownership:
+   - request DTOs live in `src/mini_agent/interfaces/novel.py`.
+3. Runtime wiring ownership:
+   - `src/mini_agent/novel/runtime.py` builds and caches `NovelServiceUseCases`.
+4. Domain use-case ownership:
+   - `src/mini_agent/novel/service.py` owns setup/write/finalize/cover/illustrate/chapter-history orchestration.
+5. Shared ingress reuse:
+   - `src/mini_agent/application/channel_novel_action_handler.py` consumes the same `get_novel_use_cases(...)` factory for `/novel ...` remote actions.
+   - `ChannelIngressUseCases` delegates feature-specific novel commands to that owner instead of owning novel parsing/dispatch directly.
+
+## Main-Agent Gateway Transport Flow (P32.13)
+1. Host composition:
+   - `src/apps/agent_studio_gateway/main.py` mounts the main-agent transport router.
+2. Transport ownership:
+   - `src/apps/agent_studio_gateway/main_agent_router.py` owns the maintained HTTP/SSE contract for:
+     - `/api/v1/system/health`
+     - `/api/v1/ops/diagnostics/*`
+     - `/api/v1/agent/*`
+     - `/api/v1/channel/message`
+3. Composition ownership:
+   - `src/apps/agent_studio_gateway/composition.py` owns:
+     - runtime-manager construction
+     - surface-service construction
+     - channel-ingress construction
+     - startup/shutdown cleanup
+     - health/runtime diagnostics assembly
+4. Workspace-file exposure:
+   - `src/apps/agent_studio_gateway/main.py` mounts `/api/files`
+   - browser static hosting and SPA fallback were removed together with browser WebUI
+5. Service/runtime dependency injection:
+   - the router consumes injected getters for:
+     - health response
+     - runtime diagnostics
+     - `MainAgentSurfaceService`
+     - `ChannelIngressUseCases`
+6. Architectural effect:
+   - composition stays in `composition.py`
+   - host entry stays in `main.py`
+   - protocol translation stays in the dedicated transport router
+   - orchestration remains in `application` / `runtime`
+   - Desktop/TUI/remote clients consume the same typed gateway contract
+
+## Gateway Ops Transport Flow (P32.16)
+1. Host assembly:
+   - `src/apps/agent_studio_gateway/main.py` owns `GATEWAY_OPERATIONS_USE_CASES`.
+   - `main.py` mounts `create_ops_router(OpsRouterDependencies(...))`.
+2. Transport ownership:
+   - `src/apps/agent_studio_gateway/ops_router.py` owns the maintained `/api/v1/ops/*` HTTP contract.
+3. Dependency pattern:
+   - `ops_router.py` consumes injected dependencies for:
+     - operations use-case getter
+     - ops auth dependency
+   - this now matches the factory-based dependency pattern already used by `main_agent_router.py`
+4. Architectural effect:
+   - host-level service construction stays in `main.py`
+   - protocol translation stays in `ops_router.py`
+   - the gateway transport layer now has one consistent DI/factory ownership model
    - optional studio auth header from `VITE_STUDIO_API_KEY`.
 7. Real-endpoint smoke path:
    - script: `scripts/ci/studio_ops_smoke.py`
    - verifies auth boundary, provider CRUD/health, memory summary/search/daily, and external path rejection.
 
-## QQ/WeChat Channel Flow (P17 T5.3)
+## Remote Interaction Flow (QQ Active Path)
 1. Shared channel-to-gateway contract:
-   - `src/channels/types/src/index.ts` extends `ChatRequest` with:
+   - the shared gateway contract carries:
      - `channel_type`
      - `conversation_id`
      - `sender_id`
      - optional `metadata`
    - gateway chat endpoint uses these fields for conversation binding (`channel|conversation|sender`).
-2. QQ channel source/runtime path:
+2. Active QQ adapter source/runtime path:
    - single maintained runtime app: `src/apps/qqbot_channel/`
    - runtime entry: `src/apps/qqbot_channel/bot.mjs`
    - gateway transport helpers: `src/apps/qqbot_channel/gateway_io.mjs`
@@ -457,33 +490,16 @@ Updated: 2026-04-06
      - outbound reply chunking guardrail (`QQBOT_MAX_REPLY_CHUNK_SIZE`)
      - `/workspace` path boundary enforcement (`QQBOT_ALLOWED_WORKSPACE_ROOTS`)
      - command set reusing shared session/application semantics
-3. WeChat channel source path:
-   - entry: `src/channels/wechat/src/index.ts`
-   - core channel: `src/channels/wechat/src/channel.ts`
-   - gateway client: `src/channels/wechat/src/gateway_client.ts`
-   - conversation binding persistence: `src/channels/wechat/src/conversation_binding_store.ts` (`.wechat_sessions.json`)
-   - gateway auth passthrough:
-     - optional `Authorization: Bearer <token>` from `WECHAT_GATEWAY_AUTH_TOKEN` or `MINI_AGENT_GATEWAY_AUTH_TOKEN`
-   - webhook flow:
-     - GET handshake verifies `signature/timestamp/nonce` and returns `echostr`
-     - POST verifies signature, parses XML payload, forwards normalized text/media prompt to gateway
-     - reply path emits XML text response with gateway output
-     - timestamp skew guardrail (`WECHAT_MAX_TIMESTAMP_SKEW_SECONDS`)
-     - body-size guardrail (`WECHAT_MAX_BODY_BYTES`)
-     - duplicate message guardrail by `MsgId`/body hash (`WECHAT_DEDUPE_WINDOW_SIZE`)
-     - inbound/outbound truncation guardrails (`WECHAT_MAX_MESSAGE_CHARS`, `WECHAT_MAX_RESPONSE_CHARS`)
-     - `/workspace` path boundary enforcement (`WECHAT_ALLOWED_WORKSPACE_ROOTS`)
-   - command path mirrors QQ command set for consistent operations.
+3. Remote adapter lock:
+   - `QQ` is the only active remote adapter in the current repo
+   - legacy `WeChat` / generic channel trees were removed from the active codebase in `P32.60`
+   - future remote adapters must start as new app-path implementations after an explicit architecture decision
 4. Channel startup status:
    - maintained local orchestrator: `uv run mini-agent stack up` or `scripts/start_runtime_stack.ps1`
    - legacy per-channel PowerShell launchers were archived to `scripts/archive/`
-   - current terminal-first runtime maintains the QQ stack path; WeChat remains source-level integration code unless the channel runtime is revived
-5. Real-endpoint smoke path:
-   - script: `scripts/qq_wechat_smoke.py`
-   - validates:
-     - QQ synthetic message roundtrip (`processSmokeMessage`) with workspace allow/reject checks
-     - WeChat signed GET/POST handshake and gateway reply roundtrip
-     - WeChat dedupe, timestamp skew, and oversized-body guardrail behavior
+5. Active smoke path:
+   - `npm run smoke --prefix src/apps/qqbot_channel`
+   - validates QQ synthetic message roundtrip (`processSmokeMessage`) with workspace allow/reject checks
 
 ## Error Handling Strategy
 - Tool bootstrap:

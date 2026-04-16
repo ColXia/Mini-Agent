@@ -63,7 +63,7 @@ It means:
 
 ### Phase C (explicit opt-in only)
 1. Multi-agent coordinator mode by feature flag.
-2. Browser automation and channel expansion (QQ/WeChat) after core reliability.
+2. Browser automation and future remote-adapter expansion only after core reliability.
 3. Enterprise-heavy control-plane capabilities only when required.
 
 ## Delivery Rule

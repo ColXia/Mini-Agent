@@ -26,28 +26,28 @@ This index maps concrete upstream implementations to Mini-Agent refactor targets
 
 | Capability | Upstream File | Mini-Agent Target |
 | --- | --- | --- |
-| Submission loop (event channel) | `codex-main/codex-rs/core/src/codex.rs:submission_loop` | `mini_agent/code_agent/agent_loop.py` |
-| TurnContext snapshot | `codex-main/codex-rs/core/src/codex.rs` | `mini_agent/code_agent/context.py` |
+| Submission loop (event channel) | `codex-main/codex-rs/core/src/codex.rs:submission_loop` | `mini_agent/agent_core/execution/agent_loop.py` |
+| TurnContext snapshot | `codex-main/codex-rs/core/src/codex.rs` | `mini_agent/agent_core/context/loop_context.py` |
 | Two-phase memory pipeline | `codex-main/codex-rs/core/src/memories/README.md` | `mini_agent/memory/consolidation.py` |
 | Phase 1 rollout extraction | `codex-main/codex-rs/core/src/memories/phase1.rs` | `mini_agent/memory/consolidation_phase1.py` |
 | Phase 2 global consolidation | `codex-main/codex-rs/core/src/memories/phase2.rs` | `mini_agent/memory/consolidation_phase2.py` |
 | Job leasing + watermarks | `codex-main/codex-rs/core/src/memories/storage.rs` | `mini_agent/memory/consolidation_scheduler.py` |
-| Windows sandbox (Restricted Token) | `codex-main/codex-rs/sandboxing/` | `mini_agent/code_agent/sandbox/windows.py` |
-| Network isolation proxy | `codex-main/codex-rs/sandboxing/` | `mini_agent/code_agent/sandbox/network.py` |
+| Windows sandbox (Restricted Token) | `codex-main/codex-rs/sandboxing/` | `mini_agent/agent_core/execution/sandbox/windows.py` |
+| Network isolation proxy | `codex-main/codex-rs/sandboxing/` | `mini_agent/agent_core/execution/sandbox/network.py` |
 
 ### Gemini CLI (Tool System + Memory Files)
 
 | Capability | Upstream File | Mini-Agent Target |
 | --- | --- | --- |
-| DeclarativeTool pattern | `gemini-cli-main/packages/core/src/tools/tools.ts` | `mini_agent/code_agent/tools/builder.py` |
-| ToolInvocation separation | `gemini-cli-main/packages/core/src/tools/tools.ts` | `mini_agent/code_agent/tools/invocation.py` |
+| DeclarativeTool pattern | `gemini-cli-main/packages/core/src/tools/tools.ts` | `mini_agent/agent_core/execution/tools/builder.py` |
+| ToolInvocation separation | `gemini-cli-main/packages/core/src/tools/tools.ts` | `mini_agent/agent_core/execution/tools/invocation.py` |
 | GEMINI.md hierarchical discovery | `gemini-cli-main/packages/core/src/context/memoryContextManager.ts` | `mini_agent/memory/memory_files.py` |
 | MemoryTool (self-save) | `gemini-cli-main/packages/core/src/tools/memoryTool.ts` | `mini_agent/tools/memory_tool.py` |
-| Reverse token budget compression | `gemini-cli-main/packages/core/src/context/chatCompressionService.ts` | `mini_agent/code_agent/context_compression.py` |
-| Tool output masking | `gemini-cli-main/packages/core/src/context/` | `mini_agent/code_agent/output_masking.py` |
-| MCP full client (OAuth+3 transports) | `gemini-cli-main/packages/core/src/tools/mcp-client.ts` | `mini_agent/code_agent/mcp_client.py` |
-| Scheduler state machine | `gemini-cli-main/packages/core/src/scheduler/scheduler.ts` | `mini_agent/code_agent/scheduler.py` |
-| AgentLoopContext interface | `gemini-cli-main/packages/core/src/config/agent-loop-context.ts` | `mini_agent/code_agent/context.py` |
+| Reverse token budget compression | `gemini-cli-main/packages/core/src/context/chatCompressionService.ts` | `mini_agent/agent_core/context/context_compaction.py` |
+| Tool output masking | `gemini-cli-main/packages/core/src/context/` | `mini_agent/agent_core/execution/output_masking.py` |
+| MCP full client (OAuth+3 transports) | `gemini-cli-main/packages/core/src/tools/mcp-client.ts` | `mini_agent/agent_core/execution/mcp_client.py` |
+| Scheduler state machine | `gemini-cli-main/packages/core/src/scheduler/scheduler.ts` | `mini_agent/agent_core/execution/scheduler.py` |
+| AgentLoopContext interface | `gemini-cli-main/packages/core/src/config/agent-loop-context.ts` | `mini_agent/agent_core/context/loop_context.py` |
 
 ### Hermes Agent (Self-Learning + Search + Delegation)
 
@@ -62,7 +62,7 @@ This index maps concrete upstream implementations to Mini-Agent refactor targets
 | Sub-agent delegation | `hermes-agent-main/tools/delegate_tool.py` | `mini_agent/agent_core/delegation.py` |
 | MemoryProvider ABC | `hermes-agent-main/agent/memory_provider.py` | `mini_agent/memory/memory_provider.py` |
 | Honcho user modeling | `hermes-agent-main/plugins/memory/honcho/` | `mini_agent/memory/user_modeling.py` |
-| BasePlatformAdapter | `hermes-agent-main/gateway/platforms/base.py` | (not needed, QQ/WeChat only) |
+| BasePlatformAdapter | `hermes-agent-main/gateway/platforms/base.py` | (not needed; active remote adapter is QQ-only) |
 
 ### OpenClaw (Agent Core)
 
@@ -95,22 +95,22 @@ This index maps concrete upstream implementations to Mini-Agent refactor targets
 
 | Capability | Upstream File | Mini-Agent Target |
 | --- | --- | --- |
-| Coordinator mode (Research→Synthesis→Implementation) | `extracted-src/src/coordinator/coordinatorMode.ts` | `mini_agent/code_agent/coordinator.py` |
-| Tool type system (40+ properties) | `extracted-src/src/Tool.ts` | `mini_agent/code_agent/tools/attributes.py` |
-| Query engine state machine | `extracted-src/src/query.ts` | `mini_agent/code_agent/agent_loop.py` |
-| Multi-layer permissions | `extracted-src/src/` | `mini_agent/code_agent/permissions/policy.py` |
+| Coordinator mode (Research→Synthesis→Implementation) | `extracted-src/src/coordinator/coordinatorMode.ts` | `mini_agent/agent_core/execution/coordinator.py` |
+| Tool type system (40+ properties) | `extracted-src/src/Tool.ts` | `mini_agent/agent_core/execution/tools/attributes.py` |
+| Query engine state machine | `extracted-src/src/query.ts` | `mini_agent/agent_core/execution/agent_loop.py` |
+| Multi-layer permissions | `extracted-src/src/` | `mini_agent/agent_core/execution/permissions/policy.py` |
 | Relevance memory retrieval | `extracted-src/src/memdir/` | `mini_agent/memory/relevance.py` |
 | Daily log + nightly distillation | `extracted-src/src/memdir/` | `mini_agent/memory/daily_log.py` |
-| Plugin system | `extracted-src/src/plugins/` | `mini_agent/code_agent/plugin_system.py` |
-| Streaming tool executor | `extracted-src/src/query.ts` | `mini_agent/code_agent/agent_loop.py` |
+| Plugin system | `extracted-src/src/plugins/` | `mini_agent/plugins/` |
+| Streaming tool executor | `extracted-src/src/query.ts` | `mini_agent/agent_core/execution/agent_loop.py` |
 
 ## Gateway / Session / Security (P2-P11)
 
 | Capability | Upstream File | Mini-Agent Target |
 | --- | --- | --- |
 | Gateway single-entry architecture | `C:/Users/Conli/ai开源项目/openclaw-main/docs/concepts/architecture.md` | `gateway/core/*`, gateway runtime boundary |
-| Session route model (DM/group/cron) | `C:/Users/Conli/ai开源项目/openclaw-main/docs/concepts/session.md` | unified session key rules in `mini_agent/core/session.py` |
-| Session maintenance and pruning policy | `C:/Users/Conli/ai开源项目/openclaw-main/docs/concepts/session-pruning.md` | `mini_agent/agent.py` pruning hook + retention policy |
+| Session route model (DM/group/cron) | `C:/Users/Conli/ai开源项目/openclaw-main/docs/concepts/session.md` | interaction/session routing in `mini_agent/interaction/surface.py` + runtime session ownership in `mini_agent/runtime/session_state.py` |
+| Session maintenance and pruning policy | `C:/Users/Conli/ai开源项目/openclaw-main/docs/concepts/session-pruning.md` | `mini_agent/agent_core/engine.py` pruning hook + retention policy |
 | Gateway lock singleton | `C:/Users/Conli/ai开源项目/openclaw-main/docs/gateway/gateway-lock.md` | gateway startup lock in `src/apps/agent_studio_gateway/main.py` |
 | Pairing and trust boundary | `C:/Users/Conli/ai开源项目/openclaw-main/docs/gateway/pairing.md` | channel/session access control layer |
 | Sandbox/tool/elevated layered policy | `C:/Users/Conli/ai开源项目/openclaw-main/docs/gateway/sandbox-vs-tool-policy-vs-elevated.md` | runtime policy engine (`tools` + approvals) |

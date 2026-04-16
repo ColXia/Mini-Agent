@@ -1,8 +1,8 @@
 # P23 Agent-Core 细化开发总方案（终端优先）
 
-> 状态: Active  
-> 开始日期: 2026-04-07  
-> 目标: 以“核心能力可用、性能稳定、架构清晰、未来可升级”为准则，完成 Mini-Agent 轻量内核强化。  
+> 状态: Active
+> 开始日期: 2026-04-07
+> 目标: 以“核心能力可用、性能稳定、架构清晰、未来可升级”为准则，完成 Mini-Agent 轻量内核强化。
 > 约束: 不做兼容壳，不重复造轮子，优先接线现有模块。
 
 ## 1. 背景与问题定义
@@ -144,23 +144,23 @@ TUI 侧语义:
 
 新增/使用环境变量:
 
-- `MINI_AGENT_SESSION_RESET_MODE`  
-  可选: `none|daily|idle|both`  
+- `MINI_AGENT_SESSION_RESET_MODE`
+  可选: `none|daily|idle|both`
   默认: `none`
 
-- `MINI_AGENT_SESSION_IDLE_SECONDS`  
-  正整数，`idle`/`both` 模式生效  
+- `MINI_AGENT_SESSION_IDLE_SECONDS`
+  正整数，`idle`/`both` 模式生效
   默认: `1800`
 
 ## 6. 风险与防线
 
-1. 风险: reset 行为造成上下文意外丢失。  
+1. 风险: reset 行为造成上下文意外丢失。
 防线: 保留 system 首消息；诊断接口暴露 reset 计数；测试覆盖 idle 触发场景。
 
-2. 风险: 策略增加后出现环境配置歧义。  
+2. 风险: 策略增加后出现环境配置歧义。
 防线: 非法值回落默认值，并在 diagnostics 反映实际生效策略。
 
-3. 风险: 新增路径导致回归。  
+3. 风险: 新增路径导致回归。
 防线: 强制跑主链相关回归集合。
 
 ## 7. 本次已落地变更（P23.1 + P23.2 + P23.3 + P23.4 + P23.5）
@@ -183,15 +183,15 @@ TUI 侧语义:
 - `tests/test_cli_submission_loop.py`
 - `tests/test_tui_app.py`
 - `tests/test_session_lifecycle_runtime.py`
-- `tests/test_agent_studio_gateway_studio_router.py`
+- `tests/test_agent_studio_gateway_ops_router.py`
 - `scripts/p23_runtime_baseline.py`
 - `workspace/perf/p23_runtime_baseline_20260408T035025Z.md`
 
 测试:
 - `pytest tests/test_main_agent_gateway_use_cases.py tests/test_p19_runtime_matrix.py -q`
 - `pytest tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_session_lifecycle_runtime.py -q`
-- `pytest tests/test_main_agent_gateway_use_cases.py tests/test_p19_runtime_matrix.py tests/test_agent_studio_gateway_studio_router.py -q`
+- `pytest tests/test_main_agent_gateway_use_cases.py tests/test_p19_runtime_matrix.py tests/test_agent_studio_gateway_ops_router.py -q`
 - `pytest tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py tests/test_p19_runtime_matrix.py -q`
-- `pytest tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_studio_router.py tests/test_agent_studio_gateway_api_v1.py -q`
+- `pytest tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_ops_router.py tests/test_agent_studio_gateway_api_v1.py -q`
 - `python scripts/p23_runtime_baseline.py --runs 60 --workspace .`
 - `pytest tests -k "agent_core or code_agent or cli_unified_mode or tui_app or main_agent_gateway_use_cases or p19_runtime_matrix" -q`

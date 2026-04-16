@@ -7,14 +7,15 @@
 > - `docs/P29_SESSION_HARD_REFACTOR_PLAN.md`
 > - `docs/P30_SURFACE_SESSION_ARCHITECTURE_CORRECTION_2026-04-12.md`
 > Goal: execute the corrected session-centric architecture without letting any user entrance regain ownership of session truth
+> Update 2026-04-14 (`P32.60`): the active repo now carries only the QQ remote adapter path. References to `WeChat / Feishu` in this plan are future-contract notes, not active implementation targets.
 
 ## 1. Core Execution Rule
 
 All refactor work in this track must preserve one invariant:
 
 - `Session` is the single source of truth
-- `CLI`, `TUI`, `WebUI`, and `Remote Interaction` only operate on that truth
-- concrete remote channels such as `QQ`, `WeChat`, and `Feishu` are adapter implementations under the remote entrance
+- `CLI`, `TUI`, `DesktopUI`, and `Remote Interaction` only operate on that truth
+- the active concrete remote adapter is `QQ`; future adapters, if approved later, still belong under the remote entrance rather than beside it
 - entrance and channel caches may exist, but they must never become domain truth
 
 ## 2. Target Outcome
@@ -25,7 +26,7 @@ After P30:
 - session ownership is fully detached from entrances
 - TUI is reduced to visual/operator state plus references to runtime/session projections
 - remote channels keep only conversation binding and delivery state
-- the canonical WebUI direction is explicit
+- the canonical DesktopUI direction is explicit
 - runtime/application/transport boundaries are easier to evolve without reintroducing multi-owner session bugs
 
 ## 3. Phase Plan
@@ -41,12 +42,11 @@ Make the entrance model explicit so implementation stops drifting between produc
 - define the canonical four-entrance model:
   - `CLI`
   - `TUI`
-  - `WebUI`
+  - `DesktopUI`
   - `Remote Interaction`
 - define the remote channel adapter sub-layer:
-  - `QQ`
-  - `WeChat`
-  - `Feishu`
+  - active: `QQ`
+  - future only after explicit reactivation: other remote adapters
 - define what is not an entrance:
   - `headless`
   - `gateway`
@@ -109,6 +109,14 @@ Identify and eliminate the remaining places where entrance-local structures beha
 
 - ownership mapping landed in `docs/P30_SESSION_TRUTH_BOUNDARY_MAP_2026-04-13.md`
 - this phase now acts as the frozen input for `P30.3` and `P30.4`
+- the global default-session rule is now part of the frozen boundary too:
+  - sessions are not owned by `CLI` / `TUI` / `DesktopUI` / remote adapters
+  - `session_id` resolution now follows:
+    - explicit session id
+    - entrance-local remembered previous session id
+    - runtime-owned global default session
+  - the default session lives at the main workspace and is recreated on demand
+  - entrance-side fallback code must not invent a new local `Session 1`
 
 ## Phase P30.3: TUI Session Model Split
 
@@ -154,7 +162,7 @@ Turn `TuiSession` into a composition of:
 
 ### Objective
 
-Reduce remote-channel state to channel binding plus delivery/runtime convenience only, and normalize the remote entrance contract across channels.
+Reduce remote-adapter state to channel binding plus delivery/runtime convenience only, and lock the active QQ adapter to the same remote entrance contract.
 
 ### Tasks
 
@@ -165,8 +173,8 @@ Reduce remote-channel state to channel binding plus delivery/runtime convenience
   - reply and follow preferences
   - channel display metadata
 - move any business logic that mutates session truth back through application services
-- define one target adapter contract that future `QQ / WeChat / Feishu` implementations follow
-- keep QQ on the thin-adapter path and prepare WeChat / Feishu to converge to the same boundary
+- define one target adapter contract that any future remote adapter must follow
+- keep QQ on the thin-adapter path without keeping dormant non-QQ adapter code in the active tree
 
 ### Primary Files
 
@@ -194,7 +202,7 @@ Reduce remote-channel state to channel binding plus delivery/runtime convenience
 - QQ `/skill` now acts more like a thin payload router and less like an action-by-action skill command executor
 - QQ `/memory` and `/context` update paths have also been reduced toward payload translation plus shared-runtime validation, with only local read-only context rendering kept in the adapter
 - the remaining QQ logic is now mainly binding hints, local display formatting, and remote protocol handling; `P30.4` is ready to close from an architecture-boundary perspective
-- WeChat was reviewed in the same pass and intentionally left unchanged because its request assembly is still below the duplication threshold
+- non-QQ adapter trees were later removed from the active repo in `P32.60` so this contract stays locked in one physical path
 
 ## Phase P30.5: Shared Entrance Operation Convergence
 
@@ -207,10 +215,10 @@ Keep reusing shared command/application semantics so entrance divergence stays i
 - continue moving entrance-owned operator behavior into shared execution/services where still duplicated
 - align remote-channel command behavior with the same shared semantics where practical
 - prevent new entrance-specific business logic from being added ad hoc
-- define a clean service seam usable by:
+  - define a clean service seam usable by:
   - CLI
   - TUI
-  - WebUI
+  - DesktopUI
   - remote adapters
 
 ### Primary Files
@@ -230,6 +238,29 @@ Keep reusing shared command/application semantics so entrance divergence stays i
 ### Status Note
 
 - `P30.5` has now started with an explicit convergence audit instead of jumping straight into another adapter refactor
+- TUI `/memory` command flow now resolves into a structured command plan before execution, reducing surface-owned branching
+- TUI `/model` command flow now follows the same pattern for catalog/use/filter/limit handling, keeping execution thinner and more testable
+- shared `ModelCommandPlan` parsing now also lives in `src/mini_agent/commands/execution.py`
+- CLI `/model` no longer keeps its own handwritten `show/list/use` branch and now resolves through the shared model-plan seam
+- TUI `/model` now wraps that same shared model-plan helper for `list/use` plus its extended local model actions
+- shared `ContextCommandPlan` parsing now also lives in `src/mini_agent/commands/execution.py`
+- CLI `/context` no longer normalizes `brief/full` aliases inline and now resolves through the shared context-plan seam
+- TUI `/context` now wraps that same shared context-plan helper for action normalization plus refresh/mutation flags
+- the remaining `TUI`-local plan objects were audited after those cuts and are currently keep decisions rather than pending extractions:
+  - `SessionCommandPlan`
+  - `KbCommandPlan`
+  - `McpCommandPlan`
+  - `SkillCommandPlan`
+  - `RemoteSkillCommandPlan`
+- the remaining inline `CLI` `workflow` branch was also audited and is a keep decision because it is entrance-specific orchestration rather than shared command semantics
+- TUI `/session` command flow now uses the same parse-then-execute shape for select/create/share/rename/delete paths, shrinking one more large entrance-owned branch
+- TUI `/mcp` command flow now also resolves through a small command-plan seam, so action validation and usage handling stop living inline with local/remote execution branches
+- TUI `/kb` command flow now also resolves through a small command-plan seam, so KB action validation and remote/local split stop living inline inside one handler
+- TUI `/context` command flow now also resolves through a command-plan seam, which removes repeated local validation/render calls and isolates policy-mutation routing from display rendering
+- TUI `/skill` command flow now also resolves through a shared skill-request seam, so local and remote handling no longer maintain separate action/usage parsing rules
+- shared `/memory` command planning now also lives in `src/mini_agent/commands/execution.py` as a reusable `MemoryCommandPlan` seam
+- CLI `/memory` no longer keeps its long action-by-action branch; it now consumes the same shared planning layer that `TUI` uses
+- TUI `/memory` now wraps the shared planning helper instead of owning a second surface-local parser shell
 - the audit confirmed that the shared command base already exists in:
   - `src/mini_agent/commands/router.py`
   - `src/mini_agent/commands/execution.py`
@@ -288,10 +319,14 @@ Keep reusing shared command/application semantics so entrance divergence stays i
   - the repeated result-unpack and feedback/status shell for many memory actions is materially smaller
   - the remaining memory hotspot is now more clearly concentrated in the mutation-heavy actions such as `promote` and `save`
 - the next small convergence cut has now landed too:
-  - shared interaction binding normalization now has one reusable seam in `src/mini_agent/runtime/interaction_surface.py`
+  - shared interaction binding normalization now has one reusable seam in `src/mini_agent/interaction/surface.py`
   - chat bindings, shared-session application bindings, and the TUI gateway client now reuse the same alias/trim/default handling
   - remote aliases such as `qqbot` no longer survive in one request path while other paths already normalized them to `qq`
   - empty shared-session mutation requests still preserve the existing "no fake surface" behavior instead of being forced to `"api"`
+- one more TUI command-convergence cut has now landed:
+  - `memory` command handling in `TUI` now resolves to a structured `MemoryCommandPlan` before execution
+  - usage/unknown-action/busy-guard behavior is centralized instead of being scattered across long per-action branches
+  - the actual execution path continues to funnel through the shared `_execute_memory_command_plan(...)` helper
 - one more follow-up correctness cut has now landed:
   - `SessionSurfaceBinding.from_request(...)` no longer pre-fills `default_surface` before shared resolution
   - remote requests with no explicit `surface` but with `channel_type=qq*` now resolve as remote `qq` instead of being accidentally forced to `tui`
@@ -309,35 +344,30 @@ Keep reusing shared command/application semantics so entrance divergence stays i
   - do not promote `WeChat` into the active implementation plan: current remote delivery remains `QQ` only
   - keep `WeChat / Feishu` as future extension targets under the same remote-entrance contract, but not as current execution slices
 
-## Phase P30.6: Canonical WebUI Entrance Clarification
+## Phase P30.6: Browser Surface Retirement
 
 ### Objective
 
-Stop the browser direction from drifting between operator web, customer web, and compatibility adapters.
+Remove browser-surface ambiguity entirely so future work cannot drift back into WebUI/OpenWebUI revival.
 
 ### Tasks
 
-- define the canonical `WebUI` entrance contract
-- define whether `agent_studio` is:
-  - operator WebUI
-  - transitional WebUI
-  - or part of the canonical browser path
-- define compatibility/integration adapters strictly as adapters, not product entrances
-- document which browser surface should continue after terminal-first delivery
+- delete browser `agent_studio` assets from the active codebase
+- delete `open_webui` compatibility/integration adapters from the active codebase
+- remove browser static hosting from the gateway host
+- rewrite active docs so the canonical entrance model is `CLI / TUI / DesktopUI / Remote Interaction`
 
 ### Primary Files
 
-- `src/apps/agent_studio/*`
 - `src/apps/agent_studio_gateway/*`
-- `src/apps/open_webui/*`
 - `docs/ARCHITECTURE.md`
 - `docs/DEVELOPMENT_INDEX.md`
 
 ### Acceptance
 
-- one canonical WebUI direction is explicitly named
-- compatibility adapters are no longer mistaken for product entrances
-- future browser work has a single target
+- browser `WebUI / OpenWebUI` no longer exist as active product paths
+- browser compatibility adapters are no longer mistaken for product entrances
+- future surface work targets `DesktopUI` instead of browser revival
 
 ## Phase P30.7: Runtime Manager Decomposition Continuation
 
@@ -408,7 +438,7 @@ Continue shrinking `MainAgentRuntimeManager` so it stops acting as a mixed repos
 3. `P30.3 TUI Session Model Split`
 4. `P30.4 Remote Channel Adapter Normalization`
 5. `P30.5 Shared Entrance Operation Convergence`
-6. `P30.6 Canonical WebUI Entrance Clarification`
+6. `P30.6 Browser Surface Retirement`
 7. `P30.7 Runtime Manager Decomposition Continuation`
 
 ## 5. Guardrails

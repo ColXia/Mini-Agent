@@ -1,7 +1,7 @@
 # P23 Agent-Core 开发任务计划（执行清单）
 
-> 状态: Active  
-> 维护方式: 每完成一项即更新勾选和验证证据  
+> 状态: Active
+> 维护方式: 每完成一项即更新勾选和验证证据
 > 原则: 先主链、后增强；先可用、后优化；不保留兼容壳
 
 ## P23.29 Explicit Task Fork Commands (completed)
@@ -74,7 +74,7 @@ Verification:
 
 验证命令:
 - [x] `pytest tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_session_lifecycle_runtime.py -q`
-- [x] `pytest tests/test_main_agent_gateway_use_cases.py tests/test_p19_runtime_matrix.py tests/test_agent_studio_gateway_studio_router.py -q`
+- [x] `pytest tests/test_main_agent_gateway_use_cases.py tests/test_p19_runtime_matrix.py tests/test_agent_studio_gateway_ops_router.py -q`
 
 ## P23.3 Delegation 主链接线（已完成）
 
@@ -89,7 +89,7 @@ Verification:
 
 验证命令:
 - [x] `pytest tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py tests/test_p19_runtime_matrix.py -q`
-- [x] `pytest tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_agent_studio_gateway_studio_router.py -q`
+- [x] `pytest tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_agent_studio_gateway_ops_router.py -q`
 
 ## P23.4 Routing 主链接线（已完成）
 
@@ -102,8 +102,8 @@ Verification:
 - fallback 生效且可观测
 
 验证命令:
-- [x] `pytest tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_studio_router.py tests/test_agent_studio_gateway_api_v1.py -q`
-- [x] `pytest tests -k "agent_core or code_agent or cli_unified_mode or tui_app or main_agent_gateway_use_cases or p19_runtime_matrix or cli_submission_loop or agent_studio_gateway_api_v1 or agent_studio_gateway_studio_router" -q`
+- [x] `pytest tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_ops_router.py tests/test_agent_studio_gateway_api_v1.py -q`
+- [x] `pytest tests -k "agent_core or code_agent or cli_unified_mode or tui_app or main_agent_gateway_use_cases or p19_runtime_matrix or cli_submission_loop or agent_studio_gateway_api_v1 or agent_studio_gateway_ops_router" -q`
 
 ## P23.5 稳定性和性能收敛（已完成）
 
@@ -116,9 +116,9 @@ Verification:
 - 无明显性能退化或稳定性回退
 
 验证命令:
-- [x] `pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_studio_router.py tests/test_agent_studio_gateway_api_v1.py -q`
+- [x] `pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_ops_router.py tests/test_agent_studio_gateway_api_v1.py -q`
 - [x] `python scripts/p23_runtime_baseline.py --runs 60 --workspace .`
-- [x] `pytest tests -k "agent_core or code_agent or cli_unified_mode or tui_app or main_agent_gateway_use_cases or p19_runtime_matrix or cli_submission_loop or agent_studio_gateway_api_v1 or agent_studio_gateway_studio_router" -q`
+- [x] `pytest tests -k "agent_core or code_agent or cli_unified_mode or tui_app or main_agent_gateway_use_cases or p19_runtime_matrix or cli_submission_loop or agent_studio_gateway_api_v1 or agent_studio_gateway_ops_router" -q`
 
 ## P23.6 QQ/TUI 共用会话与接管链路（已完成）
 
@@ -153,8 +153,8 @@ Verification:
 - [x] Land the first concrete provider using workspace memory/note retrieval
 
 Verification:
-- [x] `pytest tests/test_agent_turn_context.py tests/test_agent_execution_policy.py tests/test_code_agent_loop.py tests/test_cli_submission_loop.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_core_kernel.py -q`
-- [x] `python -m compileall src/mini_agent/agent.py src/mini_agent/turn_context.py src/mini_agent/runtime/tooling.py src/mini_agent/agent_core/kernel.py src/mini_agent/code_agent/scheduler.py src/mini_agent/code_agent/agent_loop.py src/mini_agent/application/main_agent_gateway_use_cases.py`
+- [x] `pytest tests/test_agent_core_turn_context.py tests/test_agent_core_execution_policy.py tests/test_code_agent_loop.py tests/test_cli_submission_loop.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_core_kernel.py -q`
+- [x] `python -m compileall src/mini_agent/agent_core/engine.py src/mini_agent/agent_core/context/turn_context.py src/mini_agent/runtime/tooling.py src/mini_agent/agent_core/kernel.py src/mini_agent/code_agent/scheduler.py src/mini_agent/code_agent/agent_loop.py src/mini_agent/application/main_agent_gateway_use_cases.py`
 
 ## P23.8 Knowledge-Base Turn-Context Provider (completed)
 - [x] Reuse the existing lightweight-RAG stack (`HybridSearchStore` + `rewrite_query`) through the turn-context seam
@@ -165,9 +165,9 @@ Verification:
 - [x] Add focused tests for retrieval, rewrite behavior, metadata-selected KB, and store-path fallback
 
 Verification:
-- [x] `pytest tests/test_agent_turn_context.py -q`
-- [x] `pytest tests/test_code_agent_loop.py tests/test_agent_execution_policy.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_core_kernel.py tests/test_cli_submission_loop.py -q`
-- [x] `python -m compileall src/mini_agent/turn_context.py src/mini_agent/runtime/tooling.py src/mini_agent/agent_core/__init__.py tests/test_agent_turn_context.py`
+- [x] `pytest tests/test_agent_core_turn_context.py -q`
+- [x] `pytest tests/test_code_agent_loop.py tests/test_agent_core_execution_policy.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_core_kernel.py tests/test_cli_submission_loop.py -q`
+- [x] `python -m compileall src/mini_agent/agent_core/context/turn_context.py src/mini_agent/runtime/tooling.py src/mini_agent/agent_core/__init__.py tests/test_agent_core_turn_context.py`
 
 ## P23.9 Operator-Visible Prepared Context (completed)
 - [x] Reuse the existing `prepared_context` payload from `loop.turn.completed` instead of introducing a second observability event
@@ -179,8 +179,8 @@ Verification:
 - [x] Add focused CLI/TUI tests for prepared-context surfacing
 
 Verification:
-- [x] `pytest tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_agent_turn_context.py tests/test_code_agent_loop.py -q`
-- [x] `python -m compileall src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py src/mini_agent/turn_context.py tests/test_cli_submission_loop.py tests/test_tui_app.py`
+- [x] `pytest tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_agent_core_turn_context.py tests/test_code_agent_loop.py -q`
+- [x] `python -m compileall src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py src/mini_agent/agent_core/context/turn_context.py tests/test_cli_submission_loop.py tests/test_tui_app.py`
 
 ## P23.10 Additional Turn-Context Provider Types (completed)
 - [x] Reuse the existing consolidated-memory retriever through the same turn-context seam
@@ -191,10 +191,10 @@ Verification:
 - [x] Share builtin-skills path resolution between runtime tool bootstrap and turn-context bootstrap so skills discovery cannot drift
 
 Verification:
-- [x] `pytest tests/test_agent_turn_context.py -q`
+- [x] `pytest tests/test_agent_core_turn_context.py -q`
 - [x] `pytest tests/test_code_agent_loop.py tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_agent_core_kernel.py -q`
 - [x] `pytest tests/test_agent_core_skills.py tests/test_mcp_policy.py -q`
-- [x] `python -m compileall src/mini_agent/turn_context.py src/mini_agent/runtime/tooling.py src/mini_agent/agent_core/__init__.py tests/test_agent_turn_context.py`
+- [x] `python -m compileall src/mini_agent/agent_core/context/turn_context.py src/mini_agent/runtime/tooling.py src/mini_agent/agent_core/__init__.py tests/test_agent_core_turn_context.py`
 
 ## P23.11 Prepared-Context Quality Controls (completed)
 - [x] Add one centralized curation pass before prepared context is injected into the turn
@@ -204,9 +204,9 @@ Verification:
 - [x] Surface curation details in existing operator-facing prepared-context summary/detail rendering
 
 Verification:
-- [x] `pytest tests/test_agent_turn_context.py tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_code_agent_loop.py -q`
-- [x] `pytest tests/test_agent_core_kernel.py tests/test_agent_execution_policy.py tests/test_agent_core_skills.py tests/test_mcp_policy.py -q`
-- [x] `python -m compileall src/mini_agent/turn_context.py src/mini_agent/agent.py tests/test_agent_turn_context.py`
+- [x] `pytest tests/test_agent_core_turn_context.py tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_code_agent_loop.py -q`
+- [x] `pytest tests/test_agent_core_kernel.py tests/test_agent_core_execution_policy.py tests/test_agent_core_skills.py tests/test_mcp_policy.py -q`
+- [x] `python -m compileall src/mini_agent/agent_core/context/turn_context.py src/mini_agent/agent_core/engine.py tests/test_agent_core_turn_context.py`
 
 ## P23.12 Provider Readiness And Operator Context Policy (completed)
 - [x] Allow turn-context providers to expose readiness instead of only silent no-op behavior
@@ -216,9 +216,9 @@ Verification:
 - [x] Persist per-session context policy in TUI and surface its summary in `Status`
 
 Verification:
-- [x] `pytest tests/test_agent_turn_context.py tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_code_agent_loop.py -q`
-- [x] `pytest tests/test_agent_core_kernel.py tests/test_agent_execution_policy.py tests/test_agent_core_skills.py tests/test_mcp_policy.py -q`
-- [x] `python -m compileall src/mini_agent/turn_context.py src/mini_agent/agent.py src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py tests/test_agent_turn_context.py tests/test_cli_submission_loop.py tests/test_tui_app.py`
+- [x] `pytest tests/test_agent_core_turn_context.py tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_code_agent_loop.py -q`
+- [x] `pytest tests/test_agent_core_kernel.py tests/test_agent_core_execution_policy.py tests/test_agent_core_skills.py tests/test_mcp_policy.py -q`
+- [x] `python -m compileall src/mini_agent/agent_core/context/turn_context.py src/mini_agent/agent_core/engine.py src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py tests/test_agent_core_turn_context.py tests/test_cli_submission_loop.py tests/test_tui_app.py`
 
 ## P23.13 Provider Tuning And Runtime Context Diagnostics (completed)
 - [x] Add provider-local `ranking_score` metadata and let prepared-context curation use both source weight and item relevance
@@ -229,10 +229,10 @@ Verification:
 - [x] Ensure lifecycle reset / clear semantics also clear prepared-context diagnostics
 
 Verification:
-- [x] `pytest tests/test_agent_turn_context.py tests/test_code_agent_loop.py tests/test_cli_submission_loop.py tests/test_tui_app.py -q`
-- [x] `pytest tests/test_agent_core_kernel.py tests/test_agent_execution_policy.py tests/test_agent_core_skills.py tests/test_mcp_policy.py -q`
+- [x] `pytest tests/test_agent_core_turn_context.py tests/test_code_agent_loop.py tests/test_cli_submission_loop.py tests/test_tui_app.py -q`
+- [x] `pytest tests/test_agent_core_kernel.py tests/test_agent_core_execution_policy.py tests/test_agent_core_skills.py tests/test_mcp_policy.py -q`
 - [x] `pytest tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py -q`
-- [x] `python -m compileall src/mini_agent/turn_context.py src/mini_agent/agent.py src/mini_agent/code_agent/agent_loop.py src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py tests/test_agent_turn_context.py tests/test_code_agent_loop.py tests/test_cli_submission_loop.py tests/test_tui_app.py`
+- [x] `python -m compileall src/mini_agent/agent_core/context/turn_context.py src/mini_agent/agent_core/engine.py src/mini_agent/code_agent/agent_loop.py src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py tests/test_agent_core_turn_context.py tests/test_code_agent_loop.py tests/test_cli_submission_loop.py tests/test_tui_app.py`
 
 ## P23.14 Readiness-Gate Context Diagnostics (completed)
 - [x] Extend headless CLI JSON output so it emits `prepared_context` and `prepared_context_diagnostics`
@@ -337,8 +337,8 @@ Verification:
 - [x] Extend the shared-session walkthrough so it validates both persisted lost approvals and recovery metadata injection on the next turn
 
 Verification:
-- [x] `pytest tests/test_agent_turn_context.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_shared_session_gateway_walkthrough.py -q`
-- [x] `pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_agent_turn_context.py tests/test_shared_session_gateway_walkthrough.py -q`
+- [x] `pytest tests/test_agent_core_turn_context.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_shared_session_gateway_walkthrough.py -q`
+- [x] `pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_agent_core_turn_context.py tests/test_shared_session_gateway_walkthrough.py -q`
 - [x] `python scripts/shared_session_gateway_walkthrough.py`
 - [x] `python scripts/terminal_readiness_gate.py --skip-full-tests --skip-baseline`
 - [x] `node --check src/apps/qqbot_channel/bot.mjs`
@@ -376,7 +376,7 @@ Verification:
 - [x] Update active docs and focused tests to the new native KB tool contract
 
 Verification:
-- [x] `uv run pytest tests/test_knowledge_base_tool.py tests/test_knowledge_base_router.py tests/test_agent_turn_context.py tests/test_security_policy.py tests/test_code_agent_tools.py -q`
+- [x] `uv run pytest tests/test_knowledge_base_tool.py tests/test_knowledge_base_router.py tests/test_agent_core_turn_context.py tests/test_security_policy.py tests/test_code_agent_tools.py -q`
 
 ## P23.24 Lightweight External KB Mode (completed)
 - [x] Keep `knowledge_base_query` enabled by default so the agent can autonomously pull grounded KB context when needed
@@ -385,7 +385,7 @@ Verification:
 - [x] Add focused tests for config parsing and KB tool bootstrap gating
 
 Verification:
-- [x] `uv run pytest tests/test_config_local_env.py tests/test_knowledge_base_tool.py tests/test_agent_turn_context.py tests/test_agent_core_kernel.py -q`
+- [x] `uv run pytest tests/test_config_local_env.py tests/test_knowledge_base_tool.py tests/test_agent_core_turn_context.py tests/test_agent_core_kernel.py -q`
 
 ## P23.25 Passive KB Turn-Context Deletion (completed)
 - [x] Hard-delete `KnowledgeBaseTurnContextProvider` instead of keeping a disabled-by-default implementation
@@ -393,7 +393,7 @@ Verification:
 - [x] Delete passive KB provider tests and sync active docs so KB is documented as explicit-tool-only
 
 Verification:
-- [x] `uv run pytest tests/test_knowledge_base_tool.py tests/test_agent_turn_context.py tests/test_config_local_env.py tests/test_agent_core_kernel.py -q`
+- [x] `uv run pytest tests/test_knowledge_base_tool.py tests/test_agent_core_turn_context.py tests/test_config_local_env.py tests/test_agent_core_kernel.py -q`
 
 ## P23.26 Agent Kernel Bootstrap Diagnostics (completed)
 - [x] Extend unified tool bootstrap so it returns structured diagnostics, not only tools/runtime handles

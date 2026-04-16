@@ -6,7 +6,7 @@
 ## 1. 范围与目标
 
 - 范围: `TUI/CLI/Headless` 终端主链。
-- 暂停范围: WebUI 前端开发与验收。
+- 移除范围: 浏览器 `WebUI/OpenWebUI` 已删除，不再属于验收面。
 - 目标: 终端主链门禁已通过；当前进入以 `TUI` 为主入口的真实使用修边角阶段，持续通过门禁、清单和 walkthrough 约束质量。
 
 ## 2. 前置条件
@@ -183,7 +183,7 @@ POST /api/v1/agent/sessions/{session_id}/approval
 Recommended verification:
 
 ```powershell
-pytest tests/test_agent_turn_context.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_shared_session_gateway_walkthrough.py -q
+pytest tests/test_agent_core_turn_context.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_shared_session_gateway_walkthrough.py -q
 python scripts/shared_session_gateway_walkthrough.py
 python scripts/terminal_readiness_gate.py --skip-full-tests --skip-baseline
 node --check src/apps/qqbot_channel/bot.mjs

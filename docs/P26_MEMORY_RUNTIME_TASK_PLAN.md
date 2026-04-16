@@ -566,8 +566,8 @@ That blurred the intended boundary between:
 
 ### Verification
 
-- `uv run python -m compileall src/mini_agent/memory/promotion.py src/mini_agent/turn_context.py tests/test_memoria_runtime.py`
-- `uv run pytest tests/test_memoria_runtime.py tests/test_agent_turn_context.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_cli_submission_loop.py -q`
+- `uv run python -m compileall src/mini_agent/memory/promotion.py src/mini_agent/agent_core/context/turn_context.py tests/test_memoria_runtime.py`
+- `uv run pytest tests/test_memoria_runtime.py tests/test_agent_core_turn_context.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_cli_submission_loop.py -q`
 - result: `204 passed`
 
 ## 14. Follow-Up Slice: Workspace-Shared Independent Operator Surface
@@ -806,5 +806,5 @@ Improve the quality of the existing RAG/memory seam without adding passive retri
 - `uv run python -m compileall src/mini_agent/memory/quality.py src/mini_agent/memory/automation.py src/mini_agent/memory/runtime_task_memory.py src/mini_agent/tools/knowledge_base.py`
 - `uv run pytest tests/test_memory_automation.py tests/test_memoria_runtime.py tests/test_knowledge_base_tool.py tests/test_memory_real_use_flow.py -q`
 - result: `31 passed`
-- `uv run pytest tests/test_memory_service.py tests/test_memoria_runtime.py tests/test_agent_turn_context.py tests/test_memory_automation.py tests/test_session_search.py tests/test_knowledge_base_tool.py tests/test_main_agent_gateway_use_cases.py tests/test_memory_real_use_flow.py -q`
+- `uv run pytest tests/test_memory_service.py tests/test_memoria_runtime.py tests/test_agent_core_turn_context.py tests/test_memory_automation.py tests/test_session_search.py tests/test_knowledge_base_tool.py tests/test_main_agent_gateway_use_cases.py tests/test_memory_real_use_flow.py -q`
 - result: `103 passed`

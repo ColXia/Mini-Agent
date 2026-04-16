@@ -1,4 +1,8 @@
-﻿# Mini-Agent 深度改造方案书 v2
+> Note (2026-04-14 P32.35): this document remains as a historical source-study plan.
+> Browser `WebUI / OpenWebUI` and the React `Agent Studio` frontend are removed and must not be used as active implementation guidance.
+> Current product entrances are only `CLI / TUI / DesktopUI / Remote Interaction`.
+> Legacy `QQ / WeChat / OpenWebUI` references below are historical only and must not be used as the active remote/application architecture.
+# Mini-Agent 深度改造方案书 v2
 
 > **状态**: ✅ 活跃
 > **创建日期**: 2026-04-05
@@ -895,17 +899,17 @@ Coordinator 模式: Research → Synthesis → Implementation
 
 **实现内容**:
 
-1. **Submission Loop** (`mini_agent/code_agent/agent_loop.py`)
+1. **Submission Loop** (`mini_agent/agent_core/execution/agent_loop.py`)
    - 基于 `asyncio.Queue` 的事件通道
    - 事件类型: UserInput / Interrupt / ExecApproval / Compact / DropMemories
    - TurnContext 快照: 每次请求独立配置
 
-2. **Scheduler 状态机** (`mini_agent/code_agent/scheduler.py`)
+2. **Scheduler 状态机** (`mini_agent/agent_core/execution/scheduler.py`)
    - 状态: Validating → Scheduled → Executing → Completed / Errored
    - 工具调用编排
    - 并行工具执行 (只读工具可并行)
 
-3. **AgentLoopContext** (`mini_agent/code_agent/context.py`)
+3. **AgentLoopContext** (`mini_agent/agent_core/context/loop_context.py`)
    - 简洁的执行上下文接口
    - 包含: config, tool_registry, message_bus, llm_client, sandbox_manager
 
@@ -915,17 +919,17 @@ Coordinator 模式: Research → Synthesis → Implementation
 
 **实现内容**:
 
-1. **沙箱管理器** (`mini_agent/code_agent/sandbox/manager.py`)
+1. **沙箱管理器** (`mini_agent/agent_core/execution/sandbox/manager.py`)
    - `select_initial()`: 选择沙箱类型
    - `transform(command)`: 封装命令为沙箱执行
 
-2. **Windows 沙箱** (`mini_agent/code_agent/sandbox/windows.py`)
+2. **Windows 沙箱** (`mini_agent/agent_core/execution/sandbox/windows.py`)
    - Restricted Token 创建
    - 文件系统策略: 读写权限路径配置
    - 网络隔离: 域名白名单/黑名单
    - 审批升级: 首次拒绝 → 缓存审批 → 升级权限
 
-3. **网络代理** (`mini_agent/code_agent/sandbox/network.py`)
+3. **网络代理** (`mini_agent/agent_core/execution/sandbox/network.py`)
    - 域名过滤
    - 网络审批模式: Immediate / Deferred
 
@@ -935,7 +939,7 @@ Coordinator 模式: Research → Synthesis → Implementation
 
 **实现内容**:
 
-1. **ToolBuilder** (`mini_agent/code_agent/tools/builder.py`)
+1. **ToolBuilder** (`mini_agent/agent_core/execution/tools/builder.py`)
    ```python
    class ToolBuilder:
        name: str
@@ -946,7 +950,7 @@ Coordinator 模式: Research → Synthesis → Implementation
        build(params) → ToolInvocation
    ```
 
-2. **ToolInvocation** (`mini_agent/code_agent/tools/invocation.py`)
+2. **ToolInvocation** (`mini_agent/agent_core/execution/tools/invocation.py`)
    ```python
    class ToolInvocation:
        validate() → bool
@@ -955,7 +959,7 @@ Coordinator 模式: Research → Synthesis → Implementation
        execute() → ToolResult
    ```
 
-3. **扩展属性** (`mini_agent/code_agent/tools/attributes.py`)
+3. **扩展属性** (`mini_agent/agent_core/execution/tools/attributes.py`)
    - `isConcurrencySafe()`, `isDestructive()`, `interruptBehavior()`
    - `maxResultSizeChars`, `renderToolUseMessage()`
    - `shouldDefer`, `alwaysLoad` (懒加载)
@@ -972,11 +976,11 @@ Coordinator 模式: Research → Synthesis → Implementation
 
 **实现内容**:
 
-1. **Coordinator** (`mini_agent/code_agent/coordinator.py`)
+1. **Coordinator** (`mini_agent/agent_core/execution/coordinator.py`)
    - Research → Synthesis → Implementation → Verification 流程
    - Worker 管理: 创建、监控、结果收集
 
-2. **委托工具** (`mini_agent/code_agent/tools/delegate.py`)
+2. **委托工具** (`mini_agent/agent_core/delegation.py`)
    - 隔离子 Agent: 独立会话、受限工具集
    - 深度限制 (MAX_DEPTH=2)
    - 并发限制 (MAX_CONCURRENT=3)
@@ -993,7 +997,7 @@ Coordinator 模式: Research → Synthesis → Implementation
 
 **实现内容**:
 
-1. **反向 Token 预算** (`mini_agent/code_agent/context_compression.py`)
+1. **反向 Token 预算** (`mini_agent/agent_core/context/context_compaction.py`)
    - 从新到旧遍历历史
    - 保留最近工具输出完整内容
    - 截断旧输出为最后 30 行 + 保存到临时文件
@@ -1004,7 +1008,7 @@ Coordinator 模式: Research → Synthesis → Implementation
    - Microcompact: 压缩连续对话
    - Auto-compact: 触发 LLM 摘要
 
-3. **工具输出遮蔽** (`mini_agent/code_agent/output_masking.py`)
+3. **工具输出遮蔽** (`mini_agent/agent_core/execution/output_masking.py`)
    - 标记与当前任务无关的工具输出
    - 从上下文中隐藏
 
@@ -1014,14 +1018,14 @@ Coordinator 模式: Research → Synthesis → Implementation
 
 **实现内容**:
 
-1. **MCP 客户端** (`mini_agent/code_agent/mcp_client.py`)
+1. **MCP 客户端** (`mini_agent/agent_core/execution/mcp_client.py`)
    - 三传输: stdio / SSE / StreamableHTTP
    - OAuth 认证: Google / Service Account / 通用 OAuth
    - 工具发现、资源发现、Prompt 发现
    - 通知处理: 工具/资源/Prompt 列表变更
    - 重连和刷新逻辑
 
-2. **MCP 工具包装** (`mini_agent/code_agent/mcp_tools.py`)
+2. **MCP 工具包装** (`mini_agent/agent_core/execution/mcp_tools.py`)
    - 将 MCP 工具包装为 DeclarativeTool
    - 确认流程集成
 
@@ -1031,12 +1035,12 @@ Coordinator 模式: Research → Synthesis → Implementation
 
 **实现内容**:
 
-1. **权限策略** (`mini_agent/code_agent/permissions/policy.py`)
+1. **权限策略** (`mini_agent/agent_core/execution/permissions/policy.py`)
    - 三层: always-allow / always-deny / ask
    - 绕过模式 (full-access)
    - 安全分类器: 工具输入自动分类
 
-2. **审批流程** (`mini_agent/code_agent/permissions/approval.py`)
+2. **审批流程** (`mini_agent/agent_core/execution/permissions/approval.py`)
    - 用户审批
    - 缓存审批 (相同命令不重复询问)
    - 沙箱升级审批 (拒绝后提升权限重试)
@@ -1467,4 +1471,3 @@ Mini-Agent/
 ├── tests/
 └── pyproject.toml                 # 更新依赖
 ```
-

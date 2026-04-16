@@ -47,7 +47,7 @@ Before doing the manual command checks, confirm:
 - `uv sync` completed successfully.
 - At least one usable model key exists in system environment variables or repo-root `.env.local`.
 - If QQ is in scope, `src/apps/qqbot_channel/.env` is configured.
-- WebUI is out of scope for this checklist.
+- Browser `WebUI / OpenWebUI` are removed from the product and are not part of this checklist.
 
 Recommended quick preflight:
 
@@ -196,7 +196,7 @@ If any one of those fails, the system is not yet ready for dependable real use.
 
 ## 12. Notes
 
-- WebUI remains paused and is intentionally out of scope.
+- Browser `WebUI / OpenWebUI` were removed and must not be considered part of real-use acceptance.
 - KB remains an explicit tool path; this checklist does not assume passive KB injection.
 - This checklist is manual by design. For automated coverage, always pair it with:
   - `uv run pytest tests/test_command_catalog.py -q`
