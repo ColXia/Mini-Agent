@@ -1,5 +1,33 @@
 # Progress
 
+## 2026-04-16 P40.19 Runtime Session Test Contracts Sync
+
+- [completed] re-audited the post-`P40.18` runtime residue and confirmed it was test-only architecture cleanup rather than another production-runtime seam
+- [completed] synced the remaining runtime/session tests to current architecture truth:
+  - `tests/test_session_integration.py`
+  - `tests/test_session_projection.py`
+  - `tests/test_session_service.py`
+- [completed] retired obsolete tests for removed legacy remote/store architecture:
+  - `tests/test_session_remote_service.py`
+  - `tests/test_session_store_persistence.py`
+- [completed] landed the focused persistence owner contract:
+  - `tests/test_session_persistence_contract.py`
+- [completed] verified the narrowed runtime test-contract slice:
+  - `uv run ruff check tests/test_session_integration.py tests/test_session_projection.py tests/test_session_service.py tests/test_session_persistence_contract.py`
+  - result: `All checks passed!`
+  - `uv run pytest tests/test_session_integration.py tests/test_session_projection.py tests/test_session_service.py tests/test_session_persistence_contract.py -q`
+  - result: `16 passed`
+- [completed] committed the runtime test-contract slice:
+  - commit: `e5ca52c`
+  - message: `p40: sync runtime session test contracts`
+- [completed] re-ran the dirty-worktree classifier after the commit:
+  - `python scripts/worktree_slice_report.py`
+  - result:
+    - total dirty paths: `122`
+    - `runtime-session-contract`: `0`
+    - recommended next slice: `surface-transport-orchestration`
+- [next] audit the `surface-transport-orchestration` bucket and find the next clean-clone-safe surface/transport seam
+
 ## 2026-04-16 P40.18 Runtime Operator Adoption Closure
 
 - [completed] re-audited the post-`P40.17` runtime residue and confirmed the next honest move was a paired adoption closure, not another delete-only runtime cleanup

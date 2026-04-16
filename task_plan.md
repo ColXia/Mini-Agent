@@ -1,5 +1,66 @@
 # Task Plan
 
+## Latest Sync: 2026-04-16 P40.19 Runtime Session Test Contracts Sync
+
+## Current Execution Slice: P40.19 Runtime Session Test Contracts Sync (2026-04-16)
+
+### Why This Slice Is Next
+
+- after `P40.18`, the remaining `runtime-session-contract` residue was no longer production runtime code
+- it was entirely test-side architecture truth cleanup:
+  - old remote/store tests still described removed surfaces
+  - current session/runtime tests needed small import/binding/DTO truth updates
+  - a new focused persistence contract test existed but was still untracked
+- the honest next move was therefore a pure runtime test-contract slice to finish emptying the runtime bucket
+
+### Scope
+
+- sync the remaining runtime/session tests to current architecture truth:
+  - `tests/test_session_integration.py`
+  - `tests/test_session_projection.py`
+  - `tests/test_session_service.py`
+- retire obsolete tests that target removed legacy surfaces/stores:
+  - `tests/test_session_remote_service.py`
+  - `tests/test_session_store_persistence.py`
+- land the new focused persistence owner contract:
+  - `tests/test_session_persistence_contract.py`
+
+### Acceptance
+
+- session/runtime tests reflect the current engine, interaction binding, and DTO fields
+- obsolete remote/store persistence tests for removed architecture are no longer left as dirty residue
+- focused persistence/session tests pass
+- post-slice classifier no longer reports a `runtime-session-contract` bucket
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- landed commit:
+  - `e5ca52c`
+  - `p40: sync runtime session test contracts`
+- focused verification:
+  - `uv run ruff check tests/test_session_integration.py tests/test_session_projection.py tests/test_session_service.py tests/test_session_persistence_contract.py`
+  - result: `All checks passed!`
+  - `uv run pytest tests/test_session_integration.py tests/test_session_projection.py tests/test_session_service.py tests/test_session_persistence_contract.py -q`
+  - result: `16 passed`
+- post-commit residual snapshot from `python scripts/worktree_slice_report.py`:
+  - total dirty paths: `128 -> 122`
+  - `runtime-session-contract`: `6 -> 0`
+  - recommended next slice: `surface-transport-orchestration`
+- important boundary result:
+  - the repo no longer has an active runtime/session dirty bucket
+  - the next repo-hygiene focus shifts fully to surface/transport/TUI orchestration
+
+### Next Likely Seam
+
+- the next honest move is now inside `surface-transport-orchestration`
+- likely first step:
+  - audit which tracked files already depend on the untracked `transport/` and TUI coordinator owners
+  - choose the narrowest clean-clone-safe surface/transport landing slice
+
 ## Latest Sync: 2026-04-16 P40.18 Runtime Operator Adoption Closure
 
 ## Current Execution Slice: P40.18 Runtime Operator Adoption Closure (2026-04-16)

@@ -1,5 +1,26 @@
 # Findings
 
+## 2026-04-16 P40.19 Runtime Session Test Contracts Sync
+
+- After `P40.18`, the remaining runtime bucket was no longer about production ownership.
+- It was about whether the tests still described the old architecture.
+- This distinction matters because test residue can still pull the project back toward confusion:
+  - old remote/store tests imply removed contracts are still maintained
+  - missing focused persistence tests leave the new owner under-specified
+- The right fix was a test-only truth sync:
+  - update session/runtime tests that still matter
+  - delete tests for removed architecture
+  - add a focused persistence contract for the maintained owner
+- Structural effect:
+  - total dirty paths: `128 -> 122`
+  - `runtime-session-contract`: `6 -> 0`
+- This is a meaningful repo-hygiene milestone:
+  - one whole classifier bucket is now fully closed
+  - runtime is no longer the main source of anti-chaos risk in the dirty tree
+- Practical implication:
+  - the project focus now shifts to `surface-transport-orchestration`
+  - future repo disorder is now more likely to come from TUI/desktop/transport seams than from runtime/session ambiguity
+
 ## 2026-04-16 P40.18 Runtime Operator Adoption Closure
 
 - After `P40.17`, the runtime bucket finally had an honest next step:
