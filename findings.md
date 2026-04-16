@@ -26,6 +26,12 @@
   - `29 passed`
   - targeted `ruff` green
   - default-session regressions still green
+- The dirty-tree reduction is meaningful enough to matter:
+  - total dirty paths: `224 -> 212`
+  - `runtime-session-contract`: `68 -> 56`
+- That reduction is useful because it removes another class of false urgency:
+  - the next runtime work no longer needs to smuggle builder/state support into an orchestration commit
+  - the remaining runtime residue is now more visibly concentrated in handlers/coordinators/manager adoption
 - Practical result:
   - the runtime support stack is now materially more landable in narrow slices
   - the next runtime move can be judged on orchestration boundary quality rather than on missing helper substrate

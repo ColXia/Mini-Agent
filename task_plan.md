@@ -66,6 +66,15 @@
   - `tests/test_interface_dto_contracts.py`
   - `tests/test_p19_runtime_matrix.py`
   - four default-session regression tests in `tests/test_main_agent_surface_service.py`
+- landed commit:
+  - `19a66bd` `p40: land runtime session data shaping support`
+- post-commit residual snapshot from `python scripts/worktree_slice_report.py`:
+  - total dirty paths: `212`
+  - `runtime-session-contract`: `56`
+  - `agent-core-and-cli-surface`: `62`
+  - `surface-transport-orchestration`: `42`
+  - `docs-planning-governance`: `19`
+  - `memory-governance`: `5`
 
 ### Next Likely Seam
 

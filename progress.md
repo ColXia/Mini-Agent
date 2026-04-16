@@ -33,7 +33,23 @@
   - result: `29 passed`
   - `uv run ruff check ...`
   - result: `All checks passed!`
-- [next] land this runtime session support slice as the next narrow post-`P40.3` runtime commit and then re-run the worktree slice report
+- [completed] landed the narrowed runtime support slice:
+  - commit: `19a66bd`
+  - message: `p40: land runtime session data shaping support`
+- [completed] re-ran the dirty-worktree classifier after the commit:
+  - `python scripts/worktree_slice_report.py`
+  - result:
+    - total dirty paths: `212`
+    - `runtime-session-contract`: `56`
+    - `agent-core-and-cli-surface`: `62`
+    - `surface-transport-orchestration`: `42`
+    - `docs-planning-governance`: `19`
+    - `memory-governance`: `5`
+- [next] reopen the next runtime adoption seam only if it stays narrow:
+  - `session_hydration_coordinator`
+  - `session_registry_handler`
+  - `session_snapshot_handler`
+  - otherwise fall back to the remaining `memory-governance` residue
 
 ## 2026-04-16 P40.3 Runtime Support Substrate Landing
 
