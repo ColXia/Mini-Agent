@@ -32,6 +32,9 @@
     - total dirty paths: `137`
     - `runtime-session-contract`: `15`
     - recommended next slice remains `runtime-session-contract`
+- [completed] ran a follow-up runtime adoption audit after the support-owner landing:
+  - `session_operator_handler.py` now carries the shared context/control/skill/model/runtime-policy adoption
+  - but it cannot be landed alone because `main_agent_runtime_manager.py` still has the old wiring shape in the current dirty tree
 - [next] reopen the remaining runtime adoption/deletion line now that shared skill/model replacement owners are tracked
 
 ## 2026-04-16 P40.16 Shared Interaction Surface Package Landing

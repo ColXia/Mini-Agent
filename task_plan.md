@@ -74,6 +74,11 @@
     - `session_operator_handler.py`
     - `main_agent_runtime_manager.py`
     - legacy runtime handler deletions
+  - post-slice follow-up audit:
+    - `session_operator_handler.py` now subsumes the old context/control/skill/model/runtime-policy handler seams
+    - but `HEAD`-shape runtime manager wiring still passes the old handler set and old constructor shape
+    - that means the next honest runtime cut is not delete-only closure
+    - it is a paired adoption cut across operator handler wiring and the matching legacy deletions
 
 ### Next Likely Seam
 

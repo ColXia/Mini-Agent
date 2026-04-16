@@ -26,6 +26,10 @@
 - Practical implication:
   - `session_operator_handler.py` and `main_agent_runtime_manager.py` can now be reopened without the previous missing-owner excuse
   - the next good cut should target the actual runtime adoption boundary itself
+  - follow-up audit result:
+    - `session_operator_handler.py` already absorbs several legacy handler seams
+    - but those deletions are not independently landable because the runtime manager still needs the matching constructor/wiring update
+    - the next runtime slice must therefore be paired adoption, not delete-only cleanup
 
 ## 2026-04-16 P40.16 Shared Interaction Surface Package Landing
 
