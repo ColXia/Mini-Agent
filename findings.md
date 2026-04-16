@@ -1,5 +1,40 @@
 # Findings
 
+## 2026-04-16 P40.5 Runtime Session Orchestration Support Landing
+
+- The next honest runtime cut after `P40.4` was not the whole runtime-manager rewrite.
+- It was the orchestration support layer around:
+  - access planning
+  - creation bootstrap
+  - registry routing
+  - hydration coordination
+  - managed persistence/store helpers
+  - recovery reset helpers
+  - workspace-path normalization
+- The same clean-clone rule still applied here:
+  - some handlers had already become part of the maintained runtime shape
+  - but the full manager rewrite was still too wide to bundle honestly
+  - therefore the right move was to land support seams with compatibility shims, not to reopen `main_agent_runtime_manager.py`
+- The most important compatibility decisions were:
+  - keep `RuntimeSessionAccessHandler` usable in both legacy mode and default-session-support mode
+  - keep `RuntimeSessionCreationHandler` usable from both lifecycle-bootstrap styles
+  - keep `RuntimeSessionRegistryHandler` compatible with legacy `enforce_capacity(len(sessions))`
+  - keep `RuntimeSessionCatalogHandler` tolerant of the staged `interaction` package extraction
+- Focused validation is now strong for this cut:
+  - `26 passed`
+  - targeted `ruff` green
+  - adjacent snapshot/catalog regressions green
+- The dirty-tree reduction is again meaningful:
+  - total dirty paths: `212 -> 196`
+  - `runtime-session-contract`: `56 -> 40`
+- That reduction matters because the remaining runtime residue is now more honestly concentrated in operational convergence work:
+  - runtime manager
+  - operator/control handlers
+  - agent-runtime and pending-approval/control services
+- Practical implication:
+  - a further runtime cut is now more likely to be mixed if rushed
+  - the smallest next anti-chaos code slice is now the remaining `memory-governance` bundle
+
 ## 2026-04-16 P40.4 Runtime Session Data-Shaping Support Landing
 
 - The next useful runtime cut after `P40.3` is not the full `main_agent_runtime_manager.py` rewrite.

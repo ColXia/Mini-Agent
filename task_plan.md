@@ -1,5 +1,103 @@
 # Task Plan
 
+## Latest Sync: 2026-04-16 P40.5 Runtime Session Orchestration Support Landing
+
+## Current Execution Slice: P40.5 Runtime Session Orchestration Support Landing (2026-04-16)
+
+### Why This Slice Is Next
+
+- after `P40.4`, the next honest runtime seam is the orchestration support layer above the already-landed data-shaping support
+- this is still narrower than the full `main_agent_runtime_manager.py` convergence line
+- the key support targets in this layer are:
+  - session access/default-session planning
+  - session creation + lifecycle bootstrap compatibility
+  - session registry/persistence orchestration
+  - hydration coordination
+  - managed-store cleanup/persistence
+  - recovery reset helpers
+  - shared workspace-path normalization
+- a stricter audit found the same boundary rule as the previous slice:
+  - some of these handlers are already used by committed runtime code
+  - others are only referenced by the still-dirty manager rewrite
+  - so this slice must preserve old constructor wiring while landing the new support seams
+
+### Scope
+
+- land the runtime session orchestration support files:
+  - `session_access_handler.py`
+  - `session_creation_handler.py`
+  - `session_catalog_handler.py`
+  - `session_registry_handler.py`
+  - `session_hydration_coordinator.py`
+  - `session_managed_store_handler.py`
+  - `session_recovery_reset_handler.py`
+  - `session_runtime_lifecycle_handler.py`
+  - `workspace_path_utils.py`
+  - `session_lifecycle.py`
+- keep `main_agent_runtime_manager.py` and the broader control/operator/runtime-handler convergence out of this cut
+- add focused support tests for access/creation/catalog/registry/snapshot plus the new support modules
+
+### Acceptance
+
+- the runtime session orchestration support layer lands independently of the broader manager rewrite
+- clean-clone compatibility is preserved for older runtime wiring:
+  - legacy access-handler construction still works
+  - legacy creation-handler lifecycle wiring still works
+  - legacy `enforce_capacity(len(sessions))` registry wiring still works
+- focused runtime orchestration support tests and adjacent runtime-surface regressions are green
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- key compatibility corrections inside this slice:
+  - `RuntimeSessionAccessHandler` now preserves legacy team-session selection when default-session support is not wired, while also supporting explicit default-session routing when `resolve_main_workspace(...)` is provided
+  - `RuntimeSessionCreationHandler` now supports both the new `bootstrap_session_lifecycle(...)` seam and the older `build_session_key + lifecycle_bootstrap` path
+  - `RuntimeSessionRegistryHandler` now supports both zero-arg and legacy one-arg `enforce_capacity(...)` wiring
+  - `RuntimeSessionCatalogHandler` now tolerates the staged `interaction` extraction through a compatibility import and shares workspace-key normalization through `workspace_path_utils.py`
+- new support modules landed in this slice:
+  - `session_hydration_coordinator.py`
+  - `session_managed_store_handler.py`
+  - `session_recovery_reset_handler.py`
+  - `session_runtime_lifecycle_handler.py`
+  - `workspace_path_utils.py`
+- focused verification target for this slice:
+  - `tests/test_runtime_session_access_handler.py`
+  - `tests/test_runtime_session_creation_handler.py`
+  - `tests/test_runtime_session_catalog_handler.py`
+  - `tests/test_runtime_session_registry_handler.py`
+  - `tests/test_runtime_session_snapshot_handler.py`
+  - `tests/test_runtime_session_hydration_coordinator.py`
+  - `tests/test_runtime_managed_session_store_handler.py`
+  - `tests/test_runtime_session_recovery_reset_handler.py`
+  - `tests/test_runtime_session_lifecycle_handler.py`
+  - `tests/test_runtime_workspace_path_utils.py`
+  - `tests/test_session_lifecycle_runtime.py`
+- adjacent runtime-surface verification in this slice:
+  - snapshot import/export regressions in `tests/test_main_agent_surface_service.py`
+  - catalog dedupe regression in `tests/test_main_agent_surface_service.py`
+- landed commit:
+  - `5151b4c` `p40: land runtime session orchestration support`
+- post-commit residual snapshot from `python scripts/worktree_slice_report.py`:
+  - total dirty paths: `196`
+  - `runtime-session-contract`: `40`
+  - `agent-core-and-cli-surface`: `62`
+  - `surface-transport-orchestration`: `42`
+  - `docs-planning-governance`: `19`
+  - `memory-governance`: `5`
+
+### Next Likely Seam
+
+- after this orchestration support layer lands, the remaining runtime residue is more concentrated in:
+  - `main_agent_runtime_manager.py`
+  - operator/control handlers
+  - agent-runtime/pending-approval/control services
+- that remaining runtime bundle is now riskier to cut honestly than the still-small `memory-governance` residue
+- current recommended next code slice:
+  - `memory-governance`
+
 ## Latest Sync: 2026-04-16 P40.4 Runtime Session Data-Shaping Support Landing
 
 ## Current Execution Slice: P40.4 Runtime Session Data-Shaping Support Landing (2026-04-16)

@@ -1,5 +1,58 @@
 # Progress
 
+## 2026-04-16 P40.5 Runtime Session Orchestration Support Landing
+
+- [completed] re-audited the next runtime seam above `P40.4` and kept the manager rewrite out of the cut
+- [completed] identified the next honest support layer as:
+  - access/default-session planning
+  - creation bootstrap compatibility
+  - catalog/registry routing
+  - hydration coordination
+  - managed-store persistence
+  - recovery reset helpers
+  - shared workspace-path normalization
+- [completed] preserved old runtime wiring while landing the new orchestration seams:
+  - access handler now supports both legacy behavior and explicit default-session support
+  - creation handler now supports both lifecycle bootstrap styles
+  - registry handler now supports both zero-arg and one-arg `enforce_capacity(...)`
+  - catalog handler now tolerates the staged `interaction` extraction
+- [completed] landed the new runtime support modules:
+  - `src/mini_agent/runtime/session_hydration_coordinator.py`
+  - `src/mini_agent/runtime/session_managed_store_handler.py`
+  - `src/mini_agent/runtime/session_recovery_reset_handler.py`
+  - `src/mini_agent/runtime/session_runtime_lifecycle_handler.py`
+  - `src/mini_agent/runtime/workspace_path_utils.py`
+- [completed] added focused support coverage:
+  - `tests/test_runtime_session_access_handler.py`
+  - `tests/test_runtime_session_creation_handler.py`
+  - `tests/test_runtime_session_catalog_handler.py`
+  - `tests/test_runtime_session_registry_handler.py`
+  - `tests/test_runtime_session_snapshot_handler.py`
+  - plus focused tests for hydration/store/recovery/lifecycle/workspace helpers
+- [completed] verified the narrowed runtime orchestration support slice:
+  - `uv run pytest tests/test_runtime_session_access_handler.py tests/test_runtime_session_creation_handler.py tests/test_runtime_session_catalog_handler.py tests/test_runtime_session_registry_handler.py tests/test_runtime_session_snapshot_handler.py tests/test_runtime_session_hydration_coordinator.py tests/test_runtime_managed_session_store_handler.py tests/test_runtime_session_recovery_reset_handler.py tests/test_runtime_session_lifecycle_handler.py tests/test_runtime_workspace_path_utils.py tests/test_session_lifecycle_runtime.py -q`
+  - result: `26 passed`
+  - `uv run ruff check ...`
+  - result: `All checks passed!`
+- [completed] verified adjacent runtime-surface regressions:
+  - `uv run pytest tests/test_main_agent_surface_service.py::test_runtime_manager_import_session_snapshot_can_register_lineage_child tests/test_main_agent_surface_service.py::test_runtime_manager_import_session_snapshot_rejects_duplicate_session_id tests/test_main_agent_surface_service.py::test_runtime_manager_list_sessions_hides_untitled_channel_stub_when_shared_tui_session_exists -q`
+  - result: `3 passed`
+- [completed] landed the narrowed runtime orchestration slice:
+  - commit: `5151b4c`
+  - message: `p40: land runtime session orchestration support`
+- [completed] re-ran the dirty-worktree classifier after the commit:
+  - `python scripts/worktree_slice_report.py`
+  - result:
+    - total dirty paths: `196`
+    - `runtime-session-contract`: `40`
+    - `agent-core-and-cli-surface`: `62`
+    - `surface-transport-orchestration`: `42`
+    - `docs-planning-governance`: `19`
+    - `memory-governance`: `5`
+- [next] current safest code slice is no longer another rushed runtime cut
+  - the remaining `runtime-session-contract` residue is more operationally mixed now
+  - the best next anti-chaos code slice is the remaining `memory-governance` bundle
+
 ## 2026-04-16 P40.4 Runtime Session Data-Shaping Support Landing
 
 - [completed] re-audited the next runtime seam above `P40.3` instead of jumping directly into the full runtime manager diff
