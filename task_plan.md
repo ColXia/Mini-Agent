@@ -1,5 +1,212 @@
 # Task Plan
 
+## Latest Sync: 2026-04-16 P40.26 Code-Agent Legacy Submodule Tail Closure
+
+## Current Execution Slice: P40.26 Code-Agent Legacy Submodule Tail Closure (2026-04-16)
+
+### Why This Slice Is Next
+
+- after `P40.25`, the `agent-core-and-cli-surface` bucket was no longer dominated by missing support owners
+- the largest remaining anti-chaos residue inside that bucket was the half-deleted `code_agent` physical tree:
+  - deleted legacy execution submodules still sitting dirty
+  - stale `test_code_agent_*` surfaces still implying those owners were maintained
+  - a couple of active tests still importing legacy `code_agent` subpackages directly
+- the honest next move was therefore a physical tail-closure slice:
+  - remove the old submodules
+  - keep the top-level compatibility facades
+  - update the remaining active tests to their maintained imports
+
+### Scope
+
+- delete the legacy `code_agent` execution submodules:
+  - `src/mini_agent/code_agent/agent_loop.py`
+  - `src/mini_agent/code_agent/context.py`
+  - `src/mini_agent/code_agent/coordinator.py`
+  - `src/mini_agent/code_agent/mcp_client.py`
+  - `src/mini_agent/code_agent/mcp_tools.py`
+  - `src/mini_agent/code_agent/minimal_workflow.py`
+  - `src/mini_agent/code_agent/output_masking.py`
+  - `src/mini_agent/code_agent/permissions/approval.py`
+  - `src/mini_agent/code_agent/permissions/policy.py`
+  - `src/mini_agent/code_agent/sandbox/manager.py`
+  - `src/mini_agent/code_agent/sandbox/network.py`
+  - `src/mini_agent/code_agent/sandbox/windows.py`
+  - `src/mini_agent/code_agent/scheduler.py`
+  - `src/mini_agent/code_agent/tools/attributes.py`
+  - `src/mini_agent/code_agent/tools/builder.py`
+  - `src/mini_agent/code_agent/tools/invocation.py`
+  - `src/mini_agent/code_agent/tools/runtime_adapter.py`
+- retire the remaining old execution test surfaces:
+  - `tests/test_code_agent_context_compaction.py`
+  - `tests/test_code_agent_loop.py`
+  - `tests/test_code_agent_mcp_client.py`
+  - `tests/test_code_agent_minimal_workflow.py`
+  - `tests/test_code_agent_permissions.py`
+  - `tests/test_code_agent_sandbox.py`
+  - `tests/test_code_agent_tools.py`
+- rename the remaining maintained coordinator test surface:
+  - `tests/test_code_agent_coordinator.py` -> `tests/test_agent_core_execution_coordinator.py`
+- update the still-active import users away from legacy `code_agent` subpackages:
+  - `tests/test_bash_tool.py`
+  - `tests/test_security_policy.py`
+
+### Acceptance
+
+- the repo no longer presents `code_agent/*` submodules as maintained runtime owners
+- top-level compatibility facades under `mini_agent.code_agent`, `.sandbox`, `.tools`, and `.permissions` still import cleanly
+- focused bash/security/coordinator/compatibility tests stay green
+- post-slice classifier materially shrinks the `agent-core-and-cli-surface` bucket
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- landed commit:
+  - `5ad8427`
+  - `p40: close code agent legacy submodule tail`
+- focused verification:
+  - `uv run ruff check src/mini_agent/code_agent/__init__.py src/mini_agent/code_agent/permissions/__init__.py src/mini_agent/code_agent/sandbox/__init__.py src/mini_agent/code_agent/tools/__init__.py tests/test_bash_tool.py tests/test_security_policy.py tests/test_agent_core_execution_coordinator.py`
+  - result: `All checks passed!`
+  - `uv run pytest tests/test_agent_core_execution_coordinator.py tests/test_bash_tool.py tests/test_security_policy.py tests/test_agent_core_compatibility_shims.py -q`
+  - result: `38 passed`
+  - compatibility import check:
+    - `uv run python -c "... mini_agent.code_agent ..."`
+    - result: `AgentSubmissionLoop ApprovalEngine SandboxManager ToolBuilder PermissionPolicy`
+- post-commit residual snapshot from `python scripts/worktree_slice_report.py`:
+  - total dirty paths: `73 -> 45`
+  - `agent-core-and-cli-surface`: `48 -> 20`
+- important boundary result:
+  - the main bucket is no longer dominated by the old `code_agent` physical tree
+  - the remaining residue is now more honestly centered on:
+    - `cli.py`
+    - `cli_interactive.py`
+    - top-level export/test tails
+    - the old `core/` package deletion tail
+
+### Next Likely Seam
+
+- stay inside `agent-core-and-cli-surface`
+- strict next audit targets:
+  - `src/mini_agent/core/__init__.py`
+  - `src/mini_agent/core/session.py`
+  - `src/mini_agent/__init__.py`
+  - `tests/test_agent.py`
+  - `tests/test_agent_execution_policy.py`
+  - `tests/test_agent_turn_context.py`
+  - `tests/test_main_agent_gateway_use_cases.py`
+  - `src/mini_agent/cli.py`
+  - `src/mini_agent/cli_interactive.py`
+
+## Latest Sync: 2026-04-16 P40.25 Self-Improve Skill Owner Landing
+
+## Current Execution Slice: P40.25 Self-Improve Skill Owner Landing (2026-04-16)
+
+### Why This Slice Is Next
+
+- after `P40.24`, the next clean-clone integrity gap inside `agent-core-and-cli-surface` was the self-improve owner path
+- committed `agent_core/__init__.py` already re-exported:
+  - `SelfImprovingSkillEngine`
+  - `SkillEvolutionRecord`
+  - `SkillPerformanceMetrics`
+- but `agent_core.skills` had not yet landed the matching owner/export truth
+- the honest next move was therefore to land the skill owner itself before continuing the broader legacy-tail cleanup
+
+### Scope
+
+- move the self-improve owner into the skills package:
+  - `src/mini_agent/agent_core/self_improve.py` -> `src/mini_agent/agent_core/skills/self_improve.py`
+- export the moved owner from:
+  - `src/mini_agent/agent_core/skills/__init__.py`
+- rename the focused tests to the maintained owner:
+  - `tests/test_self_improve.py` -> `tests/test_agent_core_skills_self_improve.py`
+
+### Acceptance
+
+- `mini_agent.agent_core.skills` exports the self-improve types already referenced by `mini_agent.agent_core`
+- the old root `agent_core.self_improve` file is no longer left behind as a structural mismatch
+- focused self-improve tests stay green
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- landed commit:
+  - `2c12d9d`
+  - `p40: land self improve skill owner`
+- focused verification:
+  - `uv run ruff check src/mini_agent/agent_core/skills/__init__.py src/mini_agent/agent_core/skills/self_improve.py tests/test_agent_core_skills_self_improve.py`
+  - result: `All checks passed!`
+  - `uv run pytest tests/test_agent_core_skills_self_improve.py -q`
+  - result: `13 passed`
+  - export verification:
+    - `uv run python -c "from mini_agent.agent_core import SelfImprovingSkillEngine, SkillEvolutionRecord, SkillPerformanceMetrics; ..."`
+    - result: `SelfImprovingSkillEngine SkillEvolutionRecord SkillPerformanceMetrics`
+- post-commit residual snapshot from `python scripts/worktree_slice_report.py`:
+  - total dirty paths: `78 -> 73`
+  - `agent-core-and-cli-surface`: `52 -> 48`
+- important boundary result:
+  - self-improve is no longer a package-export hole inside `agent_core`
+  - the remaining main bucket becomes more purely legacy-tail and CLI-oriented
+
+## Latest Sync: 2026-04-16 P40.24 Shared Command Support Owner Landing
+
+## Current Execution Slice: P40.24 Shared Command Support Owner Landing (2026-04-16)
+
+### Why This Slice Is Next
+
+- after the surface closure, the new top bucket was `agent-core-and-cli-surface`
+- the strict audit exposed one immediate clean-clone blocker inside that bucket:
+  - committed `tui/app.py` already imported shared command-plan helpers and shared skill-request helpers from `mini_agent.commands`
+  - but the `commands` package had not yet landed the matching exports and support-owner integration
+- the honest next move was therefore to land the shared command support owner before bundling any broader CLI adoption
+
+### Scope
+
+- land the shared command support owner:
+  - `src/mini_agent/commands/__init__.py`
+  - `src/mini_agent/commands/execution.py`
+- retire the now-superseded helper split:
+  - delete `src/mini_agent/commands/skill_support.py`
+- land focused shared command regression coverage:
+  - `tests/test_command_execution_service.py`
+
+### Acceptance
+
+- `mini_agent.commands` exports the shared plan helpers already consumed by committed TUI code:
+  - `prepare_context_command_plan`
+  - `prepare_memory_command_plan`
+  - `prepare_model_command_plan`
+- `LocalOperatorCommandService` owns the shared skill request / command naming helpers instead of a split support file
+- focused command tests and adjacent TUI command tests stay green
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- landed commit:
+  - `96e8159`
+  - `p40: land shared command support owner`
+- focused verification:
+  - `uv run ruff check src/mini_agent/commands/__init__.py src/mini_agent/commands/execution.py tests/test_command_execution_service.py`
+  - result: `All checks passed!`
+  - `uv run pytest tests/test_command_execution_service.py -q`
+  - result: `23 passed`
+  - adjacent TUI command checks:
+    - `uv run pytest tests/test_tui_app.py -k "context or memory or model or skill" -q`
+    - result: `52 passed, 92 deselected`
+- post-commit residual snapshot from `python scripts/worktree_slice_report.py`:
+  - total dirty paths: `82 -> 78`
+  - `agent-core-and-cli-surface`: `56 -> 52`
+- important boundary result:
+  - the missing shared command-support owner gap is now closed
+  - the remaining main bucket is no longer blocked on `mini_agent.commands` export truth
+
 ## Latest Sync: 2026-04-16 P40.23 Surface DTO Contract Tail Sync
 
 ## Current Execution Slice: P40.23 Surface DTO Contract Tail Sync (2026-04-16)

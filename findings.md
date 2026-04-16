@@ -1,5 +1,68 @@
 # Findings
 
+## 2026-04-16 P40.26 Code-Agent Legacy Submodule Tail Closure
+
+- After `P40.25`, the main remaining anti-chaos problem was no longer missing owners.
+- It was legacy physical residue:
+  - the deleted `code_agent` submodules were still sitting in the dirty tree
+  - several old `test_code_agent_*` surfaces still implied those owners were maintained
+  - a couple of active tests still imported legacy `code_agent` subpackages directly
+- This is exactly the kind of residue that makes a repo drift back into confusion:
+  - the compatibility facade says one thing
+  - the physical tree says another
+- The healthy move was to close the physical tail while preserving the maintained compatibility story:
+  - keep `mini_agent.code_agent` top-level shims
+  - remove the old submodules beneath them
+  - update the still-active tests to their maintained imports
+- Structural effect:
+  - total dirty paths: `73 -> 45`
+  - `agent-core-and-cli-surface`: `48 -> 20`
+- Practical implication:
+  - the main bucket is no longer dominated by the old `code_agent` tree
+  - the remaining residue is now much more honestly about:
+    - CLI adoption
+    - top-level export tails
+    - `core/` deletion
+    - remaining legacy root test names
+
+## 2026-04-16 P40.25 Self-Improve Skill Owner Landing
+
+- After `P40.24`, the next blocker was another clean-clone integrity gap rather than a broad delete-only cleanup.
+- The key signal was:
+  - committed `agent_core/__init__.py` already exported self-improve symbols through `agent_core.skills`
+  - but `agent_core.skills` itself had not yet landed the matching owner/export truth
+- That made the self-improve move a strong narrow slice:
+  - one owner path
+  - one package export correction
+  - one test-surface rename
+- This cut matters because it stops the repo from teaching two conflicting stories:
+  - architecturally the feature belongs under `skills/`
+  - physically it was still half-rooted at `agent_core/`
+- Structural effect:
+  - total dirty paths: `78 -> 73`
+  - `agent-core-and-cli-surface`: `52 -> 48`
+- Practical implication:
+  - self-improve is no longer a package-export hole
+  - the remaining bucket becomes more purely a legacy-tail/CLI cleanup line
+
+## 2026-04-16 P40.24 Shared Command Support Owner Landing
+
+- The first honest seam inside the new `agent-core-and-cli-surface` bucket was not `cli.py`.
+- It was the missing shared command support owner already consumed by committed TUI code.
+- The decisive evidence was:
+  - committed `tui/app.py` already imported `prepare_context_command_plan`, `prepare_memory_command_plan`, `prepare_model_command_plan`, and the new shared skill-request helpers
+  - but `mini_agent.commands` had not yet landed those exports and the split support-owner integration
+- That made this a classic clean-clone safety cut:
+  - land the shared owner
+  - retire the no-longer-canonical split helper file
+  - verify through direct command-service tests plus adjacent TUI command surfaces
+- Structural effect:
+  - total dirty paths: `82 -> 78`
+  - `agent-core-and-cli-surface`: `56 -> 52`
+- Practical implication:
+  - the main bucket is no longer blocked by `mini_agent.commands` export truth
+  - future CLI/TUI adoption work can now build on a tracked shared command owner rather than a dirty-tree-only support seam
+
 ## 2026-04-16 P40.23 Surface DTO Contract Tail Sync
 
 - After `P40.22`, the surface bucket was already functionally closed.
