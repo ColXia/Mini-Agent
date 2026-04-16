@@ -1,8 +1,7 @@
-"""Self-improving skill system for agent capability evolution."""
+"""Self-improving skill primitives within the agent-core skills domain."""
 
 from __future__ import annotations
 
-import asyncio
 import json
 import re
 from dataclasses import dataclass, field

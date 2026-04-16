@@ -26,6 +26,11 @@ from mini_agent.agent_core.skills.policy import (
     normalize_skill_policy_mode,
 )
 from mini_agent.agent_core.skills.registry import AgentSkill, SkillRegistry, SkillSource
+from mini_agent.agent_core.skills.self_improve import (
+    SelfImprovingSkillEngine,
+    SkillEvolutionRecord,
+    SkillPerformanceMetrics,
+)
 
 __all__ = [
     "SkillRequirements",
@@ -48,4 +53,7 @@ __all__ = [
     "describe_skill_activation",
     "normalize_skill_name",
     "normalize_skill_policy_mode",
+    "SelfImprovingSkillEngine",
+    "SkillEvolutionRecord",
+    "SkillPerformanceMetrics",
 ]

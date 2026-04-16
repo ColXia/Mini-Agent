@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from mini_agent.agent_core.self_improve import (
+from mini_agent.agent_core.skills.self_improve import (
     SelfImprovingSkillEngine,
-    SkillEvolutionRecord,
     SkillPerformanceMetrics,
 )
 
