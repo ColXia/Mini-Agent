@@ -1,6 +1,6 @@
-"""Compatibility shim for the staged shared interaction package extraction."""
+"""Shared interaction normalization and entrance/channel semantics."""
 
-from mini_agent.interaction import (
+from .surface import (
     ACTIVE_REMOTE_CHANNEL_ADAPTERS,
     InteractionBinding,
     InteractionSurface,

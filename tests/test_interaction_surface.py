@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from mini_agent.runtime.interaction_surface import (
+from mini_agent.interaction import (
     resolve_interaction_binding,
     normalize_channel_type,
     normalize_surface_label,
@@ -21,29 +21,30 @@ def test_normalize_surface_label_preserves_current_surface_semantics() -> None:
 
 def test_normalize_channel_type_handles_remote_aliases() -> None:
     assert normalize_channel_type("QQBOT") == "qq"
-    assert normalize_channel_type("wx") == "wechat"
-    assert normalize_channel_type("lark") == "feishu"
+    assert normalize_channel_type("custom-remote") == "custom-remote"
     assert normalize_channel_type("") is None
 
 
 def test_resolve_user_entrance_for_remote_channels() -> None:
     assert resolve_user_entrance("qq", None) == "remote"
-    assert resolve_user_entrance("api", "wechat") == "remote"
+    assert resolve_user_entrance("api", "qq") == "remote"
+    assert resolve_user_entrance(None, "custom-remote") == "remote"
     assert resolve_user_entrance("remote", "qq") == "remote"
 
 
-def test_resolve_user_entrance_for_local_and_web_variants() -> None:
+def test_resolve_user_entrance_for_local_and_removed_browser_variants() -> None:
     assert resolve_user_entrance("headless", None) == "cli"
     assert resolve_user_entrance("tui", None) == "tui"
     assert resolve_user_entrance("desktopui", None) == "desktop"
     assert resolve_user_entrance("desktop", None) == "desktop"
-    assert resolve_user_entrance("browser", None) == "webui"
-    assert resolve_user_entrance("webui", None) == "webui"
+    assert resolve_user_entrance("browser", None) == "cli"
+    assert resolve_user_entrance("webui", None) == "cli"
 
 
 def test_resolve_remote_channel_prefers_explicit_channel_type() -> None:
     assert resolve_remote_channel("remote", "qq") == "qq"
-    assert resolve_remote_channel("wechat", None) == "wechat"
+    assert resolve_remote_channel("custom-remote", None) is None
+    assert resolve_remote_channel("remote", "custom-remote") is None
     assert resolve_remote_channel("tui", None) is None
 
 
