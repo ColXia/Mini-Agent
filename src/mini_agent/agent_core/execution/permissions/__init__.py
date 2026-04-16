@@ -1,4 +1,4 @@
-"""Backward-compatible permission facade over agent-core execution permissions."""
+"""Code-agent permission policy and approval primitives."""
 
 from mini_agent.agent_core.execution.permissions.approval import (
     ApprovalCache,

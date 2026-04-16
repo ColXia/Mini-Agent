@@ -1,21 +1,17 @@
-"""Declarative code-agent tool system primitives."""
+"""Backward-compatible tool facade over agent-core execution tools."""
 
-from mini_agent.code_agent.tools.attributes import (
+from mini_agent.agent_core.execution.tools import (
+    DeclarativeTool,
+    DeclarativeToolAdapter,
     DeclarativeToolAttributes,
     InterruptBehavior,
-    ToolKind,
-)
-from mini_agent.code_agent.tools.builder import (
-    DeclarativeTool,
     ToolBuilder,
-    build_declarative_registry,
-    infer_attributes_from_tool_name,
-)
-from mini_agent.code_agent.tools.invocation import ToolInvocation
-from mini_agent.code_agent.tools.runtime_adapter import (
-    DeclarativeToolAdapter,
+    ToolInvocation,
+    ToolKind,
     adapt_declarative_tools,
+    build_declarative_registry,
     build_runtime_adapter_path,
+    infer_attributes_from_tool_name,
 )
 
 __all__ = [

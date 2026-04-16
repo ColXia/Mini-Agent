@@ -2,18 +2,28 @@
 
 from .schema import (
     FunctionCall,
-    LLMProvider,
+    LLMCompletionResult,
     LLMResponse,
+    LLMProvider,
+    LLMStreamEvent,
+    LLMStreamEventType,
     Message,
     TokenUsage,
     ToolCall,
+    aggregate_completion_events,
+    synthesize_completion_events,
 )
 
 __all__ = [
     "FunctionCall",
-    "LLMProvider",
+    "LLMCompletionResult",
     "LLMResponse",
+    "LLMProvider",
+    "LLMStreamEvent",
+    "LLMStreamEventType",
     "Message",
     "TokenUsage",
     "ToolCall",
+    "aggregate_completion_events",
+    "synthesize_completion_events",
 ]

@@ -12,8 +12,11 @@ from mini_agent.agent_core.skills import (
     AgentSkill,
     AgentSkillLoader,
     AgentSkillRuntimeBridge,
+    SelfImprovingSkillEngine,
     SkillEligibilityChecker,
     SkillEligibilityResult,
+    SkillEvolutionRecord,
+    SkillPerformanceMetrics,
     SkillRegistry,
     SkillRequirements,
     SkillSource,
@@ -98,18 +101,29 @@ from mini_agent.agent_core.security import (
     PairingRequest,
     PairingStore,
 )
-from mini_agent.agent_core.self_improve import (
-    SelfImprovingSkillEngine,
-    SkillEvolutionRecord,
-    SkillPerformanceMetrics,
-)
 from mini_agent.agent_core.kernel import (
     AgentKernelBuildOptions,
     build_agent_kernel,
 )
-from mini_agent.turn_context import (
+from mini_agent.agent_core.history import (
+    AgentHistoryCompactionService,
+    HistoryCompactionResult,
+)
+from mini_agent.agent_core.post_turn import (
+    AgentPostTurnSideEffectService,
+    PostTurnSideEffectResult,
+)
+from mini_agent.agent_core.presentation import (
+    AgentRuntimePresenter,
+    AnsiConsoleAgentRuntimePresenter,
+    NullAgentRuntimePresenter,
+)
+from mini_agent.agent_core.runtime_bindings import AgentRuntimeBindings, AgentRuntimeServices
+from mini_agent.agent_core.context.turn_context import (
+    AgentPreparedTurnContextService,
     ConsolidatedMemoryTurnContextProvider,
     MCPToolCatalogTurnContextProvider,
+    PreparedTurnContextResult,
     RuntimeTurnContext,
     SkillCatalogTurnContextProvider,
     TurnContextItem,
@@ -211,6 +225,17 @@ __all__ = [
     "SkillPerformanceMetrics",
     "AgentKernelBuildOptions",
     "build_agent_kernel",
+    "AgentHistoryCompactionService",
+    "HistoryCompactionResult",
+    "AgentPreparedTurnContextService",
+    "AgentPostTurnSideEffectService",
+    "PreparedTurnContextResult",
+    "PostTurnSideEffectResult",
+    "AgentRuntimePresenter",
+    "AnsiConsoleAgentRuntimePresenter",
+    "NullAgentRuntimePresenter",
+    "AgentRuntimeBindings",
+    "AgentRuntimeServices",
     "ConsolidatedMemoryTurnContextProvider",
     "MCPToolCatalogTurnContextProvider",
     "RuntimeTurnContext",

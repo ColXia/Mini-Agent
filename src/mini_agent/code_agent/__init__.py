@@ -1,77 +1,73 @@
-"""Code-agent runtime primitives (P14 baseline)."""
+"""Backward-compatible code-agent facade over agent-core execution primitives."""
 
-from mini_agent.code_agent.agent_loop import (
-    AgentSubmissionLoop,
-    InMemoryLoopMessageBus,
-    SubmissionEvent,
-    SubmissionEventType,
-    wait_for_loop_event,
-    wait_for_submission_completion,
-)
-from mini_agent.code_agent.coordinator import (
-    CoordinatorRunResult,
-    CoordinatorStage,
-    InMemoryCoordinatorProgressBus,
-    MiniCoordinator,
-    StageSummary,
-    WorkerResult,
-    WorkerTask,
-)
-from mini_agent.code_agent.minimal_workflow import (
-    MINIMAL_WORKFLOW_STAGES,
-    build_minimal_workflow_tasks,
-    compose_stage_prompt,
-    format_minimal_workflow_report,
-    run_minimal_workflow_with_runner,
-)
-from mini_agent.code_agent.context_compression import (
+from mini_agent.agent_core.context.context_compaction import (
     CompressionStats,
     ContextCompressionResult,
     LayeredContextCompactor,
     estimate_tokens,
 )
-from mini_agent.code_agent.mcp_client import CodeAgentMCPClient, MCPToolDescriptor
-from mini_agent.code_agent.mcp_tools import (
-    build_declarative_mcp_registry,
-    infer_mcp_tool_attributes,
-    mcp_tool_alias,
-)
-from mini_agent.code_agent.permissions import (
+from mini_agent.agent_core.execution import (
+    AgentLoopContext,
+    AgentSubmissionLoop,
     ApprovalCache,
     ApprovalEngine,
     ApprovalOutcome,
+    CoordinatorRunResult,
+    CoordinatorStage,
+    DeclarativeTool,
+    DeclarativeToolAdapter,
+    DeclarativeToolAttributes,
+    InMemoryCoordinatorProgressBus,
+    InMemoryLoopMessageBus,
+    InterruptBehavior,
+    MCPToolDescriptor,
+    MINIMAL_WORKFLOW_STAGES,
+    MaskedOutputRecord,
+    MiniCoordinator,
+    NetworkAccessMode,
+    NetworkDomainPolicy,
     PermissionDecision,
     PermissionPolicy,
     PermissionRule,
-    invocation_fingerprint,
-)
-from mini_agent.code_agent.context import AgentLoopContext, TurnContext, TurnPolicySnapshot
-from mini_agent.code_agent.output_masking import MaskedOutputRecord, ToolOutputMasker
-from mini_agent.code_agent.scheduler import SchedulerResult, SchedulerState, TurnScheduler
-from mini_agent.code_agent.sandbox import (
-    NetworkAccessMode,
-    NetworkDomainPolicy,
     SandboxBackend,
     SandboxManager,
     SandboxSelection,
     SandboxTransformResult,
-    WindowsRestrictedSandbox,
-    WindowsSandboxPolicy,
-    extract_domains_from_command,
-)
-from mini_agent.code_agent.tools import (
-    DeclarativeTool,
-    DeclarativeToolAdapter,
-    DeclarativeToolAttributes,
-    InterruptBehavior,
+    SchedulerResult,
+    SchedulerState,
+    StageSummary,
+    SubmissionEvent,
+    SubmissionEventType,
     ToolBuilder,
     ToolInvocation,
     ToolKind,
+    ToolOutputMasker,
+    TurnContext,
+    TurnPolicySnapshot,
+    TurnScheduler,
+    WindowsRestrictedSandbox,
+    WindowsSandboxPolicy,
+    WorkerResult,
+    WorkerTask,
     adapt_declarative_tools,
+    build_declarative_mcp_registry,
     build_declarative_registry,
     build_runtime_adapter_path,
+    build_minimal_workflow_tasks,
+    compose_stage_prompt,
+    extract_domains_from_command,
+    format_minimal_workflow_report,
     infer_attributes_from_tool_name,
+    infer_mcp_tool_attributes,
+    invocation_fingerprint,
+    mcp_tool_alias,
+    run_minimal_workflow_with_runner,
+    wait_for_loop_event,
+    wait_for_submission_completion,
 )
+from mini_agent.agent_core.execution.mcp_client import ExecutionMCPClient
+
+CodeAgentMCPClient = ExecutionMCPClient
 
 __all__ = [
     "SubmissionEventType",
