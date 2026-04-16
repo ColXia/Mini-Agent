@@ -4,14 +4,13 @@ Session integration tests - Testing multi-turn conversations and session managem
 
 import tempfile
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
 from mini_agent import LLMClient
-from mini_agent.agent import Agent
-from mini_agent.schema import LLMResponse, Message
-from mini_agent.tools.bash_tool import BashTool
+from mini_agent.agent_core.engine import Agent
+from mini_agent.schema import Message
 from mini_agent.tools.file_tools import ReadTool, WriteTool
 from mini_agent.tools.note_tool import RecallNoteTool, SessionNoteTool
 
@@ -169,3 +168,5 @@ def test_message_statistics(mock_llm_client, temp_workspace):
     assert assistant_msgs == 1
     assert tool_msgs == 1
     assert len(agent.messages) == 5  # 1 system + 2 user + 1 assistant + 1 tool
+
+

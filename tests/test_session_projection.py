@@ -57,6 +57,7 @@ def test_session_summary_projection_round_trip_transport_payload() -> None:
                 }
             ],
         },
+        "remote_recovery_text": "Shared-session recovery:\nsessionId: sess-1",
         "memory_diagnostics": {"global_profile_fact_count": 2},
         "sandbox_diagnostics": {"approval_profile": "build"},
     }
@@ -68,6 +69,7 @@ def test_session_summary_projection_round_trip_transport_payload() -> None:
     assert projection.recovery is not None
     assert projection.recovery.state == "interrupted"
     assert projection.pending_approvals[0].tool_name == "shell"
+    assert projection.remote_recovery_text == "Shared-session recovery:\nsessionId: sess-1"
 
     dto = projection.to_transport()
 
@@ -76,6 +78,7 @@ def test_session_summary_projection_round_trip_transport_payload() -> None:
     assert dto.pending_skill_reload is True
     assert dto.recovery is not None
     assert dto.recovery.pending_approvals[0].token == "tok-1"
+    assert dto.remote_recovery_text == "Shared-session recovery:\nsessionId: sess-1"
 
 
 def test_session_detail_projection_round_trip_transport_payload() -> None:
