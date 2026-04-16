@@ -5,22 +5,23 @@
 > **维护者**: Codex execution discipline
 > **文档索引**: [DOCS_INDEX.md](./DOCS_INDEX.md)
 
-Updated: 2026-04-07
+Updated: 2026-04-16
 Scope: Hard-refactor execution constraints, mistake prevention, and operational guardrails.
 
 ## 1. Core Habits (Must Follow)
 
 | ID | Habit | Constraint | Verification |
 | --- | --- | --- | --- |
-| H-01 | Single source of truth for architecture | All changes must map to active phase doc (`P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md`) | PR checklist + task link |
+| H-01 | Single source of truth for architecture | All changes must map to the current execution anchor recorded in `DEVELOPMENT_INDEX.md` (currently `P32B_REPO_HYGIENE_AND_STRUCTURE_ALIGNMENT_PLAN_2026-04-16.md`) | PR checklist + task link |
 | H-02 | No compatibility shell | Any fallback/legacy adapter is blocked unless explicitly approved | Code review gate |
 | H-03 | Contract-first API change | Router changes require DTO/contract update first | Contract test |
 | H-04 | One frontend + one backend in dev | Repeated startup must fail fast with PID/port message | Startup script guard |
 | H-05 | One main-agent runtime | No duplicated runtime creation paths | Runtime manager assert |
-| H-06 | Channel ingress normalization | QQ/WeChat must enter one canonical use-case | Integration test |
+| H-06 | Remote ingress normalization | Active remote adapter traffic must enter one canonical use-case and must not create entrance-specific session truth | Integration test |
 | H-07 | Small, atomic slices | Each change must include scope boundary and rollback note | Dev log entry |
 | H-08 | Immediate post-change validation | Syntax/build/smoke checks are mandatory before handoff | Local check report |
 | H-09 | Language-specific validation commands | Python/TypeScript validation commands must not be mixed in one invocation | Validation checklist |
+| H-10 | Phase-shift doc sync | When the execution anchor changes, sync `DEVELOPMENT_INDEX`, `DOCS_INDEX`, README, and active guides in the same slice | Markdown/index check |
 
 ## 2. Mistake and Error Log
 

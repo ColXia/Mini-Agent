@@ -4,14 +4,15 @@ English | [中文](./README_CN.md)
 
 Mini-Agent is a terminal-first agent platform focused on real TUI / CLI / headless usage.
 It combines a shared session-runtime core with provider/model management, memory and RAG wiring,
-bundled skills, MCP integration, and an optional gateway + QQ channel workflow.
+bundled skills, MCP integration, and an optional gateway + Remote Interaction workflow currently carried by the QQ adapter.
 
 ## Current Status
 
-- Primary surfaces: `TUI`, `CLI`, `headless`
-- Optional runtime stack: gateway + QQ bot
-- WebUI: paused as the primary development target
-- Current architecture direction: session-centric refactor (`P30`)
+- Primary entrances: `CLI`, `TUI`, `Desktop`, `Remote`
+- Default local workflows: `TUI`, `CLI`, `headless`
+- Optional runtime stack: gateway + active QQ remote adapter
+- Browser `WebUI` / `OpenWebUI`: removed
+- Current architecture direction: post-`P37` structure-aligned baseline with active repo-hygiene closeout (`P32b`)
 
 ## Dependency vs Reference
 
@@ -34,7 +35,7 @@ Mini-Agent currently depends on:
   - `fastapi`
   - `uvicorn`
   - `python-dotenv`
-- Optional Node.js dependencies for the QQ channel app in [`src/apps/qqbot_channel/package.json`](./src/apps/qqbot_channel/package.json):
+- Optional Node.js dependencies for the active QQ remote adapter app in [`src/apps/qqbot_channel/package.json`](./src/apps/qqbot_channel/package.json):
   - `dotenv`
   - `qq-official-bot`
 
@@ -137,7 +138,8 @@ uv run mini-agent models minimax --latest
 ```text
 src/mini_agent/                 Core runtime, commands, TUI, agent, memory, models
 src/apps/agent_studio_gateway/  Gateway / API host
-src/apps/qqbot_channel/         Optional QQ bot channel app
+src/apps/desktop_ui/            DesktopUI bootstrap / packaging app
+src/apps/qqbot_channel/         Optional QQ remote adapter app
 scripts/                        Walkthroughs, smoke scripts, maintenance helpers
 tests/                          Automated test suite
 docs/                           Active and archived project documentation

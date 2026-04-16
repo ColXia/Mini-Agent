@@ -1,18 +1,22 @@
 # Development Index (Published)
 
-> **状态**: ✅ 活跃
-> **最后更新**: 2026-04-12
-> **维护者**: Mini-Agent Core Refactor
-> **文档索引**: [DOCS_INDEX.md](./DOCS_INDEX.md)
+> **鐘舵€?*: 鉁?娲昏穬
+> **鏈€鍚庢洿鏂?*: 2026-04-12
+> **缁存姢鑰?*: Mini-Agent Core Refactor
+> **鏂囨。绱㈠紩**: [DOCS_INDEX.md](./DOCS_INDEX.md)
 
 > Note (P18 hard refactor): entries under old phases may reference deleted legacy modules for historical traceability only.
 > Current runtime architecture is single-host v1 (`src/apps/agent_studio_gateway/main.py` + `/api/v1/*`).
 > Stage normalization (2026-04-07): P18 closeout baseline frozen; P19 kickoff + Stage-C docs + ops alerting + adoption tracking/target-bands/delta slices landed.
-> Phase update (2026-04-12): terminal-first remains the active implementation focus, but the product entrance model is now explicitly `CLI / TUI / DesktopUI / Remote Interaction`; current remote delivery is `QQ` only, while `WeChat / Feishu` remain future extension targets; browser Studio is paused compatibility/prototype material and historical docs were moved into archive where appropriate.
+> Phase update (2026-04-12): terminal-first remains the active implementation focus, and the product entrance model is explicitly `CLI / TUI / DesktopUI / Remote Interaction`; current remote delivery is `QQ` only, while any non-QQ adapter remains future-only and out of the active repo.
+> Session boundary update (2026-04-14 P32.34): `src/mini_agent/session/store.py` and `tests/test_session_store_persistence.py` were removed. Live session ownership is now `src/mini_agent/runtime/session_state.py` + `src/mini_agent/runtime/session_runtime_persistence.py`, while `mini_agent.session` is limited to persistence/projection/conversation-binding owners.
+> Surface cleanup update (2026-04-14 P32.35): browser `WebUI / OpenWebUI` were hard-removed from the active codebase; canonical entrances are now only `CLI / TUI / DesktopUI / Remote Interaction`.
+> Remote lock update (2026-04-14 P32.60): `QQ` is the only active remote adapter path. Legacy `WeChat` / old channel trees were removed from the active repo so future work cannot drift back into "QQ as a fifth entrance" or fake multi-channel parity.
+> Current execution anchor (2026-04-16): `docs/P32B_REPO_HYGIENE_AND_STRUCTURE_ALIGNMENT_PLAN_2026-04-16.md`.
 
 ## 1. Navigation
 - Refactor plan: `docs/REFACTOR_TASKS.md`
-- Current execution anchor: `docs/P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md`
+- Current execution anchor: `docs/P32B_REPO_HYGIENE_AND_STRUCTURE_ALIGNMENT_PLAN_2026-04-16.md`
 - Framework skeleton lock: `docs/FRAMEWORK_SKELETON.md`
 - Dev habit and mistake ledger: `docs/MINIAGENT_DEV_HABIT_LEDGER.md`
 - API v1 contract skeleton: `docs/API_V1_CONTRACT_SKELETON.md`
@@ -42,13 +46,23 @@
 - Surface/session executable refactor task plan (2026-04-12): `docs/P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md`
 - Session truth boundary map (2026-04-13): `docs/P30_SESSION_TRUTH_BOUNDARY_MAP_2026-04-13.md`
 - DesktopUI(PySide6) decision + task plan (2026-04-13): `docs/P31_DESKTOPUI_PYSIDE6_TASK_PLAN_2026-04-13.md`
-- Transformation plan (v2): `docs/TRANSFORMATION_PLAN.md`
+- Remote interaction hard-lock (2026-04-14): `docs/P32_REMOTE_INTERACTION_ARCHITECTURE_LOCK_2026-04-14.md`
+- Repo hygiene + structure alignment plan (2026-04-16): `docs/P32B_REPO_HYGIENE_AND_STRUCTURE_ALIGNMENT_PLAN_2026-04-16.md`
+- LLM runtime upgrade plan (2026-04-14): `docs/P33_LLM_RUNTIME_UPGRADE_PLAN_2026-04-14.md`
+- Runtime truth + provider governance plan (2026-04-15): `docs/P33B_RUNTIME_TRUTH_AND_PROVIDER_GOVERNANCE_PLAN_2026-04-15.md`
+- Agent-core refactor plan (2026-04-15): `docs/P34_AGENT_CORE_REFACTOR_PLAN_2026-04-15.md`
+- Session/runtime contract consolidation plan (2026-04-15): `docs/P36_SESSION_RUNTIME_CONTRACT_CONSOLIDATION_PLAN_2026-04-15.md`
+- TUI surface orchestration convergence plan (2026-04-15): `docs/P37_TUI_SURFACE_ORCHESTRATION_CONVERGENCE_PLAN_2026-04-15.md`
+- Post-P36 runtime/surface evaluation (2026-04-15): `docs/POST_P36_RUNTIME_SURFACE_EVALUATION_2026-04-15.md`
+- Post-P37 TUI/surface evaluation (2026-04-16): `docs/POST_P37_TUI_SURFACE_EVALUATION_2026-04-16.md`
+- Historical transformation plan (source-study only): `docs/TRANSFORMATION_PLAN.md`
 - Transformation plan (mini guardrails): `docs/TRANSFORMATION_PLAN_LITE_ADDENDUM.md`
 - OSS mapping index: `docs/OSS_REFERENCE_INDEX.md`
 - Archived external OSS index bridge: `docs/archive/EXTERNAL_OSS_INDEX.md`
 - Runtime boundary notes: `docs/RUNTIME_FLOW.md`
 
 ## 2. Current Phase Status
+- Execution note (2026-04-16): the current daily execution anchor is `P32b` repo hygiene and structure alignment. Older lines below remain important architecture references, but they are not the current execution anchor unless explicitly restated.
 - `P0`: done
 - `P1`: done
 - `P2`: done
@@ -69,21 +83,34 @@
 - `P17+`: done (T5.1/T5.2/T5.3 hardening + deployment follow-up validations completed on 2026-04-07)
 - `P18`: done (hard refactor completed; baseline frozen for single-host v1 on 2026-04-07)
 - `P19`: done (rollout preparation baseline completed on 2026-04-07; documentation and operator guardrails landed)
-- `P20`: done (OpenWebUI positioning convergence completed; retained as optional adapter path)
+- `P20`: done (historical positioning work completed; browser adapters were later removed in P32.35)
 - `P21`: done (terminal interaction refactor and unified terminal entry landed)
-- `P24`: active (TUI-first real-use refinement and bugfix polishing loop)
-- `P25`: active (memory-core consolidation entered strengthening phase after unified service + runtime wiring landed)
-- `P26`: active (global/workspace memory boundary correction and runtime-memory architecture landing)
-- `P29`: active (session boundary audit completed; hard-refactor implementation planning is now active)
-- `P30`: active (surface/session architecture correction is locked around the four-entrance model; executable refactor plan is landed and the next code entry starts from `P30.1`)
+- `P24`: maintained baseline (TUI-first real-use refinement remains part of the product baseline, but it is not the current execution anchor)
+- `P25`: maintained baseline (memory-core consolidation and shared memory service wiring are landed and remain the maintained reference)
+- `P26`: maintained baseline (runtime memory boundary correction is landed and remains the maintained reference)
+- `P29`: maintained reference line (session boundary audit is complete and remains a boundary reference rather than the current execution line)
+- `P30`: maintained architecture foundation (surface/session correction locked the four-entrance model and remains the base architecture reference)
+- `P31`: maintained direction line (`DesktopUI(PySide6)` remains the canonical graphical mainline)
+- `P32`: active (second-pass repo hygiene / structure alignment / commit slicing is now tracked in `docs/P32B_REPO_HYGIENE_AND_STRUCTURE_ALIGNMENT_PLAN_2026-04-16.md`)
+- `P33`: done (runtime/provider/config baseline upgrade completed)
+- `P33b`: done (runtime truth and provider governance completed)
+- `P34`: done (agent-core refactor completed)
+- `P35`: done (core seam lock completed before P36; tracked through the P36 execution note and progress log)
+- `P36`: done (session/runtime contract consolidation completed)
+- `P37`: done (TUI surface orchestration convergence completed)
 
 Latest stage sync:
 - `2026-04-11`: Windows sandbox hardening is paused at the current sufficient-for-demo baseline.
 - `2026-04-11`: active execution focus returns to P24 demo-baseline acceptance across `TUI / CLI / QQ / gateway`.
 - `2026-04-12`: session work is temporarily re-anchored to P29 boundary repair after the latest unification bug exposed multi-owner session semantics and surface/runtime coupling.
-- `2026-04-12`: architecture is now explicitly corrected at P30: sessions are core truth, while the four user entrances are `CLI / TUI / DesktopUI / Remote Interaction`; concrete channels such as `QQ / WeChat / Feishu` belong under the remote entrance as thin adapters; execution should proceed from `docs/P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md`.
+- `2026-04-12`: architecture is now explicitly corrected at P30: sessions are core truth, while the four user entrances are `CLI / TUI / DesktopUI / Remote Interaction`; the active remote adapter is `QQ`, and any future adapters still belong under the remote entrance as thin adapters; execution should proceed from `docs/P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md`.
 - `2026-04-13`: framework skeleton is explicitly locked in `docs/FRAMEWORK_SKELETON.md`; future implementation should treat it as the repo/layer ownership guardrail before adding more surface or remote behavior.
-- `2026-04-13`: the third graphical mainline is now frozen as `DesktopUI(PySide6)` rather than browser-first `WebUI`; browser Studio remains paused compatibility/prototype material, and the next desktop implementation order is `thin application seam first -> reuse existing gateway transport -> build DesktopUI shell`.
+- `2026-04-13`: the third graphical mainline is frozen as `DesktopUI(PySide6)`; the next desktop implementation order is `thin application seam first -> reuse existing gateway transport -> build DesktopUI shell`.
+- `2026-04-15`: `P33 / P33b` runtime/model/provider lines are materially complete; later work should build on the registry/runtime/config truth already landed.
+- `2026-04-15`: `P34` agent-core refactor is materially complete; later core work should start from a fresh problem statement rather than reopening the same seam line.
+- `2026-04-15`: `P36` session/runtime contract consolidation is materially complete.
+- `2026-04-16`: `P37` TUI surface orchestration convergence is materially complete.
+- `2026-04-16`: active execution focus moves to `P32b` repo hygiene, commit slicing, and active-doc alignment.
 
 ## 3. Active Plan: P22 Core Agent Minimal (Started 2026-04-07)
 
@@ -100,7 +127,7 @@ Scope (current implementation focus):
 Delivery principles:
 - Minimal viable architecture, no compatibility shell.
 - Test-first for each milestone (unit + focused integration).
-- TUI/CLI first; WebUI remains paused.
+- TUI/CLI first; browser WebUI/OpenWebUI are removed.
 
 ## 4. Active Plan: P23 Agent-Core Hard Wiring (Started 2026-04-07)
 
@@ -122,7 +149,7 @@ Milestones:
 Goal: treat TUI as the primary daily-use surface and drive the next iteration loop from real usage findings, not speculative UI work.
 
 Current execution rules:
-- TUI/CLI first; WebUI remains paused.
+- TUI/CLI first; browser WebUI/OpenWebUI are removed.
 - Prefer validating changes through real TUI interaction before adding more abstraction.
 - Keep internal runtime noise out of the main chat view unless it directly helps the operator.
 - Every TUI polish change should leave behind one of: focused test, scripted checklist, or walkthrough evidence.
@@ -202,7 +229,7 @@ Mini principle in execution: capability strong, architecture lean (not capabilit
 - [x] T0.4: FTS5 session search (router + health diagnostics baseline)
   - `mini_agent/memory/session_search.py`
   - `mini_agent/session/persistence.py`
-  - `mini_agent/core/session.py`
+  - `mini_agent/session/store.py`
   - `gateway/routers/sessions.py`
   - `gateway/routers/observability.py`
   - tests: `tests/test_session_search.py`, `tests/test_session_store_persistence.py`, `tests/test_gateway_routers.py`
@@ -217,7 +244,7 @@ Mini principle in execution: capability strong, architecture lean (not capabilit
   - relevance ranker: `mini_agent/memory/relevance.py`
   - persistence/store integration:
     - `mini_agent/session/persistence.py`
-    - `mini_agent/core/session.py`
+    - `mini_agent/session/store.py`
   - gateway endpoint: `GET /api/sessions/memory/relevance`
   - router: `gateway/routers/sessions.py`
   - tests:
@@ -297,75 +324,75 @@ Mini principle in execution: capability strong, architecture lean (not capabilit
 ### P14: Code Agent (P2 in transformation plan)
 - [x] T2.1: Agent event loop
   - submission loop + event channel:
-    - `mini_agent/code_agent/agent_loop.py`
+    - `mini_agent/agent_core/execution/agent_loop.py`
   - turn context snapshot:
-    - `mini_agent/code_agent/context.py`
+    - `mini_agent/agent_core/context/loop_context.py`
   - scheduler state machine baseline:
-    - `mini_agent/code_agent/scheduler.py`
+    - `mini_agent/agent_core/execution/scheduler.py`
   - package exports:
-    - `mini_agent/code_agent/__init__.py`
+    - `mini_agent/agent_core/execution/__init__.py`
   - tests:
-    - `tests/test_code_agent_loop.py`
+    - `tests/test_agent_core_execution_loop.py`
 - [x] T2.2: Windows sandbox
   - network policy and domain extraction baseline:
-    - `mini_agent/code_agent/sandbox/network.py`
+    - `mini_agent/agent_core/execution/sandbox/network.py`
   - restricted-token command transform and policy validation:
-    - `mini_agent/code_agent/sandbox/windows.py`
+    - `mini_agent/agent_core/execution/sandbox/windows.py`
   - backend selection manager and exports:
-    - `mini_agent/code_agent/sandbox/manager.py`
-    - `mini_agent/code_agent/sandbox/__init__.py`
-    - `mini_agent/code_agent/__init__.py`
+    - `mini_agent/agent_core/execution/sandbox/manager.py`
+    - `mini_agent/agent_core/execution/sandbox/__init__.py`
+    - `mini_agent/agent_core/execution/__init__.py`
   - tests:
-    - `tests/test_code_agent_sandbox.py`
+    - `tests/test_agent_core_execution_sandbox.py`
 - [x] T2.3: Tool system (DeclarativeTool)
   - declarative contract attributes:
-    - `mini_agent/code_agent/tools/attributes.py`
+    - `mini_agent/agent_core/execution/tools/attributes.py`
   - invocation model + schema validation:
-    - `mini_agent/code_agent/tools/invocation.py`
+    - `mini_agent/agent_core/execution/tools/invocation.py`
   - schema-first builder and registry:
-    - `mini_agent/code_agent/tools/builder.py`
+    - `mini_agent/agent_core/execution/tools/builder.py`
   - runtime adapter path:
-    - `mini_agent/code_agent/tools/runtime_adapter.py`
+    - `mini_agent/agent_core/execution/tools/runtime_adapter.py`
   - package exports:
-    - `mini_agent/code_agent/tools/__init__.py`
-    - `mini_agent/code_agent/__init__.py`
+    - `mini_agent/agent_core/execution/tools/__init__.py`
+    - `mini_agent/agent_core/execution/__init__.py`
   - tests:
-    - `tests/test_code_agent_tools.py`
+    - `tests/test_agent_core_execution_tools.py`
 - [x] T2.4: Multi-agent coordination
   - coordinator pipeline and worker contract baseline:
-    - `mini_agent/code_agent/coordinator.py`
+    - `mini_agent/agent_core/execution/coordinator.py`
   - package exports:
-    - `mini_agent/code_agent/__init__.py`
+    - `mini_agent/agent_core/execution/__init__.py`
   - tests:
-    - `tests/test_code_agent_coordinator.py`
+    - `tests/test_agent_core_execution_coordinator.py`
 - [x] T2.5: Context management
   - layered context compaction:
-    - `mini_agent/code_agent/context_compression.py`
+    - `mini_agent/agent_core/context/context_compaction.py`
   - tool output masking:
-    - `mini_agent/code_agent/output_masking.py`
+    - `mini_agent/agent_core/execution/output_masking.py`
   - package exports:
-    - `mini_agent/code_agent/__init__.py`
+    - `mini_agent/agent_core/execution/__init__.py`
   - tests:
-    - `tests/test_code_agent_context_compaction.py`
+    - `tests/test_agent_core_context_compaction.py`
 - [x] T2.6: MCP client
-  - code-agent MCP client manager:
-    - `mini_agent/code_agent/mcp_client.py`
+  - execution MCP client manager:
+    - `mini_agent/agent_core/execution/mcp_client.py`
   - MCP declarative wrapper helpers:
-    - `mini_agent/code_agent/mcp_tools.py`
+    - `mini_agent/agent_core/execution/mcp_tools.py`
   - package exports:
-    - `mini_agent/code_agent/__init__.py`
+    - `mini_agent/agent_core/execution/__init__.py`
   - tests:
-    - `tests/test_code_agent_mcp_client.py`
+    - `tests/test_agent_core_execution_mcp_client.py`
 - [x] T2.7: Permission system
   - permission policy model:
-    - `mini_agent/code_agent/permissions/policy.py`
+    - `mini_agent/agent_core/execution/permissions/policy.py`
   - approval cache and escalation engine:
-    - `mini_agent/code_agent/permissions/approval.py`
-    - `mini_agent/code_agent/permissions/__init__.py`
+    - `mini_agent/agent_core/execution/permissions/approval.py`
+    - `mini_agent/agent_core/execution/permissions/__init__.py`
   - package exports:
-    - `mini_agent/code_agent/__init__.py`
+    - `mini_agent/agent_core/execution/__init__.py`
   - tests:
-    - `tests/test_code_agent_permissions.py`
+    - `tests/test_agent_core_execution_permissions.py`
 
 ### P15: Agent Core (P3 in transformation plan)
 - [x] T3.1: 8-level routing
@@ -480,56 +507,38 @@ Mini principle in execution: capability strong, architecture lean (not capabilit
   - tests:
     - `tests/test_memory_manager_router.py`
 
-### P17: Frontend & Integration (P5 in transformation plan)
-- [x] T5.1: Open WebUI integration
-  - openai-compatible adapter baseline:
-    - `apps/open_webui/adapter.py`
-    - `apps/open_webui/main.py`
-    - `apps/open_webui/__init__.py`
-  - deployment baseline:
-    - `apps/open_webui/.env.example`
-    - `apps/open_webui/docker-compose.yml`
-    - `apps/open_webui/requirements.txt`
-    - `apps/open_webui/README_zh-CN.md`
-  - tests:
-    - `tests/test_open_webui_adapter.py`
-    - `tests/test_open_webui_main.py`
-  - hardening slice:
-    - `scripts/ci/open_webui_smoke.py` (real-endpoint smoke runner)
-    - `apps/open_webui/main.py` (`/health` guardrail diagnostics)
-    - `apps/open_webui/README_zh-CN.md` (deployment guardrails + smoke run)
-    - `apps/open_webui/.env.example` (primary key/adapter key consistency note)
-- [x] T5.2: Agent Studio enhancement
-  - gateway contract baseline:
+### P17: Historical Frontend & Integration Record (P5 in transformation plan)
+> Historical note (P32.35): browser `WebUI / OpenWebUI` and the React `agent_studio` frontend were hard-removed on 2026-04-14.
+> Keep these entries only as implementation history. Do not use them as active build targets.
+
+- [x] T5.1: Historical Open WebUI adapter slice
+  - landed earlier as an OpenAI-compatible browser adapter experiment
+  - fully removed from the active codebase in P32.35
+  - current replacement policy:
+    - no browser adapter path
+    - canonical entrances are only `CLI / TUI / DesktopUI / Remote Interaction`
+- [x] T5.2: Historical Agent Studio frontend slice
+  - the browser frontend and static-host path were removed in P32.35
+  - the maintained gateway code under `src/apps/agent_studio_gateway/` now serves API composition only
+  - currently maintained files from that slice:
     - `src/apps/agent_studio_gateway/main.py`
-    - `src/apps/agent_studio_gateway/studio_router.py`
-  - studio frontend baseline:
-    - `src/apps/agent_studio/src/App.tsx`
-    - `src/apps/agent_studio/src/components/StudioOpsMode.tsx`
-    - `src/apps/agent_studio/src/api/*`
-    - `src/apps/agent_studio/src/types.ts`
-    - `src/apps/agent_studio/src/styles.css`
-  - tests:
-    - `tests/test_agent_studio_gateway_studio_router.py`
-  - hardening slice:
-    - `src/apps/agent_studio_gateway/studio_router.py` (route auth + path boundary checks)
-    - `scripts/ci/studio_ops_smoke.py` (real-endpoint studio contract smoke runner)
-    - `src/apps/agent_studio/src/api/client.ts` (`VITE_STUDIO_API_KEY` header injection)
-    - `tests/test_agent_studio_gateway_studio_router.py` (auth + boundary coverage)
-- [x] T5.3: QQ/WeChat channel completion
+    - `src/apps/agent_studio_gateway/composition.py`
+    - `src/apps/agent_studio_gateway/main_agent_router.py`
+    - `src/apps/agent_studio_gateway/ops_router.py`
+  - maintained verification:
+    - `tests/test_agent_studio_gateway_ops_router.py`
+    - `tests/test_agent_studio_gateway_api_v1.py`
+- [x] T5.3: Historical remote-channel completion
   - shared channel contract update:
-    - `src/channels/types/src/index.ts`
+    - legacy TypeScript channel package formerly lived under `src/channels/types/`
   - QQ channel completion:
-    - historical package baseline later consolidated into the app-path runtime under `src/apps/qqbot_channel/`
-  - WeChat channel baseline:
-    - `src/channels/wechat/manifest.json`
-    - `src/channels/wechat/package.json`
-    - `src/channels/wechat/tsconfig.json`
-    - `src/channels/wechat/.env.example`
-    - `src/channels/wechat/src/channel.ts`
-    - `src/channels/wechat/src/gateway_client.ts`
-    - `src/channels/wechat/src/conversation_binding_store.ts`
-    - `src/channels/wechat/src/index.ts`
+    - historical package baseline later consolidated into the maintained runtime app under `src/apps/qqbot_channel/`
+  - removed legacy channel trees in `P32.60`:
+    - `src/channels/types/`
+    - `src/channels/wechat/`
+    - `src/mini_agent/channels/`
+    - `src/gateway/channels/`
+    - `scripts/qq_wechat_smoke.py`
   - channel run scripts at that stage:
     - `scripts/archive/run_qqbot_channel.ps1`
     - `scripts/archive/run_wechat_channel.ps1`
@@ -538,33 +547,24 @@ Mini principle in execution: capability strong, architecture lean (not capabilit
     - `scripts/start_runtime_stack.ps1`
   - tests:
     - `tests/test_gateway_routers.py` (conversation binding sender split coverage)
-  - hardening slice:
-    - current QQ runtime path:
-      - `src/apps/qqbot_channel/bot.mjs`
-      - `src/apps/qqbot_channel/gateway_io.mjs`
-      - `src/apps/qqbot_channel/guardrails.mjs`
-      - `src/apps/qqbot_channel/smoke_runner.mjs`
-      - `src/apps/qqbot_channel/.env.example`
-    - `src/channels/wechat/src/channel.ts` (timestamp/body-size/dedupe/workspace guardrails)
-    - `src/channels/wechat/src/gateway_client.ts` (`Authorization` passthrough)
-    - `src/channels/wechat/src/index.ts` (guardrail env wiring)
-    - `src/channels/wechat/.env.example` (gateway auth + guardrail envs)
-    - `scripts/qq_wechat_smoke.py` (real message flow smoke runner)
-  - hardening validations:
-    - `npm run build --prefix src/channels/types`
+  - hardening slice still maintained:
+    - `src/apps/qqbot_channel/bot.mjs`
+    - `src/apps/qqbot_channel/gateway_io.mjs`
+    - `src/apps/qqbot_channel/guardrails.mjs`
+    - `src/apps/qqbot_channel/smoke_runner.mjs`
+    - `src/apps/qqbot_channel/.env.example`
+  - active validations:
     - `npm run check --prefix src/apps/qqbot_channel`
     - `npm run smoke --prefix src/apps/qqbot_channel`
-    - `npm run build --prefix src/channels/wechat`
-    - `python scripts/qq_wechat_smoke.py`
     - `python scripts/test_stable.py`
 
 ## 3. P2 Execution Index
 
 ### P2.1 Critical structural fixes
 - [x] Restore canonical session implementation
-  - `mini_agent/core/session.py`
+  - `mini_agent/session/store.py`
 - [x] Unify session import path to one source of truth
-  - canonical module: `mini_agent.core.session`
+  - canonical module: `mini_agent.session`
 - [x] Fix gateway tool initialization duplication
   - `gateway/routers/chat.py`
 - [x] Remove compatibility shims after refactor
@@ -587,7 +587,7 @@ Mini principle in execution: capability strong, architecture lean (not capabilit
   - `mini_agent/session/__init__.py`
 - [x] Expand canonical session store APIs
   - resume/list/delete/reset/history/checkpoint
-  - `mini_agent/core/session.py`
+  - `mini_agent/session/store.py`
 - [x] Add retention and cleanup support
   - `POST /api/sessions/cleanup`
   - `gateway/routers/sessions.py`
@@ -630,10 +630,13 @@ Mini principle in execution: capability strong, architecture lean (not capabilit
   - `mini_agent/tools/mcp_loader.py`
 
 ## 7. Next Work Queue
-1. Release-gate consolidation:
-   - run one unified pre-release gate (`open_webui_verify` + `studio_ops_smoke` + stable tests) and archive output in devlog
-2. P20 handoff and observation:
-   - keep OpenWebUI as optional adapter entry and collect 1-2 weeks of operational feedback before deep integration decision
+1. Keep execution anchored on the four-entrance model:
+   - `CLI / TUI / DesktopUI / Remote Interaction`
+   - browser `WebUI / OpenWebUI` must not be revived
+2. Continue runtime validation from maintained gates only:
+   - `studio_ops_smoke`
+   - terminal readiness / shared-session walkthroughs
+   - stable tests
 
 ## 8. P6 Execution Index
 
@@ -668,46 +671,13 @@ Mini principle in execution: capability strong, architecture lean (not capabilit
 
 ## 10. Verification Commands
 ```bash
-pytest -q tests/test_open_webui_adapter.py tests/test_open_webui_main.py
-python scripts/ci/open_webui_smoke.py --adapter-base-url http://127.0.0.1:8010 --api-key <token> --dry-run
-pytest -q tests/test_agent_studio_gateway_studio_router.py
-python scripts/ci/studio_ops_smoke.py --base-url http://127.0.0.1:8008 --token <studio-token> --expect-auth
-npm run build --prefix src/channels/types
+uv run pytest tests/test_interaction_surface.py tests/test_agent_studio_gateway_api_v1.py tests/test_agent_studio_gateway_ops_router.py tests/test_p19_runtime_matrix.py -q
+uv run pytest tests/test_agent_core_execution_loop.py tests/test_agent_core_execution_permissions.py tests/test_agent_core_execution_sandbox.py tests/test_agent_core_execution_tools.py -q
+uv run pytest tests/test_memory_automation.py tests/test_session_integration.py tests/test_memoria_runtime.py -q
+uv run pytest tests/test_release_promotion_checklist.py tests/test_p19_rollout_reporting.py -q
+uv run python scripts/ci/studio_ops_smoke.py --base-url http://127.0.0.1:8008 --token <ops-token> --expect-auth
+uv run python scripts/terminal_readiness_gate.py
 npm run check --prefix src/apps/qqbot_channel
-npm run smoke --prefix src/apps/qqbot_channel
-npm run build --prefix src/channels/wechat
-python scripts/qq_wechat_smoke.py
-python scripts/test_stable.py
-pytest -q tests/test_code_agent_sandbox.py tests/test_code_agent_loop.py tests/test_request_rectifier.py tests/test_gateway_routers.py
-pytest -q tests/test_code_agent_tools.py tests/test_code_agent_sandbox.py tests/test_code_agent_loop.py
-pytest -q tests/test_code_agent_coordinator.py tests/test_code_agent_tools.py tests/test_code_agent_sandbox.py tests/test_code_agent_loop.py
-pytest -q tests/test_code_agent_context_compaction.py tests/test_code_agent_coordinator.py tests/test_code_agent_tools.py tests/test_code_agent_sandbox.py tests/test_code_agent_loop.py
-pytest -q tests/test_code_agent_mcp_client.py tests/test_code_agent_context_compaction.py tests/test_code_agent_coordinator.py tests/test_code_agent_tools.py tests/test_code_agent_sandbox.py tests/test_code_agent_loop.py
-pytest -q tests/test_code_agent_permissions.py tests/test_code_agent_mcp_client.py tests/test_code_agent_context_compaction.py tests/test_code_agent_coordinator.py tests/test_code_agent_tools.py tests/test_code_agent_sandbox.py tests/test_code_agent_loop.py
-pytest -q tests/test_agent_core_routing.py tests/test_code_agent_permissions.py tests/test_code_agent_mcp_client.py tests/test_code_agent_context_compaction.py tests/test_code_agent_coordinator.py tests/test_code_agent_tools.py tests/test_code_agent_sandbox.py tests/test_code_agent_loop.py
-pytest -q tests/test_agent_core_skills.py tests/test_agent_core_routing.py tests/test_code_agent_permissions.py tests/test_code_agent_mcp_client.py tests/test_code_agent_context_compaction.py tests/test_code_agent_coordinator.py tests/test_code_agent_tools.py tests/test_code_agent_sandbox.py tests/test_code_agent_loop.py tests/test_skill_tool.py tests/test_skill_loader.py tests/test_markdown_links.py
-pytest -q tests/test_agent_core_cron.py tests/test_agent_core_skills.py tests/test_agent_core_routing.py tests/test_code_agent_permissions.py tests/test_code_agent_mcp_client.py tests/test_code_agent_context_compaction.py tests/test_code_agent_coordinator.py tests/test_code_agent_tools.py tests/test_code_agent_sandbox.py tests/test_code_agent_loop.py tests/test_skill_tool.py tests/test_skill_loader.py tests/test_markdown_links.py
-pytest -q tests/test_agent_core_delegation.py tests/test_agent_core_cron.py tests/test_agent_core_skills.py tests/test_agent_core_routing.py tests/test_code_agent_permissions.py tests/test_code_agent_mcp_client.py tests/test_code_agent_context_compaction.py tests/test_code_agent_coordinator.py tests/test_code_agent_tools.py tests/test_code_agent_sandbox.py tests/test_code_agent_loop.py tests/test_skill_tool.py tests/test_skill_loader.py tests/test_markdown_links.py
-pytest -q tests/test_note_tool.py tests/test_session_integration.py tests/test_plugin_registry.py
-pytest -q tests/test_logger_events.py tests/test_logger_retention.py tests/test_event_schema.py tests/test_doctor.py tests/test_gateway_routers.py
-pytest -q tests/test_gateway_security.py
-pytest -q tests/test_agent_execution_policy.py
-pytest -q tests/test_acp.py
-pytest -q tests/test_session_store_persistence.py
-pytest -q tests/test_session_search.py
-pytest -q tests/test_memory_consolidation.py
-pytest -q tests/test_memory_relevance.py
-pytest -q tests/test_user_modeling.py
-pytest -q tests/test_provider_config.py
-pytest -q tests/test_model_mapper.py tests/test_model_routing_runtime.py
-pytest -q tests/test_circuit_breaker.py
-pytest -q tests/test_memory_core_baseline.py
-pytest -q tests/test_mcp.py -k "mcp_example_json_is_valid_and_utf8_compatible"
-pytest -q tests/test_mcp_policy.py tests/test_mcp_profile_sync.py
-pytest -q tests/test_security_policy.py tests/test_security_audit.py
-mini-agent consolidate-memory --phase all --max-jobs 8 --top-n 40
-mini-agent migrate-event-logs --path ~/.mini-agent/log --dry-run
-mini-agent prune-export-jobs --path ~/.mini-agent/log --max-age-hours 0 --max-jobs 0
 ```
 
 ## 11. P8 Execution Index
@@ -715,7 +685,7 @@ mini-agent prune-export-jobs --path ~/.mini-agent/log --max-age-hours 0 --max-jo
 ### P8.1 Observability and operations
 - [x] Add structured run events and replayable logs
   - `mini_agent/logger.py` (`*.events.jsonl` journal + replay formatter)
-  - `mini_agent/agent.py` (step/tool/run lifecycle event emission)
+  - `mini_agent/agent_core/engine.py` (step/tool/run lifecycle event emission)
   - command: `mini-agent replay-log --file <events.jsonl>`
 - [x] Add `doctor` diagnostics command
   - implementation: `mini_agent/ops/doctor.py`
@@ -887,17 +857,17 @@ mini-agent prune-export-jobs --path ~/.mini-agent/log --max-age-hours 0 --max-jo
 
 ### P11.1 Agent execution policy and tool budget kickoff
 - [x] Add explicit execution policy model in Agent runtime
-  - `mini_agent/agent.py`
+  - `mini_agent/agent_core/engine.py`
   - models: `AgentExecutionPolicy`, `StepExecutionState`
 - [x] Add per-step tool-call budget with truncation telemetry
   - policy knob: `max_tool_calls_per_step`
   - events: `step.tool_calls_truncated`, `step.completed`
-  - implementation: `mini_agent/agent.py`
+  - implementation: `mini_agent/agent_core/engine.py`
 - [x] Wire policy config through runtime entry points
   - config schema + YAML: `src/mini_agent/config.py`, `src/mini_agent/config/config.yaml`, `src/mini_agent/config/config-example.yaml`
   - runtime wiring: `mini_agent/cli_interactive.py`, `gateway/routers/chat.py`, `mini_agent/acp/__init__.py`
 - [x] Add deterministic unit coverage for budget behavior
-  - tests: `tests/test_agent_execution_policy.py`
+  - tests: `tests/test_agent_core_execution_policy.py`
   - includes Agent loop and ACP turn path
 
 ### P11.2 Agent run-loop planner/executor split
@@ -905,32 +875,32 @@ mini-agent prune-export-jobs --path ~/.mini-agent/log --max-age-hours 0 --max-jo
   - planner: `_plan_step(...)`
   - executor: `_execute_tool_calls(...)`
   - transition contract: `StepPlan`, `StepOutcome`, `StepTransition`
-  - implementation: `mini_agent/agent.py`
+  - implementation: `mini_agent/agent_core/engine.py`
 - [x] Normalize step timing finalization through one path
   - helper: `_finalize_step_timing(...)`
-  - implementation: `mini_agent/agent.py`
+  - implementation: `mini_agent/agent_core/engine.py`
 - [x] Add transition-level test coverage
   - planner failure transition
   - executor complete transition
-  - tests: `tests/test_agent_execution_policy.py`
+  - tests: `tests/test_agent_core_execution_policy.py`
 
 ### P11.3 Step failure envelope and metrics wiring
 - [x] Add structured step failure envelope
   - model: `StepFailureEnvelope` (`error_type`, `recoverable`, `retryable`)
   - event: `step.failed`
-  - implementation: `mini_agent/agent.py`
+  - implementation: `mini_agent/agent_core/engine.py`
 - [x] Add run-level metrics aggregation payload
   - model: `RunExecutionMetrics`
   - terminal events include `metrics` payload (`run.completed` / `run.failed` / `run.cancelled` / `run.max_steps`)
-  - implementation: `mini_agent/agent.py`
+  - implementation: `mini_agent/agent_core/engine.py`
 - [x] Add failure envelope + metrics coverage
-  - tests: `tests/test_agent_execution_policy.py`
+  - tests: `tests/test_agent_core_execution_policy.py`
 
 ### P11.4 Policy surfaces in inspection APIs
 - [x] Expose run policy in session inspection endpoints
   - `/api/sessions` includes `max_steps`, `max_tool_calls_per_step`
   - `/api/sessions/{session_id}/history` includes `max_steps`, `max_tool_calls_per_step`
-  - implementation: `mini_agent/core/session.py`, `mini_agent/session/persistence.py`, `gateway/routers/sessions.py`
+  - implementation: `mini_agent/session/store.py`, `mini_agent/session/persistence.py`, `gateway/routers/sessions.py`
 - [x] Expose run policy in chat response surfaces
   - `POST /api/chat` response includes policy fields
   - `GET /api/chat/stream` done event includes policy fields
@@ -943,13 +913,13 @@ mini-agent prune-export-jobs --path ~/.mini-agent/log --max-age-hours 0 --max-jo
   - shared loop: `_run_planner_executor_loop(...)`
   - facade entry: `run_turn(...)`
   - contracts: `PlannerExecutorHooks`, `TurnExecutionResult`, `TurnStopReason`
-  - implementation: `mini_agent/agent.py`
+  - implementation: `mini_agent/agent_core/engine.py`
 - [x] Migrate ACP turn execution to shared facade (remove duplicated run loop)
   - ACP callbacks wired via `on_step_plan`, `on_tool_call_start`, `on_tool_call_result`
   - ACP session agent now runs with `console_output=False` to avoid stdio noise
   - implementation: `mini_agent/acp/__init__.py`
 - [x] Add facade behavior coverage
-  - hook + stop reason tests: `tests/test_agent_execution_policy.py`
+  - hook + stop reason tests: `tests/test_agent_core_execution_policy.py`
   - ACP integration coverage remains passing: `tests/test_acp.py`
 
 ### P11.6 Step-failure trend aggregation endpoint
@@ -965,7 +935,7 @@ mini-agent prune-export-jobs --path ~/.mini-agent/log --max-age-hours 0 --max-jo
 ### P11.7 Policy-drift detector in session diagnostics
 - [x] Add configured-vs-runtime policy drift detector in session core
   - diagnostics fields: `configured_max_steps`, `configured_max_tool_calls_per_step`, `policy_drift`, `policy_drift_fields`
-  - implementation: `mini_agent/core/session.py`
+  - implementation: `mini_agent/session/store.py`
 - [x] Persist configured policy snapshot for inactive-session diagnostics
   - metadata key: `configured_execution_policy`
   - implementation: `mini_agent/session/persistence.py`
@@ -1030,4 +1000,3 @@ mini-agent prune-export-jobs --path ~/.mini-agent/log --max-age-hours 0 --max-jo
   - implementation: `gateway/routers/observability.py`
 - [x] Add gateway router coverage for P11.13 fields
   - tests: `tests/test_gateway_routers.py`
-

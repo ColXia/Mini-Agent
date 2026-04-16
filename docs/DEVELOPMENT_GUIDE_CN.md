@@ -1,8 +1,9 @@
 ﻿# 开发指南
 
 > 状态：active
-> 最后更新：2026-04-12
+> 最后更新：2026-04-16
 > 当前模式：terminal-first（`TUI / CLI / headless`）
+> 当前执行锚点：[`P32B_REPO_HYGIENE_AND_STRUCTURE_ALIGNMENT_PLAN_2026-04-16.md`](./P32B_REPO_HYGIENE_AND_STRUCTURE_ALIGNMENT_PLAN_2026-04-16.md)
 
 ## 1. 本文档说明
 
@@ -19,19 +20,20 @@
 
 ## 2. 当前架构快照
 
-当前开发中最重要的三层是：
+Mini-Agent 当前仍然遵守四入口产品模型：
 
-1. 用户面
-- TUI
-- CLI
-- headless 终端执行
-- 可选 QQ 渠道
+1. 入口层
+- `CLI`
+- `TUI`
+- `DesktopUI`
+- `远程交互侧`（当前由 QQ 适配器实现）
+- `headless` 仍然只是运行模式，不是第五入口
 
 2. 应用与运行时层
 - session application services
 - command execution services
 - runtime orchestration
-- gateway use cases
+- surface service / gateway host composition
 
 3. 核心能力层
 - agent core
@@ -49,12 +51,14 @@
 - 渠道不是 session owner
 
 详见 [`P30_SURFACE_SESSION_ARCHITECTURE_CORRECTION_2026-04-12.md`](./P30_SURFACE_SESSION_ARCHITECTURE_CORRECTION_2026-04-12.md)。
+当前这轮仓库卫生与结构收口见 [`P32B_REPO_HYGIENE_AND_STRUCTURE_ALIGNMENT_PLAN_2026-04-16.md`](./P32B_REPO_HYGIENE_AND_STRUCTURE_ALIGNMENT_PLAN_2026-04-16.md)。
 
 ## 3. 仓库结构
 
 ```text
 src/mini_agent/                 核心运行时、TUI、CLI、命令、memory、models
 src/apps/agent_studio_gateway/  Gateway / API Host
+src/apps/desktop_ui/            DesktopUI 启动与打包应用
 src/apps/qqbot_channel/         可选 QQ bot 渠道应用
 scripts/                        冒烟、走查、发布、维护脚本
 tests/                          自动化测试
@@ -82,8 +86,11 @@ uv sync
 
 - `OPENAI_API_KEY`
 - `ANTHROPIC_API_KEY`
-- `GEMINI_API_KEY`
 - `MINIMAX_API_KEY`
+
+本地维护供应商：
+
+- `MINI_AGENT_OLLAMA_ENABLED=1`（可选，用于本地 Ollama）
 
 本地回退文件：
 
@@ -205,6 +212,7 @@ uv run pytest tests/test_command_execution_service.py -q
 
 - [`./DEVELOPMENT_INDEX.md`](./DEVELOPMENT_INDEX.md)
 - [`./DOCS_INDEX.md`](./DOCS_INDEX.md)
+- [`./P32B_REPO_HYGIENE_AND_STRUCTURE_ALIGNMENT_PLAN_2026-04-16.md`](./P32B_REPO_HYGIENE_AND_STRUCTURE_ALIGNMENT_PLAN_2026-04-16.md)
 - [`./P28_BUILTIN_SKILL_REALIGNMENT_PLAN.md`](./P28_BUILTIN_SKILL_REALIGNMENT_PLAN.md)
 - [`./P29_SESSION_BOUNDARY_AUDIT_2026-04-12.md`](./P29_SESSION_BOUNDARY_AUDIT_2026-04-12.md)
 - [`./P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md`](./P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md)

@@ -1,8 +1,9 @@
 ﻿# Development Guide
 
 > Status: active
-> Last updated: 2026-04-12
+> Last updated: 2026-04-16
 > Current mode: terminal-first (`TUI / CLI / headless`)
+> Current execution anchor: [`P32B_REPO_HYGIENE_AND_STRUCTURE_ALIGNMENT_PLAN_2026-04-16.md`](./P32B_REPO_HYGIENE_AND_STRUCTURE_ALIGNMENT_PLAN_2026-04-16.md)
 
 ## 1. What This Guide Covers
 
@@ -19,19 +20,20 @@ Use this guide for:
 
 ## 2. Current Architecture Snapshot
 
-Mini-Agent currently has three important layers for daily development:
+Mini-Agent keeps the four-entrance product model:
 
-1. Surface layer
-- TUI
-- CLI
-- headless terminal execution
-- optional QQ channel
+1. Entrance layer
+- `CLI`
+- `TUI`
+- `DesktopUI`
+- `Remote Interaction` (currently implemented by the QQ adapter)
+- `headless` remains a runtime mode, not a fifth entrance
 
 2. Application / runtime layer
 - session application services
 - command execution services
 - runtime orchestration
-- gateway use cases
+- surface service / gateway host composition
 
 3. Core capability layer
 - agent core
@@ -49,12 +51,14 @@ The active architecture rule is:
 - channels do not own sessions
 
 See [`docs/P30_SURFACE_SESSION_ARCHITECTURE_CORRECTION_2026-04-12.md`](./P30_SURFACE_SESSION_ARCHITECTURE_CORRECTION_2026-04-12.md).
+Current repo-hygiene closeout is tracked in [`docs/P32B_REPO_HYGIENE_AND_STRUCTURE_ALIGNMENT_PLAN_2026-04-16.md`](./P32B_REPO_HYGIENE_AND_STRUCTURE_ALIGNMENT_PLAN_2026-04-16.md).
 
 ## 3. Repository Layout
 
 ```text
 src/mini_agent/                 core runtime, TUI, CLI, commands, memory, models
 src/apps/agent_studio_gateway/  gateway / API host
+src/apps/desktop_ui/            DesktopUI bootstrap / packaging app
 src/apps/qqbot_channel/         optional QQ bot channel app
 scripts/                        smoke, walkthrough, release, maintenance scripts
 tests/                          automated test suite
@@ -82,8 +86,11 @@ Preset providers read these official env vars:
 
 - `OPENAI_API_KEY`
 - `ANTHROPIC_API_KEY`
-- `GEMINI_API_KEY`
 - `MINIMAX_API_KEY`
+
+Maintained local provider:
+
+- `MINI_AGENT_OLLAMA_ENABLED=1` (optional, for local Ollama)
 
 Local fallback file:
 
@@ -203,6 +210,7 @@ Do not leave one-off local probes in the repo root.
 
 - [`./DEVELOPMENT_INDEX.md`](./DEVELOPMENT_INDEX.md)
 - [`./DOCS_INDEX.md`](./DOCS_INDEX.md)
+- [`./P32B_REPO_HYGIENE_AND_STRUCTURE_ALIGNMENT_PLAN_2026-04-16.md`](./P32B_REPO_HYGIENE_AND_STRUCTURE_ALIGNMENT_PLAN_2026-04-16.md)
 - [`./P28_BUILTIN_SKILL_REALIGNMENT_PLAN.md`](./P28_BUILTIN_SKILL_REALIGNMENT_PLAN.md)
 - [`./P29_SESSION_BOUNDARY_AUDIT_2026-04-12.md`](./P29_SESSION_BOUNDARY_AUDIT_2026-04-12.md)
 - [`./P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md`](./P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md)

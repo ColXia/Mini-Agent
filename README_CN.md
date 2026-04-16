@@ -3,14 +3,15 @@
 [English](./README.md) | 中文
 
 Mini-Agent 是一个以终端为主入口的 Agent 平台，当前重点是 `TUI / CLI / headless` 的真实可用性。
-它整合了统一的会话与运行时内核、模型与供应商管理、记忆与 RAG、内置 skills、MCP 能力，以及可选的 gateway + QQ 渠道工作流。
+它整合了统一的会话与运行时内核、模型与供应商管理、记忆与 RAG、内置 skills、MCP 能力，以及可选的 gateway + 远程交互工作流，当前远程适配器实现为 QQ。
 
 ## 当前状态
 
-- 主用户面：`TUI`、`CLI`、`headless`
-- 可选运行栈：gateway + QQ bot
-- WebUI：当前暂停，不是主开发目标
-- 当前架构主线：`P30` 会话中心化重构
+- 主入口：`CLI`、`TUI`、`桌面端`、`远程交互侧`
+- 默认本地工作流：`TUI`、`CLI`、`headless`
+- 可选运行栈：gateway + 当前启用的 QQ 远程适配器
+- 浏览器 `WebUI` / `OpenWebUI`：已删除
+- 当前架构主线：完成 `P37` 后进入 `P32b` 仓库卫生与结构对齐收口
 
 ## 依赖与参考的边界
 
@@ -33,7 +34,7 @@ Mini-Agent 当前真实依赖：
   - `fastapi`
   - `uvicorn`
   - `python-dotenv`
-- QQ 渠道的可选 Node.js 依赖，位于 [`src/apps/qqbot_channel/package.json`](./src/apps/qqbot_channel/package.json)：
+- 当前 QQ 远程适配器的可选 Node.js 依赖，位于 [`src/apps/qqbot_channel/package.json`](./src/apps/qqbot_channel/package.json)：
   - `dotenv`
   - `qq-official-bot`
 
@@ -135,7 +136,8 @@ uv run mini-agent models minimax --latest
 ```text
 src/mini_agent/                 核心运行时、命令系统、TUI、agent、memory、models
 src/apps/agent_studio_gateway/  Gateway / API Host
-src/apps/qqbot_channel/         可选 QQ 渠道应用
+src/apps/desktop_ui/            DesktopUI 启动与打包应用
+src/apps/qqbot_channel/         可选 QQ 远程适配器应用
 scripts/                        走查、冒烟、维护脚本
 tests/                          自动化测试
 docs/                           活跃文档与历史归档
