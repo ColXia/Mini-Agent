@@ -8,6 +8,11 @@ from typing import TYPE_CHECKING, Any, Callable
 from fastapi import HTTPException
 
 from mini_agent.interfaces import MainAgentSessionApprovalResponse, MainAgentSessionMutationResponse
+from mini_agent.runtime.session_cancel_service import SessionCancelService
+from mini_agent.runtime.session_pending_approval_service import (
+    PendingApprovalResolutionError,
+    SessionPendingApprovalService,
+)
 
 if TYPE_CHECKING:
     import asyncio
@@ -17,12 +22,6 @@ if TYPE_CHECKING:
 
 def _safe_text(value: object) -> str:
     return " ".join(str(value or "").split())
-
-
-_RESTART_PENDING_APPROVAL_DETAIL = (
-    "Pending approval was interrupted after restart and cannot be resumed directly. "
-    "Send a new message to continue with recovery context."
-)
 
 
 @dataclass(slots=True)
@@ -60,11 +59,11 @@ class RuntimeSessionInterruptHandler:
         reason: str | None,
     ) -> RuntimeSessionCancelExecution:
         if not session.projection.busy:
-            raise HTTPException(status_code=409, detail="Session has no running turn to cancel.")
+            raise HTTPException(status_code=409, detail=SessionCancelService.no_running_turn_detail())
 
         cancel_event = session.runtime.cancel_event
         if cancel_event is None:
-            raise HTTPException(status_code=409, detail="Session turn is not cancellable.")
+            raise HTTPException(status_code=409, detail=SessionCancelService.not_cancellable_detail())
 
         if not cancel_event.is_set():
             cancel_event.set()
@@ -73,15 +72,15 @@ class RuntimeSessionInterruptHandler:
                 future.set_result(None)
 
         active_surface = self.normalize_surface(session.projection.active_surface or session.projection.origin_surface)
-        session.projection.running_state = "cancellation requested"
+        session.projection.running_state = SessionCancelService.REQUESTED_STATE
         return RuntimeSessionCancelExecution(
             response=MainAgentSessionMutationResponse(
-                status="cancel_requested",
+                status=SessionCancelService.CANCEL_REQUESTED_STATUS,
                 session_id=session.session_id,
                 active_surface=active_surface,
             ),
-            transcript_details=self._cancel_details(reason),
-            transcript_summary="cancellation requested",
+            transcript_details=SessionCancelService.transcript_details(reason=reason),
+            transcript_summary=SessionCancelService.requested_summary(),
         )
 
     def execute_approval(
@@ -92,89 +91,53 @@ class RuntimeSessionInterruptHandler:
         token: str | None,
     ) -> RuntimeSessionApprovalExecution:
         pending = self.pending_approvals_from_raw(session.runtime.pending_approvals)
-        if not pending:
-            if session.projection.recovery_context_pending and session.projection.recovery_pending_approvals:
-                raise HTTPException(status_code=409, detail=_RESTART_PENDING_APPROVAL_DETAIL)
-            raise HTTPException(status_code=409, detail="Session has no pending approval.")
-
-        normalized_token = _safe_text(token)
-        if normalized_token:
-            target = next((item for item in pending if item["token"] == normalized_token), None)
-            if target is None:
-                raise HTTPException(status_code=404, detail=f"Pending approval not found: {normalized_token}")
-        elif len(pending) == 1:
-            target = pending[0]
-            normalized_token = target["token"]
-        else:
-            available = ", ".join(item["token"] for item in pending)
-            raise HTTPException(
-                status_code=409,
-                detail=f"Multiple approvals pending. Specify a token: {available}",
+        try:
+            target = SessionPendingApprovalService.resolve_target(
+                pending=pending,
+                token=token,
+                recovery_context_pending=bool(session.projection.recovery_context_pending),
+                recovery_pending_approvals=list(session.projection.recovery_pending_approvals or []),
             )
-
-        future = session.runtime.pending_approval_waiters.get(normalized_token)
-        if future is None or future.done():
+        except PendingApprovalResolutionError as exc:
             raise HTTPException(
-                status_code=409,
-                detail="Pending approval is no longer waiting for input.",
-            )
+                status_code=exc.status_code,
+                detail=exc.detail,
+            ) from exc
 
-        command = "approve" if approved else "deny"
-        decision = "approved" if approved else "denied"
+        future = session.runtime.pending_approval_waiters.get(target.token)
+        try:
+            SessionPendingApprovalService.ensure_waiter(future)
+        except PendingApprovalResolutionError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+
+        resolution = SessionPendingApprovalService.build_decision(
+            approved=approved,
+            token=target.token,
+            tool_name=target.tool_name,
+        )
         return RuntimeSessionApprovalExecution(
             response=MainAgentSessionApprovalResponse(
                 status="resolved",
                 session_id=session.session_id,
-                token=normalized_token,
-                tool_name=target["tool_name"],
-                decision=decision,
+                token=target.token,
+                tool_name=target.tool_name,
+                decision=resolution.decision,
                 active_surface=self.normalize_surface(
                     session.projection.active_surface or session.projection.origin_surface
                 ),
             ),
-            transcript_command=command,
-            transcript_summary=f"{decision} {target['tool_name']}",
-            transcript_details=self._approval_details(
-                command=command,
-                token=normalized_token,
-                tool_name=target["tool_name"],
-            ),
-            token=normalized_token,
-            tool_name=target["tool_name"],
+            transcript_command=resolution.command,
+            transcript_summary=resolution.summary,
+            transcript_details=resolution.transcript_details,
+            token=target.token,
+            tool_name=target.tool_name,
             waiter=future,
             decision_value=bool(approved),
         )
 
     @staticmethod
     def restart_pending_approval_detail() -> str:
-        return _RESTART_PENDING_APPROVAL_DETAIL
-
-    @staticmethod
-    def _cancel_details(reason: str | None) -> str:
-        lines = [
-            "Action: cancel",
-            "State: cancellation requested",
-        ]
-        normalized_reason = _safe_text(reason)
-        if normalized_reason:
-            lines.append(f"Reason: {normalized_reason}")
-        return "\n".join(lines)
-
-    @staticmethod
-    def _approval_details(
-        *,
-        command: str,
-        token: str,
-        tool_name: str,
-    ) -> str:
-        return "\n".join(
-            [
-                f"Action: {command}",
-                f"Token: {token}",
-                f"Tool: {tool_name}",
-            ]
-        )
-
+        return SessionPendingApprovalService.restart_pending_approval_detail()
 
 __all__ = [
     "RuntimeSessionApprovalExecution",
