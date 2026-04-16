@@ -1,5 +1,43 @@
 # Findings
 
+## 2026-04-16 P40.27-P40.31 Repo Hygiene Closure Findings
+
+- The remaining anti-chaos work after `P40.26` was not one last giant cleanup.
+- It was five separate truth-drift seams:
+  - CLI adoption tail
+  - top-level agent-core compatibility tail
+  - model-runtime routing/test contract tail
+  - interface/app surface tail
+  - developer-tooling legacy tail
+- Closing them in that order mattered.
+- Each later slice depended on the earlier one being physically true first:
+  - CLI had to stop teaching the old dev surface before the repo could honestly delete the old dev-manager line
+  - model-runtime routing/contracts had to settle before interface DTOs and QQ remote rendering could honestly expose those fields
+  - interface/app truth had to land before the final tooling slice could claim the repo was structurally coherent again
+- The most important practical result is not a new feature.
+- It is that the repository has stopped telling multiple conflicting stories at once:
+  - active owners vs. compatibility facades
+  - shared runtime/session truth vs. remote surface formatting
+  - provider/runtime capabilities vs. exported diagnostics contracts
+  - maintained dev tooling vs. deleted studio-era helpers
+- Two risk corrections in the last slices were especially important:
+  - restoring `LLMResponse` compatibility at the top-level package instead of silently dropping an exported alias
+  - restoring `AgentLogger.log_response()` as a compatibility wrapper so older scripts/tools do not break while the runtime standardizes on `log_completion()`
+- The developer-tooling tail also exposed a classic repo-hygiene trap:
+  - a deleted manager can still keep owning tiny helpers indirectly
+  - that creates a false sense that the file is removable when the active runtime still imports its behavior
+  - internalizing those helpers into `runtime_stack_manager` was the real closure, not just deleting `studio_dev_manager.py`
+- Structural effect across the closure chain:
+  - total dirty paths: `36 -> 31 -> 24 -> 19 -> 12 -> 0`
+- Final state:
+  - `python scripts/worktree_slice_report.py` reports zero dirty paths
+  - `unmatched_count` is zero
+  - `git status --short` is clean
+- Practical implication:
+  - the repo is now in a genuinely restartable state
+  - future work can open new feature slices from a clean tree instead of carrying hidden hygiene debt forward
+  - `P40` can be treated as closed repo-hygiene work rather than an unfinished cleanup line
+
 ## 2026-04-16 P40.26 Code-Agent Legacy Submodule Tail Closure
 
 - After `P40.25`, the main remaining anti-chaos problem was no longer missing owners.

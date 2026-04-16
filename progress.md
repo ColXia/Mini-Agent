@@ -1,5 +1,70 @@
 # Progress
 
+## 2026-04-16 P40.27-P40.31 Repo Hygiene Closure
+
+- [completed] landed the remaining five narrow repo-hygiene slices after `P40.26` instead of mixing them into one opaque cleanup commit:
+  - `c468054` `p40: close cli interactive adoption tail`
+  - `8f7955d` `p40: sync top-level agent core compatibility`
+  - `e1384b6` `p40: sync model runtime routing contracts`
+  - `8d8ca41` `p40: sync interface and app surfaces`
+  - `2af56d5` `p40: close developer tooling legacy tails`
+- [completed] closed the CLI / interactive adoption tail:
+  - removed the retired `mini-agent dev` CLI surface
+  - switched CLI-owned entry loading to `config_bootstrap`
+  - made interactive/headless agent construction use explicit config flow
+  - landed CLI streaming event rendering and Ollama model command support
+- [completed] closed the remaining top-level agent-core compatibility tail:
+  - synced `mini_agent.__init__` exports to the maintained runtime/schema contract
+  - updated `bash_tool` type ownership to the maintained agent-core sandbox
+  - normalized the last session/security examples to the active `qq` channel line
+  - added `tests/test_agent_package_exports.py`
+- [completed] closed the model-runtime substrate tail:
+  - landed capability-aware route requirements and explicit-route miss handling in `model_mapper`
+  - simplified rectifier defaults so they no longer read env implicitly
+  - aligned config/bootstrap and live LLM wrapper tests to the current protocol-profile builder
+- [completed] closed the interface/app surface tail:
+  - synced shared-session/runtime-policy/model-route DTO fields and exports
+  - aligned QQ remote recovery/runtime-policy rendering to the shared text fields
+  - normalized the novel subprogram mount path to `/api/v1/novel`
+- [completed] closed the final developer-tooling legacy tail:
+  - removed `src/mini_agent/dev/studio_dev_manager.py`
+  - removed `tests/test_studio_dev_manager.py`
+  - removed `tests/test_studio_ops_use_cases.py`
+  - internalized the last helper ownership inside `runtime_stack_manager`
+  - added `scripts/ollama_live_smoke.py`
+  - kept logger compatibility by restoring `AgentLogger.log_response()` as a wrapper over `log_completion()`
+- [completed] verified the closure chain with focused validations:
+  - CLI slice:
+    - `uv run ruff check src/mini_agent/cli.py src/mini_agent/cli_interactive.py src/mini_agent/commands/catalog.json tests/test_cli_submission_loop.py`
+    - `uv run pytest tests/test_cli_submission_loop.py tests/test_cli_unified_mode.py tests/test_terminal_readiness_gate.py tests/test_command_catalog.py -q`
+    - `uv run pytest tests/test_tui_app.py -k "ollama or mcp or sandbox" -q`
+  - top-level agent-core compatibility slice:
+    - `uv run ruff check src/mini_agent/__init__.py src/mini_agent/agent_core/cron/scheduler.py src/mini_agent/agent_core/session/lifecycle.py src/mini_agent/agent_core/skills/eligibility.py src/mini_agent/tools/bash_tool.py tests/test_agent_core_security_pairing.py tests/test_agent_core_session.py tests/test_agent_package_exports.py`
+    - `uv run pytest tests/test_agent_package_exports.py tests/test_agent_core_session.py tests/test_agent_core_security_pairing.py tests/test_bash_tool.py tests/test_agent_core_compatibility_shims.py -q`
+  - model-runtime slice:
+    - `uv run ruff check src/mini_agent/model_manager/model_mapper.py src/mini_agent/model_manager/rectifier.py tests/test_model_mapper.py tests/test_request_rectifier.py tests/test_llm_protocol_binding.py tests/test_config_local_env.py tests/test_llm.py tests/test_llm_clients.py`
+    - `uv run pytest tests/test_model_mapper.py tests/test_request_rectifier.py tests/test_llm_protocol_binding.py tests/test_config_local_env.py tests/test_llm.py tests/test_llm_clients.py -q`
+  - interfaces/apps slice:
+    - `uv run ruff check src/mini_agent/interfaces/__init__.py src/mini_agent/interfaces/agent.py src/mini_agent/interfaces/channel.py src/mini_agent/interfaces/ops.py src/mini_agent/interfaces/system.py tests/test_interface_dto_contracts.py`
+    - `node --check src/apps/qqbot_channel/bot.mjs`
+    - `uv run pytest tests/test_interface_dto_contracts.py tests/test_transport_remote_session_client.py tests/test_operations_provider_use_cases.py tests/test_agent_studio_gateway_ops_router.py -q`
+    - `uv run pytest tests/test_agent_studio_gateway_api_v1.py -k "novel or legacy_api_prefix_routes_are_removed" -q`
+    - `uv run pytest tests/test_main_agent_surface_service.py -k "default or runtime_policy or model_route" -q`
+  - developer-tooling slice:
+    - `uv run ruff check scripts/skill_live_probe.py scripts/ollama_live_smoke.py src/mini_agent/dev/__init__.py src/mini_agent/dev/p19_rollout_reporting.py src/mini_agent/dev/runtime_stack_manager.py src/mini_agent/logger.py tests/test_integration.py tests/test_logger_events.py tests/test_p19_rollout_reporting.py`
+    - `uv run pytest tests/test_runtime_stack_manager.py tests/test_cli_stack_command.py tests/test_desktop_gateway_supervisor.py tests/test_logger_events.py tests/test_p19_rollout_reporting.py tests/test_operations_provider_use_cases.py tests/test_integration.py -q`
+    - `uv run python scripts/skill_live_probe.py --help`
+    - `uv run python scripts/ollama_live_smoke.py --help`
+- [completed] reduced the dirty worktree to zero across the closure chain:
+  - total dirty paths: `36 -> 31 -> 24 -> 19 -> 12 -> 0`
+  - final classifier:
+    - `python scripts/worktree_slice_report.py`
+    - result: `total_dirty_paths: 0`, `recommended_next_slice: none`, `unmatched_count: 0`
+- [completed] restored a clean worktree:
+  - `git status --short`
+  - result: empty
+- [next] repo-hygiene closure is complete; the next turn can reopen real feature iteration from a clean tree
+
 ## 2026-04-16 P40.26 Code-Agent Legacy Submodule Tail Closure
 
 - [completed] re-audited the post-`P40.25` `agent-core-and-cli-surface` residue and confirmed the largest remaining physical anti-chaos tail was the half-deleted `code_agent` submodule tree

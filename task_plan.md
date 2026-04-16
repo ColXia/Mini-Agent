@@ -1,8 +1,81 @@
 # Task Plan
 
-## Latest Sync: 2026-04-16 P40.26 Code-Agent Legacy Submodule Tail Closure
+## Latest Sync: 2026-04-16 P40.31 Developer Tooling Legacy Tail Closure
 
-## Current Execution Slice: P40.26 Code-Agent Legacy Submodule Tail Closure (2026-04-16)
+## Current Execution Slice: P40.31 Developer Tooling Legacy Tail Closure (2026-04-16)
+
+### Why This Slice Is Next
+
+- after `P40.30`, the remaining dirty tree was no longer architectural runtime work
+- it had collapsed to the last repo-tooling truth-drift bundle:
+  - the removed `studio_dev_manager` still existed physically with dedicated tests
+  - `runtime_stack_manager` still depended on helpers owned by that deleted manager
+  - logger/tooling smoke surfaces still reflected older runtime and completion contracts
+- the honest final hygiene move was to close this tooling tail without reopening product surfaces:
+  - delete the legacy studio dev manager line
+  - internalize the small process/network helpers still needed by `runtime_stack_manager`
+  - keep `AgentLogger` externally safe with a compatibility wrapper
+  - land the maintained Ollama live-smoke path and align remaining tooling tests/scripts
+
+### Scope
+
+- retire the old studio dev manager implementation and tests:
+  - `src/mini_agent/dev/studio_dev_manager.py`
+  - `tests/test_studio_dev_manager.py`
+  - `tests/test_studio_ops_use_cases.py`
+- finish the active dev-tooling ownership story in:
+  - `src/mini_agent/dev/__init__.py`
+  - `src/mini_agent/dev/runtime_stack_manager.py`
+  - `src/mini_agent/dev/p19_rollout_reporting.py`
+  - `src/mini_agent/logger.py`
+  - `scripts/skill_live_probe.py`
+  - `scripts/ollama_live_smoke.py`
+- align the remaining focused tests with the maintained runtime/tooling contracts:
+  - `tests/test_logger_events.py`
+  - `tests/test_p19_rollout_reporting.py`
+  - `tests/test_integration.py`
+
+### Acceptance
+
+- `python scripts/worktree_slice_report.py` reports zero dirty paths after the final commit
+- no active source/test/script references remain to `studio_dev_manager`
+- runtime-stack, logger, rollout-reporting, and tooling smoke validations stay green
+- the repo is back to a clean worktree and ready for real feature iteration
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- landed closure chain since the last planning-memory sync:
+  - `c468054`
+  - `p40: close cli interactive adoption tail`
+  - `8f7955d`
+  - `p40: sync top-level agent core compatibility`
+  - `e1384b6`
+  - `p40: sync model runtime routing contracts`
+  - `8d8ca41`
+  - `p40: sync interface and app surfaces`
+  - `2af56d5`
+  - `p40: close developer tooling legacy tails`
+- focused verification for the final tooling closure:
+  - `uv run ruff check scripts/skill_live_probe.py scripts/ollama_live_smoke.py src/mini_agent/dev/__init__.py src/mini_agent/dev/p19_rollout_reporting.py src/mini_agent/dev/runtime_stack_manager.py src/mini_agent/logger.py tests/test_integration.py tests/test_logger_events.py tests/test_p19_rollout_reporting.py`
+  - result: `All checks passed!`
+  - `uv run pytest tests/test_runtime_stack_manager.py tests/test_cli_stack_command.py tests/test_desktop_gateway_supervisor.py tests/test_logger_events.py tests/test_p19_rollout_reporting.py tests/test_operations_provider_use_cases.py tests/test_integration.py -q`
+  - result: `25 passed, 2 skipped`
+  - `uv run python scripts/skill_live_probe.py --help`
+  - result: exit `0`
+  - `uv run python scripts/ollama_live_smoke.py --help`
+  - result: exit `0`
+- dirty-worktree reduction across the closure chain:
+  - total dirty paths: `36 -> 31 -> 24 -> 19 -> 12 -> 0`
+  - final classifier result: `recommended_next_slice: none`
+
+### Next Likely Seam
+
+- none for repo hygiene
+- next work can reopen real feature/product iteration from a clean tree
 
 ### Why This Slice Is Next
 
