@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from mini_agent.agent_core.runtime_bindings import get_agent_runtime_services
+
 
 def _safe_text(value: Any) -> str:
     return " ".join(str(value or "").split())
@@ -58,8 +60,9 @@ def collect_sandbox_diagnostics(
     runtime_policy_engine: Any | None = None,
 ) -> dict[str, Any]:
     if agent is not None:
-        sandbox_manager = sandbox_manager or getattr(agent, "sandbox_manager", None)
-        runtime_policy_engine = runtime_policy_engine or getattr(agent, "runtime_policy_engine", None)
+        runtime_services = get_agent_runtime_services(agent)
+        sandbox_manager = sandbox_manager or runtime_services.sandbox_manager
+        runtime_policy_engine = runtime_policy_engine or runtime_services.runtime_policy_engine
 
     selection = None
     if sandbox_manager is not None:

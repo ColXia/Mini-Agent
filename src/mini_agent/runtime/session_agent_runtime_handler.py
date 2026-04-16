@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, Sequence
 
-from mini_agent.runtime.sandbox_state import normalize_sandbox_diagnostics
+from mini_agent.runtime.runtime_policy_service import SessionRuntimePolicyService
 
 if TYPE_CHECKING:
     from mini_agent.runtime.session_state import MainAgentSessionState
@@ -36,23 +36,29 @@ class RuntimeSessionAgentRuntimeHandler:
     route_model_identity: Callable[[Any], tuple[str, str, str] | None]
     set_selected_model_identity: Callable[["MainAgentSessionState", tuple[str, str, str] | None], None]
     set_pending_model_identity: Callable[["MainAgentSessionState", tuple[str, str, str] | None], None]
-    build_sandbox_diagnostics_for_session: Callable[["MainAgentSessionState"], dict[str, Any]]
     same_workspace: Callable[[Path, Path], bool]
     selected_model_identity: Callable[["MainAgentSessionState"], tuple[str, str, str] | None]
     pending_model_identity: Callable[["MainAgentSessionState"], tuple[str, str, str] | None]
+    agent_messages: Callable[[Any], list[Any]] | None = None
+    build_sandbox_diagnostics_for_session: Callable[["MainAgentSessionState"], dict[str, Any]] | None = None
+    refresh_runtime_projection: Callable[["MainAgentSessionState"], tuple[dict[str, Any], dict[str, Any]]] | None = None
 
     def desired_runtime_policy_for_session(
         self,
         session: "MainAgentSessionState",
     ) -> tuple[str | None, str | None]:
-        return self.runtime_policy_overrides_from_diagnostics(session.projection.sandbox_diagnostics)
+        approval_profile, access_level = self.runtime_policy_overrides_from_diagnostics(
+            session.projection.sandbox_diagnostics
+        )
+        if approval_profile or access_level:
+            return approval_profile, access_level
+        return SessionRuntimePolicyService.desired_runtime_policy_from_diagnostics(
+            session.projection.sandbox_diagnostics
+        )
 
     @staticmethod
     def effective_runtime_policy_for_agent(agent: Any) -> tuple[str, str]:
-        policy = getattr(getattr(agent, "runtime_policy_engine", None), "policy", None)
-        approval_profile = _safe_text(getattr(policy, "approval_profile", None)).lower() or "build"
-        access_level = _safe_text(getattr(policy, "access_level", None)).lower() or "default"
-        return approval_profile, access_level
+        return SessionRuntimePolicyService.effective_runtime_policy_for_agent(agent)
 
     def reconfigure_runtime_policy(
         self,
@@ -61,15 +67,14 @@ class RuntimeSessionAgentRuntimeHandler:
         approval_profile: str | None,
         access_level: str | None,
     ) -> dict[str, Any]:
-        diagnostics = self.reconfigure_agent_runtime_policy(
+        self.reconfigure_agent_runtime_policy(
             agent=session.runtime.agent,
             config=self.load_runtime_config(),
             workspace_dir=session.workspace_dir,
             approval_profile_override=approval_profile,
             access_level_override=access_level,
         )
-        session.projection.sandbox_diagnostics = normalize_sandbox_diagnostics(diagnostics)
-        return session.projection.sandbox_diagnostics
+        return self._refresh_sandbox_diagnostics(session)
 
     async def rebuild_agent_with_identity(
         self,
@@ -77,7 +82,7 @@ class RuntimeSessionAgentRuntimeHandler:
         identity: tuple[str, str, str] | None,
     ) -> None:
         self.capture_agent_prepared_context_state(session)
-        serialized_messages = self.serialize_agent_messages(getattr(session.runtime.agent, "messages", []) or [])
+        serialized_messages = self.serialize_agent_messages(self._agent_messages(session.runtime.agent))
         rebuilt = await self.build_agent_for_identity(session.workspace_dir, identity)
         desired_approval_profile, desired_access_level = self.desired_runtime_policy_for_session(session)
         if desired_approval_profile or desired_access_level:
@@ -92,9 +97,11 @@ class RuntimeSessionAgentRuntimeHandler:
             except Exception:
                 pass
         self.restore_agent_messages_payload(serialized_messages, rebuilt)
-        session.projection.knowledge_base_enabled = self.apply_agent_knowledge_base_enabled(
-            rebuilt,
-            bool(session.projection.knowledge_base_enabled),
+        session.projection.knowledge_base_enabled = bool(
+            self.apply_agent_knowledge_base_enabled(
+                rebuilt,
+                bool(session.projection.knowledge_base_enabled),
+            )
         )
         session.runtime.agent = rebuilt
         effective_identity = self.route_model_identity(rebuilt) or identity
@@ -102,7 +109,7 @@ class RuntimeSessionAgentRuntimeHandler:
         self.set_pending_model_identity(session, None)
         self.clear_pending_skill_reload(session)
         self.restore_agent_prepared_context_state(session)
-        session.projection.sandbox_diagnostics = self.build_sandbox_diagnostics_for_session(session)
+        self._refresh_sandbox_diagnostics(session)
 
     def queue_workspace_skill_reload(
         self,
@@ -166,6 +173,24 @@ class RuntimeSessionAgentRuntimeHandler:
     def mark_pending_skill_reload(session: "MainAgentSessionState", *, reason: str) -> None:
         session.projection.pending_skill_reload = True
         session.projection.pending_skill_reload_reason = _safe_text(reason) or "workspace skill runtime changed"
+
+    def _agent_messages(self, agent: Any) -> list[Any]:
+        if self.agent_messages is not None:
+            return list(self.agent_messages(agent))
+        return list(getattr(agent, "messages", []) or [])
+
+    def _refresh_sandbox_diagnostics(
+        self,
+        session: "MainAgentSessionState",
+    ) -> dict[str, Any]:
+        if self.refresh_runtime_projection is not None:
+            _, sandbox = self.refresh_runtime_projection(session)
+            return dict(sandbox)
+        if self.build_sandbox_diagnostics_for_session is not None:
+            sandbox = self.build_sandbox_diagnostics_for_session(session)
+            session.projection.sandbox_diagnostics = dict(sandbox)
+            return dict(session.projection.sandbox_diagnostics)
+        return dict(session.projection.sandbox_diagnostics or {})
 
 
 __all__ = [

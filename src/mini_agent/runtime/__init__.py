@@ -12,6 +12,7 @@ from typing import Any
 
 __all__ = [
     "MainAgentRuntimeManager",
+    "MainAgentRuntimeDiagnostics",
     "MainAgentRuntimeMode",
     "MainAgentRuntimePolicy",
     "MainAgentSessionState",
@@ -26,6 +27,9 @@ __all__ = [
 
 _RUNTIME_EXPORTS = {
     "MainAgentRuntimeManager",
+}
+_RUNTIME_CONTRACT_EXPORTS = {
+    "MainAgentRuntimeDiagnostics",
     "MainAgentRuntimeMode",
     "MainAgentRuntimePolicy",
 }
@@ -48,6 +52,9 @@ _TOOLING_EXPORTS = {
 def __getattr__(name: str) -> Any:
     if name in _RUNTIME_EXPORTS:
         module = import_module(".main_agent_runtime_manager", __name__)
+        return getattr(module, name)
+    if name in _RUNTIME_CONTRACT_EXPORTS:
+        module = import_module(".main_agent_runtime_contracts", __name__)
         return getattr(module, name)
     if name in _RUNTIME_STATE_EXPORTS:
         module = import_module(".session_state", __name__)
