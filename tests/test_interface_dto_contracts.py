@@ -122,6 +122,7 @@ def test_main_agent_session_contracts() -> None:
         "pending_skill_reload",
         "pending_skill_reload_reason",
         "recovery",
+        "remote_recovery_text",
         "context_policy",
         "last_prepared_context",
         "prepared_context_diagnostics",
