@@ -10,12 +10,14 @@ from types import SimpleNamespace
 
 from mini_agent import cli
 from mini_agent import cli_interactive
-from mini_agent.agent import Agent
-from mini_agent.code_agent import AgentLoopContext, AgentSubmissionLoop, ApprovalEngine, InMemoryLoopMessageBus, PermissionPolicy
+from mini_agent.agent_core.engine import Agent
+from mini_agent.agent_core.execution import AgentLoopContext, AgentSubmissionLoop, ApprovalEngine, InMemoryLoopMessageBus, PermissionPolicy
+from mini_agent.config import Config
 from mini_agent.logger import AgentLogger
 from mini_agent.memory.service import MemoryService
-from mini_agent.schema import FunctionCall, LLMResponse, ToolCall
+from mini_agent.schema import FunctionCall, LLMCompletionResult, LLMStreamEvent, LLMStreamEventType, ToolCall
 from mini_agent.tools.base import Tool, ToolResult
+from tests.runtime_contract_fixtures import RuntimeContractAgentStub
 
 
 class _FakeLoop:
@@ -89,13 +91,14 @@ class _FakeControlLoop(_FakeLoop):
         return event_id
 
 
-class _NoDirectRunAgent:
+class _NoDirectRunAgent(RuntimeContractAgentStub):
     def __init__(self, *, model: str = "gpt-test") -> None:
-        self.llm_client = SimpleNamespace(model=model)
-        self.tools: list[object] = []
-        self.messages = [SimpleNamespace(role="system"), SimpleNamespace(role="assistant")]
-        self.api_total_tokens = 0
-        self._knowledge_base_enabled = True
+        super().__init__(
+            model=model,
+            expose_llm_client=True,
+            messages=[SimpleNamespace(role="system"), SimpleNamespace(role="assistant")],
+        )
+        self.tools = []
 
     def add_user_message(self, _content: str) -> None:  # pragma: no cover - regression guard
         raise AssertionError("legacy add_user_message path should not be called")
@@ -103,16 +106,8 @@ class _NoDirectRunAgent:
     async def run(self) -> str:  # pragma: no cover - regression guard
         raise AssertionError("legacy run path should not be called")
 
-    def knowledge_base_enabled(self) -> bool:
-        return self._knowledge_base_enabled
-
-    def set_knowledge_base_enabled(self, enabled: bool) -> bool:
-        self._knowledge_base_enabled = bool(enabled)
-        return self._knowledge_base_enabled
-
-
 class _SequenceLLM:
-    def __init__(self, responses: list[LLMResponse]):
+    def __init__(self, responses: list[LLMCompletionResult]):
         self._responses = responses
         self.calls = 0
 
@@ -120,6 +115,15 @@ class _SequenceLLM:
         response_index = min(self.calls, len(self._responses) - 1)
         self.calls += 1
         return self._responses[response_index]
+
+
+class _StreamingLLM:
+    async def stream_generate(self, messages, tools=None):  # noqa: ANN001,ARG002
+        _ = messages
+        yield LLMStreamEvent(type=LLMStreamEventType.MESSAGE_START, metadata={"protocol": "test"})
+        yield LLMStreamEvent(type=LLMStreamEventType.TEXT_DELTA, delta="cli ")
+        yield LLMStreamEvent(type=LLMStreamEventType.TEXT_DELTA, delta="stream")
+        yield LLMStreamEvent(type=LLMStreamEventType.MESSAGE_STOP, finish_reason="stop")
 
 
 class _EchoTool(Tool):
@@ -143,9 +147,11 @@ def test_run_headless_prompt_async_uses_submission_loop(monkeypatch, tmp_path: P
     fake_agent = _NoDirectRunAgent(model="gpt-headless")
     fake_loop = _FakeLoop()
     captured: dict[str, object] = {"cleanup": False}
+    sentinel_config = object()
 
-    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None):
+    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None, config=None):
         _ = approval_profile
+        captured["config"] = config
         return fake_agent
 
     async def _fake_create_loop(*, agent, session_id: str, hooks=None):
@@ -202,6 +208,7 @@ def test_run_headless_prompt_async_uses_submission_loop(monkeypatch, tmp_path: P
             workspace=tmp_path,
             prompt="hello from test",
             approval_profile=None,
+            config=sentinel_config,
         )
     )
 
@@ -215,15 +222,24 @@ def test_run_headless_prompt_async_uses_submission_loop(monkeypatch, tmp_path: P
     assert captured["start_new_run"] is True
     assert captured["agent"] is fake_agent
     assert captured["agent_in_run"] is fake_agent
+    assert captured["config"] is sentinel_config
     assert fake_loop.stop_called is True
     assert captured["cleanup"] is True
 
 
 def test_run_headless_mode_json_includes_prepared_context_payloads(monkeypatch, tmp_path: Path, capsys) -> None:
-    async def _fake_headless_prompt_async(*, workspace: Path, prompt: str, approval_profile: str | None):
+    sentinel_config = object()
+    captured: dict[str, object] = {}
+
+    def _fake_config_load(cls, *, allow_interactive_setup: bool = True):
+        captured["allow_interactive_setup"] = allow_interactive_setup
+        return sentinel_config
+
+    async def _fake_headless_prompt_async(*, workspace: Path, prompt: str, approval_profile: str | None, config):
         _ = workspace
         _ = prompt
         _ = approval_profile
+        captured["config"] = config
         return (
             "READY",
             "gpt-live",
@@ -239,6 +255,7 @@ def test_run_headless_mode_json_includes_prepared_context_payloads(monkeypatch, 
             },
         )
 
+    monkeypatch.setattr(Config, "load", classmethod(_fake_config_load))
     monkeypatch.setattr(cli, "_run_headless_prompt_async", _fake_headless_prompt_async)
 
     args = SimpleNamespace(
@@ -254,15 +271,100 @@ def test_run_headless_mode_json_includes_prepared_context_payloads(monkeypatch, 
     assert payload["model"] == "gpt-live"
     assert payload["prepared_context"]["item_count"] == 1
     assert payload["prepared_context_diagnostics"]["turn_count"] == 1
+    assert captured["allow_interactive_setup"] is True
+    assert captured["config"] is sentinel_config
+
+
+def test_load_cli_entry_config_or_report_prints_failure_banner(monkeypatch, capsys) -> None:
+    def _raise_config_error():
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(cli, "load_entry_config", _raise_config_error)
+
+    assert cli._load_cli_entry_config_or_report() is None
+
+    output = capsys.readouterr().out
+    assert "Failed to load configuration: boom" in output
+
+
+def test_run_security_audit_command_returns_after_config_failure(monkeypatch, capsys) -> None:
+    captured = {"called": False}
+
+    def _raise_config_error():
+        raise RuntimeError("missing-config")
+
+    def _fake_run_security_audit(config, workspace):  # noqa: ANN001
+        _ = config
+        _ = workspace
+        captured["called"] = True
+        return []
+
+    monkeypatch.setattr(cli, "load_entry_config", _raise_config_error)
+    monkeypatch.setattr("mini_agent.security.audit.run_security_audit", _fake_run_security_audit)
+    monkeypatch.setattr(
+        "mini_agent.security.audit.format_security_audit_report",
+        lambda findings: "audit-report",
+    )
+
+    cli.run_security_audit_command(
+        SimpleNamespace(
+            workspace=None,
+            approval_profile=None,
+            access_level=None,
+        )
+    )
+
+    output = capsys.readouterr().out
+    assert captured["called"] is False
+    assert "Failed to load configuration: missing-config" in output
+
+
+def test_run_prune_export_jobs_command_uses_silent_default_log_dir_fallback(
+    monkeypatch,
+    capsys,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def _raise_config_error():
+        raise RuntimeError("missing-config")
+
+    def _fake_prune_jobs(*, log_dir, ttl_seconds, max_jobs):  # noqa: ANN001
+        captured["log_dir"] = log_dir
+        captured["ttl_seconds"] = ttl_seconds
+        captured["max_jobs"] = max_jobs
+        return {}
+
+    monkeypatch.setattr(cli, "load_entry_config", _raise_config_error)
+    monkeypatch.setattr(
+        "mini_agent.ops.observability_exports.prune_observability_export_jobs",
+        _fake_prune_jobs,
+    )
+
+    cli.run_prune_export_jobs_command(
+        SimpleNamespace(
+            path=None,
+            max_age_hours=None,
+            max_jobs=None,
+        )
+    )
+
+    output = capsys.readouterr().out
+    assert captured["log_dir"] == "~/.mini-agent/log"
+    assert captured["ttl_seconds"] is None
+    assert captured["max_jobs"] is None
+    assert "Export Job Prune Report" in output
+    assert "Failed to load configuration" not in output
 
 
 def test_run_headless_prompt_async_raises_on_error_payload(monkeypatch, tmp_path: Path) -> None:
     fake_agent = _NoDirectRunAgent(model="gpt-headless")
     fake_loop = _FakeLoop()
     captured: dict[str, object] = {"cleanup": False}
+    sentinel_config = object()
 
-    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None):
+    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None, config=None):
         _ = approval_profile
+        captured["config"] = config
         return fake_agent
 
     async def _fake_create_loop(*, agent, session_id: str, hooks=None):
@@ -311,6 +413,7 @@ def test_run_headless_prompt_async_raises_on_error_payload(monkeypatch, tmp_path
                 workspace=tmp_path,
                 prompt="hello from test",
                 approval_profile=None,
+                config=sentinel_config,
             )
         )
     except RuntimeError as exc:
@@ -320,6 +423,16 @@ def test_run_headless_prompt_async_raises_on_error_payload(monkeypatch, tmp_path
 
     assert fake_loop.stop_called is True
     assert captured["cleanup"] is True
+    assert captured["config"] is sentinel_config
+
+
+def test_build_agent_requires_explicit_config(tmp_path: Path) -> None:
+    try:
+        asyncio.run(cli_interactive.build_agent(tmp_path))
+    except TypeError as exc:
+        assert "config" in str(exc)
+    else:  # pragma: no cover - defensive
+        raise AssertionError("Expected missing-config TypeError")
 
 
 def test_run_interactive_session_task_mode_uses_submission_loop(monkeypatch, tmp_path: Path) -> None:
@@ -327,7 +440,7 @@ def test_run_interactive_session_task_mode_uses_submission_loop(monkeypatch, tmp
     fake_loop = _FakeLoop()
     captured: dict[str, object] = {"cleanup": False}
 
-    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None):
+    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None, config=None):
         _ = approval_profile
         return fake_agent
 
@@ -429,7 +542,7 @@ def test_run_interactive_session_task_mode_applies_lifecycle_reset(monkeypatch, 
             if on_reset is not None:
                 on_reset()
 
-    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None):
+    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None, config=None):
         _ = approval_profile
         return fake_agent
 
@@ -522,7 +635,7 @@ def test_run_interactive_session_routes_compact_and_drop_memory_commands(monkeyp
             _ = (args, kwargs)
             return next(self._inputs)
 
-    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None):
+    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None, config=None):
         _ = approval_profile
         return fake_agent
 
@@ -583,7 +696,7 @@ def test_run_interactive_session_routes_kb_commands(monkeypatch, tmp_path: Path,
             _ = (args, kwargs)
             return next(self._inputs)
 
-    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None):
+    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None, config=None):
         _ = approval_profile
         return fake_agent
 
@@ -649,7 +762,7 @@ def test_run_interactive_session_routes_model_commands(monkeypatch, tmp_path: Pa
             _ = (args, kwargs)
             return next(self._inputs)
 
-    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None):
+    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None, config=None):
         _ = approval_profile
         return fake_agent
 
@@ -722,6 +835,108 @@ def test_run_interactive_session_routes_model_commands(monkeypatch, tmp_path: Pa
     assert captured["cleanup"] is True
 
 
+def test_run_interactive_session_routes_ollama_model_commands(
+    monkeypatch,
+    tmp_path: Path,
+    capsys,
+) -> None:
+    fake_agent = _NoDirectRunAgent(model="gpt-5.4")
+    fake_agent.runtime_route = SimpleNamespace(model="gpt-5.4", provider_id="preset-openai")
+    replacement_agent = _NoDirectRunAgent(model="qwen3-coder")
+    replacement_agent.runtime_route = SimpleNamespace(model="qwen3-coder", provider_id="preset-ollama")
+    loops: list[_FakeLoop] = []
+    captured: dict[str, object] = {"cleanup": False}
+
+    class _FakePromptSession:
+        def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
+            _ = (args, kwargs)
+            self._inputs = iter(
+                [
+                    "/model use ollama qwen3-coder",
+                    "/model show",
+                    "/exit",
+                ]
+            )
+
+        async def prompt_async(self, *args, **kwargs):  # noqa: ANN002, ANN003
+            _ = (args, kwargs)
+            return next(self._inputs)
+
+    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None, config=None):
+        _ = approval_profile
+        return fake_agent
+
+    async def _fake_build_agent_kernel(*, workspace_dir: Path, options) -> _NoDirectRunAgent:  # noqa: ANN001
+        assert workspace_dir == tmp_path
+        assert options.requested_provider_source == "preset"
+        assert options.requested_provider_id == "ollama"
+        assert options.requested_model == "qwen3-coder"
+        return replacement_agent
+
+    async def _fake_create_loop(*, agent, session_id: str, hooks=None):
+        _ = (agent, session_id, hooks)
+        loop = _FakeLoop()
+        loops.append(loop)
+        return loop, object()
+
+    async def _fake_cleanup() -> None:
+        captured["cleanup"] = True
+
+    monkeypatch.setattr("mini_agent.cli_interactive.Config.load", lambda: object())
+    monkeypatch.setattr(
+        "mini_agent.ops.doctor.run_startup_self_check",
+        lambda config, workspace: (True, []),
+    )
+    monkeypatch.setattr(
+        "mini_agent.ops.doctor.format_doctor_report",
+        lambda findings, title: "doctor-ok",
+    )
+    monkeypatch.setattr("mini_agent.cli_interactive.PromptSession", _FakePromptSession)
+    monkeypatch.setattr("mini_agent.cli_interactive.build_agent", _fake_build_agent)
+    monkeypatch.setattr("mini_agent.cli_interactive.build_agent_kernel", _fake_build_agent_kernel)
+    monkeypatch.setattr("mini_agent.cli_interactive.create_submission_loop_for_agent", _fake_create_loop)
+    monkeypatch.setattr(
+        "mini_agent.cli_interactive._cli_model_registry",
+        lambda: [
+            {
+                "source": "preset",
+                "provider_id": "openai",
+                "provider_name": "OpenAI",
+                "default_model_id": "gpt-5.4",
+                "models": [
+                    {"model_id": "gpt-5.4", "display_name": "GPT-5.4"},
+                ],
+            },
+            {
+                "source": "preset",
+                "provider_id": "ollama",
+                "provider_name": "Ollama Local",
+                "default_model_id": "qwen3-coder",
+                "models": [
+                    {"model_id": "qwen3-coder", "display_name": "qwen3-coder"},
+                    {"model_id": "gpt-oss:20b", "display_name": "gpt-oss:20b"},
+                ],
+            },
+        ],
+    )
+    monkeypatch.setattr("mini_agent.cli_interactive.cleanup_mcp_connections", _fake_cleanup)
+
+    asyncio.run(
+        cli_interactive.run_interactive_session(
+            workspace=tmp_path,
+            approval_profile=None,
+        )
+    )
+
+    output = capsys.readouterr().out
+    assert "Switched session model to ollama/qwen3-coder" in output
+    assert "ollama/qwen3-coder" in output
+    assert len(loops) == 2
+    assert loops[0].stop_called is True
+    assert loops[1].stop_called is True
+    assert captured["cleanup"] is True
+
+
 def test_run_interactive_session_routes_mcp_commands(monkeypatch, tmp_path: Path, capsys) -> None:
     fake_agent = _NoDirectRunAgent(model="gpt-5.4")
     fake_agent.runtime_route = SimpleNamespace(model="gpt-5.4", provider_id="preset-openai")
@@ -754,7 +969,7 @@ def test_run_interactive_session_routes_mcp_commands(monkeypatch, tmp_path: Path
             _ = (args, kwargs)
             return next(self._inputs)
 
-    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None):
+    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None, config=None):
         _ = approval_profile
         return fake_agent
 
@@ -869,7 +1084,7 @@ def test_run_interactive_session_routes_sandbox_status(monkeypatch, tmp_path: Pa
             _ = (args, kwargs)
             return next(self._inputs)
 
-    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None):
+    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None, config=None):
         _ = approval_profile
         return fake_agent
 
@@ -976,7 +1191,7 @@ def test_run_prompt_via_submission_loop_resolves_approval_with_callback(tmp_path
         agent = Agent(
             llm_client=_SequenceLLM(
                 [
-                    LLMResponse(
+                    LLMCompletionResult(
                         content="tool",
                         thinking=None,
                         tool_calls=[
@@ -988,7 +1203,7 @@ def test_run_prompt_via_submission_loop_resolves_approval_with_callback(tmp_path
                         ],
                         finish_reason="tool_calls",
                     ),
-                    LLMResponse(content="done", thinking=None, tool_calls=None, finish_reason="stop"),
+                    LLMCompletionResult(content="done", thinking=None, tool_calls=None, finish_reason="stop"),
                 ]
             ),
             system_prompt="system",
@@ -1030,7 +1245,7 @@ def test_run_prompt_via_submission_loop_auto_denies_without_callback(tmp_path: P
         agent = Agent(
             llm_client=_SequenceLLM(
                 [
-                    LLMResponse(
+                    LLMCompletionResult(
                         content="tool",
                         thinking=None,
                         tool_calls=[
@@ -1042,7 +1257,7 @@ def test_run_prompt_via_submission_loop_auto_denies_without_callback(tmp_path: P
                         ],
                         finish_reason="tool_calls",
                     ),
-                    LLMResponse(content="done-after-deny", thinking=None, tool_calls=None, finish_reason="stop"),
+                    LLMCompletionResult(content="done-after-deny", thinking=None, tool_calls=None, finish_reason="stop"),
                 ]
             ),
             system_prompt="system",
@@ -1085,7 +1300,7 @@ def test_run_prompt_via_submission_loop_collects_activity_report(tmp_path: Path)
         agent = Agent(
             llm_client=_SequenceLLM(
                 [
-                    LLMResponse(
+                    LLMCompletionResult(
                         content="tool",
                         thinking=None,
                         tool_calls=[
@@ -1097,7 +1312,7 @@ def test_run_prompt_via_submission_loop_collects_activity_report(tmp_path: Path)
                         ],
                         finish_reason="tool_calls",
                     ),
-                    LLMResponse(content="done", thinking=None, tool_calls=None, finish_reason="stop"),
+                    LLMCompletionResult(content="done", thinking=None, tool_calls=None, finish_reason="stop"),
                 ]
             ),
             system_prompt="system",
@@ -1140,6 +1355,67 @@ def test_run_prompt_via_submission_loop_collects_activity_report(tmp_path: Path)
         assert any(item["label"] == "echo" and item["state"] == "ok" for item in payload["activity_items"])
 
     asyncio.run(_scenario())
+
+
+def test_run_prompt_via_submission_loop_forwards_llm_stream_events(tmp_path: Path) -> None:
+    async def _scenario() -> None:
+        agent = Agent(
+            llm_client=_StreamingLLM(),
+            system_prompt="system",
+            tools=[],
+            max_steps=2,
+            workspace_dir=str(tmp_path / "workspace-stream"),
+            logger=AgentLogger(log_dir=tmp_path / "logs-stream"),
+            console_output=False,
+        )
+        bus = InMemoryLoopMessageBus()
+        loop = AgentSubmissionLoop(
+            context=AgentLoopContext(message_bus=bus, session_id="cli-stream"),
+            agent_factory=lambda _ctx: agent,
+        )
+        observed_events: list[tuple[str, dict[str, object]]] = []
+
+        async def _event_handler(event_type: str, payload: dict[str, object]) -> None:
+            observed_events.append((event_type, dict(payload)))
+
+        await loop.start()
+        try:
+            payload = await cli_interactive.run_prompt_via_submission_loop(
+                loop=loop,
+                bus=bus,
+                agent=agent,
+                prompt="stream via cli",
+                metadata={"surface": "cli", "mode": "interactive"},
+                start_new_run=True,
+                event_handler=_event_handler,
+            )
+        finally:
+            await loop.stop()
+
+        assert payload["state"] == "completed"
+        assert payload["message"] == "cli stream"
+        llm_events = [item for event_type, item in observed_events if event_type == "loop.llm_event"]
+        assert [item["llm_event_type"] for item in llm_events] == [
+            "message_start",
+            "text_delta",
+            "text_delta",
+            "message_stop",
+        ]
+        assert llm_events[1]["delta"] == "cli "
+        assert llm_events[2]["delta"] == "stream"
+
+    asyncio.run(_scenario())
+
+
+def test_build_submission_runtime_event_handler_streams_text_chunks(capsys) -> None:
+    handler = cli_interactive.build_submission_runtime_event_handler()
+
+    handler("loop.llm_event", {"llm_event_type": "text_delta", "delta": "hello "})
+    handler("loop.llm_event", {"llm_event_type": "text_delta", "delta": "world"})
+    handler("loop.llm_event", {"llm_event_type": "message_stop"})
+
+    output = capsys.readouterr().out
+    assert output.endswith("hello world\n")
 
 
 def test_print_submission_runtime_event_renders_prepared_context(capsys) -> None:
@@ -1262,7 +1538,7 @@ def test_run_interactive_session_context_show_brief_uses_compact_detail_mode(
             _ = (args, kwargs)
             return next(self._inputs)
 
-    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None):
+    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None, config=None):
         _ = approval_profile
         return fake_agent
 
@@ -1332,7 +1608,7 @@ def test_run_interactive_session_context_stats_renders_diagnostics(
             _ = (args, kwargs)
             return next(self._inputs)
 
-    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None):
+    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None, config=None):
         _ = approval_profile
         return fake_agent
 
@@ -1388,7 +1664,7 @@ def test_run_interactive_session_memory_show_brief_renders_memory_diagnostics(
             _ = (args, kwargs)
             return next(self._inputs)
 
-    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None):
+    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None, config=None):
         _ = approval_profile
         return fake_agent
 
@@ -1466,7 +1742,7 @@ def test_run_interactive_session_durable_memory_commands(
             _ = (args, kwargs)
             return next(self._inputs)
 
-    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None):
+    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None, config=None):
         _ = approval_profile
         return fake_agent
 
@@ -1540,7 +1816,7 @@ def test_run_interactive_session_consolidated_memory_commands(
             _ = (args, kwargs)
             return next(self._inputs)
 
-    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None):
+    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None, config=None):
         _ = approval_profile
         return fake_agent
 
@@ -1617,7 +1893,7 @@ def test_run_interactive_session_memory_overview_and_export_commands(
             _ = (args, kwargs)
             return next(self._inputs)
 
-    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None):
+    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None, config=None):
         _ = approval_profile
         return fake_agent
 
@@ -1688,7 +1964,7 @@ def test_run_interactive_session_clear_clears_runtime_task_memory(
             _ = (args, kwargs)
             return next(self._inputs)
 
-    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None):
+    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None, config=None):
         _ = approval_profile
         return fake_agent
 
@@ -1776,7 +2052,7 @@ def test_run_interactive_session_memory_promote_and_save_commands(
             _ = (args, kwargs)
             return next(self._inputs)
 
-    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None):
+    async def _fake_build_agent(_workspace: Path, approval_profile: str | None = None, config=None):
         _ = approval_profile
         return fake_agent
 

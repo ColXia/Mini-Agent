@@ -18,7 +18,7 @@ from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings
 
-from .agent import Agent, TurnStopReason
+from .agent_core.engine import Agent, TurnStopReason
 from .commands import (
     CommandExecutionResult,
     LocalOperatorCommandService,
@@ -28,12 +28,12 @@ from .commands import (
     build_command_example_text,
     build_command_help_text,
     build_command_usage_text,
-    build_unknown_action_text,
     command_completion_tokens,
     normalize_command_name,
-    parse_memory_show_target,
     parse_command_text,
-    resolve_catalog_model_use_request,
+    prepare_context_command_plan,
+    prepare_memory_command_plan,
+    prepare_model_command_plan,
     suggest_command_name,
 )
 from .commands.mcp_support import (
@@ -41,7 +41,8 @@ from .commands.mcp_support import (
     format_mcp_server_list,
     format_mcp_status,
 )
-from .code_agent import (
+from .tools.mcp.command_service import format_cli_mcp_reload_success
+from .agent_core.execution import (
     AgentLoopContext,
     AgentSubmissionLoop,
     CoordinatorStage,
@@ -55,13 +56,22 @@ from .memory.diagnostics import build_memory_diagnostics
 from .memory.memoria_runtime import WorkspaceMemoriaRuntime
 from .agent_core.kernel import AgentKernelBuildOptions, build_agent_kernel
 from .config import Config
+from .config_bootstrap import load_entry_config
 from .model_manager.model_registry_service import ModelRegistryService
 from .runtime.sandbox_state import collect_sandbox_diagnostics, compact_sandbox_summary
 from .runtime.session_lifecycle import SurfaceSessionLifecycleRuntime
-from .turn_context import (
+from .agent_core.context.control_result_service import (
+    SessionContextControlResultService,
+)
+from .agent_core.context.turn_context import (
     format_prepared_turn_context_details,
     prepared_turn_context_summary_line,
     resolve_turn_context_policy,
+)
+from .agent_core.skills.runtime_feedback import (
+    describe_skill_runtime_reload,
+    format_cli_skill_reload_failure,
+    format_cli_skill_reload_success,
 )
 from .tools.mcp_loader import cleanup_mcp_connections
 from .utils.terminal_utils import supports_unicode_box_art
@@ -478,29 +488,21 @@ def _print_loop_control_result(action: str, payload: dict[str, Any]) -> None:
         print(f"{Colors.RED}[X] {normalized_action} is not supported by the active agent.{Colors.RESET}")
         return
 
-    before_tokens = int(payload.get("token_count_before") or 0)
-    after_tokens = int(payload.get("token_count_after") or 0)
-    before_messages = int(payload.get("message_count_before") or 0)
-    after_messages = int(payload.get("message_count_after") or 0)
-    changed = bool(payload.get("applied"))
-
-    if normalized_action == "compact":
-        label = "Context compacted" if changed else "Context already compact"
-    else:
-        label = "Older memories dropped" if changed else "No older memories needed dropping"
-
-    print(f"{Colors.GREEN}[OK] {label}{Colors.RESET}")
-    print(
-        f"{Colors.DIM}  Messages: {before_messages} -> {after_messages} | "
-        f"Tokens: {before_tokens} -> {after_tokens}{Colors.RESET}"
+    result = SessionContextControlResultService.normalize_result(
+        action=normalized_action,
+        payload=payload,
     )
-    stats = payload.get("stats")
-    if isinstance(stats, dict):
-        masked = int(stats.get("masked_messages") or 0)
-        snipped = int(stats.get("snipped_messages") or 0)
-        merged = int(stats.get("merged_messages") or 0)
+
+    print(f"{Colors.GREEN}[OK] {SessionContextControlResultService.cli_label(result=result)}{Colors.RESET}")
+    print(
+        f"{Colors.DIM}  Messages: {result.message_count_before} -> {result.message_count_after} | "
+        f"Tokens: {result.token_count_before} -> {result.token_count_after}{Colors.RESET}"
+    )
+    if result.stats:
         print(
-            f"{Colors.DIM}  Stats: masked={masked}, snipped={snipped}, merged={merged}{Colors.RESET}"
+            f"{Colors.DIM}  Stats: masked={result.stats.get('masked_messages', 0)}, "
+            f"snipped={result.stats.get('snipped_messages', 0)}, "
+            f"merged={result.stats.get('merged_messages', 0)}{Colors.RESET}"
         )
 
 
@@ -632,6 +634,35 @@ def _print_submission_runtime_event(event_type: str, payload: dict[str, Any]) ->
         print(f"{Colors.DIM}          {line}{Colors.RESET}")
 
 
+def build_submission_runtime_event_handler() -> Callable[[str, dict[str, Any]], None]:
+    stream_open = False
+
+    def _handle(event_type: str, payload: dict[str, Any]) -> None:
+        nonlocal stream_open
+
+        if event_type == "loop.llm_event":
+            llm_event_type = _safe_text(payload.get("llm_event_type")).lower()
+            if llm_event_type == "text_delta":
+                chunk = str(payload.get("delta") or "")
+                if chunk:
+                    print(chunk, end="", flush=True)
+                    stream_open = True
+                return
+            if llm_event_type == "message_stop":
+                if stream_open:
+                    print("")
+                    stream_open = False
+                return
+            return
+
+        if stream_open:
+            print("")
+            stream_open = False
+        _print_submission_runtime_event(event_type, payload)
+
+    return _handle
+
+
 async def run_minimal_workflow_via_submission_loop(
     *,
     agent: Agent,
@@ -687,7 +718,12 @@ async def run_minimal_workflow_via_submission_loop(
     )
 
 
-async def build_agent(workspace: Path, approval_profile: str | None = None) -> Agent:
+async def build_agent(
+    workspace: Path,
+    approval_profile: str | None = None,
+    *,
+    config: Config,
+) -> Agent:
     """Build an Agent instance.
 
     Args:
@@ -699,6 +735,7 @@ async def build_agent(workspace: Path, approval_profile: str | None = None) -> A
     return await build_agent_kernel(
         workspace_dir=workspace,
         options=AgentKernelBuildOptions(
+            config=config,
             approval_profile=approval_profile,
             console_output=True,
         ),
@@ -720,7 +757,7 @@ async def run_interactive_session(
     session_start = datetime.now()
 
     try:
-        config = Config.load()
+        config = load_entry_config()
     except Exception as e:
         print(f"{Colors.RED}[X] Failed to load configuration: {e}{Colors.RESET}")
         return
@@ -738,7 +775,12 @@ async def run_interactive_session(
     # Build agent
     print(f"{Colors.DIM}Initializing agent...{Colors.RESET}")
     try:
-        agent = await build_agent(workspace, approval_profile=approval_profile)
+        agent = await build_agent(
+            workspace,
+            approval_profile=approval_profile,
+            config=config,
+        )
+        agent.console_output = False
     except Exception as e:
         print(f"{Colors.RED}[X] Failed to initialize agent: {e}{Colors.RESET}")
         return
@@ -785,11 +827,12 @@ async def run_interactive_session(
         replacement = await build_agent_kernel(
             workspace_dir=workspace,
             options=AgentKernelBuildOptions(
+                config=config,
                 approval_profile=approval_profile,
                 requested_provider_source=provider_source,
                 requested_provider_id=provider_id,
                 requested_model=model_id,
-                console_output=True,
+                console_output=False,
             ),
         )
         _copy_agent_session_state(agent, replacement)
@@ -816,19 +859,21 @@ async def run_interactive_session(
             replacement = await build_agent_kernel(
                 workspace_dir=workspace,
                 options=AgentKernelBuildOptions(
+                    config=config,
                     approval_profile=approval_profile,
                     requested_provider_source=current_identity[0],
                     requested_provider_id=current_identity[1],
                     requested_model=current_identity[2],
-                    console_output=True,
+                    console_output=False,
                 ),
             )
         else:
             replacement = await build_agent_kernel(
                 workspace_dir=workspace,
                 options=AgentKernelBuildOptions(
+                    config=config,
                     approval_profile=approval_profile,
-                    console_output=True,
+                    console_output=False,
                 ),
             )
 
@@ -849,6 +894,7 @@ async def run_interactive_session(
     # Single task mode
     if task:
         print(f"{Colors.BRIGHT_BLUE}Agent{Colors.RESET} {Colors.DIM}>{Colors.RESET} {task}\n")
+        runtime_event_handler = build_submission_runtime_event_handler()
         try:
             _apply_session_lifecycle()
             payload = await run_prompt_via_submission_loop(
@@ -859,7 +905,7 @@ async def run_interactive_session(
                 metadata={"surface": "cli", "mode": "single_task"},
                 start_new_run=True,
                 approval_resolver=prompt_cli_approval,
-                event_handler=lambda event_type, payload: _print_submission_runtime_event(event_type, payload),
+                event_handler=runtime_event_handler,
             )
             _print_submission_failure(payload)
         except Exception as e:
@@ -973,14 +1019,12 @@ async def run_interactive_session(
             reload_callback=_reload_cli_mcp if action == "reload" else None,
         )
         if action == "reload" and result.kind == "info":
-            rebuilt = bool(result.payload.get("rebuilt_runtime"))
-            active_model = _safe_text(result.payload.get("active_model_label"))
-            if rebuilt and active_model:
-                print(
-                    f"{Colors.GREEN}[OK] Reloaded MCP bindings; current CLI agent reloaded on {active_model}{Colors.RESET}"
-                )
-            else:
-                print(f"{Colors.GREEN}[OK] Reloaded MCP bindings{Colors.RESET}")
+            print(
+                f"{Colors.GREEN}[OK] {format_cli_mcp_reload_success(McpReloadOutcome(
+                    rebuilt_runtime=bool(result.payload.get('rebuilt_runtime')),
+                    active_model_label=_safe_text(result.payload.get('active_model_label')) or None,
+                ))}{Colors.RESET}"
+            )
         _print_local_operator_result(result)
 
     async def _dispatch_sandbox(invocation) -> None:
@@ -994,13 +1038,22 @@ async def run_interactive_session(
         _print_local_operator_result(result)
 
     async def _dispatch_model(invocation) -> None:
-        action = invocation.action or "show"
-        if action == "show":
-            if len(invocation.args) > 1:
-                print(
-                    f"{Colors.YELLOW}{build_command_usage_text('cli', 'model', action='show')}{Colors.RESET}"
-                )
-                return
+        plan = prepare_model_command_plan(
+            surface="cli",
+            args=invocation.args,
+            providers=_cli_model_registry(),
+            default_action="show",
+            allow_show=True,
+            extended_actions=False,
+            strict_basic_arity=True,
+        )
+        if isinstance(plan, CommandExecutionResult):
+            color = Colors.YELLOW if plan.kind == "usage" else Colors.RED
+            print(f"{color}{plan.details}{Colors.RESET}")
+            print(f"\n{Colors.DIM}{'-' * 50}{Colors.RESET}\n")
+            return
+
+        if plan.action == "show":
             identity = _current_model_identity()
             current_model = str(getattr(agent.llm_client, "model", "unknown") or "unknown")
             print(
@@ -1009,24 +1062,16 @@ async def run_interactive_session(
             )
             print(f"\n{Colors.DIM}{'-' * 50}{Colors.RESET}\n")
             return
-        if action == "list":
-            if len(invocation.args) > 1:
-                print(
-                    f"{Colors.YELLOW}{build_command_usage_text('cli', 'model', action='list')}{Colors.RESET}"
-                )
-                return
+        if plan.action == "list":
             print(_render_cli_model_catalog(_cli_model_registry(), selected_identity=_current_model_identity()))
             print(f"\n{Colors.DIM}{'-' * 50}{Colors.RESET}\n")
             return
-        if action == "use":
-            request = resolve_catalog_model_use_request(
-                surface="cli",
-                providers=_cli_model_registry(),
-                args=invocation.args,
-            )
-            if isinstance(request, CommandExecutionResult):
-                color = Colors.YELLOW if request.kind == "usage" else Colors.RED
-                print(f"{color}{request.details}{Colors.RESET}")
+        if plan.action == "use":
+            request = plan.request
+            if request is None:
+                print(
+                    f"{Colors.YELLOW}{build_command_usage_text('cli', 'model', action='use')}{Colors.RESET}"
+                )
                 print(f"\n{Colors.DIM}{'-' * 50}{Colors.RESET}\n")
                 return
             current_identity = _current_model_identity()
@@ -1049,63 +1094,7 @@ async def run_interactive_session(
             )
             print(f"\n{Colors.DIM}{'-' * 50}{Colors.RESET}\n")
             return
-        print(
-            f"{Colors.RED}{build_unknown_action_text('cli', 'model', action, fallback=build_command_usage_text('cli', 'model'))}{Colors.RESET}"
-        )
-
-    def _cli_skill_reload_failure_message(mutation: str, payload: dict[str, Any], exc: Exception) -> str:
-        skill_name = _safe_text(payload.get("skill_name"))
-        mode = _safe_text(payload.get("mode"))
-        if mutation == "install":
-            return f"Skill installed, but the current CLI agent did not reload: {exc}"
-        if mutation == "uninstall":
-            return f"Skill uninstalled, but the current CLI agent did not reload: {exc}"
-        if mutation == "rollback":
-            return f"Skill rolled back, but the current CLI agent did not reload: {exc}"
-        if mutation == "mode":
-            return f"Skill policy updated, but the current CLI agent did not reload: {exc}"
-        if mutation in {"enable", "disable"}:
-            return f"Workspace skill policy updated, but the current CLI agent did not reload: {exc}"
-        if mutation == "reset":
-            return f"Skill policy reset, but the current CLI agent did not reload: {exc}"
-        if mutation == "refresh":
-            return f"Skill catalog refreshed, but the current CLI agent did not reload: {exc}"
-        suffix = skill_name or mode or mutation or "skill command"
-        return f"{suffix} completed, but the current CLI agent did not reload: {exc}"
-
-    def _cli_skill_reload_success_message(
-        mutation: str,
-        payload: dict[str, Any],
-        *,
-        rebuilt: bool,
-        active_model: str,
-    ) -> str:
-        skill_name = _safe_text(payload.get("skill_name"))
-        mode = _safe_text(payload.get("mode"))
-        model_suffix = f"; current CLI agent reloaded on {active_model}" if active_model else ""
-        if mutation == "install":
-            return f"Installed {skill_name}{model_suffix}" if rebuilt and active_model else f"Installed {skill_name}"
-        if mutation == "uninstall":
-            return f"Uninstalled {skill_name}{model_suffix}" if rebuilt and active_model else f"Uninstalled {skill_name}"
-        if mutation == "rollback":
-            return f"Rolled back {skill_name}{model_suffix}" if rebuilt and active_model else f"Rolled back {skill_name}"
-        if mutation == "mode":
-            if rebuilt and active_model:
-                return f"Skill mode set to {mode}; current CLI agent reloaded on {active_model}"
-            return f"Skill mode set to {mode}"
-        if mutation in {"enable", "disable"}:
-            if active_model:
-                return f"Skill {mutation}d in workspace policy; current CLI agent reloaded on {active_model}"
-            return f"Skill {mutation}d in workspace policy"
-        if mutation == "reset":
-            if active_model:
-                return f"Workspace skill policy reset; current CLI agent reloaded on {active_model}"
-            return "Workspace skill policy reset"
-        if mutation == "refresh":
-            if rebuilt and active_model:
-                return f"Skill catalog refreshed; current CLI agent reloaded on {active_model}"
-            return "Skill catalog refreshed"
-        return _safe_text(payload.get("summary")) or "Skill command completed"
+        print(f"{Colors.RED}Unknown model action.{Colors.RESET}")
 
     async def _dispatch_skill(invocation) -> None:
         action = invocation.action or "list"
@@ -1122,19 +1111,16 @@ async def run_interactive_session(
             _print_local_operator_result(result)
             return
 
-        mutation = _safe_text(result.payload.get("mutation")).lower()
+        feedback = describe_skill_runtime_reload(result.payload)
         try:
             rebuilt, active_model = await _rebuild_cli_agent_for_skill_refresh()
         except Exception as exc:
-            print(
-                f"{Colors.YELLOW}[!] {_cli_skill_reload_failure_message(mutation, result.payload, exc)}{Colors.RESET}"
-            )
+            print(f"{Colors.YELLOW}[!] {format_cli_skill_reload_failure(feedback, exc)}{Colors.RESET}")
             _print_local_operator_result(result)
             return
 
-        success_message = _cli_skill_reload_success_message(
-            mutation,
-            result.payload,
+        success_message = format_cli_skill_reload_success(
+            feedback,
             rebuilt=rebuilt,
             active_model=_safe_text(active_model),
         )
@@ -1242,14 +1228,11 @@ async def run_interactive_session(
                     print(f"\n{Colors.DIM}{'-' * 50}{Colors.RESET}\n")
                     continue
                 elif command_name == "context":
-                    action = command_args[0].lower() if command_args else "show"
-                    if action in {"brief", "full"}:
-                        command_args = ["show", action]
-                        action = "show"
+                    plan = prepare_context_command_plan(args=command_args, default_action="show")
                     result = local_command_service.execute_context(
                         surface="cli",
-                        action=action,
-                        args=command_args,
+                        action=plan.action,
+                        args=list(plan.args),
                         current_policy=prepared_context_policy,
                         prepared_context=getattr(agent, "last_prepared_turn_context", None),
                         prepared_context_diagnostics=getattr(agent, "prepared_context_diagnostics", None),
@@ -1261,377 +1244,36 @@ async def run_interactive_session(
                     _print_local_operator_result(result)
                     continue
                 elif command_name == "memory":
-                    action = command_args[0].lower() if command_args else "status"
-                    if action in {"brief", "full"}:
-                        command_args = ["show", action]
-                        action = "show"
-                    if action == "status":
-                        if len(command_args) > 1:
-                            print(
-                                f"{Colors.YELLOW}{build_command_usage_text('cli', 'memory', action='status')}{Colors.RESET}"
-                            )
-                            continue
-                        try:
-                            result = _run_cli_memory_action(
-                                command_service=local_command_service,
-                                workspace=workspace,
-                                agent=agent,
-                                action="status",
-                                detail_mode="brief",
-                            )
-                        except Exception as e:
-                            print(f"{Colors.RED}[X] Memory status failed: {e}{Colors.RESET}")
-                            continue
-                        print(result["details"])
-                        print(f"\n{Colors.DIM}{'-' * 50}{Colors.RESET}\n")
+                    plan = prepare_memory_command_plan(
+                        surface="cli",
+                        args=command_args,
+                    )
+                    if isinstance(plan, CommandExecutionResult):
+                        _print_local_operator_result(plan)
                         continue
-                    elif action == "show":
-                        detail_mode, selector, usage_error = parse_memory_show_target("cli", command_args[1:])
-                        if usage_error:
-                            print(
-                                f"{Colors.YELLOW}{build_command_usage_text('cli', 'memory', action='show')}{Colors.RESET}"
-                            )
-                            continue
-                        try:
-                            result = _run_cli_memory_action(
-                                command_service=local_command_service,
-                                workspace=workspace,
-                                agent=agent,
-                                action="session_show" if selector else "show",
-                                engram_id=selector,
-                                detail_mode=detail_mode,
-                            )
-                        except Exception as e:
-                            failure = "Runtime memory entry failed" if selector else "Memory diagnostics failed"
-                            print(f"{Colors.RED}[X] {failure}: {e}{Colors.RESET}")
-                            continue
-                        print(result["details"])
-                        print(f"\n{Colors.DIM}{'-' * 50}{Colors.RESET}\n")
-                        continue
-                    elif action == "list":
-                        if len(command_args) > 1:
-                            print(
-                                f"{Colors.YELLOW}{build_command_usage_text('cli', 'memory', action='list')}{Colors.RESET}"
-                            )
-                            continue
-                        try:
-                            result = _run_cli_memory_action(
-                                command_service=local_command_service,
-                                workspace=workspace,
-                                agent=agent,
-                                action="list",
-                            )
-                        except Exception as e:
-                            print(f"{Colors.RED}[X] Runtime memory list failed: {e}{Colors.RESET}")
-                            continue
-                        print(result["details"])
-                        print(f"\n{Colors.DIM}{'-' * 50}{Colors.RESET}\n")
-                        continue
-                    elif action == "overview":
-                        if len(command_args) > 1:
-                            print(
-                                f"{Colors.YELLOW}{build_command_usage_text('cli', 'memory', action='overview')}{Colors.RESET}"
-                            )
-                            continue
-                        try:
-                            result = _run_cli_memory_action(
-                                command_service=local_command_service,
-                                workspace=workspace,
-                                agent=agent,
-                                action="overview",
-                            )
-                        except Exception as e:
-                            print(f"{Colors.RED}[X] Memory overview failed: {e}{Colors.RESET}")
-                            continue
-                        print(result["details"])
-                        print(f"\n{Colors.DIM}{'-' * 50}{Colors.RESET}\n")
-                        continue
-                    elif action == "export":
-                        export_format = command_args[1].lower() if len(command_args) >= 2 else "jsonl"
-                        if len(command_args) > 2 or export_format not in {"jsonl", "markdown"}:
-                            print(
-                                f"{Colors.YELLOW}{build_command_usage_text('cli', 'memory', action='export')}{Colors.RESET}"
-                            )
-                            continue
-                        try:
-                            result = _run_cli_memory_action(
-                                command_service=local_command_service,
-                                workspace=workspace,
-                                agent=agent,
-                                action="export",
-                                export_format=export_format,
-                            )
-                        except Exception as e:
-                            print(f"{Colors.RED}[X] Memory export failed: {e}{Colors.RESET}")
-                            continue
-                        print(result["details"])
-                        print(f"\n{Colors.DIM}{'-' * 50}{Colors.RESET}\n")
-                        continue
-                    elif action == "consolidated":
-                        consolidated_action = command_args[1].lower() if len(command_args) >= 2 else "show"
-                        if consolidated_action == "show":
-                            if len(command_args) > 2:
-                                print(
-                                    f"{Colors.YELLOW}{build_command_usage_text('cli', 'memory', action='consolidated')}{Colors.RESET}"
-                                )
-                                continue
-                            try:
-                                result = _run_cli_memory_action(
-                                    command_service=local_command_service,
-                                    workspace=workspace,
-                                    agent=agent,
-                                    action="consolidated_show",
-                                )
-                            except Exception as e:
-                                print(f"{Colors.RED}[X] Consolidated memory view failed: {e}{Colors.RESET}")
-                                continue
-                            print(result["details"])
-                            print(f"\n{Colors.DIM}{'-' * 50}{Colors.RESET}\n")
-                            continue
-                        elif consolidated_action == "search":
-                            query = " ".join(command_args[2:]).strip() if len(command_args) >= 3 else ""
-                            if not query:
-                                print(
-                                    f"{Colors.YELLOW}{build_command_usage_text('cli', 'memory', action='consolidated')}{Colors.RESET}"
-                                )
-                                continue
-                            try:
-                                result = _run_cli_memory_action(
-                                    command_service=local_command_service,
-                                    workspace=workspace,
-                                    agent=agent,
-                                    action="consolidated_search",
-                                    query=query,
-                                )
-                            except Exception as e:
-                                print(f"{Colors.RED}[X] Consolidated memory search failed: {e}{Colors.RESET}")
-                                continue
-                            print(result["details"])
-                            print(f"\n{Colors.DIM}{'-' * 50}{Colors.RESET}\n")
-                            continue
-                        else:
-                            print(
-                                f"{Colors.RED}Unknown memory consolidated action: {consolidated_action or '(empty)'}.\n"
-                                f"{build_command_usage_text('cli', 'memory', action='consolidated')}{Colors.RESET}"
-                            )
-                            continue
-                    elif action == "profile":
-                        query = " ".join(command_args[1:]).strip() if len(command_args) > 1 else ""
-                        try:
-                            result = _run_cli_memory_action(
-                                command_service=local_command_service,
-                                workspace=workspace,
-                                agent=agent,
-                                action="profile",
-                                query=query or None,
-                            )
-                        except Exception as e:
-                            print(f"{Colors.RED}[X] Global profile view failed: {e}{Colors.RESET}")
-                            continue
-                        print(result["details"])
-                        print(f"\n{Colors.DIM}{'-' * 50}{Colors.RESET}\n")
-                        continue
-                    elif action == "notes":
-                        query = " ".join(command_args[1:]).strip() if len(command_args) > 1 else ""
-                        try:
-                            result = _run_cli_memory_action(
-                                command_service=local_command_service,
-                                workspace=workspace,
-                                agent=agent,
-                                action="notes",
-                                query=query or None,
-                            )
-                        except Exception as e:
-                            print(f"{Colors.RED}[X] Workspace durable notes view failed: {e}{Colors.RESET}")
-                            continue
-                        print(result["details"])
-                        print(f"\n{Colors.DIM}{'-' * 50}{Colors.RESET}\n")
-                        continue
-                    elif action == "daily":
-                        if len(command_args) != 2:
-                            print(
-                                f"{Colors.YELLOW}{build_command_usage_text('cli', 'memory', action='daily')}{Colors.RESET}"
-                            )
-                            continue
-                        try:
-                            result = _run_cli_memory_action(
-                                command_service=local_command_service,
-                                workspace=workspace,
-                                agent=agent,
-                                action="daily",
-                                day=_safe_text(command_args[1]) or None,
-                            )
-                        except Exception as e:
-                            print(f"{Colors.RED}[X] Workspace daily memory view failed: {e}{Colors.RESET}")
-                            continue
-                        print(result["details"])
-                        print(f"\n{Colors.DIM}{'-' * 50}{Colors.RESET}\n")
-                        continue
-                    elif action == "shared":
-                        shared_action = command_args[1].lower() if len(command_args) >= 2 else "list"
-                        selector = _safe_text(command_args[2]) if len(command_args) >= 3 else ""
-                        if shared_action == "list":
-                            if len(command_args) > 2:
-                                print(
-                                    f"{Colors.YELLOW}{build_command_usage_text('cli', 'memory', action='shared')}{Colors.RESET}"
-                                )
-                                continue
-                            try:
-                                result = _run_cli_memory_action(
-                                    command_service=local_command_service,
-                                    workspace=workspace,
-                                    agent=agent,
-                                    action="shared_list",
-                                )
-                            except Exception as e:
-                                print(f"{Colors.RED}[X] Shared runtime memory list failed: {e}{Colors.RESET}")
-                                continue
-                            print(result["details"])
-                            print(f"\n{Colors.DIM}{'-' * 50}{Colors.RESET}\n")
-                            continue
-                        elif shared_action == "show":
-                            if len(command_args) > 3:
-                                print(
-                                    f"{Colors.YELLOW}{build_command_usage_text('cli', 'memory', action='shared')}{Colors.RESET}"
-                                )
-                                continue
-                            try:
-                                result = _run_cli_memory_action(
-                                    command_service=local_command_service,
-                                    workspace=workspace,
-                                    agent=agent,
-                                    action="shared_show",
-                                    engram_id=selector or None,
-                                )
-                            except Exception as e:
-                                print(f"{Colors.RED}[X] Shared runtime memory entry failed: {e}{Colors.RESET}")
-                                continue
-                            print(result["details"])
-                            print(f"\n{Colors.DIM}{'-' * 50}{Colors.RESET}\n")
-                            continue
-                        elif shared_action == "clear":
-                            if len(command_args) > 2:
-                                print(
-                                    f"{Colors.YELLOW}{build_command_usage_text('cli', 'memory', action='shared')}{Colors.RESET}"
-                                )
-                                continue
-                            try:
-                                result = _run_cli_memory_action(
-                                    command_service=local_command_service,
-                                    workspace=workspace,
-                                    agent=agent,
-                                    action="shared_clear",
-                                )
-                            except Exception as e:
-                                print(f"{Colors.RED}[X] Shared runtime memory clear failed: {e}{Colors.RESET}")
-                                continue
-                            print(f"{Colors.GREEN}[OK] {result['summary']}{Colors.RESET}")
-                            print(result["details"])
-                            print(f"\n{Colors.DIM}{'-' * 50}{Colors.RESET}\n")
-                            continue
-                        else:
-                            print(
-                                f"{Colors.RED}Unknown memory shared action: {shared_action or '(empty)'}.\n"
-                                f"{build_command_usage_text('cli', 'memory', action='shared')}{Colors.RESET}"
-                            )
-                            continue
-                    elif action == "runtime":
-                        if len(command_args) > 1:
-                            print(
-                                f"{Colors.YELLOW}{build_command_usage_text('cli', 'memory', action='runtime')}{Colors.RESET}"
-                            )
-                            continue
-                        try:
-                            result = _run_cli_memory_action(
-                                command_service=local_command_service,
-                                workspace=workspace,
-                                agent=agent,
-                                action="runtime",
-                            )
-                        except Exception as e:
-                            print(f"{Colors.RED}[X] Runtime task memory inspection failed: {e}{Colors.RESET}")
-                            continue
-                        print(result["details"])
-                        print(f"\n{Colors.DIM}{'-' * 50}{Colors.RESET}\n")
-                        continue
-                    elif action == "refresh":
-                        if len(command_args) > 1:
-                            print(
-                                f"{Colors.YELLOW}{build_command_usage_text('cli', 'memory', action='refresh')}{Colors.RESET}"
-                            )
-                            continue
-                        try:
-                            result = _run_cli_memory_action(
-                                command_service=local_command_service,
-                                workspace=workspace,
-                                agent=agent,
-                                action="refresh",
-                            )
-                        except Exception as e:
-                            print(f"{Colors.RED}[X] Memory refresh failed: {e}{Colors.RESET}")
-                            continue
-                        print(f"{Colors.GREEN}[OK] {result['summary']}{Colors.RESET}")
-                        print(result["details"])
-                        print(f"\n{Colors.DIM}{'-' * 50}{Colors.RESET}\n")
-                        continue
-                    elif action == "promote":
-                        target = command_args[1].lower() if len(command_args) >= 2 else ""
-                        engram_id = _safe_text(command_args[2]) if len(command_args) >= 3 else ""
-                        if target not in {"shared", "note", "profile"}:
-                            print(
-                                f"{Colors.YELLOW}{build_command_usage_text('cli', 'memory', action='promote')}{Colors.RESET}"
-                            )
-                            continue
-                        if target == "shared":
-                            promote_action = "promote_shared"
-                        elif target == "note":
-                            promote_action = "promote_note"
-                        else:
-                            promote_action = "promote_profile"
-                        try:
-                            result = _run_cli_memory_action(
-                                command_service=local_command_service,
-                                workspace=workspace,
-                                agent=agent,
-                                action=promote_action,
-                                engram_id=engram_id or None,
-                            )
-                        except Exception as e:
-                            print(f"{Colors.RED}[X] Memory promotion failed: {e}{Colors.RESET}")
-                            continue
-                        print(f"{Colors.GREEN}[OK] {result['summary']}{Colors.RESET}")
-                        print(result["details"])
-                        print(f"\n{Colors.DIM}{'-' * 50}{Colors.RESET}\n")
-                        continue
-                    elif action == "save":
-                        target = command_args[1].lower() if len(command_args) >= 2 else ""
-                        content = " ".join(command_args[2:]).strip() if len(command_args) >= 3 else ""
-                        if target not in {"note", "profile"}:
-                            print(
-                                f"{Colors.YELLOW}{build_command_usage_text('cli', 'memory', action='save')}{Colors.RESET}"
-                            )
-                            continue
-                        save_action = "save_note" if target == "note" else "save_profile"
-                        try:
-                            result = _run_cli_memory_action(
-                                command_service=local_command_service,
-                                workspace=workspace,
-                                agent=agent,
-                                action=save_action,
-                                content=content or None,
-                            )
-                        except Exception as e:
-                            print(f"{Colors.RED}[X] Memory save failed: {e}{Colors.RESET}")
-                            continue
-                        print(f"{Colors.GREEN}[OK] {result['summary']}{Colors.RESET}")
-                        print(result["details"])
-                        print(f"\n{Colors.DIM}{'-' * 50}{Colors.RESET}\n")
-                        continue
-                    else:
-                        print(
-                            f"{Colors.RED}{build_unknown_action_text('cli', 'memory', action, fallback=build_command_usage_text('cli', 'memory'))}{Colors.RESET}"
+                    try:
+                        result = _run_cli_memory_action(
+                            command_service=local_command_service,
+                            workspace=workspace,
+                            agent=agent,
+                            action=plan.action,
+                            engram_id=plan.engram_id,
+                            content=plan.content,
+                            query=plan.query,
+                            day=plan.day,
+                            export_format=plan.export_format,
+                            detail_mode=plan.detail_mode,
                         )
+                    except Exception as e:
+                        print(f"{Colors.RED}[X] {plan.failure_detail_prefix}{e}{Colors.RESET}")
                         continue
+                    if plan.is_mutation:
+                        print(f"{Colors.GREEN}[OK] {result['summary']}{Colors.RESET}")
+                    details = str(result.get("details") or "").strip()
+                    if details:
+                        print(details)
+                    print(f"\n{Colors.DIM}{'-' * 50}{Colors.RESET}\n")
+                    continue
                 else:
                     hint = suggest_command_name(
                         command_name,
@@ -1643,6 +1285,7 @@ async def run_interactive_session(
 
             # Normal message
             print(f"\n{Colors.BRIGHT_BLUE}Agent{Colors.RESET} {Colors.DIM}> Thinking...{Colors.RESET}\n")
+            runtime_event_handler = build_submission_runtime_event_handler()
             try:
                 _apply_session_lifecycle()
                 payload = await run_prompt_via_submission_loop(
@@ -1656,7 +1299,7 @@ async def run_interactive_session(
                     ),
                     start_new_run=True,
                     approval_resolver=prompt_cli_approval,
-                    event_handler=lambda event_type, payload: _print_submission_runtime_event(event_type, payload),
+                    event_handler=runtime_event_handler,
                 )
                 _print_submission_failure(payload)
             except Exception as e:
@@ -1725,6 +1368,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
 

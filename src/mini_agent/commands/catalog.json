@@ -84,7 +84,7 @@
     {
       "name": "session",
       "category": "Session",
-      "summary": "Manage runtime-backed sessions and QQ visibility",
+      "summary": "Manage runtime-backed sessions and QQ remote visibility",
       "surfaces": ["tui", "qq"],
       "forms": {
         "tui": [
@@ -148,8 +148,8 @@
     },
     {
       "name": "workspace",
-      "category": "QQ Only",
-      "summary": "Change the default QQ workspace",
+      "category": "Remote (QQ)",
+      "summary": "Change the default QQ remote workspace",
       "surfaces": ["qq"],
       "forms": ["workspace <path>"],
       "completion_tokens": ["workspace"],
@@ -157,8 +157,8 @@
     },
     {
       "name": "dryrun",
-      "category": "QQ Only",
-      "summary": "Toggle QQ dry-run forwarding",
+      "category": "Remote (QQ)",
+      "summary": "Toggle QQ remote dry-run forwarding",
       "surfaces": ["qq"],
       "forms": ["dryrun <on|off>"],
       "completion_tokens": ["dryrun", "dryrun on", "dryrun off"],
@@ -166,7 +166,7 @@
     },
     {
       "name": "ping",
-      "category": "QQ Only",
+      "category": "Remote (QQ)",
       "summary": "Check whether the QQ bot is alive",
       "surfaces": ["qq"],
       "forms": ["ping"],

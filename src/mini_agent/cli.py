@@ -7,26 +7,22 @@ Usage:
     mini-agent --mode cli                 # Force line-based CLI
     mini-agent --prompt "hello"           # Headless single prompt
     mini-agent desktop                    # Start DesktopUI and attach/spawn local gateway
-    mini-agent serve --port 8080          # Studio API host mode (explicit)
-    mini-agent stack up                   # Start gateway/qqbot stack and attach TUI
-    mini qq                               # Shortcut: start gateway + qqbot + TUI
-    mini qq status                        # Shortcut: check qq runtime stack status
-    mini qq down                          # Shortcut: stop qq runtime stack
+    mini-agent serve --port 8080          # Gateway API host mode (explicit)
+    mini-agent stack up                   # Start gateway + active remote adapter stack and attach TUI
+    mini qq                               # Shortcut: start gateway + QQ remote adapter + TUI
+    mini qq status                        # Shortcut: check QQ runtime stack status
+    mini qq down                          # Shortcut: stop QQ runtime stack
 
 Subcommands:
-    mini-agent serve              # Start Studio API host explicitly
+    mini-agent serve              # Start gateway API host explicitly
     mini-agent desktop            # Start DesktopUI shell
-    mini-agent stack up           # Start runtime stack (gateway + optional qqbot + TUI)
-    mini-agent qq                 # Shortcut to boot gateway + qqbot + TUI
-    mini-agent qq status          # Shortcut to inspect qq runtime stack
-    mini-agent qq down            # Shortcut to stop qq runtime stack
+    mini-agent stack up           # Start runtime stack (gateway + optional QQ remote adapter + TUI)
+    mini-agent qq                 # Shortcut to boot gateway + QQ remote adapter + TUI
+    mini-agent qq status          # Shortcut to inspect QQ runtime stack
+    mini-agent qq down            # Shortcut to stop QQ runtime stack
     mini-agent stack down         # Stop runtime stack
     mini-agent stack status       # Check runtime stack status
     mini-agent stack logs         # Show runtime stack logs
-    mini-agent dev up             # Start Studio backend + frontend dev stack
-    mini-agent dev status         # Check Studio dev process status
-    mini-agent dev down           # Stop Studio dev stack
-    mini-agent dev logs           # Tail Studio dev logs
     mini-agent list subprograms   # List available subprograms
     mini-agent list channels      # List available channels
 """
@@ -40,6 +36,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from .config_bootstrap import (
+    load_entry_config,
+    load_local_env_files,
+    load_noninteractive_config,
+)
 from .utils.terminal_utils import supports_unicode_box_art
 
 
@@ -65,13 +66,10 @@ def print_banner():
     """Print the Mini-Agent banner."""
     if supports_unicode_box_art():
         banner = f"""
-{Colors.BRIGHT_CYAN}╔═══════════════════════════════════════════════════════════╗
-║                                                           ║
-║   {Colors.BOLD}Mini-Agent{Colors.RESET}{Colors.BRIGHT_CYAN} - Intelligent Agent Platform              ║
-║                                                           ║
-║   Powered by MiniMax M2.5                                 ║
-║                                                           ║
-╚═══════════════════════════════════════════════════════════╝{Colors.RESET}
+{Colors.BRIGHT_CYAN}╔══════════════════════════════════════════════════════════╗
+║  {Colors.BOLD}Mini-Agent{Colors.RESET}{Colors.BRIGHT_CYAN} - Intelligent Agent Platform              ║
+║  Powered by MiniMax M2.5                                ║
+╚══════════════════════════════════════════════════════════╝{Colors.RESET}
 """
         print(banner)
         return
@@ -111,14 +109,12 @@ Examples:
   mini-agent --prompt "hello" --output-format json
                                     Run headless and emit JSON
   mini-agent desktop                Start DesktopUI shell
-  mini-agent serve --port 8080      Start Studio API host on port 8080
-  mini-agent stack up               Start gateway/qqbot and attach TUI
-  mini qq                           Shortcut: start gateway + qqbot + TUI
-  mini qq status                    Shortcut: check qq runtime stack status
-  mini qq down                      Shortcut: stop qq runtime stack
+  mini-agent serve --port 8080      Start gateway API host on port 8080
+  mini-agent stack up               Start gateway + active remote adapter and attach TUI
+  mini qq                           Shortcut: start gateway + QQ remote adapter + TUI
+  mini qq status                    Shortcut: check QQ runtime stack status
+  mini qq down                      Shortcut: stop QQ runtime stack
   mini-agent cli --task "hello"     Execute one task via CLI mode
-  mini-agent dev up                 Start Studio dev stack (backend + frontend)
-  mini-agent dev status             Show Studio dev stack status
   mini-agent list subprograms       List available subprograms
         """,
     )
@@ -134,18 +130,18 @@ Examples:
         "--port",
         type=int,
         default=8008,
-        help="Studio API port (used by `mini-agent serve`, default: 8008)",
+        help="Gateway API port (used by `mini-agent serve`, default: 8008)",
     )
     parser.add_argument(
         "--host",
         type=str,
         default="127.0.0.1",
-        help="Studio API host (default: 127.0.0.1)",
+        help="Gateway API host (default: 127.0.0.1)",
     )
     parser.add_argument(
         "--reload",
         action="store_true",
-        help="Enable auto-reload for Studio API host (used by `mini-agent serve`)",
+        help="Enable auto-reload for gateway API host (used by `mini-agent serve`)",
     )
     parser.add_argument(
         "--workspace",
@@ -194,22 +190,22 @@ Examples:
     # Subcommands
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
-    # Serve subcommand (explicit Studio API host entry)
+    # Serve subcommand (explicit gateway API host entry)
     serve_parser = subparsers.add_parser(
         "serve",
-        help="Start Studio API host (single backend)",
+        help="Start gateway API host (single backend)",
     )
     serve_parser.add_argument(
         "--port",
         type=int,
         default=8008,
-        help="Studio API port (default: 8008)",
+        help="Gateway API port (default: 8008)",
     )
     serve_parser.add_argument(
         "--host",
         type=str,
         default="127.0.0.1",
-        help="Studio API host (default: 127.0.0.1)",
+        help="Gateway API host (default: 127.0.0.1)",
     )
     serve_parser.add_argument(
         "--reload",
@@ -552,9 +548,9 @@ Examples:
     provider_parser.add_argument(
         "--type",
         type=str,
-        choices=["openai", "anthropic", "gemini", "custom"],
+        choices=["openai", "anthropic"],
         default="openai",
-        help="API protocol type",
+        help="API protocol family",
     )
     provider_parser.add_argument(
         "--models",
@@ -614,7 +610,7 @@ Examples:
         type=str,
         nargs="?",
         default=None,
-        help="Provider name (openai, anthropic, gemini, minimax)",
+        help="Provider name (openai, anthropic, minimax)",
     )
     models_parser.add_argument(
         "--api-key",
@@ -692,92 +688,9 @@ Examples:
         help="Max consolidated memory items for phase2",
     )
 
-    dev_parser = subparsers.add_parser(
-        "dev",
-        help="Manage Studio dev processes (one backend + one frontend)",
-    )
-    dev_parser.add_argument(
-        "action",
-        choices=["up", "down", "status", "logs", "profile"],
-        help="Dev manager action",
-    )
-    dev_parser.add_argument(
-        "--profile",
-        type=str,
-        default="single-main",
-        help="Startup profile name (default: single-main)",
-    )
-    dev_parser.add_argument(
-        "--init-profile",
-        action="store_true",
-        help="Create profile template file when missing (`dev profile` action)",
-    )
-    dev_parser.add_argument(
-        "--show-json",
-        action="store_true",
-        help="Print resolved profile as JSON (`dev profile` action)",
-    )
-    dev_parser.add_argument(
-        "--host",
-        type=str,
-        default=None,
-        help="Optional host override for selected profile",
-    )
-    dev_parser.add_argument(
-        "--gateway-port",
-        type=int,
-        default=None,
-        help="Optional gateway port override for selected profile",
-    )
-    dev_parser.add_argument(
-        "--frontend-port",
-        type=int,
-        default=None,
-        help="Optional frontend port override for selected profile",
-    )
-    dev_parser.add_argument(
-        "--startup-timeout",
-        type=float,
-        default=None,
-        help="Optional startup timeout override for `dev up`",
-    )
-    dev_parser.add_argument(
-        "--backend-reload",
-        action=argparse.BooleanOptionalAction,
-        default=None,
-        help="Enable/disable backend uvicorn --reload for `dev up`",
-    )
-    dev_parser.add_argument(
-        "--frontend-install",
-        action="store_true",
-        help="Run `npm install` in frontend dir when node_modules is missing",
-    )
-    dev_parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Force terminate lingering processes on `dev down`",
-    )
-    dev_parser.add_argument(
-        "--target",
-        choices=["all", "backend", "frontend"],
-        default="all",
-        help="Log target for `dev logs`",
-    )
-    dev_parser.add_argument(
-        "--lines",
-        type=int,
-        default=120,
-        help="Tail lines for `dev logs` (default: 120)",
-    )
-    dev_parser.add_argument(
-        "--follow",
-        action="store_true",
-        help="Follow logs continuously for `dev logs`",
-    )
-
     stack_parser = subparsers.add_parser(
         "stack",
-        help="Manage runtime stack for TUI/QQ workflows",
+        help="Manage runtime stack for TUI + Remote Interaction (QQ) workflows",
     )
     stack_parser.add_argument(
         "action",
@@ -863,14 +776,14 @@ Examples:
 
     qq_parser = subparsers.add_parser(
         "qq",
-        help="Shortcut: start gateway + qqbot + TUI",
+        help="Shortcut: start gateway + QQ remote adapter + TUI",
     )
     qq_parser.add_argument(
         "action",
         nargs="?",
         choices=["up", "down", "status", "logs"],
         default="up",
-        help="QQ runtime shortcut action (default: up)",
+        help="QQ remote runtime shortcut action (default: up)",
     )
     qq_parser.add_argument(
         "--workspace",
@@ -962,7 +875,6 @@ def run_gateway_mode(args: argparse.Namespace) -> None:
 
     import uvicorn
 
-    from .config import Config
     from .ops.doctor import format_doctor_report, run_startup_self_check
     from .utils.single_instance import SingleInstanceManager
 
@@ -980,10 +892,8 @@ def run_gateway_mode(args: argparse.Namespace) -> None:
         sys.exit(1)
     atexit.register(instance_manager.release_lock)
 
-    try:
-        config = Config.load()
-    except Exception as exc:
-        print(f"{Colors.RED}[X] Failed to load configuration: {exc}{Colors.RESET}")
+    config = _load_cli_entry_config_or_report()
+    if config is None:
         return
 
     workspace = (
@@ -1065,6 +975,7 @@ def run_tui_mode(args: argparse.Namespace) -> None:
             approval_profile=getattr(args, "approval_profile", None),
             access_level=getattr(args, "access_level", None),
             initial_prompt=getattr(args, "prompt", None),
+            config_loader=load_noninteractive_config,
         )
     )
 
@@ -1081,13 +992,25 @@ def _read_non_tty_prompt() -> str | None:
     return text or None
 
 
+def _load_cli_entry_config_or_report(*, report_errors: bool = True) -> Any | None:
+    """Load config for CLI-owned command surfaces without moving ownership below the entry."""
+
+    try:
+        return load_entry_config()
+    except Exception as exc:
+        if report_errors:
+            print(f"{Colors.RED}[X] Failed to load configuration: {exc}{Colors.RESET}")
+        return None
+
+
 async def _run_headless_prompt_async(
     *,
     workspace: Path,
     prompt: str,
     approval_profile: str | None,
+    config,
 ) -> tuple[str, str, dict[str, Any], dict[str, Any]]:
-    from .agent import TurnStopReason
+    from .agent_core.engine import TurnStopReason
     from .cli_interactive import (
         build_agent,
         create_submission_loop_for_agent,
@@ -1095,7 +1018,11 @@ async def _run_headless_prompt_async(
     )
     from .tools.mcp_loader import cleanup_mcp_connections
 
-    agent = await build_agent(workspace, approval_profile=approval_profile)
+    agent = await build_agent(
+        workspace,
+        approval_profile=approval_profile,
+        config=config,
+    )
     agent.console_output = False
     submission_loop = None
     loop_bus = None
@@ -1148,6 +1075,7 @@ async def _run_headless_prompt_async(
 
 def run_headless_mode(args: argparse.Namespace) -> None:
     """Run one-shot headless prompt mode (for scripts/CI)."""
+
     _apply_runtime_policy_overrides(args)
     prompt = str(getattr(args, "prompt", "") or "").strip()
     if not prompt:
@@ -1158,11 +1086,13 @@ def run_headless_mode(args: argparse.Namespace) -> None:
     workspace.mkdir(parents=True, exist_ok=True)
 
     try:
+        config = load_entry_config()
         reply, model_id, prepared_context, prepared_context_diagnostics = asyncio.run(
             _run_headless_prompt_async(
                 workspace=workspace,
                 prompt=prompt,
                 approval_profile=getattr(args, "approval_profile", None),
+                config=config,
             )
         )
     except Exception as exc:
@@ -1295,13 +1225,10 @@ def _is_serve_intent(args: argparse.Namespace) -> bool:
 
 def run_security_audit_command(args: argparse.Namespace) -> None:
     """Run security audit command."""
-    from .config import Config
     from .security.audit import format_security_audit_report, run_security_audit
 
-    try:
-        config = Config.load()
-    except Exception as exc:
-        print(f"{Colors.RED}[X] Failed to load configuration: {exc}{Colors.RESET}")
+    config = _load_cli_entry_config_or_report()
+    if config is None:
         return
 
     if args.approval_profile:
@@ -1321,13 +1248,10 @@ def run_security_audit_command(args: argparse.Namespace) -> None:
 
 def run_doctor_command(args: argparse.Namespace) -> None:
     """Run operational diagnostics command."""
-    from .config import Config
     from .ops.doctor import format_doctor_report, run_doctor
 
-    try:
-        config = Config.load()
-    except Exception as exc:
-        print(f"{Colors.RED}[X] Failed to load configuration: {exc}{Colors.RESET}")
+    config = _load_cli_entry_config_or_report()
+    if config is None:
         return
 
     workspace = (
@@ -1367,13 +1291,10 @@ def run_replay_log_command(args: argparse.Namespace) -> None:
 
 def run_prune_logs_command(args: argparse.Namespace) -> None:
     """Prune run logs with configured or override retention policy."""
-    from .config import Config
     from .logger import AgentLogger, EventLogRetentionPolicy
 
-    try:
-        config = Config.load()
-    except Exception as exc:
-        print(f"{Colors.RED}[X] Failed to load configuration: {exc}{Colors.RESET}")
+    config = _load_cli_entry_config_or_report()
+    if config is None:
         return
 
     base = config.observability
@@ -1463,12 +1384,10 @@ def run_prune_export_jobs_command(args: argparse.Namespace) -> None:
 
     log_dir = args.path
     if not log_dir:
-        try:
-            from .config import Config
-
-            config = Config.load()
+        config = _load_cli_entry_config_or_report(report_errors=False)
+        if config is not None:
             log_dir = config.observability.log_dir
-        except Exception:
+        else:
             log_dir = "~/.mini-agent/log"
 
     ttl_seconds = None
@@ -1548,11 +1467,16 @@ def run_models_command(args: argparse.Namespace) -> None:
     import asyncio
     import os
 
-    from mini_agent.model_manager.preset_providers import list_preset_providers
+    load_local_env_files()
+
+    from mini_agent.model_manager.preset_providers import (
+        PresetProvider,
+        get_preset_provider_config,
+        list_preset_providers,
+    )
     from mini_agent.model_manager.model_discovery import (
         list_available_models,
         get_latest_model_id,
-        ProviderType,
     )
 
     # List preset providers
@@ -1581,18 +1505,27 @@ def run_models_command(args: argparse.Namespace) -> None:
     if not args.provider:
         print(f"{Colors.RED}Error: provider argument is required{Colors.RESET}")
         print("Usage: mini-agent models <provider>")
-        print("Providers: openai, anthropic, gemini, minimax")
+        print("Providers: openai, anthropic, minimax, ollama")
         print("\nTo list preset providers: mini-agent models --list-presets")
         return
 
     provider = args.provider.lower()
+    active_provider_names = {"openai", "anthropic", "minimax", "ollama"}
+    ollama_enabled = (
+        str(os.getenv("MINI_AGENT_OLLAMA_ENABLED") or os.getenv("MINI_AGENT_ENABLE_OLLAMA") or "")
+        .strip()
+        .lower()
+        in {"1", "true", "yes", "on"}
+    )
+    ollama_host = (
+        str(os.getenv("OLLAMA_HOST") or os.getenv("MINI_AGENT_OLLAMA_BASE_URL") or "").strip()
+        or "http://localhost:11434"
+    )
 
     # Validate provider
-    try:
-        ProviderType(provider)
-    except ValueError:
+    if provider not in active_provider_names:
         print(f"{Colors.RED}Unknown provider: {provider}{Colors.RESET}")
-        print(f"Supported providers: {', '.join([p.value for p in ProviderType])}")
+        print(f"Supported providers: {', '.join(sorted(active_provider_names))}")
         return
 
     # Get API key
@@ -1602,16 +1535,34 @@ def run_models_command(args: argparse.Namespace) -> None:
         env_key_map = {
             "openai": "OPENAI_API_KEY",
             "anthropic": "ANTHROPIC_API_KEY",
-            "gemini": "GEMINI_API_KEY",
             "minimax": "MINIMAX_API_KEY",
         }
         env_key = env_key_map.get(provider)
         if env_key:
             api_key = os.getenv(env_key)
+        elif provider == "ollama":
+            preset = get_preset_provider_config(
+                PresetProvider.OLLAMA,
+                use_latest_model=False,
+            )
+            if preset:
+                api_key = str(preset["api_key"])
+                if not args.api_base:
+                    args.api_base = str(preset["api_base"])
 
         if not api_key:
             print(f"{Colors.RED}Error: No API key provided.{Colors.RESET}")
-            print(f"Set {env_key} environment variable or use --api-key")
+            if provider == "ollama":
+                if ollama_enabled:
+                    print(
+                        "Ollama is enabled, but the local daemon is not reachable "
+                        f"or no models were discovered at {ollama_host}"
+                    )
+                else:
+                    print("Enable local Ollama with MINI_AGENT_OLLAMA_ENABLED=1")
+                print("Optional host override: OLLAMA_HOST=http://localhost:11434")
+            else:
+                print(f"Set {env_key} environment variable or use --api-key")
             return
 
     try:
@@ -1829,13 +1780,16 @@ def run_provider_command(args: argparse.Namespace) -> None:
                 provider_type_map = {
                     "openai": ProviderType.OPENAI,
                     "anthropic": ProviderType.ANTHROPIC,
-                    "gemini": ProviderType.GEMINI,
-                    "minimax": ProviderType.MINIMAX,
-                    "custom": ProviderType.OPENAI,
+                    "ollama": ProviderType.OLLAMA,
                 }
                 provider_type = provider_type_map.get(args.type, ProviderType.OPENAI)
                 endpoint = args.url.rstrip("/")
-                if not endpoint.endswith("/models"):
+                if provider_type == ProviderType.OLLAMA:
+                    if endpoint.endswith("/v1"):
+                        endpoint = f"{endpoint}/models"
+                    elif not endpoint.endswith("/v1/models"):
+                        endpoint = f"{endpoint}/v1/models"
+                elif not endpoint.endswith("/models"):
                     endpoint = f"{endpoint}/models"
 
                 service = ModelDiscoveryService()
@@ -2053,130 +2007,6 @@ def run_list_command(args: argparse.Namespace) -> None:
         print()
 
 
-def run_dev_command(args: argparse.Namespace) -> None:
-    """Run Studio dev process manager command."""
-    from .dev import StudioDevManager
-
-    repo_root = Path(__file__).resolve().parents[1]
-    manager = StudioDevManager(repo_root=repo_root)
-    action = args.action
-
-    try:
-        if action == "profile":
-            if args.init_profile:
-                path = manager.ensure_profile_template(args.profile)
-                print(f"{Colors.GREEN}Profile template ensured.{Colors.RESET}")
-                print(f"  profile: {args.profile}")
-                print(f"  file: {path}")
-            profile = manager.resolve_profile(
-                profile_name=args.profile,
-                host=args.host,
-                gateway_port=args.gateway_port,
-                frontend_port=args.frontend_port,
-                backend_reload=args.backend_reload,
-                startup_timeout=args.startup_timeout,
-                ensure_exists=args.init_profile,
-            )
-            payload = manager.profile_to_dict(profile)
-            print(f"Profile: {payload['name']}")
-            print(f"  source: {payload['source']}")
-            print(f"  desc: {payload['description']}")
-            print(f"  backend:  http://{payload['host']}:{payload['gateway_port']}")
-            print(f"  frontend: http://{payload['host']}:{payload['frontend_port']}")
-            print(f"  backend_reload: {payload['backend_reload']}")
-            print(f"  startup_timeout: {payload['startup_timeout']}")
-            if args.show_json:
-                print(json.dumps(payload, ensure_ascii=False, indent=2))
-            return
-
-        if action == "up":
-            status = manager.up(
-                profile_name=args.profile,
-                host=args.host,
-                gateway_port=args.gateway_port,
-                frontend_port=args.frontend_port,
-                backend_reload=args.backend_reload,
-                frontend_install=bool(args.frontend_install),
-                startup_timeout=args.startup_timeout,
-            )
-            print(f"{Colors.GREEN}Studio dev stack is running.{Colors.RESET}")
-            print(
-                f"  backend:  http://{status.host}:{status.gateway_port} (PID {status.backend_pid})"
-            )
-            print(
-                f"  frontend: http://{status.host}:{status.frontend_port} (PID {status.frontend_pid})"
-            )
-            if status.profile_name:
-                print(f"  profile: {status.profile_name}")
-            if status.profile_source:
-                print(f"  profile_source: {status.profile_source}")
-            print(f"  state: {status.state_file}")
-            print(f"  logs:  {status.backend_log} | {status.frontend_log}")
-            return
-
-        if action == "down":
-            status = manager.down(force=bool(args.force))
-            print(f"{Colors.GREEN}Studio dev stack stopped.{Colors.RESET}")
-            if status.message:
-                print(f"  {status.message}")
-            print(f"  state: {status.state_file}")
-            return
-
-        if action == "status":
-            status = manager.status()
-            overall = (
-                f"{Colors.GREEN}running{Colors.RESET}"
-                if status.running
-                else f"{Colors.YELLOW}stopped{Colors.RESET}"
-            )
-            backend = (
-                f"{Colors.GREEN}running{Colors.RESET} (PID {status.backend_pid})"
-                if status.backend_running
-                else f"{Colors.YELLOW}stopped{Colors.RESET}"
-            )
-            frontend = (
-                f"{Colors.GREEN}running{Colors.RESET} (PID {status.frontend_pid})"
-                if status.frontend_running
-                else f"{Colors.YELLOW}stopped{Colors.RESET}"
-            )
-            print(f"Studio dev status: {overall}")
-            print(f"  backend:  {backend} @ http://{status.host}:{status.gateway_port}")
-            print(f"  frontend: {frontend} @ http://{status.host}:{status.frontend_port}")
-            if status.profile_name:
-                print(f"  profile: {status.profile_name}")
-            if status.profile_source:
-                print(f"  profile_source: {status.profile_source}")
-            print(f"  state: {status.state_file}")
-            print(f"  logs:  {status.backend_log} | {status.frontend_log}")
-            if status.message:
-                print(f"  note: {status.message}")
-            return
-
-        if action == "logs":
-            if args.follow:
-                print(
-                    f"{Colors.CYAN}Following {args.target} logs (Ctrl+C to stop)...{Colors.RESET}"
-                )
-                try:
-                    manager.follow_logs(target=args.target)
-                except KeyboardInterrupt:
-                    print()
-                return
-            payload = manager.read_logs(target=args.target, lines=max(1, int(args.lines)))
-            if "backend" in payload:
-                print("===== backend.log =====")
-                print_safe_text(payload["backend"] or "(empty)")
-            if "frontend" in payload:
-                print("===== frontend.log =====")
-                print_safe_text(payload["frontend"] or "(empty)")
-            return
-
-        raise RuntimeError(f"Unsupported dev action: {action}")
-    except RuntimeError as exc:
-        print(f"{Colors.RED}Error: {exc}{Colors.RESET}")
-        raise SystemExit(1) from exc
-
-
 def run_stack_command(args: argparse.Namespace) -> None:
     """Run runtime stack manager command."""
     from .dev import RuntimeStackManager
@@ -2296,7 +2126,7 @@ def run_desktop_command(args: argparse.Namespace) -> None:
 
 
 def run_qq_command(args: argparse.Namespace) -> None:
-    """Shortcut command for gateway + qqbot + TUI startup."""
+    """Shortcut command for gateway + the active QQ remote adapter + TUI startup."""
     action = getattr(args, "action", "up")
     run_stack_command(
         argparse.Namespace(
@@ -2349,8 +2179,6 @@ def main() -> None:
         run_prune_export_jobs_command(args)
     elif args.command == "consolidate-memory":
         run_consolidate_memory_command(args)
-    elif args.command == "dev":
-        run_dev_command(args)
     elif args.command == "stack":
         run_stack_command(args)
     elif args.command == "qq":
@@ -2363,7 +2191,6 @@ def main() -> None:
             run_gateway_mode(args)
             return
         run_unified_terminal_mode(args)
-
 
 if __name__ == "__main__":
     main()
