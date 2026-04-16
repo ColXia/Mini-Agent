@@ -6,7 +6,7 @@ import pytest
 import yaml
 
 from mini_agent.config import Config
-from mini_agent.llm import LLMClient
+from mini_agent.llm import LLMClient, build_protocol_execution_profile
 from mini_agent.schema import LLMProvider, Message
 
 pytestmark = [
@@ -27,6 +27,21 @@ def _load_raw_config() -> dict:
         return yaml.safe_load(f)
 
 
+def _build_wrapper_client(
+    config: dict,
+    *,
+    provider: LLMProvider = LLMProvider.ANTHROPIC,
+    api_base: str | None = None,
+):
+    profile = build_protocol_execution_profile(
+        api_key=config["api_key"],
+        provider=provider,
+        api_base=api_base or config.get("api_base") or "https://api.minimaxi.com",
+        model=config.get("model") or "MiniMax-M2.5",
+    )
+    return LLMClient(profile=profile)
+
+
 @pytest.mark.asyncio
 async def test_wrapper_anthropic_provider():
     """Test LLM wrapper with Anthropic provider."""
@@ -36,11 +51,10 @@ async def test_wrapper_anthropic_provider():
     config = _load_raw_config()
 
     # Create client with Anthropic provider
-    client = LLMClient(
-        api_key=config["api_key"],
+    client = _build_wrapper_client(
+        config,
         provider=LLMProvider.ANTHROPIC,
         api_base=config.get("api_base"),
-        model=config.get("model"),
     )
 
     assert client.provider == LLMProvider.ANTHROPIC
@@ -81,10 +95,9 @@ async def test_wrapper_openai_provider():
     config = _load_raw_config()
 
     # Create client with OpenAI provider
-    client = LLMClient(
-        api_key=config["api_key"],
+    client = _build_wrapper_client(
+        config,
         provider=LLMProvider.OPENAI,
-        model=config.get("model"),
     )
 
     assert client.provider == LLMProvider.OPENAI
@@ -125,10 +138,7 @@ async def test_wrapper_default_provider():
     config = _load_raw_config()
 
     # Create client without specifying provider (should default to Anthropic)
-    client = LLMClient(
-        api_key=config["api_key"],
-        model=config.get("model"),
-    )
+    client = _build_wrapper_client(config)
 
     assert client.provider == LLMProvider.ANTHROPIC
     print("✅ Default provider is Anthropic")
@@ -144,10 +154,9 @@ async def test_wrapper_tool_calling():
     config = _load_raw_config()
 
     # Create client with Anthropic provider
-    client = LLMClient(
-        api_key=config["api_key"],
+    client = _build_wrapper_client(
+        config,
         provider=LLMProvider.ANTHROPIC,
-        model=config.get("model"),
     )
 
     # Messages requesting tool use

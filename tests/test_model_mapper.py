@@ -58,6 +58,25 @@ def test_map_model_for_provider_exact_partial_and_fallback():
     assert fallback.selected_model == "gpt-4o"
 
 
+def test_map_model_for_provider_skips_fallback_for_explicit_request():
+    provider = _provider(
+        provider_id="p1",
+        name="P1",
+        api_type="openai",
+        base="https://p1.example.com/v1",
+        key="sk-p1",
+        models=["gpt-4o", "gpt-4o-mini"],
+    )
+
+    explicit_miss = map_model_for_provider(
+        provider,
+        "unknown-model",
+        route_intent="explicit",
+    )
+
+    assert explicit_miss is None
+
+
 def test_provider_route_selector_prefers_mapping_quality_then_priority():
     catalog = ProviderCatalog(
         providers=[
@@ -301,3 +320,29 @@ def test_provider_route_selector_filters_known_undersized_context_window():
     )
 
     assert [route.provider.id for route in ranked] == ["large"]
+
+
+def test_provider_route_selector_raises_for_explicit_miss():
+    catalog = ProviderCatalog(
+        providers=[
+            _provider(
+                provider_id="p1",
+                name="P1",
+                api_type="openai",
+                base="https://p1.example.com/v1",
+                key="sk-p1",
+                models=["gpt-4o", "gpt-4o-mini"],
+            ),
+        ]
+    )
+    selector = ProviderRouteSelector(catalog)
+
+    try:
+        selector.rank(
+            requested_model="unknown-model",
+            route_intent="explicit",
+        )
+    except ValueError as exc:
+        assert "explicit requested model 'unknown-model'" in str(exc)
+    else:  # pragma: no cover - defensive
+        raise AssertionError("Expected explicit routing miss to raise ValueError")

@@ -4,32 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-import os
 from threading import RLock
 from typing import Any
-
-
-def _parse_bool(value: str | None, *, default: bool) -> bool:
-    if value is None:
-        return default
-    normalized = value.strip().lower()
-    if normalized in {"1", "true", "yes", "on"}:
-        return True
-    if normalized in {"0", "false", "no", "off"}:
-        return False
-    return default
-
-
-def _parse_int(value: str | None) -> int | None:
-    if value is None:
-        return None
-    try:
-        parsed = int(value.strip())
-    except Exception:
-        return None
-    if parsed <= 0:
-        return None
-    return parsed
 
 
 def _to_text(value: Any) -> str:
@@ -59,13 +35,6 @@ def _to_text_blocks(content: Any) -> list[dict[str, Any]]:
     if not text:
         return []
     return [{"type": "text", "text": text}]
-
-
-def _is_minimax_endpoint(api_base: str | None) -> bool:
-    if not api_base:
-        return False
-    lowered = api_base.lower()
-    return "api.minimax.io" in lowered or "api.minimaxi.com" in lowered
 
 
 def _inject_cache_control(blocks: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
@@ -193,39 +162,24 @@ def _record_protocol_conversion(kind: str) -> None:
 
 @dataclass(frozen=True)
 class RequestRectifierOptions:
-    """Rectifier options loaded from env (minimal and provider-agnostic)."""
+    """Rectifier options (minimal and provider-agnostic)."""
 
     enabled: bool = True
-    thinking_budget_tokens: int | None = None
     cache_injection: bool = True
     strip_thinking_signature: bool = True
-
-    @staticmethod
-    def from_env() -> "RequestRectifierOptions":
-        return RequestRectifierOptions(
-            enabled=_parse_bool(os.getenv("MINI_AGENT_RECTIFIER_ENABLED"), default=True),
-            thinking_budget_tokens=_parse_int(os.getenv("MINI_AGENT_THINKING_BUDGET_TOKENS")),
-            cache_injection=_parse_bool(os.getenv("MINI_AGENT_RECTIFIER_CACHE_INJECTION"), default=True),
-            strip_thinking_signature=_parse_bool(
-                os.getenv("MINI_AGENT_RECTIFIER_STRIP_THINKING_SIGNATURE"),
-                default=True,
-            ),
-        )
 
 
 def rectify_openai_request(
     params: dict[str, Any],
     *,
-    api_base: str | None = None,
     options: RequestRectifierOptions | None = None,
 ) -> dict[str, Any]:
     """Normalize OpenAI-format request payload."""
-    resolved = options or RequestRectifierOptions.from_env()
+    resolved = options or RequestRectifierOptions()
     if not resolved.enabled:
         return dict(params)
 
     output = dict(params)
-    thinking_budget_injected = False
     messages_raw = output.get("messages", [])
     normalized_messages: list[dict[str, Any]] = []
     if isinstance(messages_raw, list):
@@ -250,17 +204,8 @@ def rectify_openai_request(
             normalized_messages.append(message)
     output["messages"] = normalized_messages
 
-    if resolved.thinking_budget_tokens and _is_minimax_endpoint(api_base):
-        extra_body_raw = output.get("extra_body")
-        extra_body = dict(extra_body_raw) if isinstance(extra_body_raw, dict) else {}
-        if "thinking_budget" not in extra_body:
-            extra_body["thinking_budget"] = resolved.thinking_budget_tokens
-            thinking_budget_injected = True
-        output["extra_body"] = extra_body
-
     _record_rectify(
         "openai",
-        thinking_budget_injected=thinking_budget_injected,
     )
     return output
 
@@ -271,21 +216,13 @@ def rectify_anthropic_request(
     options: RequestRectifierOptions | None = None,
 ) -> dict[str, Any]:
     """Normalize Anthropic-format request payload."""
-    resolved = options or RequestRectifierOptions.from_env()
+    resolved = options or RequestRectifierOptions()
     if not resolved.enabled:
         return dict(params)
 
     output = dict(params)
-    thinking_budget_injected = False
     cache_injection_count = 0
     signature_strip_count = 0
-
-    if resolved.thinking_budget_tokens:
-        output["thinking"] = {
-            "type": "enabled",
-            "budget_tokens": resolved.thinking_budget_tokens,
-        }
-        thinking_budget_injected = True
 
     system_message = output.get("system")
     if isinstance(system_message, str):
@@ -351,7 +288,6 @@ def rectify_anthropic_request(
     output["messages"] = normalized_messages
     _record_rectify(
         "anthropic",
-        thinking_budget_injected=thinking_budget_injected,
         cache_injections=cache_injection_count,
         signature_strips=signature_strip_count,
     )
