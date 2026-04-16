@@ -1,13 +1,16 @@
-"""Test cases for Agent."""
+"""Live integration tests for the agent-core engine."""
 
 import asyncio
 import os
+from pathlib import Path
 import tempfile
 import pytest
 
 from mini_agent import LLMClient
-from mini_agent.agent import Agent
+from mini_agent.agent_core.engine import Agent
 from mini_agent.config import Config
+from mini_agent.llm import build_protocol_execution_profile
+from mini_agent.schema import LLMProvider
 from mini_agent.tools import BashTool, EditTool, ReadTool, WriteTool
 
 pytestmark = [
@@ -34,6 +37,16 @@ def _load_system_prompt() -> str:
     return "You are a helpful AI assistant that can use tools."
 
 
+def _build_live_llm_client(config: Config) -> LLMClient:
+    profile = build_protocol_execution_profile(
+        api_key=config.llm.api_key,
+        provider=LLMProvider(config.llm.provider),
+        api_base=config.llm.api_base,
+        model=config.llm.model,
+    )
+    return LLMClient(profile=profile)
+
+
 @pytest.mark.asyncio
 async def test_agent_simple_task():
     """Test agent with a simple file creation task."""
@@ -48,11 +61,7 @@ async def test_agent_simple_task():
         system_prompt = _load_system_prompt()
 
         # Initialize LLM client
-        llm_client = LLMClient(
-            api_key=config.llm.api_key,
-            api_base=config.llm.api_base,
-            model=config.llm.model,
-        )
+        llm_client = _build_live_llm_client(config)
 
         # Initialize tools
         tools = [
@@ -88,21 +97,21 @@ async def test_agent_simple_task():
             test_file = Path(workspace_dir) / "test.txt"
             if test_file.exists():
                 content = test_file.read_text()
-                print("\n✅ File created successfully!")
+                print("\n鉁?File created successfully!")
                 print(f"Content: {content}")
 
                 if "Hello from Agent!" in content:
-                    print("✅ Content is correct!")
+                    print("鉁?Content is correct!")
                     return True
                 else:
-                    print(f"⚠️  Content mismatch: {content}")
+                    print(f"鈿狅笍  Content mismatch: {content}")
                     return True  # Still count as success, agent did create the file
             else:
-                print("⚠️  File was not created, but agent completed")
+                print("鈿狅笍  File was not created, but agent completed")
                 return True  # Agent might have completed differently
 
         except Exception as e:
-            print(f"❌ Agent test failed: {e}")
+            print(f"鉂?Agent test failed: {e}")
             import traceback
 
             traceback.print_exc()
@@ -123,11 +132,7 @@ async def test_agent_bash_task():
         system_prompt = _load_system_prompt()
 
         # Initialize LLM client
-        llm_client = LLMClient(
-            api_key=config.llm.api_key,
-            api_base=config.llm.api_base,
-            model=config.llm.model,
-        )
+        llm_client = _build_live_llm_client(config)
 
         # Initialize tools
         tools = [
@@ -158,11 +163,11 @@ async def test_agent_bash_task():
             print(f"Agent Result: {result}")
             print("=" * 80)
 
-            print("\n✅ Bash task completed!")
+            print("\n鉁?Bash task completed!")
             return True
 
         except Exception as e:
-            print(f"❌ Bash task failed: {e}")
+            print(f"鉂?Bash task failed: {e}")
             import traceback
 
             traceback.print_exc()
@@ -185,7 +190,7 @@ async def main():
 
     print("\n" + "=" * 80)
     if result1 and result2:
-        print("All Agent tests passed! ✅")
+        print("All Agent tests passed!")
     else:
         print("Some Agent tests failed. Check the output above.")
     print("=" * 80)
