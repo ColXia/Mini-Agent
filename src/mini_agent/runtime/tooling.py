@@ -128,6 +128,7 @@ def add_workspace_tools(
     from mini_agent.tools.bash_tool import BashKillTool, BashOutputTool, BashTool
     from mini_agent.tools.docling_parse import DoclingParseTool
     from mini_agent.tools.file_tools import EditTool, ReadTool, WriteTool
+    from mini_agent.model_manager.feature_runtime import FeatureModelRuntime
     from mini_agent.tools.knowledge_base import KnowledgeBaseQueryTool
     from mini_agent.tools.note_tool import RecallNoteTool, SessionNoteTool
     from mini_agent.tools.user_modeling import UserModelingTool
@@ -138,6 +139,9 @@ def add_workspace_tools(
         workspace_dir,
         policy_engine=policy_engine,
     )
+    feature_runtime = FeatureModelRuntime()
+    embedding_provider = feature_runtime.get_embedding_provider()
+    ocr_adapter = feature_runtime.get_docling_ocr_adapter()
 
     if config.tools.enable_bash and is_allowed("bash"):
         tools.append(
@@ -159,15 +163,27 @@ def add_workspace_tools(
     if config.tools.enable_file_tools and is_allowed("edit_file"):
         tools.append(EditTool(workspace_dir=str(workspace_dir)))
     if config.tools.enable_file_tools and is_allowed("docling_parse"):
-        tools.append(DoclingParseTool())
+        from mini_agent.tools.docling_parse import DoclingParser
+
+        tools.append(DoclingParseTool(parser=DoclingParser(ocr_adapter=ocr_adapter)))
 
     if getattr(config.tools, "enable_knowledge_base", True) and is_allowed("knowledge_base_query"):
-        tools.append(KnowledgeBaseQueryTool(workspace_dir=workspace_dir))
+        tools.append(
+            KnowledgeBaseQueryTool(
+                workspace_dir=workspace_dir,
+                embedding_provider=embedding_provider,
+            )
+        )
 
     if config.tools.enable_note and is_allowed("record_note"):
         tools.append(SessionNoteTool(memory_root=str(workspace_dir)))
     if config.tools.enable_note and is_allowed("recall_notes"):
-        tools.append(RecallNoteTool(memory_root=str(workspace_dir)))
+        tools.append(
+            RecallNoteTool(
+                memory_root=str(workspace_dir),
+                embedding_provider=embedding_provider,
+            )
+        )
     if config.tools.enable_note and is_allowed("user_modeling"):
         tools.append(UserModelingTool(memory_root=str(workspace_dir)))
 

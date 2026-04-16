@@ -8,11 +8,21 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from mini_agent.model_manager.feature_runtime import FeatureModelRuntime
 from mini_agent.tools.docling_parse import DoclingParser
 
 
 router = APIRouter(prefix="/api/document-parser", tags=["Document Parser"])
 _PARSER = DoclingParser()
+
+
+def _configure_runtime_parser() -> DoclingParser:
+    try:
+        ocr_adapter = FeatureModelRuntime().get_docling_ocr_adapter()
+    except Exception:
+        ocr_adapter = None
+    _PARSER.set_ocr_adapter(ocr_adapter)
+    return _PARSER
 
 
 class ParseRequest(BaseModel):
@@ -34,7 +44,7 @@ class BatchParseRequest(BaseModel):
 @router.post("/parse")
 async def parse_document(request: ParseRequest) -> dict[str, Any]:
     try:
-        result = _PARSER.parse_file(
+        result = _configure_runtime_parser().parse_file(
             path=request.path,
             output_format=request.output_format,
             enable_ocr=request.enable_ocr,
@@ -67,7 +77,7 @@ async def parse_document_batch(request: BatchParseRequest) -> dict[str, Any]:
             )
             continue
         try:
-            result = _PARSER.parse_file(
+            result = _configure_runtime_parser().parse_file(
                 path=path_text,
                 output_format=request.output_format,
                 enable_ocr=request.enable_ocr,

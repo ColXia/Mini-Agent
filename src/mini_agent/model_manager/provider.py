@@ -22,6 +22,15 @@ class ProviderAPIType(str, Enum):
     ANTHROPIC = "anthropic"
 
 
+class ModelRole(str, Enum):
+    """Logical model roles surfaced to upper runtime layers."""
+
+    CHAT = "chat"
+    EMBEDDING = "embedding"
+    OCR = "ocr"
+    UNCLASSIFIED = "unclassified"
+
+
 def _normalize_text(value: str) -> str:
     return " ".join(value.strip().split())
 
@@ -54,6 +63,35 @@ def normalize_provider_api_type(
             "providers or 'anthropic' for Anthropic-compatible providers."
         )
     raise ValueError("api_type must be one of: openai, anthropic.")
+
+
+def normalize_model_role(
+    value: Any,
+    *,
+    allow_unclassified: bool = True,
+) -> ModelRole:
+    """Normalize one model role.
+
+    The maintained role taxonomy is explicit so upper layers can separate
+    normal chat models from feature models such as embedding and OCR.
+    """
+
+    if isinstance(value, ModelRole):
+        return value
+
+    normalized = _normalize_text(str(value or "")).lower()
+    if normalized == ModelRole.CHAT.value:
+        return ModelRole.CHAT
+    if normalized == ModelRole.EMBEDDING.value:
+        return ModelRole.EMBEDDING
+    if normalized == ModelRole.OCR.value:
+        return ModelRole.OCR
+    if normalized == ModelRole.UNCLASSIFIED.value and allow_unclassified:
+        return ModelRole.UNCLASSIFIED
+    allowed = "chat, embedding, ocr"
+    if allow_unclassified:
+        allowed = f"{allowed}, unclassified"
+    raise ValueError(f"model_role must be one of: {allowed}.")
 
 
 def _slugify(value: str) -> str:
@@ -166,6 +204,15 @@ def _normalize_model_metadata(value: dict[str, Any]) -> dict[str, dict[str, Any]
         for inner_key, inner_val in raw_val.items():
             metadata_key = _normalize_text(str(inner_key))
             if not metadata_key:
+                continue
+            if metadata_key == "model_role":
+                try:
+                    cleaned[metadata_key] = normalize_model_role(
+                        inner_val,
+                        allow_unclassified=True,
+                    ).value
+                except ValueError:
+                    continue
                 continue
             if isinstance(inner_val, (str, int, float, bool)) or inner_val is None:
                 cleaned[metadata_key] = inner_val

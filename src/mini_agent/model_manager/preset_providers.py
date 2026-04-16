@@ -44,6 +44,8 @@ class PresetProviderConfig:
     api_type: str
     default_model: str
     models: list[str]
+    provider_family: str
+    provider_variant: str | None = None
     priority: int = 0
     bootstrap_priority: int = 0
     description: str = ""
@@ -83,6 +85,7 @@ PRESET_PROVIDERS: dict[PresetProvider, PresetProviderConfig] = {
         api_base="https://api.openai.com/v1",
         api_type="openai",
         default_model="gpt-5.4",
+        provider_family="openai",
         models=[
             "gpt-5.4",
             "gpt-5.3",
@@ -102,6 +105,7 @@ PRESET_PROVIDERS: dict[PresetProvider, PresetProviderConfig] = {
         api_base="https://api.anthropic.com",
         api_type="anthropic",
         default_model="claude-sonnet-4-6",
+        provider_family="anthropic",
         models=[
             "claude-sonnet-4-6",
             "claude-opus-4-1",
@@ -119,6 +123,8 @@ PRESET_PROVIDERS: dict[PresetProvider, PresetProviderConfig] = {
         api_base="https://api.minimaxi.com",
         api_type="anthropic",
         default_model="MiniMax-M2.7",
+        provider_family="anthropic",
+        provider_variant="minimax",
         models=[
             "MiniMax-M2.7",
             "MiniMax-M2.5",
@@ -137,6 +143,7 @@ PRESET_PROVIDERS: dict[PresetProvider, PresetProviderConfig] = {
         api_base="http://localhost:11434",
         api_type="anthropic",
         default_model="qwen3-coder",
+        provider_family="ollama",
         models=[
             "qwen3-coder",
             "gpt-oss:20b",
@@ -600,6 +607,8 @@ def get_preset_provider_config(
     return {
         "id": f"preset-{provider.value}",
         "provider": provider.value,
+        "provider_family": config.provider_family,
+        "provider_variant": config.provider_variant,
         "name": config.name,
         "api_type": resolved_api_type,
         "api_base": resolved_api_base,
@@ -677,6 +686,8 @@ def list_preset_providers() -> list[dict[str, Any]]:
         result.append(
             {
                 "provider": provider.value,
+                "provider_family": config.provider_family,
+                "provider_variant": config.provider_variant,
                 "name": config.name,
                 "env_key": env_label,
                 "configured_env_key": configured_env_key,

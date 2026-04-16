@@ -5,13 +5,21 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from fastapi import HTTPException
 
 from mini_agent.interfaces import (
+    StudioFeatureModelBindingClearResponse,
+    StudioFeatureModelBindingRequest,
+    StudioFeatureModelBindingSummary,
+    StudioFeatureModelBindingsResponse,
+    StudioModelCapabilityProbeRequest,
+    StudioModelCapabilityProbeResponse,
     StudioModelDiscoverRequest,
     StudioModelListResponse,
     StudioModelProviderSummary,
+    StudioModelRoleRequest,
     StudioModelSelectionRequest,
     StudioProviderDeleteResponse,
     StudioProviderHealthResponse,
@@ -28,7 +36,8 @@ from mini_agent.model_manager import (
     normalize_provider_catalog,
     normalize_provider_config,
 )
-from mini_agent.model_manager.provider import normalize_provider_api_type
+from mini_agent.model_manager.provider import normalize_model_role, normalize_provider_api_type
+from mini_agent.model_manager.capability_probe import ModelCapabilityProbeService
 from mini_agent.model_manager.model_discovery import (
     ModelDiscoveryService,
     ProviderType,
@@ -106,6 +115,91 @@ class ProviderOperationsUseCases:
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(status_code=400, detail=f"failed to select model: {exc}") from exc
         return StudioModelProviderSummary.model_validate(item)
+
+    def set_model_role(
+        self,
+        *,
+        payload: StudioModelRoleRequest,
+        catalog_path: str | None,
+    ) -> StudioModelProviderSummary:
+        resolved_path = self._path_policy.resolve_provider_catalog_path(catalog_path)
+        service = ModelRegistryService(catalog_path=resolved_path)
+        try:
+            item = service.set_model_role(
+                source=payload.source,
+                provider_id=payload.provider_id,
+                model_id=payload.model_id,
+                model_role=payload.model_role,
+            )
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=400, detail=f"failed to set model role: {exc}") from exc
+        return StudioModelProviderSummary.model_validate(item)
+
+    def probe_model_capabilities(
+        self,
+        *,
+        payload: StudioModelCapabilityProbeRequest,
+        catalog_path: str | None,
+    ) -> StudioModelCapabilityProbeResponse:
+        resolved_path = self._path_policy.resolve_provider_catalog_path(catalog_path)
+        service = ModelCapabilityProbeService(catalog_path=resolved_path)
+        try:
+            item = service.probe_model(
+                source=payload.source,
+                provider_id=payload.provider_id,
+                model_id=payload.model_id,
+            )
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(
+                status_code=400,
+                detail=f"failed to probe model capabilities: {exc}",
+            ) from exc
+        return StudioModelCapabilityProbeResponse.model_validate(item)
+
+    def list_feature_bindings(
+        self,
+        *,
+        catalog_path: str | None,
+    ) -> StudioFeatureModelBindingsResponse:
+        resolved_path = self._path_policy.resolve_provider_catalog_path(catalog_path)
+        service = ModelRegistryService(catalog_path=resolved_path)
+        items = service.list_feature_bindings()
+        return StudioFeatureModelBindingsResponse(
+            items=[StudioFeatureModelBindingSummary.model_validate(item) for item in items]
+        )
+
+    def bind_feature_model(
+        self,
+        *,
+        payload: StudioFeatureModelBindingRequest,
+        catalog_path: str | None,
+    ) -> StudioFeatureModelBindingSummary:
+        resolved_path = self._path_policy.resolve_provider_catalog_path(catalog_path)
+        service = ModelRegistryService(catalog_path=resolved_path)
+        try:
+            item = service.bind_feature_model(
+                feature_role=payload.feature_role,
+                source=payload.source,
+                provider_id=payload.provider_id,
+                model_id=payload.model_id,
+            )
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=400, detail=f"failed to bind feature model: {exc}") from exc
+        return StudioFeatureModelBindingSummary.model_validate(item)
+
+    def clear_feature_model_binding(
+        self,
+        *,
+        feature_role: str,
+        catalog_path: str | None,
+    ) -> StudioFeatureModelBindingClearResponse:
+        resolved_path = self._path_policy.resolve_provider_catalog_path(catalog_path)
+        service = ModelRegistryService(catalog_path=resolved_path)
+        try:
+            item = service.clear_feature_model_binding(feature_role=feature_role)
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=400, detail=f"failed to clear feature model binding: {exc}") from exc
+        return StudioFeatureModelBindingClearResponse.model_validate(item)
 
     def discover_provider_models(
         self,
@@ -303,8 +397,24 @@ class ProviderOperationsUseCases:
         return result.get("value")
 
     @staticmethod
-    def _to_discovery_provider_type(api_type: str) -> ProviderType:
+    def _looks_like_ollama_endpoint(api_base: str) -> bool:
+        normalized = " ".join((api_base or "").strip().split())
+        if not normalized:
+            return False
+        try:
+            parsed = urlsplit(normalized)
+        except Exception:
+            return "11434" in normalized
+        host = str(parsed.hostname or "").strip().lower()
+        if host in {"localhost", "127.0.0.1", "::1"} and parsed.port == 11434:
+            return True
+        return "11434" in normalized
+
+    @classmethod
+    def _to_discovery_provider_type(cls, api_type: str, api_base: str | None = None) -> ProviderType:
         normalized = normalize_provider_api_type(api_type).value
+        if normalized == "openai" and cls._looks_like_ollama_endpoint(api_base or ""):
+            return ProviderType.OLLAMA
         if normalized == "openai":
             return ProviderType.OPENAI
         if normalized == "anthropic":
@@ -315,7 +425,7 @@ class ProviderOperationsUseCases:
         base = api_base.rstrip("/")
         if base.endswith("/models"):
             return base
-        if self._to_discovery_provider_type(api_type) == ProviderType.OLLAMA:
+        if self._to_discovery_provider_type(api_type, api_base) == ProviderType.OLLAMA:
             if base.endswith("/v1"):
                 return f"{base}/models"
             return f"{base}/v1/models"
@@ -329,7 +439,7 @@ class ProviderOperationsUseCases:
         api_key: str,
     ) -> tuple[list[str], str | None]:
         service = ModelDiscoveryService()
-        provider_type = self._to_discovery_provider_type(api_type)
+        provider_type = self._to_discovery_provider_type(api_type, api_base)
         endpoint = self._build_models_endpoint(api_base, api_type)
         import asyncio
 
@@ -365,6 +475,8 @@ class ProviderOperationsUseCases:
         prepared["api_type"] = normalize_provider_api_type(prepared.get("api_type")).value
         model_id = self._path_policy.normalize_text(payload.model_id)
         model_display_name = self._path_policy.normalize_text(payload.model_display_name)
+        model_role = self._path_policy.normalize_text(payload.model_role)
+        selected_model_id = self._path_policy.normalize_text(payload.selected_model_id)
 
         models = [self._path_policy.normalize_text(item) for item in prepared.get("models", [])]
         models = [item for item in models if item]
@@ -373,6 +485,24 @@ class ProviderOperationsUseCases:
             for key, value in prepared.get("model_display_names", {}).items()
             if self._path_policy.normalize_text(str(key)) and self._path_policy.normalize_text(str(value))
         }
+        model_context_windows = {
+            self._path_policy.normalize_text(str(key)): int(value)
+            for key, value in prepared.get("model_context_windows", {}).items()
+            if self._path_policy.normalize_text(str(key)) and int(value) > 0
+        }
+        model_learned_token_limits = {
+            self._path_policy.normalize_text(str(key)): int(value)
+            for key, value in prepared.get("model_learned_token_limits", {}).items()
+            if self._path_policy.normalize_text(str(key)) and int(value) > 0
+        }
+        model_metadata = self._sanitize_model_metadata(prepared.get("model_metadata"))
+
+        for raw_key, raw_role in prepared.get("model_roles", {}).items():
+            normalized_model_id = self._path_policy.normalize_text(str(raw_key))
+            if not normalized_model_id:
+                continue
+            role = normalize_model_role(raw_role, allow_unclassified=True).value
+            model_metadata.setdefault(normalized_model_id, {})["model_role"] = role
 
         if model_id:
             models = [model_id, *[item for item in models if item != model_id]]
@@ -390,7 +520,7 @@ class ProviderOperationsUseCases:
                     status_code=400,
                     detail="no models discovered; provider not created",
                 )
-            selected = self._path_policy.normalize_text(payload.selected_model_id)
+            selected = selected_model_id
             if not selected:
                 raise HTTPException(
                     status_code=400,
@@ -407,6 +537,8 @@ class ProviderOperationsUseCases:
                 )
             models = [selected, *[item for item in discovered if item != selected]]
             model_display_names = {item: item for item in models}
+            if not model_id:
+                model_id = selected
 
         if not models:
             raise HTTPException(
@@ -414,13 +546,71 @@ class ProviderOperationsUseCases:
                 detail="provider requires at least one model; provider not created",
             )
 
+        target_model_id = model_id or selected_model_id
+        if target_model_id:
+            if target_model_id not in models:
+                models = [target_model_id, *[item for item in models if item != target_model_id]]
+            if model_display_name:
+                model_display_names[target_model_id] = model_display_name
+            if model_role:
+                model_metadata.setdefault(target_model_id, {})["model_role"] = normalize_model_role(
+                    model_role,
+                    allow_unclassified=True,
+                ).value
+            if payload.model_context_window is not None:
+                model_context_windows[target_model_id] = int(payload.model_context_window)
+            if payload.model_learned_token_limit is not None:
+                model_learned_token_limits[target_model_id] = int(payload.model_learned_token_limit)
+            if payload.supports_tools is not None:
+                model_metadata.setdefault(target_model_id, {})["supports_tools"] = bool(
+                    payload.supports_tools
+                )
+            if payload.supports_thinking is not None:
+                model_metadata.setdefault(target_model_id, {})["supports_thinking"] = bool(
+                    payload.supports_thinking
+                )
+
         prepared["models"] = models
         prepared["model_display_names"] = model_display_names
+        prepared["model_context_windows"] = model_context_windows
+        prepared["model_learned_token_limits"] = model_learned_token_limits
+        prepared["model_metadata"] = model_metadata
         prepared.pop("model_id", None)
         prepared.pop("model_display_name", None)
+        prepared.pop("model_role", None)
+        prepared.pop("model_roles", None)
+        prepared.pop("model_context_window", None)
+        prepared.pop("model_learned_token_limit", None)
+        prepared.pop("supports_tools", None)
+        prepared.pop("supports_thinking", None)
         prepared.pop("auto_discover_models", None)
         prepared.pop("selected_model_id", None)
         return prepared
+
+    def _sanitize_model_metadata(self, raw_metadata: Any) -> dict[str, dict[str, Any]]:
+        if not isinstance(raw_metadata, dict):
+            return {}
+        sanitized: dict[str, dict[str, Any]] = {}
+        for raw_key, raw_value in raw_metadata.items():
+            model_id = self._path_policy.normalize_text(str(raw_key))
+            if not model_id or not isinstance(raw_value, dict):
+                continue
+            cleaned: dict[str, Any] = {}
+            for raw_meta_key, raw_meta_value in raw_value.items():
+                meta_key = self._path_policy.normalize_text(str(raw_meta_key))
+                if not meta_key:
+                    continue
+                if meta_key == "model_role":
+                    cleaned[meta_key] = normalize_model_role(
+                        raw_meta_value,
+                        allow_unclassified=True,
+                    ).value
+                    continue
+                if isinstance(raw_meta_value, (str, int, float, bool)) or raw_meta_value is None:
+                    cleaned[meta_key] = raw_meta_value
+            if cleaned:
+                sanitized[model_id] = cleaned
+        return sanitized
 
     @staticmethod
     def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from mini_agent.rag import HybridSearchStore
 from mini_agent.rag.knowledge_base_runtime import resolve_knowledge_base_store_path
@@ -25,12 +25,14 @@ class KnowledgeBaseQueryTool(Tool):
         *,
         workspace_dir: str | Path = ".",
         store_path: str | Path | None = None,
+        embedding_provider: Any | Callable[[str], list[float]] | None = None,
         default_top_k: int = 5,
         max_top_k: int = 10,
         max_hit_chars: int = 260,
     ) -> None:
         self.workspace_dir = Path(workspace_dir).expanduser().resolve()
         self.store_path = Path(store_path).expanduser() if store_path is not None else None
+        self.embedding_provider = embedding_provider
         self.default_top_k = max(1, int(default_top_k))
         self.max_top_k = max(self.default_top_k, int(max_top_k))
         self.max_hit_chars = max(80, int(max_hit_chars))
@@ -109,7 +111,10 @@ class KnowledgeBaseQueryTool(Tool):
             )
 
         try:
-            store = HybridSearchStore(resolved_store)
+            store = HybridSearchStore(
+                resolved_store,
+                embedding_provider=self.embedding_provider,
+            )
             result = store.query(
                 query=normalized_query,
                 knowledge_base_id=kb_id,

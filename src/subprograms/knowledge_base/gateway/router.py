@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from mini_agent.rag import HybridSearchStore, rewrite_query
+from mini_agent.model_manager.feature_runtime import FeatureModelRuntime
 from subprograms.knowledge_base.config import KnowledgeBaseSettings
 from subprograms.knowledge_base.ingest_jobs import IngestJobQueue
 from mini_agent.tools.docling_parse import DoclingParser
@@ -21,6 +22,24 @@ _SETTINGS = KnowledgeBaseSettings.from_env()
 _STORE = HybridSearchStore(_SETTINGS.store_path)
 _PARSER = DoclingParser()
 _JOBS = IngestJobQueue(max_jobs=_SETTINGS.ingest_job_max_records)
+
+
+def _configure_runtime_store() -> HybridSearchStore:
+    try:
+        embedding_provider = FeatureModelRuntime().get_embedding_provider()
+    except Exception:
+        embedding_provider = None
+    _STORE.set_embedding_provider(embedding_provider)
+    return _STORE
+
+
+def _configure_runtime_parser() -> DoclingParser:
+    try:
+        ocr_adapter = FeatureModelRuntime().get_docling_ocr_adapter()
+    except Exception:
+        ocr_adapter = None
+    _PARSER.set_ocr_adapter(ocr_adapter)
+    return _PARSER
 
 
 class QueryRequest(BaseModel):
@@ -70,7 +89,8 @@ def _ingest_text_impl(request: IngestTextRequest) -> dict[str, Any]:
             f"content too large: {len(request.content)} chars, limit={_SETTINGS.ingest_max_content_chars}"
         )
     chunking = request.chunking or ChunkConfig()
-    result = _STORE.ingest_text(
+    store = _configure_runtime_store()
+    result = store.ingest_text(
         document_name=request.document_name,
         content=request.content,
         knowledge_base_id=request.knowledge_base_id,
@@ -87,7 +107,8 @@ def _ingest_text_impl(request: IngestTextRequest) -> dict[str, Any]:
 
 
 def _ingest_file_impl(request: IngestFileRequest) -> dict[str, Any]:
-    parsed = _PARSER.parse_file(
+    parser = _configure_runtime_parser()
+    parsed = parser.parse_file(
         path=request.path,
         output_format=request.output_format,
         enable_ocr=request.enable_ocr,
@@ -99,7 +120,8 @@ def _ingest_file_impl(request: IngestFileRequest) -> dict[str, Any]:
     resolved_name = request.document_name or Path(parsed.source_path).name
     source_suffix = Path(parsed.source_path).suffix
     chunking = request.chunking or ChunkConfig()
-    result = _STORE.ingest_text(
+    store = _configure_runtime_store()
+    result = store.ingest_text(
         document_name=resolved_name,
         content=parsed.content,
         knowledge_base_id=request.knowledge_base_id,
@@ -179,7 +201,8 @@ async def query_knowledge(request: QueryRequest) -> dict[str, Any]:
             if request.enable_query_rewrite
             else request.query
         )
-        result = _STORE.query(
+        store = _configure_runtime_store()
+        result = store.query(
             query=query_text,
             knowledge_base_id=request.knowledge_base_id,
             top_k=request.top_k,
@@ -228,7 +251,8 @@ async def query_knowledge_debug(request: QueryDebugRequest) -> dict[str, Any]:
             if request.enable_query_rewrite
             else request.query
         )
-        result = _STORE.query_debug(
+        store = _configure_runtime_store()
+        result = store.query_debug(
             query=query_text,
             knowledge_base_id=request.knowledge_base_id,
             top_k=request.top_k,
@@ -370,7 +394,7 @@ async def config() -> dict[str, Any]:
 async def rebuild_index(request: MaintenanceRequest) -> dict[str, Any]:
     start = perf_counter()
     try:
-        stats = _STORE.rebuild(knowledge_base_id=request.knowledge_base_id)
+        stats = _configure_runtime_store().rebuild(knowledge_base_id=request.knowledge_base_id)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(
             status_code=400, detail=f"{type(exc).__name__}: {exc}"
@@ -384,7 +408,7 @@ async def rebuild_index(request: MaintenanceRequest) -> dict[str, Any]:
 async def cleanup_index(request: MaintenanceRequest) -> dict[str, Any]:
     start = perf_counter()
     try:
-        stats = _STORE.cleanup(knowledge_base_id=request.knowledge_base_id)
+        stats = _configure_runtime_store().cleanup(knowledge_base_id=request.knowledge_base_id)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(
             status_code=400, detail=f"{type(exc).__name__}: {exc}"
@@ -396,7 +420,7 @@ async def cleanup_index(request: MaintenanceRequest) -> dict[str, Any]:
 
 @router.get("/stats")
 async def stats(knowledge_base_id: str | None = None) -> dict[str, Any]:
-    return {"status": "ok", **_STORE.stats(knowledge_base_id=knowledge_base_id)}
+    return {"status": "ok", **_configure_runtime_store().stats(knowledge_base_id=knowledge_base_id)}
 
 
 @router.get("/health")

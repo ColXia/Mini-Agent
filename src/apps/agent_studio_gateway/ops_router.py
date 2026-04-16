@@ -10,9 +10,16 @@ from fastapi import APIRouter, Depends, Query
 from mini_agent.application.operations_memory_use_cases import MemoryOperationsUseCases
 from mini_agent.application.operations_provider_use_cases import ProviderOperationsUseCases
 from mini_agent.interfaces import (
+    StudioFeatureModelBindingClearResponse,
+    StudioFeatureModelBindingRequest,
+    StudioFeatureModelBindingSummary,
+    StudioFeatureModelBindingsResponse,
+    StudioModelCapabilityProbeRequest,
+    StudioModelCapabilityProbeResponse,
     StudioModelDiscoverRequest,
     StudioModelListResponse,
     StudioModelProviderSummary,
+    StudioModelRoleRequest,
     StudioModelSelectionRequest,
     StudioMemoryDailyResponse,
     StudioMemorySearchResponse,
@@ -66,6 +73,54 @@ def create_ops_router(deps: OpsRouterDependencies) -> APIRouter:
     ) -> StudioModelProviderSummary:
         return deps.get_provider_operations_use_cases().select_model(
             payload=payload,
+            catalog_path=catalog_path,
+        )
+
+    @router.patch("/models/role", response_model=StudioModelProviderSummary)
+    async def set_ops_model_role(
+        payload: StudioModelRoleRequest,
+        catalog_path: str | None = Query(None),
+    ) -> StudioModelProviderSummary:
+        return deps.get_provider_operations_use_cases().set_model_role(
+            payload=payload,
+            catalog_path=catalog_path,
+        )
+
+    @router.post("/models/probe", response_model=StudioModelCapabilityProbeResponse)
+    async def probe_ops_model_capabilities(
+        payload: StudioModelCapabilityProbeRequest,
+        catalog_path: str | None = Query(None),
+    ) -> StudioModelCapabilityProbeResponse:
+        return deps.get_provider_operations_use_cases().probe_model_capabilities(
+            payload=payload,
+            catalog_path=catalog_path,
+        )
+
+    @router.get("/models/bindings", response_model=StudioFeatureModelBindingsResponse)
+    async def list_ops_model_bindings(
+        catalog_path: str | None = Query(None),
+    ) -> StudioFeatureModelBindingsResponse:
+        return deps.get_provider_operations_use_cases().list_feature_bindings(
+            catalog_path=catalog_path,
+        )
+
+    @router.put("/models/bindings", response_model=StudioFeatureModelBindingSummary)
+    async def bind_ops_feature_model(
+        payload: StudioFeatureModelBindingRequest,
+        catalog_path: str | None = Query(None),
+    ) -> StudioFeatureModelBindingSummary:
+        return deps.get_provider_operations_use_cases().bind_feature_model(
+            payload=payload,
+            catalog_path=catalog_path,
+        )
+
+    @router.delete("/models/bindings/{feature_role}", response_model=StudioFeatureModelBindingClearResponse)
+    async def clear_ops_feature_model_binding(
+        feature_role: str,
+        catalog_path: str | None = Query(None),
+    ) -> StudioFeatureModelBindingClearResponse:
+        return deps.get_provider_operations_use_cases().clear_feature_model_binding(
+            feature_role=feature_role,
             catalog_path=catalog_path,
         )
 

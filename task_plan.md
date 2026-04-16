@@ -12327,3 +12327,160 @@ Primary doc:
   - `p32b: drop legacy channel trees`
 - next likely hygiene slice:
   - `agent_studio` frontend removal plus the minimum gateway-host alignment needed to keep browser-static hosting out of the active tree
+
+## 2026-04-16 P41 Model Supply Consolidation And Feature-Role Runtime
+
+- goal:
+  - close the remaining gap between "configurable in principle" and "actually usable in real development" for model supply
+  - make the project safe to continue iterative feature work without reintroducing model/runtime chaos
+- product constraints confirmed with user:
+  - preset cloud suppliers keep only `openai` and `anthropic`
+  - `minimax` no longer exists as a top-level cloud family and instead lives under the `anthropic` protocol family as a sub-preset supplier
+  - local supplier support is limited to `ollama`
+  - custom supplier setup must support:
+    - quick setup: `base_url + api_key + model_id`
+    - advanced setup: explicit capability and runtime metadata
+  - feature-model roles are first-class and separate from chat:
+    - `chat`
+    - `embedding`
+    - `ocr`
+  - when no embedding model is bound, retrieval falls back to the existing BM25 hybrid strategy
+  - Ollama model management stays lightweight:
+    - project discovers local Ollama model ids
+    - user manually assigns model roles/bindings
+    - project does not try to "smart manage" local models
+  - capability facts must support both:
+    - explicit user input
+    - minimal quick probing when the user does not know the values
+  - current confirmed MaaS OpenAI-compatible base URL:
+    - `https://maas-coding-api.cn-huabei-1.xf-yun.com/v2`
+- execution slices:
+  - `P41.1` supplier taxonomy and model-role contract
+    - reduce preset cloud families to `openai` and `anthropic`
+    - re-home `minimax` under anthropic-family preset handling
+    - introduce durable model roles in provider/runtime contracts so `chat` vs `embedding` vs `ocr` selection is explicit
+    - acceptance:
+      - registry/runtime can distinguish chat-capable models from feature models
+      - chat selection surfaces stop treating embedding/ocr candidates as normal conversation defaults
+  - `P41.2` custom supplier quick/advanced config exposure
+    - extend ops/use-case/CLI contract so external provider upsert can carry:
+      - role
+      - display name
+      - context window
+      - learned/output token hints
+      - supports_tools
+      - supports_thinking
+      - metadata/headers/timeout/priority where already supported underneath
+    - acceptance:
+      - a user can register or update a custom provider without editing internals by hand
+      - advanced metadata survives round-trip through ops + CLI
+  - `P41.3` MaaS OpenAI preset migration and Ollama discovery/binding
+    - align current MaaS usage to OpenAI-family configuration with the confirmed `/v2` base
+    - keep current provider naming stable where practical to avoid state churn
+    - add or tighten Ollama discovery flow so local models are discoverable but remain unclassified until the user assigns roles
+    - acceptance:
+      - MaaS `astron-code-latest` can be configured through the supported OpenAI-family path
+      - Ollama list/discovery is visible and role assignment is user-driven
+  - `P41.4` capability governance and quick probing
+    - preserve explicit facts as highest priority
+    - add lightweight probes for missing tool/thinking/basic runtime capability evidence
+    - keep token/context facts sourced from explicit config, known preset facts, or learned runtime evidence instead of guessy hardcoding
+    - acceptance:
+      - unknown models can be onboarded with a minimal guided probe path
+      - doctor/output surfaces explain whether facts are configured, discovered, or inferred
+  - `P41.5` feature-model bindings for embedding and OCR
+    - add dedicated binding/storage for default embedding model and default OCR model
+    - route RAG/memory retrieval to embedding only when an embedding model is bound
+    - preserve BM25 hybrid retrieval when no embedding binding exists
+    - wire OCR binding into `docling_parse` when available, otherwise keep current fallback behavior
+    - acceptance:
+      - feature-model usage is explicit and does not leak into normal chat selection
+      - missing embedding model does not break retrieval behavior
+  - `P41.6` doctor / CLI / TUI visibility hardening
+    - surface missing role assignment, missing feature bindings, and suspicious capability gaps
+    - keep the visible operator path honest so later development does not silently regress into model chaos
+    - acceptance:
+      - `doctor` and main operator surfaces can explain whether the current model layer is actually ready for use
+- implementation order:
+  - start with `P41.1` to make the data contract truthful
+  - then land `P41.2` and `P41.3` together so real suppliers can be configured through the supported surface
+  - finish with `P41.4` to `P41.6` once bindings and provider taxonomy are stable
+- known risks:
+  - provider-family cleanup can accidentally break persisted config compatibility if ids or defaults move too abruptly
+  - role separation may expose old tests and surfaces that still assume "every discovered model is chat-capable"
+  - feature-model binding needs a strict boundary so retrieval/doc parsing do not gain hidden provider selection logic
+- first concrete implementation target:
+  - audit and modify:
+    - `src/mini_agent/model_manager/provider.py`
+    - `src/mini_agent/interfaces/ops.py`
+    - `src/mini_agent/application/operations_provider_use_cases.py`
+    - `src/mini_agent/model_manager/model_registry_service.py`
+    - `src/mini_agent/model_manager/runtime.py`
+    - `src/mini_agent/cli.py`
+- verification plan:
+  - focused unit tests around provider upsert, registry filtering, CLI flows, and runtime binding behavior
+  - live smoke validation for:
+    - `ollama`
+    - `preset/minimax` through anthropic family
+    - MaaS OpenAI-compatible base URL path
+- implementation progress:
+  - [completed] `P41.1` first landing
+    - provider contract exposes `model_role`
+    - preset summaries expose `provider_family` / `provider_variant`
+    - CLI `provider add` uses the supported use-case path
+  - [completed] `P41.3` first usable Ollama/manual-binding landing
+    - added manual model-role assignment for existing custom/preset models
+    - added feature-model bindings persisted beside the provider catalog
+    - added CLI and ops routes for:
+      - list bindings
+      - set model role
+      - bind embedding / OCR model
+      - clear feature binding
+  - [completed] `P41.5` first runtime-consumption landing
+    - `RecallNoteTool` can consume the configured embedding model binding
+    - knowledge-base runtime can consume the configured embedding model binding while preserving fallback hash/BM25 hybrid behavior
+    - `docling_parse` can consume a configured OCR model binding for image OCR paths
+    - chat runtime catalog filters out `embedding` / `ocr` models so feature models no longer leak into normal chat routing
+  - [completed] `P41.4` capability governance and quick probing
+    - added a lightweight per-model capability probe service that:
+      - prefers discovery/manifest evidence first
+      - then runs minimal active probes only for still-unknown `tools` / `thinking` facts
+    - added one-model capability write-back in `ModelRegistryService` so probe results persist without broad provider rediscovery
+    - exposed the supported operator path through:
+      - ops route `POST /api/v1/ops/models/probe`
+      - application use-case `probe_model_capabilities(...)`
+      - CLI `mini-agent provider probe`
+    - provider model summaries now surface capability truth/confidence/source for both tools and thinking
+  - [completed] `P41.6` doctor / CLI visibility hardening
+    - `doctor` now inspects the real runtime catalog path/source instead of only filesystem/MCP/security state
+    - `doctor` now reports:
+      - bootstrap-only model catalog fallback
+      - chat runtime absence or feature-only registry inventory
+      - local/discovered unclassified model-role gaps
+      - selected chat route capability-fact gaps
+      - missing/stale/unusable embedding and OCR bindings
+    - CLI doctor output inherits these findings automatically through the existing report surface
+  - [completed] real supplier/operator validation pass
+    - [completed] local Ollama custom-provider path
+      - fixed local Ollama auto-discovery under OpenAI-compatible endpoints
+      - validated supported add -> classify -> bind -> probe loop with real local models
+    - [completed] preset minimax path
+      - validated real `MiniMax-M2.7` capability probe
+      - removed pointless minimax `/models` discovery probes by switching to curated manifest discovery
+    - [completed] model state-write safety follow-up
+      - `ModelRegistryService` writes now use atomic replace to reduce state corruption risk
+    - [completed] MaaS OpenAI-compatible custom-provider path
+      - real custom-provider onboarding with explicit model id succeeded
+      - verified current MaaS `/models` behavior returns an empty inventory, so explicit model onboarding remains required
+      - verified pinned runtime generation and real tool-call execution against `astron-code-latest`
+      - fixed capability-probe fallback so MaaS tool support is no longer misclassified when `tool_choice=required` fails
+    - [completed] scope-alignment closure
+      - `minimax` preset validation counts as the anthropic-protocol-family verification required by `P41`
+      - official Claude/Anthropic preset smoke is deferred until credentials are available and is not a `P41` blocker
+      - `translategemma:12b` is treated as a chat-specialized LLM and is not a `P41` classification blocker
+  - [completed] `P41` closure
+    - target supplier set for this slice is now covered:
+      - OpenAI-compatible custom supplier path via MaaS
+      - Anthropic-protocol-family preset path via MiniMax
+      - local Ollama discovery + manual role/binding path
+    - the remaining work returns to future supplier expansion or normal feature development, not `P41` foundation hardening

@@ -743,9 +743,11 @@ class ModelDiscoveryService:
                 provider=provider,
                 models=models,
                 fetched_at=datetime.now(),
-                discovery_source="curated_manifest"
-                if provider == ProviderType.ANTHROPIC
-                else "api_discovery",
+                discovery_source=(
+                    "curated_manifest"
+                    if provider in {ProviderType.ANTHROPIC, ProviderType.MINIMAX}
+                    else "api_discovery"
+                ),
             )
         except Exception as e:
             logger.warning(f"Failed to fetch models from {provider.value}: {e}")
@@ -783,8 +785,9 @@ class ModelDiscoveryService:
         Returns:
             List of model info
         """
-        if provider == ProviderType.ANTHROPIC:
-            # Anthropic doesn't have a models API, use fallback
+        if provider in {ProviderType.ANTHROPIC, ProviderType.MINIMAX}:
+            # Anthropic-family official presets currently rely on curated manifests
+            # rather than a public models-list API.
             return self._get_fallback_models(provider)
 
         url = api_base or self.PROVIDER_ENDPOINTS.get(provider)

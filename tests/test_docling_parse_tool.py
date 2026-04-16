@@ -276,3 +276,24 @@ def test_workspace_tooling_skips_docling_parse_when_file_tools_disabled(tmp_path
     )
 
     assert all(getattr(tool, "name", None) != "docling_parse" for tool in tools)
+
+
+def test_docling_parser_uses_ocr_adapter_for_images(tmp_path: Path) -> None:
+    source = tmp_path / "scan.png"
+    source.write_bytes(b"fake-image")
+
+    parser = DoclingParser(
+        ocr_adapter=lambda path, output_format, enable_ocr: {
+            "source_path": str(path),
+            "output_format": output_format,
+            "content": "ocr text",
+            "used_docling": True,
+            "metadata": {"parser": "fake_ocr", "enable_ocr": enable_ocr},
+        }
+    )
+
+    result = parser.parse_file(path=source, output_format="markdown", enable_ocr=True)
+
+    assert result.used_docling is True
+    assert result.content == "ocr text"
+    assert result.metadata["parser"] == "fake_ocr"

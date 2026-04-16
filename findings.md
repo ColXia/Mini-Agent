@@ -7015,3 +7015,326 @@
   - `src/apps/agent_studio_gateway/main.py`
   - the current host/static-serving behavior
   - tests around the gateway/browser surface boundary
+
+## 2026-04-16 P41 Planning Findings
+
+- `P40` has already closed the repo-hygiene line enough that the next honest slice is no longer structural cleanup.
+- The active blocker is the model supply layer still telling a partially outdated story:
+  - top-level cloud supplier families still include more surface area than the now-intended product shape
+  - rich runtime metadata exists in the lower provider layer but is not fully exposed through the supported ops/CLI path
+  - discovered models can still leak into the general selectable pool before being classified by role
+- The user has now fixed the product boundary for this layer:
+  - preset cloud families should be only `openai` and `anthropic`
+  - `minimax` should survive only as an anthropic-family sub-preset
+  - `ollama` is the only local supplier target in scope
+  - embedding and OCR are separate feature-model roles, not chat-model variants
+- This makes `P41` an integration-hardening slice, not a speculative architecture pass.
+- The most leverage is to make the contract truthful first:
+  - role-aware provider data
+  - supported quick/advanced config surfaces
+  - controlled discovery plus explicit user binding
+- The user also clarified one important live-config fact that should become part of the implementation target:
+  - MaaS OpenAI-compatible base URL is `https://maas-coding-api.cn-huabei-1.xf-yun.com/v2`
+- Embedding fallback behavior is now explicit:
+  - when no embedding model is bound, retrieval should stay on the BM25 hybrid path instead of pretending an embedding provider exists
+
+## 2026-04-16 P41 Initial Audit Findings
+
+- `src/mini_agent/model_manager/provider.py` already supports rich per-model runtime metadata:
+  - `model_context_windows`
+  - `model_learned_token_limits`
+  - `model_metadata`
+- `src/mini_agent/interfaces/ops.py` still exposes only the narrow provider-upsert shape:
+  - basic provider fields
+  - one default `model_id`
+  - display name
+  - no first-class role field
+  - no advanced metadata round-trip
+- This confirms the first implementation bottleneck is not the storage layer.
+- The real bottleneck is the supported contract boundary between:
+  - ops DTOs
+  - provider use cases
+  - CLI/operator entrypoints
+- `model_discovery.py` and `runtime.py` already carry part of the capability truth model for `supports_tools` / `supports_thinking`, so `P41.4` should extend an existing evidence path rather than invent a second system.
+
+## 2026-04-16 P41 Supplier Surface Audit Findings
+
+- `src/mini_agent/model_manager/preset_providers.py` still models presets as four top-level providers:
+  - `openai`
+  - `anthropic`
+  - `minimax`
+  - `ollama`
+- That no longer matches the agreed product taxonomy.
+- `P41.1` therefore needs an explicit taxonomy cleanup, not just doc wording:
+  - cloud preset families must contract to `openai` and `anthropic`
+  - `minimax` should become anthropic-family preset metadata rather than a separate top-level family
+- `src/mini_agent/cli.py` still implements `provider add` by constructing `ProviderConfig` directly and writing the catalog itself.
+- That means even if the ops/use-case layer is upgraded, the current CLI could still bypass the new contract and recreate drift.
+- `src/mini_agent/application/operations_provider_use_cases.py` already centralizes useful preparation logic:
+  - provider payload normalization
+  - discovery-backed auto-population
+  - atomic catalog writes
+- So the clean direction is to bring CLI behavior into that supported contract instead of duplicating another advanced add/update path in parallel.
+
+## 2026-04-16 P41 Registry Runtime Audit Findings
+
+- `src/mini_agent/model_manager/model_registry_service.py` is already the aggregation seam for:
+  - custom providers
+  - preset providers
+  - discovered model metadata
+  - default-model selection state
+- `src/mini_agent/model_manager/runtime.py` already reads capability facts from per-model metadata instead of from a separate global registry.
+- That means the cleanest `P41.1` extension path is:
+  - normalize `model_role` into model metadata
+  - expose it through registry/provider summary DTOs
+  - let runtime and selection surfaces filter on that shared field
+- This avoids introducing a second feature-model registry just to separate chat from embedding/OCR.
+
+## 2026-04-16 P41 Compatibility Scope Findings
+
+- `PresetProvider.MINIMAX`, `MINIMAX_API_KEY`, and `preset-minimax` are referenced beyond the immediate model-manager files:
+  - CLI help/bootstrap messaging
+  - config bootstrap
+  - routing/runtime tests
+  - gateway environment examples
+- So the safest first landing is not a hard delete of every `minimax` identifier.
+- The lower-risk path is:
+  - keep compatibility ids/env support where needed
+  - make the new contract explicit with provider-family/sub-preset metadata
+  - then narrow visible top-level supplier semantics around `openai` and `anthropic`
+- This keeps `P41.1` truthful without turning it into an oversized breaking-change slice.
+
+## 2026-04-16 P41 First Landing Findings
+
+- The first implementation cut landed cleanly without requiring a hard delete of `minimax` compatibility ids.
+- The most important contract upgrades now in place are:
+  - `model_role` is a normalized first-class model metadata field
+  - preset summaries can now expose `provider_family` and `provider_variant`
+  - custom provider upsert can now carry advanced per-model facts through the supported ops contract
+  - CLI `provider add` no longer hand-builds raw provider payloads for this path and now routes through the use-case contract
+- This means the project now has one shared path for:
+  - quick custom provider onboarding
+  - single-model advanced metadata capture
+  - surfacing anthropic-family `minimax` as a sub-preset rather than only a top-level standalone concept
+- Verification after the first landing:
+  - `uv run ruff check ...` for the touched provider/ops/registry/runtime/cli/test files: all green
+  - `uv run pytest tests/test_cli_provider_command.py tests/test_operations_provider_use_cases.py tests/test_preset_providers.py tests/test_model_registry_service.py -q`
+  - result: `26 passed`
+- The next honest gap is no longer "can metadata be stored".
+- The next gap is operator/runtime usage:
+  - role-aware Ollama discovery and binding flows
+  - feature-model binding for embedding/OCR
+  - broader doctor/runtime visibility
+
+## 2026-04-16 P41 State Isolation Follow-Up Findings
+
+- A broader runtime/gateway regression exposed one real state-leak problem:
+  - when runtime resolution used an explicit temporary or project-local `providers.json`
+  - `ModelRegistryService` still defaulted preset state to the global home `preset_models.json`
+  - this allowed old Ollama discovery state to override the intended local/test inventory
+- This was not just a flaky test problem.
+- It is exactly the kind of hidden state coupling that makes later iteration slide back into chaos.
+- The fix now landed:
+  - explicit catalog paths default to a sibling `preset_models.json`
+  - default home catalog still keeps the existing home-level preset state path behavior
+- That gives the project a safer state boundary:
+  - project-local provider catalogs use project-local preset selection state
+  - tests using temp catalogs no longer inherit the operator's real machine preset history
+- Verification after the follow-up fix:
+  - `uv run pytest tests/test_model_routing_runtime.py tests/test_agent_studio_gateway_ops_router.py tests/test_model_failover.py -q`
+  - result: `36 passed`
+
+## 2026-04-16 P41 Binding And Runtime Consumption Findings
+
+- The missing piece after the first `P41.1` landing was no longer metadata storage.
+- The real gap was "who consumes the new model-role truth?"
+- That gap had two parts:
+  - operators had no supported path to classify discovered models or bind feature models
+  - runtime/tooling still ignored those bindings entirely
+- The landed fix keeps the model layer lightweight rather than inventing a second provider system:
+  - model roles still live in per-model metadata
+  - feature bindings live in a small sibling state file next to the provider catalog
+  - runtime resolves bindings back through the existing provider/preset layer instead of duplicating credentials or inventory
+- The most important anti-chaos gain in this slice is chat/runtime boundary hardening:
+  - `embedding` and `ocr` models remain visible in registry/operator surfaces
+  - but they are filtered out of the runtime chat provider catalog
+  - this removes one of the easiest ways future iteration could silently regress into "everything is a chat model"
+- Embedding integration now has a practical fallback story:
+  - when an embedding model is bound, note recall and KB retrieval can use it
+  - when no embedding model is bound, retrieval stays on the existing hash-vector/BM25 hybrid behavior
+- OCR integration is intentionally narrow in the first landing:
+  - bound OCR model is consumed for image-document OCR paths in `docling_parse`
+  - unbound or unsupported cases keep the previous parse/fallback behavior
+- This keeps the slice honest and usable without pretending the project already has a full general-purpose multimodal document parsing stack.
+- Verification for this landing:
+  - targeted feature/provider/router/tool suites:
+    - `68 passed`
+  - broader routing/failover/note/kernel suites:
+    - `51 passed`
+  - combined evidence for this turn after the first landing:
+    - `119 passed`
+
+## 2026-04-16 P41 Doctor Visibility Findings
+
+- Before this landing, `doctor` had no opinion on whether the model layer was actually usable.
+- That left a dangerous blind spot:
+  - the project could report green on Python/workspace/MCP/security
+  - while still carrying unclassified local models, missing feature bindings, or a chat runtime that had silently collapsed back to bootstrap fallback
+- The most important readiness gap exposed in implementation was bootstrap masking:
+  - if the visible registry contained only `embedding` / `ocr` models
+  - startup could still look superficially healthy because `config.llm` bootstrap fallback supplied one synthetic chat route
+  - this is exactly the kind of hidden fallback that lets the repository drift back into model/runtime chaos
+- The hardened doctor surface now makes those states explicit:
+  - catalog path and runtime source are shown
+  - bootstrap-only routing is warned
+  - feature-only visible inventory is treated as a blocking chat-runtime failure
+  - selected chat model capability facts are checked for `supports_tools`, `supports_thinking`, and token/context evidence
+  - embedding/OCR bindings are checked for:
+    - missing binding
+    - stale target
+    - resolved-but-runtime-unusable provider/protocol
+- This gives the project a more honest operator boundary:
+  - chat runtime readiness is no longer inferred from fallback success alone
+  - feature-model readiness is no longer hidden behind tool-level fallbacks
+  - local/discovered model inventory must now be classified to keep later iteration clean
+- Verification for this slice:
+  - `pytest tests/test_doctor.py -q`
+  - result: `7 passed`
+  - `pytest tests/test_model_registry_service.py tests/test_model_routing_runtime.py tests/test_doctor.py -q`
+  - result: `36 passed`
+
+## 2026-04-16 P41 Capability Probe Findings
+
+- The missing operator capability after `P41.1` / `P41.3` / `P41.5` / `P41.6` was no longer storage or visibility.
+- The real remaining gap was actionability:
+  - capability truth already existed in discovery/runtime metadata
+  - but there was still no supported path to probe one configured model and write back what was learned
+- The landed `P41.4` cut keeps this narrow and anti-chaos:
+  - it does not invent a second provider registry
+  - it does not refresh the whole provider inventory just to learn one model fact
+  - it reuses the existing provider catalog, preset state, discovery service, runtime binding, and capability-truth metadata
+- The probe policy is intentionally conservative:
+  - explicit or already-known facts are left alone
+  - missing `context_window` uses discovery/known-manifest evidence only
+  - missing `supports_tools` / `supports_thinking` first consume discovery capability evidence
+  - only still-unknown chat models fall through to active probes
+- The active probe implementation is deliberately minimal:
+  - tool support asks for one required noop tool call
+  - thinking support asks for one tiny reasoning-budget completion and checks whether explicit thinking content is returned
+  - no binary-search token probing was added in this cut
+- The most important design win is write-back scope:
+  - `ModelRegistryService.record_model_capabilities(...)` updates one model's capability facts in place
+  - this avoids broad discovery refresh side effects and better respects the "explicit facts stay highest priority" goal for later iteration
+- The operator path is now real rather than internal-only:
+  - gateway ops route: `POST /api/v1/ops/models/probe`
+  - application seam: `ProviderOperationsUseCases.probe_model_capabilities(...)`
+  - CLI seam: `mini-agent provider probe ...`
+- Verification for this slice:
+  - focused lint: green
+  - focused provider/probe suites: `42 passed`
+  - broader runtime/doctor follow-up: `27 passed`
+
+## 2026-04-16 Real Supplier Smoke Findings
+
+- The first real supplier smoke pass exposed two concrete product-level defects and one state-safety risk.
+
+- Real environment status at the time of the smoke:
+  - local Ollama daemon was reachable and returned real inventory
+  - local env/bootstrap resolved a real `minimax` preset configuration
+  - local env/bootstrap did not resolve usable `openai` or `anthropic` preset credentials in this session
+
+- Real defect 1: local Ollama could not be onboarded through the supported auto-discovery path.
+  - Reproduction:
+    - `mini-agent provider add --url http://localhost:11434/v1 --type openai --auto-discover-models ...`
+    - result before fix: `no models discovered`
+  - Root cause:
+    - discovery used the OpenAI provider path for a local Ollama compatibility endpoint
+    - Ollama model ids such as `qwen3.5:9b` contain `:`
+    - the OpenAI discovery code treated `:` as "fine-tuned model" and filtered all of them out of `available_models`
+  - Fix:
+    - local `localhost:11434` OpenAI-compatible endpoints are now recognized as Ollama discovery targets
+    - that fix was applied in both:
+      - provider-setup discovery (`ProviderOperationsUseCases`)
+      - custom provider registry discovery (`ModelRegistryService`)
+  - Result after fix:
+    - the supported add/discover path successfully discovered the real local Ollama inventory
+
+- Real defect 2: minimax preset discovery was doing fake work.
+  - Reproduction:
+    - real `provider probe --source preset --id minimax --model-id MiniMax-M2.7`
+    - probe itself succeeded
+    - but discovery first attempted `/models` endpoints and emitted 404 noise
+  - Verified reality:
+    - both `https://api.minimaxi.com/models` and `https://api.minimaxi.com/v1/models` returned `404`
+  - Fix:
+    - minimax discovery now uses curated manifest directly instead of pretending there is a usable models-list API
+  - Result after fix:
+    - real minimax probe remains successful
+    - the noisy, pointless discovery failure is gone
+
+- Real state-safety risk:
+  - while running smoke, overlapping writes to the same temp provider catalog produced invalid JSON
+  - this was triggered by concurrent role updates on the same catalog path
+  - even though the smoke itself caused the overlap, the underlying write path was genuinely unsafe:
+    - `ModelRegistryService` state writes were direct `write_text(...)`
+  - Fix:
+    - custom catalog, preset state, and feature binding state now use atomic temp-file replace
+  - This matters directly for the user's "keep iteration from sliding back into chaos" goal.
+
+- Real supported-path verification now completed:
+  - local Ollama custom provider:
+    - add with auto-discovery: passed
+    - role assignment: passed
+    - feature binding for embedding/OCR: passed
+    - capability probe for chat models: passed
+  - preset minimax:
+    - capability probe for `MiniMax-M2.7`: passed
+
+- Real observed model facts from live probes:
+  - `qwen3.5:9b`
+    - tools: supported
+    - thinking: unsupported
+  - `gemma4:e4b`
+    - tools: unsupported
+    - thinking: unsupported
+  - `MiniMax-M2.7`
+    - tools: supported
+    - thinking: supported
+
+- Residual iteration-risk still visible after the smoke:
+  - unclassified local special-purpose models still remain chat-routable by default
+  - in the smoke catalog, `translategemma:12b` remained unclassified and therefore still visible to chat runtime
+  - this is not a code failure; it is the intended current contract
+  - but it confirms that role classification discipline is still required to keep runtime clean
+
+- Scope-closure clarification for `P41`:
+  - `minimax` is implemented and validated as an Anthropic-protocol-family preset, so that live smoke already covers the required anthropic-family route for this slice
+  - official Claude/Anthropic preset smoke remains a valid future verification task, but it is not required to close `P41`
+  - `translategemma:12b` is treated as a chat-specialized LLM rather than a feature-role model, so leaving it in the chat-visible set does not block `P41`
+
+- Real supplier follow-up finding: MaaS OpenAI-compatible inventory discovery is not sufficient as an onboarding contract.
+  - Reproduction:
+    - `GET https://maas-coding-api.cn-huabei-1.xf-yun.com/v2/models`
+    - response: HTTP `200` with `{"object":"list","data":[]}`
+  - Meaning:
+    - the endpoint is reachable and authenticated
+    - but it does not advertise usable model ids through the standard inventory contract
+    - the product must therefore keep supporting explicit model onboarding for custom OpenAI-compatible suppliers
+
+- Real supplier follow-up finding: MaaS tool support was being misclassified by our probe strategy.
+  - Reproduction before fix:
+    - capability probe used `tool_choice=required`
+    - MaaS returned provider-side `500` / `EngineInternalError:Unexpected EOF` or timed out
+    - probe result degraded to `supports_tools=unknown`
+  - Verified reality:
+    - a normal text completion against `astron-code-latest` succeeds
+    - a tool-call request with `tool_choice=auto` returns a valid tool call quickly
+  - Root cause:
+    - our active tool probe assumed `tool_choice=required` was a portable capability check across OpenAI-compatible providers
+    - MaaS violates that assumption even though tool calling itself works
+  - Fix:
+    - tool capability probe now retries in `auto` mode when `required` mode fails or returns no tool call
+  - Result after fix:
+    - real MaaS probe now records:
+      - `supports_tools=supported`
+      - `supports_thinking=unsupported`

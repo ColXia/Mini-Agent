@@ -58,13 +58,23 @@ class DoclingParseResult:
 
 
 DoclingParserAdapter = Callable[[Path, str, bool], DoclingParseResult | dict[str, Any] | str]
+DoclingOCRAdapter = Callable[[Path, str, bool], DoclingParseResult | dict[str, Any] | str]
 
 
 class DoclingParser:
     """Parser facade that supports adapter injection and text fallback."""
 
-    def __init__(self, adapter: DoclingParserAdapter | None = None) -> None:
+    def __init__(
+        self,
+        adapter: DoclingParserAdapter | None = None,
+        *,
+        ocr_adapter: DoclingOCRAdapter | None = None,
+    ) -> None:
         self._adapter = adapter
+        self._ocr_adapter = ocr_adapter
+
+    def set_ocr_adapter(self, adapter: DoclingOCRAdapter | None) -> None:
+        self._ocr_adapter = adapter
 
     def parse_file(
         self,
@@ -86,6 +96,14 @@ class DoclingParser:
         if self._adapter is not None:
             raw = self._adapter(source, fmt, bool(enable_ocr))
             return self._coerce_adapter_result(source=source, output_format=fmt, raw=raw)
+
+        if bool(enable_ocr) and ext in {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}:
+            if self._ocr_adapter is not None:
+                raw = self._ocr_adapter(source, fmt, True)
+                return self._coerce_adapter_result(source=source, output_format=fmt, raw=raw)
+            raise DoclingUnavailableError(
+                "ocr backend is not configured for image parsing; bind an OCR model or provide an adapter."
+            )
 
         if ext in FALLBACK_TEXT_EXTENSIONS:
             return self._parse_text_fallback(source=source, output_format=fmt)

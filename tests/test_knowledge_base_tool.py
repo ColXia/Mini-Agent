@@ -13,6 +13,16 @@ from mini_agent.runtime.tooling import add_workspace_tools, resolve_runtime_poli
 from mini_agent.tools.knowledge_base import KnowledgeBaseQueryTool
 
 
+class FakeEmbeddingProvider:
+    def embed(self, text: str) -> list[float]:
+        normalized = text.lower()
+        if "event loop" in normalized or "python" in normalized:
+            return [1.0, 0.0]
+        if "borrow checker" in normalized or "rust" in normalized:
+            return [0.0, 1.0]
+        return [0.0, 0.0]
+
+
 def _make_config(security: SecurityConfig | None = None) -> Config:
     return Config(
         llm=LLMConfig(api_key="test-key"),
@@ -43,6 +53,35 @@ async def test_knowledge_base_query_tool_returns_ranked_hits(tmp_path: Path) -> 
     assert "routing.md" in result.content
     assert "provider health" in result.content
     assert "knowledge_base_id: docs" in result.content
+
+
+@pytest.mark.asyncio
+async def test_knowledge_base_query_tool_can_use_embedding_provider(tmp_path: Path) -> None:
+    store_path = tmp_path / "rag" / "light_hybrid_store.json"
+    store = HybridSearchStore(
+        store_path,
+        embedding_provider=FakeEmbeddingProvider(),
+    )
+    store.ingest_text(
+        document_name="python.md",
+        content="Python async runtime patterns",
+        knowledge_base_id="docs",
+    )
+    store.ingest_text(
+        document_name="rust.md",
+        content="Rust borrow checker basics",
+        knowledge_base_id="docs",
+    )
+
+    tool = KnowledgeBaseQueryTool(
+        workspace_dir=tmp_path,
+        store_path=store_path,
+        embedding_provider=FakeEmbeddingProvider(),
+    )
+    result = await tool.execute(query="event loop language", knowledge_base_id="docs", top_k=3)
+
+    assert result.success is True
+    assert "python.md" in result.content.lower()
 
 
 @pytest.mark.asyncio

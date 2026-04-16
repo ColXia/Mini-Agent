@@ -67,6 +67,8 @@ def test_get_preset_provider_config_falls_back_to_default_when_discovery_fails(
     preset = get_preset_provider_config(PresetProvider.MINIMAX)
 
     assert preset is not None
+    assert preset["provider_family"] == "anthropic"
+    assert preset["provider_variant"] == "minimax"
     assert preset["model"] == "MiniMax-M2.7"
     assert preset["default_model_strategy"] == "official_default"
 

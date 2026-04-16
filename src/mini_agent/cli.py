@@ -518,7 +518,21 @@ Examples:
     )
     provider_parser.add_argument(
         "action",
-        choices=["list", "limits", "clear-limit", "add", "remove", "enable", "disable", "show"],
+        choices=[
+            "list",
+            "limits",
+            "clear-limit",
+            "probe",
+            "add",
+            "remove",
+            "enable",
+            "disable",
+            "show",
+            "set-role",
+            "bindings",
+            "bind-feature",
+            "clear-binding",
+        ],
         help="Provider action",
     )
     provider_parser.add_argument(
@@ -571,6 +585,37 @@ Examples:
         help="Display name for --model-id",
     )
     provider_parser.add_argument(
+        "--model-role",
+        type=str,
+        choices=["chat", "embedding", "ocr", "unclassified"],
+        default=None,
+        help="Logical role for --model-id / selected model",
+    )
+    provider_parser.add_argument(
+        "--context-window",
+        type=int,
+        default=None,
+        help="Context window for --model-id / selected model",
+    )
+    provider_parser.add_argument(
+        "--learned-token-limit",
+        type=int,
+        default=None,
+        help="Learned or known token limit for --model-id / selected model",
+    )
+    provider_parser.add_argument(
+        "--supports-tools",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Record tool-calling support for --model-id / selected model",
+    )
+    provider_parser.add_argument(
+        "--supports-thinking",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Record thinking/reasoning support for --model-id / selected model",
+    )
+    provider_parser.add_argument(
         "--auto-discover-models",
         action="store_true",
         help="Discover available models when model is not provided",
@@ -588,6 +633,18 @@ Examples:
         help="Provider priority (higher = preferred)",
     )
     provider_parser.add_argument(
+        "--timeout",
+        type=int,
+        default=60,
+        help="Provider request timeout in seconds",
+    )
+    provider_parser.add_argument(
+        "--header",
+        action="append",
+        default=None,
+        help="Custom request header in KEY=VALUE form; repeat to set multiple headers",
+    )
+    provider_parser.add_argument(
         "--catalog",
         type=str,
         default=None,
@@ -599,6 +656,13 @@ Examples:
         choices=["custom", "preset"],
         default=None,
         help="Provider source for learned-limit actions",
+    )
+    provider_parser.add_argument(
+        "--feature-role",
+        type=str,
+        choices=["embedding", "ocr"],
+        default=None,
+        help="Feature-model binding role for binding actions",
     )
 
     models_parser = subparsers.add_parser(
@@ -1590,11 +1654,52 @@ def run_provider_command(args: argparse.Namespace) -> None:
     """Manage LLM providers."""
     import json
     from pathlib import Path
+    from fastapi import HTTPException
+    from mini_agent.application import ProviderOperationsUseCases
+    from mini_agent.interfaces import (
+        StudioModelCapabilityProbeRequest,
+        StudioProviderModelDiscoveryRequest,
+        StudioProviderUpsertRequest,
+    )
     from mini_agent.model_manager import (
-        ProviderConfig,
         normalize_provider_catalog,
     )
     from mini_agent.model_manager.model_registry_service import ModelRegistryService
+
+    def _resolve_provider_source(
+        service: ModelRegistryService,
+        *,
+        provider_id: str | None,
+        model_id: str | None = None,
+        explicit_source: str | None = None,
+    ) -> str | None:
+        if explicit_source:
+            return explicit_source
+        if not provider_id:
+            return None
+        registry_matches = [
+            item
+            for item in service.list_registry()
+            if str(item.get("provider_id") or "") == str(provider_id)
+        ]
+        if model_id:
+            registry_matches = [
+                item
+                for item in registry_matches
+                if any(
+                    str(model.get("model_id") or "") == str(model_id)
+                    for model in item.get("models", [])
+                    if isinstance(model, dict)
+                )
+            ]
+        unique_sources = sorted(
+            {
+                str(item.get("source") or "")
+                for item in registry_matches
+                if item.get("source")
+            }
+        )
+        return unique_sources[0] if len(unique_sources) == 1 else None
 
     catalog_path = None
     if args.catalog:
@@ -1743,6 +1848,183 @@ def run_provider_command(args: argparse.Namespace) -> None:
                     f"{Colors.YELLOW}Provider '{args.id}' has no learned token limits to clear.{Colors.RESET}"
                 )
 
+    elif args.action == "probe":
+        if not args.id or not args.model_id:
+            print(
+                f"{Colors.RED}Error: --id and --model-id are required for probe action.{Colors.RESET}"
+            )
+            return
+        service = ModelRegistryService(catalog_path=catalog_path)
+        source = _resolve_provider_source(
+            service,
+            provider_id=args.id,
+            model_id=args.model_id,
+            explicit_source=args.source,
+        )
+        if not source:
+            print(
+                f"{Colors.RED}Error: provider source could not be resolved. Use --source <custom|preset>.{Colors.RESET}"
+            )
+            return
+        use_cases = ProviderOperationsUseCases(
+            repo_root=Path.cwd().resolve(),
+            workspace_root=catalog_path.parent.resolve(),
+        )
+        try:
+            result = use_cases.probe_model_capabilities(
+                payload=StudioModelCapabilityProbeRequest(
+                    source=source,
+                    provider_id=args.id,
+                    model_id=args.model_id,
+                ),
+                catalog_path=str(catalog_path),
+            )
+        except HTTPException as exc:
+            print(f"{Colors.RED}Failed to probe model capabilities: {exc.detail}{Colors.RESET}")
+            return
+        except Exception as exc:
+            print(f"{Colors.RED}Failed to probe model capabilities: {exc}{Colors.RESET}")
+            return
+
+        print(f"{Colors.CYAN}Model Capability Probe:{Colors.RESET}\n")
+        print(f"  source: {result.source}")
+        print(f"  provider: {result.provider_id}")
+        print(f"  model: {result.model.model_id}")
+        print(f"  context_window: {result.model.context_window or '--'}")
+        print(
+            "  supports_tools: "
+            f"{result.model.supports_tools_truth or '--'}"
+            f" ({result.model.supports_tools_confidence or '--'}, {result.model.supports_tools_source or '--'})"
+        )
+        print(
+            "  supports_thinking: "
+            f"{result.model.supports_thinking_truth or '--'}"
+            f" ({result.model.supports_thinking_confidence or '--'}, {result.model.supports_thinking_source or '--'})"
+        )
+        if result.updated_fields:
+            print(f"  updated_fields: {', '.join(result.updated_fields)}")
+        else:
+            print("  updated_fields: none")
+        if result.notes:
+            print("  notes:")
+            for note in result.notes:
+                print(f"    - {note}")
+
+    elif args.action == "set-role":
+        if not args.id or not args.model_id or not args.model_role:
+            print(
+                f"{Colors.RED}Error: --id, --model-id, and --model-role are required for set-role action.{Colors.RESET}"
+            )
+            return
+        service = ModelRegistryService(catalog_path=catalog_path)
+        source = _resolve_provider_source(
+            service,
+            provider_id=args.id,
+            model_id=args.model_id,
+            explicit_source=args.source,
+        )
+        if not source:
+            print(
+                f"{Colors.RED}Error: provider source could not be resolved. Use --source <custom|preset>.{Colors.RESET}"
+            )
+            return
+        try:
+            result = service.set_model_role(
+                source=source,
+                provider_id=args.id,
+                model_id=args.model_id,
+                model_role=args.model_role,
+            )
+        except Exception as exc:
+            print(f"{Colors.RED}Failed to set model role: {exc}{Colors.RESET}")
+            return
+        print(
+            f"{Colors.GREEN}Updated model role:{Colors.RESET} "
+            f"[{source}] {args.id}/{args.model_id} -> {args.model_role}"
+        )
+        default_model_id = str(result.get("default_model_id") or "").strip()
+        if default_model_id:
+            print(f"  default_model: {default_model_id}")
+
+    elif args.action == "bindings":
+        service = ModelRegistryService(catalog_path=catalog_path)
+        items = service.list_feature_bindings()
+        if not items:
+            print(f"{Colors.DIM}No feature-model bindings configured.{Colors.RESET}")
+            return
+        print(f"{Colors.CYAN}Feature Model Bindings:{Colors.RESET}\n")
+        for item in items:
+            status = "resolved" if item.get("resolved") else "stale"
+            print(f"  {item.get('feature_role')} [{status}]")
+            print(
+                f"    source: {item.get('source') or '--'} | "
+                f"provider: {item.get('provider_id') or '--'} | "
+                f"model: {item.get('model_id') or '--'}"
+            )
+            if item.get("display_name"):
+                print(f"    display: {item.get('display_name')}")
+            if item.get("provider_name"):
+                print(f"    provider_name: {item.get('provider_name')}")
+            if item.get("updated_at"):
+                print(f"    updated_at: {item.get('updated_at')}")
+            print()
+
+    elif args.action == "bind-feature":
+        if not args.feature_role or not args.id or not args.model_id:
+            print(
+                f"{Colors.RED}Error: --feature-role, --id, and --model-id are required for bind-feature action.{Colors.RESET}"
+            )
+            return
+        service = ModelRegistryService(catalog_path=catalog_path)
+        source = _resolve_provider_source(
+            service,
+            provider_id=args.id,
+            model_id=args.model_id,
+            explicit_source=args.source,
+        )
+        if not source:
+            print(
+                f"{Colors.RED}Error: provider source could not be resolved. Use --source <custom|preset>.{Colors.RESET}"
+            )
+            return
+        try:
+            result = service.bind_feature_model(
+                feature_role=args.feature_role,
+                source=source,
+                provider_id=args.id,
+                model_id=args.model_id,
+            )
+        except Exception as exc:
+            print(f"{Colors.RED}Failed to bind feature model: {exc}{Colors.RESET}")
+            return
+        print(
+            f"{Colors.GREEN}Feature model bound:{Colors.RESET} "
+            f"{result.get('feature_role')} -> [{result.get('source')}] "
+            f"{result.get('provider_id')}/{result.get('model_id')}"
+        )
+
+    elif args.action == "clear-binding":
+        if not args.feature_role:
+            print(
+                f"{Colors.RED}Error: --feature-role is required for clear-binding action.{Colors.RESET}"
+            )
+            return
+        service = ModelRegistryService(catalog_path=catalog_path)
+        try:
+            result = service.clear_feature_model_binding(feature_role=args.feature_role)
+        except Exception as exc:
+            print(f"{Colors.RED}Failed to clear feature model binding: {exc}{Colors.RESET}")
+            return
+        status = str(result.get("status") or "cleared")
+        if status == "not_found":
+            print(
+                f"{Colors.YELLOW}No feature-model binding existed for {args.feature_role}.{Colors.RESET}"
+            )
+        else:
+            print(
+                f"{Colors.GREEN}Cleared feature-model binding for {args.feature_role}.{Colors.RESET}"
+            )
+
     elif args.action == "add":
         if not args.name or not args.url or not args.key:
             print(
@@ -1753,123 +2035,99 @@ def run_provider_command(args: argparse.Namespace) -> None:
         models: list[str] = []
         if args.models:
             models = [m.strip() for m in args.models.split(",") if m.strip()]
-        model_display_names: dict[str, str] = {}
+        auto_discover = bool(args.auto_discover_models)
+        if not models and not auto_discover and sys.stdin.isatty():
+            confirm = (
+                input("No model configured. Auto-discover available models now? [y/N]: ")
+                .strip()
+                .lower()
+            )
+            auto_discover = confirm in {"y", "yes"}
 
-        if args.model_id and str(args.model_id).strip():
-            model_id = str(args.model_id).strip()
-            models = [model_id, *[item for item in models if item != model_id]]
-            if args.model_name and str(args.model_name).strip():
-                model_display_names[model_id] = str(args.model_name).strip()
-
-        if not models:
-            auto_discover = bool(args.auto_discover_models)
-            if not auto_discover and sys.stdin.isatty():
-                confirm = (
-                    input("No model configured. Auto-discover available models now? [y/N]: ")
-                    .strip()
-                    .lower()
+        selected_model_id = str(args.selected_model_id).strip() if args.selected_model_id else ""
+        if auto_discover and not selected_model_id and sys.stdin.isatty():
+            try:
+                use_cases = ProviderOperationsUseCases(
+                    repo_root=Path.cwd().resolve(),
+                    workspace_root=catalog_path.parent.resolve(),
                 )
-                auto_discover = confirm in {"y", "yes"}
-
-            if auto_discover:
-                from mini_agent.model_manager.model_discovery import (
-                    ModelDiscoveryService,
-                    ProviderType,
-                )
-
-                provider_type_map = {
-                    "openai": ProviderType.OPENAI,
-                    "anthropic": ProviderType.ANTHROPIC,
-                    "ollama": ProviderType.OLLAMA,
-                }
-                provider_type = provider_type_map.get(args.type, ProviderType.OPENAI)
-                endpoint = args.url.rstrip("/")
-                if provider_type == ProviderType.OLLAMA:
-                    if endpoint.endswith("/v1"):
-                        endpoint = f"{endpoint}/models"
-                    elif not endpoint.endswith("/v1/models"):
-                        endpoint = f"{endpoint}/v1/models"
-                elif not endpoint.endswith("/models"):
-                    endpoint = f"{endpoint}/models"
-
-                service = ModelDiscoveryService()
-                result = asyncio.run(
-                    service.discover_models(
-                        provider=provider_type,
+                discovery = use_cases.discover_provider_models(
+                    payload=StudioProviderModelDiscoveryRequest(
+                        api_type=args.type,
+                        api_base=args.url,
                         api_key=args.key,
-                        api_base=endpoint,
-                        use_cache=False,
                     )
                 )
-                discovered = []
-                seen: set[str] = set()
-                for item in result.available_models:
-                    model_id = str(item.id).strip()
-                    if not model_id:
-                        continue
-                    lowered = model_id.lower()
-                    if lowered in seen:
-                        continue
-                    seen.add(lowered)
-                    discovered.append(model_id)
+            except Exception:
+                discovery = None
+            if discovery is not None and discovery.models:
+                print("\nDiscovered models:")
+                for idx, item in enumerate(discovery.models, start=1):
+                    print(f"  {idx}. {item.model_id}")
+                raw_choice = input("Select one model by number (blank to skip): ").strip()
+                if raw_choice.isdigit():
+                    selected_index = int(raw_choice)
+                    if 1 <= selected_index <= len(discovery.models):
+                        selected_model_id = discovery.models[selected_index - 1].model_id
 
-                selected_model_id = (
-                    str(args.selected_model_id).strip() if args.selected_model_id else ""
+        headers: dict[str, str] = {}
+        for raw_header in args.header or []:
+            if "=" not in str(raw_header):
+                print(
+                    f"{Colors.RED}Error: --header must use KEY=VALUE form. Invalid: {raw_header}{Colors.RESET}"
                 )
-                if not selected_model_id and discovered and sys.stdin.isatty():
-                    print("\nDiscovered models:")
-                    for idx, model_id in enumerate(discovered, start=1):
-                        print(f"  {idx}. {model_id}")
-                    raw_choice = input("Select one model by number (blank to skip): ").strip()
-                    if raw_choice.isdigit():
-                        selected_index = int(raw_choice)
-                        if 1 <= selected_index <= len(discovered):
-                            selected_model_id = discovered[selected_index - 1]
+                return
+            key, value = str(raw_header).split("=", 1)
+            normalized_key = key.strip()
+            normalized_value = value.strip()
+            if not normalized_key or not normalized_value:
+                print(
+                    f"{Colors.RED}Error: --header must use non-empty KEY=VALUE form. Invalid: {raw_header}{Colors.RESET}"
+                )
+                return
+            headers[normalized_key] = normalized_value
 
-                if selected_model_id and selected_model_id in discovered:
-                    models = [selected_model_id, *[item for item in discovered if item != selected_model_id]]
-                    model_display_names[selected_model_id] = selected_model_id
-
-        if not models:
-            print(
-                f"{Colors.YELLOW}Provider not created: no model selected/configured.{Colors.RESET}"
+        use_cases = ProviderOperationsUseCases(
+            repo_root=Path.cwd().resolve(),
+            workspace_root=catalog_path.parent.resolve(),
+        )
+        try:
+            created = use_cases.create_provider(
+                payload=StudioProviderUpsertRequest(
+                    id=args.id,
+                    name=args.name,
+                    api_type=args.type,
+                    api_base=args.url,
+                    api_key=args.key,
+                    models=models,
+                    model_id=args.model_id,
+                    model_display_name=args.model_name,
+                    model_role=args.model_role,
+                    model_context_window=args.context_window,
+                    model_learned_token_limit=args.learned_token_limit,
+                    supports_tools=args.supports_tools,
+                    supports_thinking=args.supports_thinking,
+                    auto_discover_models=auto_discover,
+                    selected_model_id=selected_model_id or None,
+                    enabled=True,
+                    priority=args.priority,
+                    timeout=args.timeout,
+                    headers=headers,
+                ),
+                catalog_path=str(catalog_path),
             )
+        except HTTPException as exc:
+            print(f"{Colors.RED}Provider not created: {exc.detail}{Colors.RESET}")
+            return
+        except Exception as exc:
+            print(f"{Colors.RED}Provider not created: {exc}{Colors.RESET}")
             return
 
-        new_provider = ProviderConfig(
-            id=args.id,
-            name=args.name,
-            api_type=args.type,
-            api_base=args.url,
-            api_key=args.key,
-            models=models,
-            model_display_names=model_display_names,
-            enabled=True,
-            priority=args.priority,
-        )
-
-        existing_providers = []
-        if catalog_path.exists():
-            try:
-                payload = json.loads(catalog_path.read_text(encoding="utf-8"))
-                existing_catalog = normalize_provider_catalog(payload)
-                existing_providers = [
-                    p.model_dump() for p in existing_catalog.providers
-                ]
-            except Exception:
-                pass
-
-        existing_providers.append(new_provider.model_dump())
-
-        catalog_path.parent.mkdir(parents=True, exist_ok=True)
-        catalog_path.write_text(
-            json.dumps({"providers": existing_providers}, indent=2), encoding="utf-8"
-        )
-
         print(f"{Colors.GREEN}Provider added successfully:{Colors.RESET}")
-        print(f"  id: {new_provider.id}")
-        print(f"  name: {new_provider.name}")
-        print(f"  catalog: {catalog_path}")
+        print(f"  id: {created.id}")
+        print(f"  name: {created.name}")
+        print(f"  catalog: {created.catalog_path}")
+        print(f"  models: {', '.join(created.models)}")
 
     elif args.action == "remove":
         if not args.id:

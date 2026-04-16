@@ -17,6 +17,7 @@ from mini_agent.model_manager.circuit_breaker import (
 )
 from mini_agent.model_manager.health_monitor import ProviderHealthMonitor
 from mini_agent.model_manager.provider import (
+    ModelRole,
     ProviderAPIType,
     ProviderCatalog,
     ProviderConfig,
@@ -87,6 +88,15 @@ def _effective_provider_model_token_limit(provider: ProviderConfig, model_id: st
 def _provider_model_metadata(provider: ProviderConfig, model_id: str) -> dict[str, Any]:
     raw = provider.model_metadata.get(model_id)
     return raw if isinstance(raw, dict) else {}
+
+
+def _provider_model_role(provider: ProviderConfig, model_id: str) -> str | None:
+    value = _provider_model_metadata(provider, model_id).get("model_role")
+    if isinstance(value, str):
+        normalized = " ".join(value.strip().split()).lower()
+        if normalized in {role.value for role in ModelRole}:
+            return normalized
+    return None
 
 
 def _normalize_capability_truth(value: Any) -> str | None:
@@ -195,6 +205,7 @@ class RoutedLLMSettings:
     context_window: int | None = None
     learned_token_limit: int | None = None
     token_limit: int | None = None
+    model_role: str | None = None
     supports_tools: bool | None = None
     supports_thinking: bool | None = None
     supports_tools_truth: str | None = None
@@ -275,6 +286,7 @@ def _candidate_diagnostics_from_settings(
         "context_window": candidate.context_window,
         "learned_token_limit": candidate.learned_token_limit,
         "token_limit": candidate.token_limit,
+        "model_role": candidate.model_role,
         "supports_tools": candidate.supports_tools,
         "supports_tools_truth": candidate.supports_tools_truth,
         "supports_tools_confidence": candidate.supports_tools_confidence,
@@ -622,6 +634,10 @@ def resolve_routed_llm_candidates(
                     route.provider,
                     route.mapping.selected_model,
                 ),
+                model_role=_provider_model_role(
+                    route.provider,
+                    route.mapping.selected_model,
+                ),
                 supports_tools=_provider_model_supports_tools(
                     route.provider,
                     route.mapping.selected_model,
@@ -780,6 +796,7 @@ def resolve_pinned_llm_candidate(
             context_window=_provider_model_context_window(provider, requested_model),
             learned_token_limit=_provider_model_learned_token_limit(provider, requested_model),
             token_limit=_effective_provider_model_token_limit(provider, requested_model),
+            model_role=_provider_model_role(provider, requested_model),
             supports_tools=_provider_model_supports_tools(provider, requested_model),
             supports_thinking=_provider_model_supports_thinking(provider, requested_model),
             supports_tools_truth=_provider_model_capability_truth(

@@ -9,7 +9,7 @@ import json
 import math
 from pathlib import Path
 import re
-from typing import Any
+from typing import Any, Callable, Protocol
 from uuid import uuid4
 
 
@@ -212,6 +212,13 @@ def _cosine(vec_a: list[float], vec_b: list[float]) -> float:
     return sum(a * b for a, b in zip(vec_a, vec_b))
 
 
+class EmbeddingProvider(Protocol):
+    """Optional sync embedding provider used for vector ranking."""
+
+    def embed(self, text: str) -> list[float]:
+        ...
+
+
 @dataclass(frozen=True)
 class QueryHit:
     """Single retrieval hit returned by hybrid search."""
@@ -247,15 +254,26 @@ class IngestSummary:
 class HybridSearchStore:
     """Minimal persistent store for hybrid retrieval."""
 
-    def __init__(self, store_path: str | Path) -> None:
+    def __init__(
+        self,
+        store_path: str | Path,
+        embedding_provider: EmbeddingProvider | Callable[[str], list[float]] | None = None,
+    ) -> None:
         self._store_path = Path(store_path).expanduser().resolve()
         self._store_path.parent.mkdir(parents=True, exist_ok=True)
         self._chunks: list[dict[str, Any]] = []
+        self._embedding_provider = embedding_provider
         self._load()
 
     @property
     def store_path(self) -> Path:
         return self._store_path
+
+    def set_embedding_provider(
+        self,
+        embedding_provider: EmbeddingProvider | Callable[[str], list[float]] | None,
+    ) -> None:
+        self._embedding_provider = embedding_provider
 
     def ingest_text(
         self,
@@ -307,6 +325,7 @@ class HybridSearchStore:
             tokens = _tokenize(chunk_text)
             if not tokens:
                 continue
+            embedded_vector = self._embed_text(chunk_text)
             item = {
                 "chunk_id": f"ch_{uuid4().hex[:16]}",
                 "knowledge_base_id": kb_id,
@@ -317,7 +336,10 @@ class HybridSearchStore:
                 "tokens": tokens,
                 "term_freq": _tf(tokens),
                 "token_count": len(tokens),
-                "vector": _hash_vector(tokens, dimension=vector_dimension),
+                "vector": embedded_vector
+                if embedded_vector is not None
+                else _hash_vector(tokens, dimension=vector_dimension),
+                "vector_kind": "embedding" if embedded_vector is not None else "hash",
                 "created_at": _utc_iso_now(),
             }
             self._chunks.append(item)
@@ -672,9 +694,14 @@ class HybridSearchStore:
                 score += idf * ((freq * (bm25_k1 + 1)) / max(1e-9, denom))
             bm25_scores[item["chunk_id"]] = score
 
-        query_vec = _hash_vector(query_tokens)
+        query_embedding = self._embed_text(" ".join(query_tokens))
+        query_hash_vec = _hash_vector(query_tokens)
         vector_scores = {
-            item["chunk_id"]: _cosine(item.get("vector", []), query_vec)
+            item["chunk_id"]: self._vector_score_for_query(
+                item=item,
+                query_embedding=query_embedding,
+                query_hash_vec=query_hash_vec,
+            )
             for item in candidates
         }
 
@@ -711,3 +738,41 @@ class HybridSearchStore:
             "vector_rank_lookup": vector_rank_lookup,
             "fused": sorted(scored, key=lambda x: x[0], reverse=True),
         }
+
+    def _embed_text(self, text: str) -> list[float] | None:
+        provider = self._embedding_provider
+        if provider is None:
+            return None
+        try:
+            if hasattr(provider, "embed"):
+                raw_vector = provider.embed(text)  # type: ignore[attr-defined]
+            else:
+                raw_vector = provider(text)  # type: ignore[operator]
+        except Exception:
+            return None
+        if not raw_vector:
+            return None
+        try:
+            vector = [float(value) for value in raw_vector]
+        except Exception:
+            return None
+        if not any(vector):
+            return None
+        return vector
+
+    def _vector_score_for_query(
+        self,
+        *,
+        item: dict[str, Any],
+        query_embedding: list[float] | None,
+        query_hash_vec: list[float],
+    ) -> float:
+        vector = item.get("vector", [])
+        if not isinstance(vector, list):
+            return 0.0
+        vector_kind = str(item.get("vector_kind") or "hash").strip().lower()
+        if vector_kind == "embedding" and query_embedding is not None and len(vector) == len(query_embedding):
+            return _cosine(vector, query_embedding)
+        if len(vector) == len(query_hash_vec):
+            return _cosine(vector, query_hash_vec)
+        return 0.0

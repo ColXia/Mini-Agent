@@ -95,6 +95,42 @@ def test_model_discovery_rejects_removed_gemini_provider_type() -> None:
     assert _normalize_provider_type("gemini") == ProviderType.CUSTOM
 
 
+def test_model_discovery_uses_curated_manifest_for_minimax(monkeypatch) -> None:
+    class _UnexpectedAsyncClient:
+        def __init__(self, *args, **kwargs):  # noqa: ANN002, ANN003
+            raise AssertionError("minimax discovery should not instantiate an HTTP client")
+
+    monkeypatch.setattr("mini_agent.model_manager.model_discovery.httpx.AsyncClient", _UnexpectedAsyncClient)
+
+    result = asyncio.run(
+        ModelDiscoveryService().discover_models(
+            ProviderType.MINIMAX,
+            "sk-minimax",
+            "https://api.minimaxi.com",
+            use_cache=False,
+        )
+    )
+
+    assert result.discovery_source == "curated_manifest"
+    assert result.models[0].id == "MiniMax-M2.7"
+
+
+def test_model_discovery_fetch_models_uses_curated_manifest_for_minimax() -> None:
+    models = asyncio.run(
+        ModelDiscoveryService()._fetch_models(  # noqa: SLF001
+            ProviderType.MINIMAX,
+            "sk-minimax",
+            "https://api.minimaxi.com",
+        )
+    )
+
+    assert [item.id for item in models[:3]] == [
+        "MiniMax-M2.7",
+        "MiniMax-M2.5",
+        "MiniMax-M1",
+    ]
+
+
 def test_model_discovery_cache_scopes_entries_by_normalized_base_url(tmp_path) -> None:
     cache = ModelDiscoveryCache(cache_dir=tmp_path)
     result = DiscoveryResult(

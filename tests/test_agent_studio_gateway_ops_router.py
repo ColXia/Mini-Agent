@@ -230,6 +230,104 @@ def test_ops_models_contract_merges_custom_and_preset(monkeypatch, _catalog_path
         assert select.json()["default_model_id"] == "custom-model-1"
 
 
+def test_ops_model_role_and_feature_binding_contracts(_catalog_path):
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/v1/ops/providers",
+            json={
+                "name": "Ollama Local",
+                "api_type": "openai",
+                "api_base": "http://localhost:11434/v1",
+                "api_key": "ollama",
+                "models": ["qwen3.5:9b", "qwen3-embedding:0.6b"],
+                "enabled": True,
+                "priority": 9,
+                "timeout": 45,
+                "headers": {},
+            },
+        )
+        assert created.status_code == 200
+
+        role_resp = client.patch(
+            "/api/v1/ops/models/role",
+            json={
+                "source": "custom",
+                "provider_id": "ollama-local",
+                "model_id": "qwen3-embedding:0.6b",
+                "model_role": "embedding",
+            },
+        )
+        assert role_resp.status_code == 200
+        assert any(
+            item["model_id"] == "qwen3-embedding:0.6b" and item["model_role"] == "embedding"
+            for item in role_resp.json()["models"]
+        )
+
+        bind_resp = client.put(
+            "/api/v1/ops/models/bindings",
+            json={
+                "feature_role": "embedding",
+                "source": "custom",
+                "provider_id": "ollama-local",
+                "model_id": "qwen3-embedding:0.6b",
+            },
+        )
+        assert bind_resp.status_code == 200
+        assert bind_resp.json()["feature_role"] == "embedding"
+        assert bind_resp.json()["provider_id"] == "ollama-local"
+
+        list_resp = client.get("/api/v1/ops/models/bindings")
+        assert list_resp.status_code == 200
+        assert list_resp.json()["items"][0]["feature_role"] == "embedding"
+
+        clear_resp = client.delete("/api/v1/ops/models/bindings/embedding")
+        assert clear_resp.status_code == 200
+        assert clear_resp.json()["status"] == "cleared"
+
+
+def test_ops_model_probe_contract(monkeypatch):
+    monkeypatch.setattr(
+        "mini_agent.application.operations_provider_use_cases.ModelCapabilityProbeService.probe_model",
+        lambda self, **kwargs: {
+            "source": "custom",
+            "provider_id": "maas",
+            "provider_name": "MaaS",
+            "api_type": "openai",
+            "api_base": "https://maas.example.com/v2",
+            "model_id": "astron-code-latest",
+            "updated_fields": ["supports_tools"],
+            "discovery_attempted": True,
+            "active_probe_attempted": True,
+            "notes": [],
+            "model": {
+                "model_id": "astron-code-latest",
+                "display_name": "Astron Latest",
+                "is_default": True,
+                "supports_tools": True,
+                "supports_tools_truth": "supported",
+                "supports_tools_confidence": "high",
+                "supports_tools_source": "active_probe_tool_call",
+            },
+        },
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/ops/models/probe",
+            json={
+                "source": "custom",
+                "provider_id": "maas",
+                "model_id": "astron-code-latest",
+            },
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["provider_id"] == "maas"
+        assert payload["updated_fields"] == ["supports_tools"]
+        assert payload["model"]["supports_tools"] is True
+        assert payload["model"]["supports_tools_source"] == "active_probe_tool_call"
+
+
 def test_ops_provider_model_discovery_contract(monkeypatch):
     class _OpsStub:
         def discover_provider_models(self, *, payload):

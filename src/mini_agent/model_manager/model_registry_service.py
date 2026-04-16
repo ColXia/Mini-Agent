@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 import threading
 from typing import Any
+from urllib.parse import urlsplit
 
 from mini_agent.config_bootstrap import load_local_env_files
 from mini_agent.model_manager.bootstrap import BootstrapLLMSettings
@@ -25,16 +26,20 @@ from mini_agent.model_manager.preset_providers import (
     get_preset_provider_config,
 )
 from mini_agent.model_manager.provider import (
+    ModelRole,
     ProviderAPIType,
     ProviderCatalog,
     ProviderConfig,
     normalize_provider_catalog,
+    normalize_model_role,
 )
 
 
 PRESET_STATE_PATH = Path.home() / ".mini-agent" / "preset_models.json"
+FEATURE_BINDINGS_PATH = Path.home() / ".mini-agent" / "feature_model_bindings.json"
 BOOTSTRAP_PROVIDER_ID = "bootstrap-config"
 _MODEL_METADATA_KEYS = (
+    "model_role",
     "discovered_at",
     "discovery_source",
     "discovery_confidence",
@@ -84,8 +89,24 @@ def _normalize_source(value: str) -> str:
     return normalized
 
 
-def _to_discovery_type(api_type: str) -> ProviderType:
+def _looks_like_ollama_endpoint(api_base: str | None) -> bool:
+    normalized = " ".join((api_base or "").strip().split())
+    if not normalized:
+        return False
+    try:
+        parsed = urlsplit(normalized)
+    except Exception:
+        return "11434" in normalized
+    host = str(parsed.hostname or "").strip().lower()
+    if host in {"localhost", "127.0.0.1", "::1"} and parsed.port == 11434:
+        return True
+    return "11434" in normalized
+
+
+def _to_discovery_type(api_type: str, api_base: str | None = None) -> ProviderType:
     normalized = " ".join((api_type or "").strip().split()).lower()
+    if normalized == "openai" and _looks_like_ollama_endpoint(api_base):
+        return ProviderType.OLLAMA
     if normalized == "openai":
         return ProviderType.OPENAI
     if normalized == "anthropic":
@@ -188,6 +209,11 @@ def _normalize_model_metadata_entry(value: Any) -> dict[str, Any]:
         return {}
 
     normalized: dict[str, Any] = {}
+    model_role = _normalize_optional_text(value.get("model_role"))
+    if model_role:
+        lowered = model_role.lower()
+        if lowered in {role.value for role in ModelRole}:
+            normalized["model_role"] = lowered
     discovered_at = _normalize_optional_text(value.get("discovered_at"))
     if discovered_at:
         normalized["discovered_at"] = discovered_at
@@ -224,6 +250,24 @@ def _normalize_model_metadata_entry(value: Any) -> dict[str, Any]:
     return normalized
 
 
+def _normalize_feature_role(value: Any) -> str:
+    normalized = _normalize_optional_text(value)
+    if normalized is None:
+        raise ValueError("feature_role must not be empty")
+    lowered = normalized.lower()
+    if lowered not in {ModelRole.EMBEDDING.value, ModelRole.OCR.value}:
+        raise ValueError("feature_role must be one of: embedding, ocr")
+    return lowered
+
+
+def _is_chat_runtime_model(metadata: dict[str, Any] | None) -> bool:
+    role = _normalize_optional_text((metadata or {}).get("model_role"))
+    if role is None:
+        return True
+    lowered = role.lower()
+    return lowered not in {ModelRole.EMBEDDING.value, ModelRole.OCR.value}
+
+
 class ModelRegistryService:
     """Registry service joining custom providers and preset providers."""
 
@@ -232,6 +276,7 @@ class ModelRegistryService:
         *,
         catalog_path: Path | None = None,
         preset_state_path: Path | None = None,
+        feature_bindings_path: Path | None = None,
     ) -> None:
         self.catalog_path = (
             catalog_path.expanduser().resolve()
@@ -241,7 +286,12 @@ class ModelRegistryService:
         self.preset_state_path = (
             preset_state_path.expanduser().resolve()
             if preset_state_path is not None
-            else PRESET_STATE_PATH
+            else self.catalog_path.with_name("preset_models.json")
+        )
+        self.feature_bindings_path = (
+            feature_bindings_path.expanduser().resolve()
+            if feature_bindings_path is not None
+            else self.catalog_path.with_name("feature_model_bindings.json")
         )
 
     def _load_custom_catalog(self) -> ProviderCatalog:
@@ -251,10 +301,9 @@ class ModelRegistryService:
         return normalize_provider_catalog(payload)
 
     def _save_custom_catalog(self, catalog: ProviderCatalog) -> None:
-        self.catalog_path.parent.mkdir(parents=True, exist_ok=True)
-        self.catalog_path.write_text(
-            json.dumps(catalog.model_dump(), ensure_ascii=False, indent=2),
-            encoding="utf-8",
+        self._atomic_write_json(
+            self.catalog_path,
+            catalog.model_dump(),
         )
 
     def _load_preset_state(self) -> dict[str, Any]:
@@ -272,11 +321,34 @@ class ModelRegistryService:
         return {"providers": providers}
 
     def _save_preset_state(self, payload: dict[str, Any]) -> None:
-        self.preset_state_path.parent.mkdir(parents=True, exist_ok=True)
-        self.preset_state_path.write_text(
+        self._atomic_write_json(self.preset_state_path, payload)
+
+    def _load_feature_bindings_state(self) -> dict[str, Any]:
+        if not self.feature_bindings_path.exists():
+            return {"bindings": {}}
+        try:
+            payload = json.loads(self.feature_bindings_path.read_text(encoding="utf-8"))
+        except Exception:
+            return {"bindings": {}}
+        if not isinstance(payload, dict):
+            return {"bindings": {}}
+        bindings = payload.get("bindings")
+        if not isinstance(bindings, dict):
+            bindings = {}
+        return {"bindings": bindings}
+
+    def _save_feature_bindings_state(self, payload: dict[str, Any]) -> None:
+        self._atomic_write_json(self.feature_bindings_path, payload)
+
+    @staticmethod
+    def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = path.with_suffix(path.suffix + ".tmp")
+        tmp_path.write_text(
             json.dumps(payload, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
+        tmp_path.replace(path)
 
     def _discover_models(
         self,
@@ -409,6 +481,8 @@ class ModelRegistryService:
             "provider_name": provider.name,
             "api_type": provider.api_type.value,
             "api_base": provider.api_base,
+            "provider_family": provider.api_type.value,
+            "provider_variant": None,
             "models": models,
             "default_model_id": default_model_id,
             "default_model_strategy": default_model_strategy,
@@ -424,6 +498,8 @@ class ModelRegistryService:
         provider_name: str,
         api_type: str,
         api_base: str,
+        provider_family: str | None,
+        provider_variant: str | None,
         model_ids: list[str],
         default_model_id: str | None,
         display_names: dict[str, str] | None = None,
@@ -439,6 +515,8 @@ class ModelRegistryService:
             "provider_name": provider_name,
             "api_type": api_type,
             "api_base": api_base,
+            "provider_family": provider_family,
+            "provider_variant": provider_variant,
             "models": ModelRegistryService._model_entries(
                 model_ids,
                 default_model_id,
@@ -638,6 +716,150 @@ class ModelRegistryService:
             return learned
         return _normalize_context_window(model.get("context_window"))
 
+    @staticmethod
+    def _serialize_state_models(
+        models: list[dict[str, Any]],
+        *,
+        include_learned_token_limit: bool = True,
+    ) -> list[dict[str, Any]]:
+        return [
+            {
+                "model_id": _normalize_model_id(item.get("model_id")),
+                "display_name": _normalize_model_id(item.get("display_name"))
+                or _normalize_model_id(item.get("model_id")),
+                **(
+                    {"context_window": _normalize_context_window(item.get("context_window"))}
+                    if _normalize_context_window(item.get("context_window")) is not None
+                    else {}
+                ),
+                **(
+                    {"learned_token_limit": _normalize_token_limit(item.get("learned_token_limit"))}
+                    if include_learned_token_limit
+                    and _normalize_token_limit(item.get("learned_token_limit")) is not None
+                    else {}
+                ),
+                **_normalize_model_metadata_entry(item),
+            }
+            for item in models
+            if _normalize_model_id(item.get("model_id"))
+        ]
+
+    @staticmethod
+    def _filtered_provider_for_runtime(provider: ProviderConfig) -> ProviderConfig | None:
+        routable_models = [
+            model_id
+            for model_id in provider.models
+            if _is_chat_runtime_model(provider.model_metadata.get(model_id))
+        ]
+        if not routable_models:
+            return None
+        default_model_id = provider.default_model if provider.default_model in routable_models else routable_models[0]
+        ordered_models = [default_model_id, *[item for item in routable_models if item != default_model_id]]
+        return ProviderConfig.model_validate(
+            {
+                **provider.model_dump(),
+                "models": ordered_models,
+                "model_display_names": {
+                    key: value
+                    for key, value in provider.model_display_names.items()
+                    if key in ordered_models
+                },
+                "model_context_windows": {
+                    key: value
+                    for key, value in provider.model_context_windows.items()
+                    if key in ordered_models
+                },
+                "model_learned_token_limits": {
+                    key: value
+                    for key, value in provider.model_learned_token_limits.items()
+                    if key in ordered_models
+                },
+                "model_metadata": {
+                    key: value
+                    for key, value in provider.model_metadata.items()
+                    if key in ordered_models
+                },
+            }
+        )
+
+    def _resolve_registry_model(
+        self,
+        *,
+        source: str,
+        provider_id: str,
+        model_id: str,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        normalized_source = _normalize_source(source)
+        normalized_provider_id = _normalize_model_id(provider_id)
+        normalized_model_id = _normalize_model_id(model_id)
+        for provider in self.list_registry():
+            if _normalize_source(provider.get("source")) != normalized_source:
+                continue
+            if _normalize_model_id(provider.get("provider_id")) != normalized_provider_id:
+                continue
+            for model in provider.get("models", []):
+                if not isinstance(model, dict):
+                    continue
+                if _normalize_model_id(model.get("model_id")) == normalized_model_id:
+                    return provider, dict(model)
+            raise ValueError(
+                f"model '{normalized_model_id}' is not available in provider '{normalized_provider_id}'"
+            )
+        raise ValueError(f"{normalized_source} provider not found: {normalized_provider_id}")
+
+    def _persist_preset_provider_state(
+        self,
+        *,
+        provider: PresetProvider,
+        matched: dict[str, Any],
+        models: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        state = self._load_preset_state()
+        providers_state = state.setdefault("providers", {})
+        providers_state[provider.value] = {
+            "models": self._serialize_state_models(models),
+            "default_model_id": matched.get("default_model_id"),
+            "default_model_strategy": matched.get("default_model_strategy"),
+            "default_model_confidence": matched.get("default_model_confidence"),
+            "updated_at": _utc_now_iso(),
+        }
+        self._save_preset_state(state)
+        return self._provider_summary_from_preset(
+            provider_id=provider.value,
+            provider_name=str(matched["provider_name"]),
+            api_type=str(matched["api_type"]),
+            api_base=str(matched["api_base"]),
+            provider_family=str(matched.get("provider_family") or provider.value),
+            provider_variant=(
+                str(matched.get("provider_variant")).strip()
+                if matched.get("provider_variant") is not None
+                else None
+            ),
+            model_ids=[str(item["model_id"]) for item in models],
+            default_model_id=str(matched.get("default_model_id") or "").strip() or None,
+            display_names={
+                str(item["model_id"]): _normalize_model_id(item.get("display_name")) or str(item["model_id"])
+                for item in models
+            },
+            context_windows={
+                str(item["model_id"]): context_window
+                for item in models
+                if (context_window := _normalize_context_window(item.get("context_window"))) is not None
+            },
+            learned_token_limits={
+                str(item["model_id"]): token_limit
+                for item in models
+                if (token_limit := _normalize_token_limit(item.get("learned_token_limit"))) is not None
+            },
+            model_metadata={
+                str(item["model_id"]): _normalize_model_metadata_entry(item)
+                for item in models
+                if _normalize_model_metadata_entry(item)
+            },
+            default_model_strategy=str(matched.get("default_model_strategy") or "").strip() or None,
+            default_model_confidence=str(matched.get("default_model_confidence") or "").strip() or None,
+        )
+
     def list_registry(self) -> list[dict[str, Any]]:
         load_local_env_files()
         state = self._load_preset_state()
@@ -691,6 +913,12 @@ class ModelRegistryService:
                     provider_name=str(preset["name"]),
                     api_type=str(preset["api_type"]),
                     api_base=str(preset["api_base"]),
+                    provider_family=str(preset.get("provider_family") or provider.value),
+                    provider_variant=(
+                        str(preset.get("provider_variant")).strip()
+                        if preset.get("provider_variant") is not None
+                        else None
+                    ),
                     model_ids=model_ids,
                     default_model_id=default_model_id,
                     display_names=display_names,
@@ -724,7 +952,7 @@ class ModelRegistryService:
             if provider is None:
                 raise ValueError(f"custom provider not found: {provider_id}")
 
-            provider_type = _to_discovery_type(provider.api_type.value)
+            provider_type = _to_discovery_type(provider.api_type.value, provider.api_base)
             discovered_models, recommendation = self._discover_models(
                 provider_type=provider_type,
                 api_key=provider.api_key,
@@ -765,7 +993,10 @@ class ModelRegistryService:
             raise ValueError(f"preset provider not configured: {provider_id}")
 
         config = PRESET_PROVIDERS[provider]
-        provider_type = _to_discovery_type(config.discovery_type or provider.value)
+        provider_type = _to_discovery_type(
+            config.discovery_type or provider.value,
+            str(preset.get("api_base") or ""),
+        )
         discovered_models, recommendation = self._discover_models(
             provider_type=provider_type,
             api_key=preset["api_key"],
@@ -848,6 +1079,12 @@ class ModelRegistryService:
             provider_name=str(preset["name"]),
             api_type=str(preset["api_type"]),
             api_base=str(preset["api_base"]),
+            provider_family=str(preset.get("provider_family") or provider.value),
+            provider_variant=(
+                str(preset.get("provider_variant")).strip()
+                if preset.get("provider_variant") is not None
+                else None
+            ),
             model_ids=model_ids,
             default_model_id=selected,
             display_names={
@@ -962,6 +1199,12 @@ class ModelRegistryService:
             provider_name=str(matched["provider_name"]),
             api_type=str(matched["api_type"]),
             api_base=str(matched["api_base"]),
+            provider_family=str(matched.get("provider_family") or provider.value),
+            provider_variant=(
+                str(matched.get("provider_variant")).strip()
+                if matched.get("provider_variant") is not None
+                else None
+            ),
             model_ids=model_ids,
             default_model_id=selected_model_id,
             display_names={
@@ -1091,6 +1334,12 @@ class ModelRegistryService:
             provider_name=str(matched["provider_name"]),
             api_type=str(matched["api_type"]),
             api_base=str(matched["api_base"]),
+            provider_family=str(matched.get("provider_family") or provider.value),
+            provider_variant=(
+                str(matched.get("provider_variant")).strip()
+                if matched.get("provider_variant") is not None
+                else None
+            ),
             model_ids=[str(item["model_id"]) for item in updated_models],
             default_model_id=str(matched.get("default_model_id") or "").strip() or None,
             display_names={
@@ -1114,6 +1363,101 @@ class ModelRegistryService:
             },
             default_model_strategy=str(matched.get("default_model_strategy") or "").strip() or None,
             default_model_confidence=str(matched.get("default_model_confidence") or "").strip() or None,
+        )
+
+    def record_model_capabilities(
+        self,
+        *,
+        source: str,
+        provider_id: str,
+        model_id: str,
+        context_window: int | None = None,
+        metadata_patch: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        normalized_source = _normalize_source(source)
+        normalized_provider_id = _normalize_model_id(provider_id)
+        normalized_model_id = _normalize_model_id(model_id)
+        normalized_context_window = _normalize_context_window(context_window)
+        normalized_metadata_patch = _normalize_model_metadata_entry(metadata_patch or {})
+
+        if not normalized_provider_id:
+            raise ValueError("provider_id must not be empty")
+        if not normalized_model_id:
+            raise ValueError("model_id must not be empty")
+        if normalized_context_window is None and not normalized_metadata_patch:
+            raise ValueError("at least one capability update must be provided")
+
+        if normalized_source == "custom":
+            catalog = self._load_custom_catalog()
+            provider = catalog.find(normalized_provider_id)
+            if provider is None:
+                raise ValueError(f"custom provider not found: {provider_id}")
+            if normalized_model_id not in provider.models:
+                raise ValueError(f"model '{normalized_model_id}' is not available in provider '{provider_id}'")
+
+            updated_context_windows = dict(provider.model_context_windows)
+            if normalized_context_window is not None:
+                updated_context_windows[normalized_model_id] = normalized_context_window
+
+            updated_metadata = {
+                key: dict(value)
+                for key, value in provider.model_metadata.items()
+            }
+            if normalized_metadata_patch:
+                merged_metadata = {
+                    **updated_metadata.get(normalized_model_id, {}),
+                    **normalized_metadata_patch,
+                }
+                updated_metadata[normalized_model_id] = merged_metadata
+
+            updated_provider = ProviderConfig.model_validate(
+                {
+                    **provider.model_dump(),
+                    "model_context_windows": updated_context_windows,
+                    "model_metadata": updated_metadata,
+                }
+            )
+            new_providers = [
+                updated_provider if item.id == provider.id else item for item in catalog.providers
+            ]
+            self._save_custom_catalog(ProviderCatalog(providers=new_providers).normalized())
+            return self._provider_summary_from_custom(
+                provider=updated_provider,
+                model_ids=list(updated_provider.models),
+                default_model_id=updated_provider.default_model if updated_provider.models else None,
+            )
+
+        provider = self._preset_provider_from_id(normalized_provider_id)
+        registry = self.list_registry()
+        matched = next(
+            (
+                item
+                for item in registry
+                if item["source"] == "preset" and item["provider_id"] == provider.value
+            ),
+            None,
+        )
+        if matched is None:
+            raise ValueError(f"preset provider not configured: {provider_id}")
+
+        updated_models: list[dict[str, Any]] = []
+        found_model = False
+        for item in matched["models"]:
+            copied = dict(item)
+            current_model_id = _normalize_model_id(copied.get("model_id"))
+            if current_model_id == normalized_model_id:
+                found_model = True
+                if normalized_context_window is not None:
+                    copied["context_window"] = normalized_context_window
+                copied.update(normalized_metadata_patch)
+            updated_models.append(copied)
+        if not found_model:
+            raise ValueError(f"model '{normalized_model_id}' is not available in provider '{provider_id}'")
+
+        return self._persist_preset_provider_state(
+            provider=provider,
+            matched=matched,
+            models=updated_models,
         )
 
     def list_learned_token_limits(
@@ -1275,6 +1619,12 @@ class ModelRegistryService:
                 provider_name=str(matched["provider_name"]),
                 api_type=str(matched["api_type"]),
                 api_base=str(matched["api_base"]),
+                provider_family=str(matched.get("provider_family") or provider.value),
+                provider_variant=(
+                    str(matched.get("provider_variant")).strip()
+                    if matched.get("provider_variant") is not None
+                    else None
+                ),
                 model_ids=[str(item["model_id"]) for item in updated_models],
                 default_model_id=str(matched.get("default_model_id") or "").strip() or None,
                 display_names={
@@ -1299,6 +1649,269 @@ class ModelRegistryService:
             "removed_count": len(removed_models),
         }
 
+    def set_model_role(
+        self,
+        *,
+        source: str,
+        provider_id: str,
+        model_id: str,
+        model_role: str,
+    ) -> dict[str, Any]:
+        normalized_source = _normalize_source(source)
+        normalized_provider_id = _normalize_model_id(provider_id)
+        normalized_model_id = _normalize_model_id(model_id)
+        normalized_role = normalize_model_role(model_role, allow_unclassified=True).value
+        if not normalized_provider_id:
+            raise ValueError("provider_id must not be empty")
+        if not normalized_model_id:
+            raise ValueError("model_id must not be empty")
+
+        if normalized_source == "custom":
+            catalog = self._load_custom_catalog()
+            provider = catalog.find(normalized_provider_id)
+            if provider is None:
+                raise ValueError(f"custom provider not found: {provider_id}")
+            if normalized_model_id not in provider.models:
+                raise ValueError(f"model '{normalized_model_id}' is not available in provider '{provider_id}'")
+            updated_metadata = {
+                key: dict(value)
+                for key, value in provider.model_metadata.items()
+            }
+            updated_metadata.setdefault(normalized_model_id, {})["model_role"] = normalized_role
+            updated_provider = ProviderConfig.model_validate(
+                {
+                    **provider.model_dump(),
+                    "model_metadata": updated_metadata,
+                }
+            )
+            new_providers = [
+                updated_provider if item.id == provider.id else item for item in catalog.providers
+            ]
+            self._save_custom_catalog(ProviderCatalog(providers=new_providers).normalized())
+            return self._provider_summary_from_custom(
+                provider=updated_provider,
+                model_ids=list(updated_provider.models),
+                default_model_id=updated_provider.default_model if updated_provider.models else None,
+            )
+
+        provider = self._preset_provider_from_id(normalized_provider_id)
+        registry = self.list_registry()
+        matched = next(
+            (
+                item
+                for item in registry
+                if item["source"] == "preset" and item["provider_id"] == provider.value
+            ),
+            None,
+        )
+        if matched is None:
+            raise ValueError(f"preset provider not configured: {provider_id}")
+
+        updated_models: list[dict[str, Any]] = []
+        found_model = False
+        for item in matched["models"]:
+            copied = dict(item)
+            current_model_id = _normalize_model_id(copied.get("model_id"))
+            if current_model_id == normalized_model_id:
+                copied["model_role"] = normalized_role
+                found_model = True
+            updated_models.append(copied)
+        if not found_model:
+            raise ValueError(f"model '{normalized_model_id}' is not available in provider '{provider_id}'")
+        return self._persist_preset_provider_state(
+            provider=provider,
+            matched=matched,
+            models=updated_models,
+        )
+
+    def list_feature_bindings(self) -> list[dict[str, Any]]:
+        state = self._load_feature_bindings_state()
+        bindings = state.get("bindings", {})
+        items: list[dict[str, Any]] = []
+        for raw_role, raw_binding in bindings.items():
+            try:
+                feature_role = _normalize_feature_role(raw_role)
+            except ValueError:
+                continue
+            binding = raw_binding if isinstance(raw_binding, dict) else {}
+            resolved = self.resolve_feature_model_binding(feature_role=feature_role)
+            if resolved is not None:
+                items.append(resolved)
+                continue
+            items.append(
+                {
+                    "feature_role": feature_role,
+                    "source": _normalize_optional_text(binding.get("source")),
+                    "provider_id": _normalize_optional_text(binding.get("provider_id")),
+                    "provider_name": None,
+                    "provider_family": None,
+                    "provider_variant": None,
+                    "api_type": None,
+                    "api_base": None,
+                    "model_id": _normalize_optional_text(binding.get("model_id")),
+                    "display_name": None,
+                    "model_role": None,
+                    "updated_at": _normalize_optional_text(binding.get("updated_at")),
+                    "resolved": False,
+                }
+            )
+        return sorted(items, key=lambda item: str(item.get("feature_role") or ""))
+
+    def resolve_feature_model_binding(self, *, feature_role: str) -> dict[str, Any] | None:
+        normalized_role = _normalize_feature_role(feature_role)
+        state = self._load_feature_bindings_state()
+        raw_binding = state.get("bindings", {}).get(normalized_role)
+        if not isinstance(raw_binding, dict):
+            return None
+        source = _normalize_optional_text(raw_binding.get("source"))
+        provider_id = _normalize_optional_text(raw_binding.get("provider_id"))
+        model_id = _normalize_optional_text(raw_binding.get("model_id"))
+        updated_at = _normalize_optional_text(raw_binding.get("updated_at"))
+        if not source or not provider_id or not model_id:
+            return None
+        try:
+            provider, model = self._resolve_registry_model(
+                source=source,
+                provider_id=provider_id,
+                model_id=model_id,
+            )
+        except Exception:
+            return None
+        return {
+            "feature_role": normalized_role,
+            "source": str(provider.get("source") or source),
+            "provider_id": str(provider.get("provider_id") or provider_id),
+            "provider_name": provider.get("provider_name"),
+            "provider_family": provider.get("provider_family"),
+            "provider_variant": provider.get("provider_variant"),
+            "api_type": provider.get("api_type"),
+            "api_base": provider.get("api_base"),
+            "model_id": str(model.get("model_id") or model_id),
+            "display_name": model.get("display_name"),
+            "model_role": model.get("model_role"),
+            "updated_at": updated_at,
+            "resolved": True,
+        }
+
+    def resolve_feature_model_runtime(self, *, feature_role: str) -> dict[str, Any] | None:
+        normalized_role = _normalize_feature_role(feature_role)
+        state = self._load_feature_bindings_state()
+        raw_binding = state.get("bindings", {}).get(normalized_role)
+        if not isinstance(raw_binding, dict):
+            return None
+        source = _normalize_optional_text(raw_binding.get("source"))
+        provider_id = _normalize_optional_text(raw_binding.get("provider_id"))
+        model_id = _normalize_optional_text(raw_binding.get("model_id"))
+        if not source or not provider_id or not model_id:
+            return None
+        if source == "custom":
+            catalog = self._load_custom_catalog()
+            provider = catalog.find(provider_id)
+            if provider is None or model_id not in provider.models:
+                return None
+            return {
+                "feature_role": normalized_role,
+                "source": source,
+                "provider_id": provider.id,
+                "provider_name": provider.name,
+                "provider_family": provider.api_type.value,
+                "provider_variant": None,
+                "api_type": provider.api_type.value,
+                "api_base": provider.api_base,
+                "api_key": provider.api_key,
+                "headers": dict(provider.headers),
+                "timeout": int(provider.timeout),
+                "model_id": model_id,
+                "display_name": provider.model_display_names.get(model_id, model_id),
+                "model_role": _normalize_model_metadata_entry(provider.model_metadata.get(model_id)).get(
+                    "model_role"
+                ),
+            }
+
+        provider = self._preset_provider_from_id(provider_id)
+        preset = get_preset_provider_config(
+            provider,
+            use_latest_model=False,
+            allow_unreachable_local=True,
+            discover_inventory=False,
+        )
+        if not preset:
+            return None
+        state_payload = self._load_preset_state()
+        state_item = state_payload.get("providers", {}).get(provider.value, {})
+        model_ids, display_names, _context_windows, _learned_token_limits, model_metadata = self._parse_state_models(
+            state_item.get("models", [])
+        )
+        if model_id not in model_ids:
+            preset_models = [str(item) for item in preset.get("models", []) if str(item).strip()]
+            if model_id not in preset_models:
+                return None
+            display_names.setdefault(model_id, model_id)
+        return {
+            "feature_role": normalized_role,
+            "source": "preset",
+            "provider_id": provider.value,
+            "provider_name": str(preset["name"]),
+            "provider_family": preset.get("provider_family"),
+            "provider_variant": preset.get("provider_variant"),
+            "api_type": str(preset["api_type"]),
+            "api_base": str(preset["api_base"]),
+            "api_key": str(preset["api_key"]),
+            "headers": {},
+            "timeout": 60,
+            "model_id": model_id,
+            "display_name": display_names.get(model_id, model_id),
+            "model_role": model_metadata.get(model_id, {}).get("model_role"),
+        }
+
+    def bind_feature_model(
+        self,
+        *,
+        feature_role: str,
+        source: str,
+        provider_id: str,
+        model_id: str,
+    ) -> dict[str, Any]:
+        normalized_role = _normalize_feature_role(feature_role)
+        normalized_source = _normalize_source(source)
+        normalized_provider_id = _normalize_model_id(provider_id)
+        normalized_model_id = _normalize_model_id(model_id)
+        self._resolve_registry_model(
+            source=normalized_source,
+            provider_id=normalized_provider_id,
+            model_id=normalized_model_id,
+        )
+        self.set_model_role(
+            source=normalized_source,
+            provider_id=normalized_provider_id,
+            model_id=normalized_model_id,
+            model_role=normalized_role,
+        )
+        state = self._load_feature_bindings_state()
+        bindings = state.setdefault("bindings", {})
+        bindings[normalized_role] = {
+            "source": normalized_source,
+            "provider_id": normalized_provider_id,
+            "model_id": normalized_model_id,
+            "updated_at": _utc_now_iso(),
+        }
+        self._save_feature_bindings_state(state)
+        resolved = self.resolve_feature_model_binding(feature_role=normalized_role)
+        if resolved is None:
+            raise ValueError(f"failed to bind feature model for role: {normalized_role}")
+        return resolved
+
+    def clear_feature_model_binding(self, *, feature_role: str) -> dict[str, Any]:
+        normalized_role = _normalize_feature_role(feature_role)
+        state = self._load_feature_bindings_state()
+        bindings = state.setdefault("bindings", {})
+        removed = bindings.pop(normalized_role, None)
+        self._save_feature_bindings_state(state)
+        return {
+            "status": "cleared" if removed is not None else "not_found",
+            "feature_role": normalized_role,
+        }
+
     def runtime_provider_catalog(
         self,
         *,
@@ -1311,7 +1924,9 @@ class ModelRegistryService:
         providers: list[ProviderConfig] = []
         for provider in custom_catalog.providers:
             if provider.api_key and provider.models:
-                providers.append(ProviderConfig.model_validate(provider.model_dump()))
+                filtered_provider = self._filtered_provider_for_runtime(provider)
+                if filtered_provider is not None:
+                    providers.append(filtered_provider)
 
         for provider in PresetProvider:
             state_item = state_providers.get(provider.value, {})
@@ -1357,7 +1972,20 @@ class ModelRegistryService:
 
             if not model_ids:
                 continue
-
+            filtered_model_ids = [
+                model_id
+                for model_id in model_ids
+                if _is_chat_runtime_model(model_metadata.get(model_id))
+            ]
+            if not filtered_model_ids:
+                continue
+            filtered_default_model_id = (
+                default_model_id if default_model_id in filtered_model_ids else filtered_model_ids[0]
+            )
+            ordered_model_ids = [
+                filtered_default_model_id,
+                *[item for item in filtered_model_ids if item != filtered_default_model_id],
+            ]
             providers.append(
                 ProviderConfig.model_validate(
                     {
@@ -1366,11 +1994,21 @@ class ModelRegistryService:
                         "api_type": str(preset["api_type"]),
                         "api_base": str(preset["api_base"]),
                         "api_key": str(preset["api_key"]),
-                        "models": model_ids,
-                        "model_display_names": display_names,
-                        "model_context_windows": context_windows,
-                        "model_learned_token_limits": learned_token_limits,
-                        "model_metadata": model_metadata,
+                        "models": ordered_model_ids,
+                        "model_display_names": {
+                            key: value for key, value in display_names.items() if key in ordered_model_ids
+                        },
+                        "model_context_windows": {
+                            key: value for key, value in context_windows.items() if key in ordered_model_ids
+                        },
+                        "model_learned_token_limits": {
+                            key: value
+                            for key, value in learned_token_limits.items()
+                            if key in ordered_model_ids
+                        },
+                        "model_metadata": {
+                            key: value for key, value in model_metadata.items() if key in ordered_model_ids
+                        },
                         "enabled": True,
                         "priority": -100,
                     }
