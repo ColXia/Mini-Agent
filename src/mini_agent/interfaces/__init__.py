@@ -11,6 +11,7 @@ from .agent import (
     MainAgentSessionControlRequest,
     MainAgentSessionControlResponse,
     MainAgentSessionCreateRequest,
+    MainAgentDefaultSessionRequest,
     MainAgentSessionForkRequest,
     MainAgentSessionMemoryRequest,
     MainAgentSessionMemoryResponse,
@@ -60,7 +61,13 @@ from .ops import (
     StudioProviderSummary,
     StudioProviderUpsertRequest,
 )
-from .system import MainAgentRoutingDiagnostics, MainAgentRuntimeDiagnostics, SystemHealthResponse
+from .system import (
+    MainAgentRoutingDiagnostics,
+    MainAgentRuntimeDiagnostics,
+    ModelRouteCandidateDiagnostics,
+    ModelRouteDiagnostics,
+    SystemHealthResponse,
+)
 
 __all__ = [
     "ApiEnvelope",
@@ -77,6 +84,7 @@ __all__ = [
     "MainAgentSessionControlRequest",
     "MainAgentSessionControlResponse",
     "MainAgentSessionCreateRequest",
+    "MainAgentDefaultSessionRequest",
     "MainAgentSessionForkRequest",
     "MainAgentSessionMemoryRequest",
     "MainAgentSessionMemoryResponse",
@@ -121,5 +129,7 @@ __all__ = [
     "StudioProviderUpsertRequest",
     "MainAgentRoutingDiagnostics",
     "MainAgentRuntimeDiagnostics",
+    "ModelRouteCandidateDiagnostics",
+    "ModelRouteDiagnostics",
     "SystemHealthResponse",
 ]

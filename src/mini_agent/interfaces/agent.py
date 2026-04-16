@@ -71,6 +71,7 @@ class MainAgentSessionSummary(BaseModel):
     reply_enabled: bool = False
     busy: bool = False
     running_state: str | None = None
+    is_default: bool = False
     channel_type: str | None = None
     conversation_id: str | None = None
     sender_id: str | None = None
@@ -88,6 +89,7 @@ class MainAgentSessionSummary(BaseModel):
     pending_skill_reload_reason: str | None = None
     pending_approvals: list[MainAgentSessionPendingApproval] = Field(default_factory=list)
     recovery: MainAgentSessionRecoverySnapshot | None = None
+    remote_recovery_text: str | None = None
     memory_diagnostics: dict[str, Any] = Field(default_factory=dict)
     sandbox_diagnostics: dict[str, Any] = Field(default_factory=dict)
 
@@ -122,6 +124,16 @@ class MainAgentSessionCreateRequest(BaseModel):
     title: str | None = None
     surface: str | None = None
     shared: bool = False
+
+
+class MainAgentDefaultSessionRequest(BaseModel):
+    """Request body for resolving the shared default session."""
+
+    workspace_dir: str | None = None
+    surface: str | None = None
+    channel_type: str | None = None
+    conversation_id: str | None = None
+    sender_id: str | None = None
 
 
 class MainAgentSessionForkRequest(BaseModel):
@@ -339,4 +351,7 @@ class MainAgentSessionRuntimePolicyResponse(BaseModel):
     applied: bool = False
     approval_profile: str
     access_level: str
+    summary: str | None = None
+    details: str | None = None
+    status_text: str | None = None
     sandbox_diagnostics: dict[str, Any] = Field(default_factory=dict)

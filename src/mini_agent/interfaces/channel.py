@@ -1,4 +1,4 @@
-"""Channel ingress interface-layer DTOs for API v1."""
+"""Remote-adapter ingress DTOs for the shared API v1 contract."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 
 class ChannelMessageRequest(BaseModel):
-    """Canonical ingress payload for QQ/WeChat channels."""
+    """Canonical ingress payload for the active remote adapter path."""
 
     channel_type: str = Field(min_length=1)
     conversation_id: str = Field(min_length=1)

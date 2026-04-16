@@ -6,6 +6,6 @@
   "entry_point": "subprograms.novel_generator.main:main",
   "router_module": "subprograms.novel_generator.gateway.router:router",
   "config": {
-    "mount_path": "/api/novel"
+    "mount_path": "/api/v1/novel"
   }
 }

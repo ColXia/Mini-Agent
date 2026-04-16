@@ -8,6 +8,8 @@ from mini_agent.interfaces import (
     ChannelMessageResponse,
     MainAgentChatRequest,
     MainAgentChatResponse,
+    MainAgentDefaultSessionRequest,
+    MainAgentRoutingDiagnostics,
     MainAgentSessionContextRequest,
     MainAgentSessionContextResponse,
     MainAgentSessionControlRequest,
@@ -19,6 +21,9 @@ from mini_agent.interfaces import (
     MainAgentSessionMemoryResponse,
     MainAgentSessionModelSelectionRequest,
     MainAgentSessionModelSelectionResponse,
+    MainAgentSessionRuntimePolicyResponse,
+    ModelRouteCandidateDiagnostics,
+    ModelRouteDiagnostics,
     MainAgentSessionShareRequest,
     MainAgentSessionSkillRequest,
     MainAgentSessionSkillResponse,
@@ -69,6 +74,13 @@ def test_main_agent_runtime_session_request_contracts() -> None:
         "title",
         "surface",
         "shared",
+    }
+    assert _property_fields(MainAgentDefaultSessionRequest) == {
+        "workspace_dir",
+        "surface",
+        "channel_type",
+        "conversation_id",
+        "sender_id",
     }
     assert _required_fields(MainAgentSessionShareRequest) == {"shared"}
     assert _property_fields(MainAgentSessionShareRequest) == {"shared"}
@@ -246,6 +258,40 @@ def test_main_agent_session_contracts() -> None:
         "pending_model_source",
         "pending_provider_id",
         "pending_model_id",
+    }
+    assert _required_fields(MainAgentSessionRuntimePolicyResponse) == {
+        "status",
+        "session_id",
+        "approval_profile",
+        "access_level",
+    }
+    assert _property_fields(MainAgentSessionRuntimePolicyResponse) >= {
+        "summary",
+        "details",
+        "status_text",
+        "sandbox_diagnostics",
+    }
+
+
+def test_system_diagnostics_contracts() -> None:
+    assert _property_fields(MainAgentRoutingDiagnostics) >= {
+        "model_route_resolutions",
+        "latest_model_route",
+    }
+    assert _property_fields(ModelRouteDiagnostics) >= {
+        "route_intent",
+        "selected_provider_id",
+        "selected_model",
+        "bootstrap_selection_reason",
+        "candidate_count",
+        "candidates",
+    }
+    assert _property_fields(ModelRouteCandidateDiagnostics) >= {
+        "provider_id",
+        "model",
+        "mapping_mode",
+        "supports_tools",
+        "supports_thinking",
     }
 
 

@@ -518,7 +518,7 @@ function recoveryPendingApprovals(detail) {
   return Array.isArray(items) ? items.filter((item) => safeText(item?.token)) : [];
 }
 
-function formatSharedSessionRecovery(detail, { includeMessages = false } = {}) {
+function formatSharedSessionRecoveryFallback(detail) {
   const recovery = recoverySnapshot(detail);
   const recoveryState = safeText(recovery?.state) || (detail?.busy ? "running" : "idle");
   const recoverySummary =
@@ -560,11 +560,16 @@ function formatSharedSessionRecovery(detail, { includeMessages = false } = {}) {
   } else if (recoveryState.toLowerCase() === "interrupted") {
     lines.push("resume hint: send a new message to continue with recovery context");
   }
-  if (includeMessages) {
-    lines.push("");
-    lines.push(formatRecentMessages(detail?.recent_messages));
-  }
   return lines.join("\n");
+}
+
+function formatSharedSessionRecovery(detail, { includeMessages = false } = {}) {
+  const sharedText = safeText(detail?.remote_recovery_text);
+  const baseText = sharedText || formatSharedSessionRecoveryFallback(detail);
+  if (includeMessages) {
+    return `${baseText}\n\n${formatRecentMessages(detail?.recent_messages)}`;
+  }
+  return baseText;
 }
 
 function normalizeSourceList(value) {
@@ -1060,6 +1065,10 @@ async function updateSharedSessionRuntimePolicy(event, state, payload) {
 }
 
 function formatSharedSessionRuntimePolicyResult(data) {
+  const sharedDetails = compactText(data?.details, 8000);
+  if (sharedDetails) {
+    return sharedDetails;
+  }
   const execution = safeText(data?.approval_profile) || "build";
   const access = safeText(data?.access_level) || "default";
   return [

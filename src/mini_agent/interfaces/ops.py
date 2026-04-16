@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from mini_agent.model_manager.provider import normalize_provider_api_type
 
 
 class StudioProviderSummary(BaseModel):
@@ -48,6 +50,11 @@ class StudioProviderUpsertRequest(BaseModel):
     timeout: int = 60
     headers: dict[str, str] = Field(default_factory=dict)
 
+    @field_validator("api_type")
+    @classmethod
+    def _validate_api_type(cls, value: str) -> str:
+        return normalize_provider_api_type(value).value
+
 
 class StudioProviderHealthResponse(BaseModel):
     provider_id: str
@@ -77,6 +84,11 @@ class StudioProviderModelSummary(BaseModel):
     is_default: bool
     context_window: int | None = None
     learned_token_limit: int | None = None
+    supports_tools: bool | None = None
+    supports_thinking: bool | None = None
+    discovered_at: str | None = None
+    discovery_source: str | None = None
+    discovery_confidence: str | None = None
 
 
 class StudioModelProviderSummary(BaseModel):
@@ -86,6 +98,8 @@ class StudioModelProviderSummary(BaseModel):
     api_type: str
     api_base: str
     default_model_id: str | None = None
+    default_model_strategy: str | None = None
+    default_model_confidence: str | None = None
     models: list[StudioProviderModelSummary] = Field(default_factory=list)
     enabled: bool = True
     priority: int = 0
@@ -110,6 +124,11 @@ class StudioProviderModelDiscoveryRequest(BaseModel):
     api_type: str = "openai"
     api_base: str
     api_key: str
+
+    @field_validator("api_type")
+    @classmethod
+    def _validate_api_type(cls, value: str) -> str:
+        return normalize_provider_api_type(value).value
 
 
 class StudioProviderModelDiscoveryResponse(BaseModel):
