@@ -8,17 +8,26 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Callable
 from uuid import uuid4
 
-from fastapi import HTTPException
-
-from mini_agent.runtime.interaction_surface import (
-    normalize_surface_label,
-    resolve_interaction_binding,
+try:
+    from mini_agent.interaction import (
+        normalize_surface_label,
+        resolve_interaction_binding,
+    )
+except Exception:  # pragma: no cover - compatibility path for staged interaction extraction
+    from mini_agent.runtime.interaction_surface import (
+        normalize_surface_label,
+        resolve_interaction_binding,
+    )
+from mini_agent.runtime.session_pending_approval_state_handler import (
+    RuntimeSessionPendingApprovalStateHandler,
+)
+from mini_agent.runtime.session_recovery_reset_handler import (
+    RuntimeSessionRecoveryResetHandler,
 )
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from mini_agent.agent import Agent
     from mini_agent.interfaces import MainAgentSessionRecoverySnapshot
     from mini_agent.runtime.session_state import (
         MainAgentSessionState,
@@ -32,43 +41,23 @@ def _safe_text(value: object) -> str:
 
 @dataclass(slots=True)
 class RuntimeSessionLiveStateHandler:
-    build_memory_diagnostics_for_session: Callable[["MainAgentSessionState"], dict[str, Any]]
-    agent_knowledge_base_enabled: Callable[[Any], bool]
-    clear_runtime_task_memory_namespace: Callable[["Path", str], bool]
+    build_memory_diagnostics_for_session: Callable[["MainAgentSessionState"], dict[str, Any]] | None = None
+    agent_knowledge_base_enabled: Callable[[Any], bool] | None = None
+    clear_runtime_task_memory_namespace: Callable[["Path", str], bool] | None = None
     stored_recovery_snapshot_from_session: Callable[
         ["MainAgentSessionState"],
         "MainAgentSessionRecoverySnapshot | None",
-    ]
+    ] | None = None
+    pending_approval_state: RuntimeSessionPendingApprovalStateHandler | None = None
+    recovery_reset: RuntimeSessionRecoveryResetHandler | None = None
 
     @staticmethod
     def normalize_pending_approval(item: Any) -> dict[str, Any] | None:
-        if not isinstance(item, dict):
-            return None
-        token = _safe_text(item.get("token"))
-        tool_name = _safe_text(item.get("tool_name")) or "tool"
-        if not token:
-            return None
-        return {
-            "token": token,
-            "tool_name": tool_name,
-            "arguments": dict(item.get("arguments")) if isinstance(item.get("arguments"), dict) else {},
-            "kind": _safe_text(item.get("kind")) or None,
-            "reason": _safe_text(item.get("reason")) or None,
-            "cache_key": _safe_text(item.get("cache_key")) or None,
-            "can_escalate": bool(item.get("can_escalate", False)),
-            "step": max(0, int(item.get("step") or 0)),
-        }
+        return RuntimeSessionPendingApprovalStateHandler.normalize_pending_approval(item)
 
     @classmethod
     def pending_approvals_from_raw(cls, raw_items: Any) -> list[dict[str, Any]]:
-        if not isinstance(raw_items, list):
-            return []
-        approvals: list[dict[str, Any]] = []
-        for item in raw_items:
-            normalized = cls.normalize_pending_approval(item)
-            if normalized is not None:
-                approvals.append(normalized)
-        return approvals
+        return RuntimeSessionPendingApprovalStateHandler.pending_approvals_from_raw(raw_items)
 
     def bind_surface(
         self,
@@ -394,25 +383,12 @@ class RuntimeSessionLiveStateHandler:
         future: asyncio.Future[bool | None],
         now_utc: datetime | None = None,
     ) -> dict[str, Any]:
-        normalized = self.normalize_pending_approval(payload)
-        if normalized is None:
-            raise HTTPException(status_code=400, detail="Invalid pending approval payload.")
-        token = normalized["token"]
-        existing_index = next(
-            (
-                index
-                for index, item in enumerate(session.runtime.pending_approvals)
-                if _safe_text(item.get("token")) == token
-            ),
-            None,
+        return self._pending_approval_state_handler().record_pending_approval(
+            session,
+            payload=payload,
+            future=future,
+            now_utc=now_utc,
         )
-        if existing_index is None:
-            session.runtime.pending_approvals.append(normalized)
-        else:
-            session.runtime.pending_approvals[existing_index] = normalized
-        session.runtime.pending_approval_waiters[token] = future
-        session.touch(now_utc=now_utc)
-        return dict(normalized)
 
     def clear_pending_approval(
         self,
@@ -421,33 +397,17 @@ class RuntimeSessionLiveStateHandler:
         token: str | None = None,
         now_utc: datetime | None = None,
     ) -> None:
-        normalized_token = _safe_text(token)
-        if not normalized_token:
-            session.runtime.pending_approvals = []
-            session.runtime.pending_approval_waiters.clear()
-            session.touch(now_utc=now_utc)
-            return
-        session.runtime.pending_approvals = [
-            item
-            for item in session.runtime.pending_approvals
-            if _safe_text(item.get("token")) != normalized_token
-        ]
-        session.runtime.pending_approval_waiters.pop(normalized_token, None)
-        session.touch(now_utc=now_utc)
+        self._pending_approval_state_handler().clear_pending_approval(
+            session,
+            token=token,
+            now_utc=now_utc,
+        )
 
     def build_recovery_turn_context(
         self,
         session: "MainAgentSessionState",
     ) -> dict[str, Any] | None:
-        snapshot = self.stored_recovery_snapshot_from_session(session)
-        if snapshot is None:
-            return None
-        payload = snapshot.model_dump()
-        payload["resume_strategy"] = "next_message"
-        payload["continue_hint"] = "Continue from the interrupted shared-session task using restored context."
-        if payload.get("pending_approvals"):
-            payload["approval_hint"] = "Pending approvals from before restart were lost and must be re-evaluated."
-        return payload
+        return self._recovery_reset_handler().build_recovery_turn_context(session)
 
     def clear_recovery_context(
         self,
@@ -455,8 +415,10 @@ class RuntimeSessionLiveStateHandler:
         *,
         now_utc: datetime | None = None,
     ) -> None:
-        self._clear_recovery_context(session)
-        session.touch(now_utc=now_utc)
+        self._recovery_reset_handler().clear_recovery_context(
+            session,
+            now_utc=now_utc,
+        )
 
     def reset_runtime_state(
         self,
@@ -464,58 +426,10 @@ class RuntimeSessionLiveStateHandler:
         *,
         clear_runtime_task_memory: bool,
     ) -> None:
-        self._reset_agent_messages(session.runtime.agent)
-        if clear_runtime_task_memory:
-            self.clear_runtime_task_memory_namespace(
-                session.workspace_dir,
-                session.session_id,
-            )
-        session.transcript_state.current_turn_id = None
-        session.runtime.cancel_event = None
-        session.runtime.pending_approvals = []
-        for future in list(session.runtime.pending_approval_waiters.values()):
-            if not future.done():
-                future.set_result(None)
-        session.runtime.pending_approval_waiters.clear()
-        self._clear_recovery_context(session)
-        session.projection.last_prepared_context = {}
-        session.projection.prepared_context_diagnostics = {}
-        session.projection.busy = False
-        session.projection.running_state = ""
-        session.projection.knowledge_base_enabled = self.agent_knowledge_base_enabled(session.runtime.agent)
-        session.projection.memory_diagnostics = self.build_memory_diagnostics_for_session(session)
-
-    @staticmethod
-    def _clear_recovery_context(session: "MainAgentSessionState") -> None:
-        session.projection.recovery_context_pending = False
-        session.projection.recovery_state = ""
-        session.projection.recovery_summary = ""
-        session.projection.recovery_last_activity = None
-        session.projection.recovery_last_user_message = None
-        session.projection.recovery_last_assistant_message = None
-        session.projection.recovery_pending_approvals = []
-
-    @staticmethod
-    def _reset_agent_messages(agent: "Agent | None") -> None:
-        if agent is None:
-            return
-        messages = getattr(agent, "messages", None)
-        if isinstance(messages, list) and messages:
-            agent.messages = [messages[0]]
-        if hasattr(agent, "api_total_tokens"):
-            agent.api_total_tokens = 0
-        reset_runtime_state = getattr(agent, "reset_ephemeral_runtime_state", None)
-        if callable(reset_runtime_state):
-            reset_runtime_state()
-            return
-        if hasattr(agent, "last_prepared_turn_context"):
-            agent.last_prepared_turn_context = None
-        if hasattr(agent, "prepared_context_diagnostics"):
-            agent.prepared_context_diagnostics = {}
-        if hasattr(agent, "last_memory_automation"):
-            agent.last_memory_automation = {}
-        if hasattr(agent, "last_runtime_task_memory"):
-            agent.last_runtime_task_memory = {}
+        self._recovery_reset_handler().reset_runtime_state(
+            session,
+            clear_runtime_task_memory=clear_runtime_task_memory,
+        )
 
     @staticmethod
     def _activity_label(value: str) -> str:
@@ -607,7 +521,68 @@ class RuntimeSessionLiveStateHandler:
             default_surface=default_surface,
         )
 
+    def _pending_approval_state_handler(self) -> RuntimeSessionPendingApprovalStateHandler:
+        if self.pending_approval_state is not None:
+            return self.pending_approval_state
+        return RuntimeSessionPendingApprovalStateHandler()
+
+    def _recovery_reset_handler(self) -> RuntimeSessionRecoveryResetHandler:
+        if self.recovery_reset is not None:
+            return self.recovery_reset
+        return RuntimeSessionRecoveryResetHandler(
+            refresh_session_diagnostics=self._refresh_session_diagnostics,
+            agent_knowledge_base_enabled=self._resolve_agent_knowledge_base_enabled,
+            clear_runtime_task_memory_namespace=self._clear_runtime_task_memory_namespace_compat,
+            stored_recovery_snapshot_from_session=self._stored_recovery_snapshot_from_session_compat,
+        )
+
+    def _refresh_session_diagnostics(
+        self,
+        session: "MainAgentSessionState",
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        current_memory = getattr(session.projection, "memory_diagnostics", {})
+        memory: dict[str, Any]
+        if self.build_memory_diagnostics_for_session is None:
+            memory = dict(current_memory) if isinstance(current_memory, dict) else {}
+        else:
+            payload = self.build_memory_diagnostics_for_session(session)
+            memory = dict(payload) if isinstance(payload, dict) else {}
+        current_sandbox = getattr(session.projection, "sandbox_diagnostics", {})
+        sandbox = dict(current_sandbox) if isinstance(current_sandbox, dict) else {}
+        session.projection.memory_diagnostics = dict(memory)
+        session.projection.sandbox_diagnostics = dict(sandbox)
+        return dict(memory), dict(sandbox)
+
+    def _resolve_agent_knowledge_base_enabled(self, agent: Any) -> bool:
+        if self.agent_knowledge_base_enabled is not None:
+            return bool(self.agent_knowledge_base_enabled(agent))
+        enabled = getattr(agent, "knowledge_base_enabled", None)
+        if callable(enabled):
+            try:
+                return bool(enabled())
+            except Exception:
+                return False
+        return bool(getattr(agent, "_knowledge_base_enabled", False))
+
+    def _clear_runtime_task_memory_namespace_compat(
+        self,
+        workspace_dir: "Path",
+        session_id: str,
+    ) -> bool:
+        if self.clear_runtime_task_memory_namespace is None:
+            return False
+        return bool(self.clear_runtime_task_memory_namespace(workspace_dir, session_id))
+
+    def _stored_recovery_snapshot_from_session_compat(
+        self,
+        session: "MainAgentSessionState",
+    ) -> "MainAgentSessionRecoverySnapshot | None":
+        if self.stored_recovery_snapshot_from_session is None:
+            return None
+        return self.stored_recovery_snapshot_from_session(session)
+
 
 __all__ = [
     "RuntimeSessionLiveStateHandler",
 ]
+
