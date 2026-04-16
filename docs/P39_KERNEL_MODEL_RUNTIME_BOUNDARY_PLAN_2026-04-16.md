@@ -179,7 +179,9 @@ It means the planned landing order is already backed by code and focused tests r
 - `P39.1` upstream runtime/protocol substrate:
   - materially complete and ready to cut as the first implementation slice
 - `P39.2` kernel adoption and diagnostics closure:
-  - still pending and should reopen only after the upstream slice is preserved cleanly
+  - reopened after `P39.1`
+  - narrowed to the kernel consumer closure instead of widening into broader CLI/TUI mixed diffs
+  - focused validation is green and the slice is ready to cut
 
 ## Non-Goals
 

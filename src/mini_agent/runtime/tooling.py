@@ -1,26 +1,17 @@
-"""Tool initialization helpers shared by Mini-Agent runtimes."""
+"""Tool initialization and runtime-policy helpers shared by Mini-Agent runtimes."""
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Any
 
-from mini_agent.code_agent.sandbox import NetworkAccessMode, NetworkDomainPolicy, SandboxManager
-from mini_agent.code_agent.permissions import ApprovalEngine, PermissionDecision, PermissionPolicy, PermissionRule
+from mini_agent.agent_core.execution.sandbox import NetworkAccessMode, NetworkDomainPolicy, SandboxManager
+from mini_agent.agent_core.execution.permissions import ApprovalEngine, PermissionDecision, PermissionPolicy, PermissionRule
+from mini_agent.agent_core.runtime_bindings import set_agent_runtime_services
 from mini_agent.commands.mcp_support import resolve_runtime_mcp_config_path
 from mini_agent.runtime.sandbox_state import collect_sandbox_diagnostics
+from mini_agent.agent_core.skills.path_resolver import resolve_builtin_skills_dir, resolve_workspace_skills_dir
 from mini_agent.security.policy import RuntimePolicyEngine
-from mini_agent.turn_context import (
-    ConsolidatedMemoryTurnContextProvider,
-    MCPToolCatalogTurnContextProvider,
-    RuntimeRecoveryTurnContextProvider,
-    RuntimeTaskMemoryTurnContextProvider,
-    SessionSearchTurnContextProvider,
-    SkillCatalogTurnContextProvider,
-    UserProfileTurnContextProvider,
-    WorkspaceMemoryContextProvider,
-)
 
 
 def _tool_names(tools: list[Any]) -> list[str]:
@@ -191,73 +182,6 @@ def resolve_runtime_policy(
         approval_profile_override=approval_profile_override,
         access_level_override=access_level_override,
     )
-
-
-def resolve_builtin_skills_dir(config) -> Path:
-    configured = _safe_path(getattr(config.tools, "skills_dir", None))
-    candidates: list[Path] = []
-    if configured is not None:
-        if configured.is_absolute():
-            candidates.append(configured.resolve())
-        else:
-            candidates.append((Path.cwd() / configured).resolve())
-
-    package_default = (Path(__file__).parent.parent / "skills").resolve()
-    candidates.append(package_default)
-
-    seen: set[Path] = set()
-    for candidate in candidates:
-        if candidate in seen:
-            continue
-        seen.add(candidate)
-        if candidate.exists():
-            return candidate
-    return package_default
-
-
-def resolve_workspace_skills_dir(
-    workspace_dir: str | os.PathLike[str] | None = None,
-) -> Path | None:
-    workspace_root = _safe_path(workspace_dir)
-    if workspace_root is not None:
-        workspace_root = workspace_root.resolve()
-
-    explicit = _safe_path(os.getenv("MINI_AGENT_WORKSPACE_SKILLS_DIR"))
-    candidates: list[Path] = []
-    if explicit is not None:
-        if explicit.is_absolute():
-            candidates.append(explicit.resolve())
-        else:
-            base_dir = workspace_root or Path.cwd().resolve()
-            candidates.append((base_dir / explicit).resolve())
-
-    if workspace_root is not None:
-        candidates.append((workspace_root / ".mini-agent" / "skills").resolve())
-        candidates.append((workspace_root / "skills").resolve())
-
-    if not candidates:
-        return None
-
-    seen: set[Path] = set()
-    first_candidate: Path | None = None
-    for candidate in candidates:
-        if candidate in seen:
-            continue
-        seen.add(candidate)
-        if first_candidate is None:
-            first_candidate = candidate
-        if candidate.exists():
-            return candidate
-    return first_candidate
-
-
-def _safe_path(value: str | os.PathLike[str] | None) -> Path | None:
-    if value is None:
-        return None
-    text = str(value).strip()
-    if not text:
-        return None
-    return Path(text).expanduser()
 
 
 def build_approval_engine(
@@ -471,9 +395,12 @@ def apply_runtime_policy_to_agent(
     sandbox_manager: SandboxManager,
 ) -> dict[str, Any]:
     """Apply a rebuilt runtime policy stack to an existing agent instance."""
-    setattr(agent, "runtime_policy_engine", policy_engine)
-    setattr(agent, "approval_engine", approval_engine)
-    setattr(agent, "sandbox_manager", sandbox_manager)
+    set_agent_runtime_services(
+        agent,
+        runtime_policy_engine=policy_engine,
+        approval_engine=approval_engine,
+        sandbox_manager=sandbox_manager,
+    )
 
     current_kb_enabled = True
     kb_checker = getattr(agent, "knowledge_base_enabled", None)
@@ -486,7 +413,7 @@ def apply_runtime_policy_to_agent(
     tool_catalog = getattr(agent, "_tool_catalog", None)
     if isinstance(tool_catalog, dict):
         filtered_tools = policy_engine.filter_tools(list(tool_catalog.values()))
-        setattr(agent, "tools", {tool.name: tool for tool in filtered_tools})
+        agent.tools = {tool.name: tool for tool in filtered_tools}
         if not current_kb_enabled:
             try:
                 agent.set_knowledge_base_enabled(False)
@@ -533,41 +460,3 @@ def reconfigure_agent_runtime_policy(
         sandbox_manager=sandbox_manager,
     )
 
-
-def build_turn_context_providers(
-    config,
-    workspace_dir: Path,
-    *,
-    session_store_dir: str | Path | None = None,
-) -> list[Any]:
-    """Build turn-scoped context providers for the active workspace."""
-    from mini_agent.agent_core.skills.policy import WorkspaceSkillPolicyStore
-
-    providers: list[Any] = [RuntimeRecoveryTurnContextProvider()]
-    providers.append(RuntimeTaskMemoryTurnContextProvider(workspace_dir))
-    providers.append(
-        SessionSearchTurnContextProvider(
-            workspace_dir,
-            session_store_dir=session_store_dir,
-        )
-    )
-    if getattr(config.tools, "enable_note", False):
-        providers.append(UserProfileTurnContextProvider(workspace_dir))
-        providers.append(WorkspaceMemoryContextProvider(workspace_dir))
-        providers.append(
-            ConsolidatedMemoryTurnContextProvider(
-                workspace_dir,
-                session_store_dir=session_store_dir,
-            )
-        )
-    if getattr(config.tools, "enable_skills", False):
-        providers.append(
-            SkillCatalogTurnContextProvider(
-                builtin_dir=resolve_builtin_skills_dir(config),
-                workspace_dir=resolve_workspace_skills_dir(workspace_dir),
-                policy_store=WorkspaceSkillPolicyStore(workspace_dir),
-            )
-        )
-    if getattr(config.tools, "enable_mcp", False):
-        providers.append(MCPToolCatalogTurnContextProvider())
-    return providers

@@ -11,26 +11,32 @@ from contextlib import ExitStack, redirect_stderr, redirect_stdout
 from dataclasses import dataclass
 import io
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
-from mini_agent.agent import Agent
+from mini_agent.agent_core.engine import Agent
+from mini_agent.agent_core.runtime_bindings import set_agent_runtime_bindings
 from mini_agent.config import Config
 from mini_agent.logger import create_agent_logger
 from mini_agent.memory.automation import TurnMemoryAutomation
 from mini_agent.memory.runtime_task_memory import TurnRuntimeTaskMemory
+from mini_agent.model_manager.bootstrap import bootstrap_llm_settings_from_config
 from mini_agent.model_manager.failover import FailoverLLMClient
+from mini_agent.model_manager.rectifier import RequestRectifierOptions
+from mini_agent.model_manager.model_mapper import RouteIntent
+from mini_agent.model_manager.model_mapper import RouteRequirementProfile
 from mini_agent.model_manager.runtime import (
     resolve_pinned_llm_candidate,
     resolve_routed_llm_candidates,
 )
 from mini_agent.retry import RetryConfig
+from mini_agent.llm.protocol_binding import ProtocolRequestPolicy
 from mini_agent.runtime.tooling import (
     build_approval_engine,
-    build_turn_context_providers,
     build_workspace_sandbox_manager,
     initialize_agent_tools,
     resolve_runtime_policy,
 )
+from mini_agent.runtime.turn_context_provider_builder import build_turn_context_providers
 
 
 _DEFAULT_SYSTEM_PROMPT = "You are Mini-Agent, an intelligent assistant powered by MiniMax."
@@ -40,9 +46,12 @@ _DEFAULT_SYSTEM_PROMPT = "You are Mini-Agent, an intelligent assistant powered b
 class AgentKernelBuildOptions:
     """Build options for one agent-kernel instance."""
 
+    config: Config | None = None
+    config_loader: Callable[[bool], Config] | None = None
     approval_profile: str | None = None
     access_level: str | None = None
     requested_model: str | None = None
+    requested_model_route_intent: RouteIntent | None = None
     requested_provider_source: str | None = None
     requested_provider_id: str | None = None
     console_output: bool = True
@@ -54,15 +63,60 @@ class AgentKernelBuildOptions:
 def _route_diagnostics(route: Any) -> dict[str, Any]:
     if route is None:
         return {}
-    return {
+    diagnostics = {
         "source": str(getattr(route, "source", "") or ""),
         "provider": str(getattr(getattr(route, "provider", None), "value", getattr(route, "provider", "")) or ""),
+        "provider_source": str(getattr(route, "provider_source", "") or ""),
         "provider_id": str(getattr(route, "provider_id", "") or ""),
         "provider_name": str(getattr(route, "provider_name", "") or ""),
         "model": str(getattr(route, "model", "") or ""),
         "mapping_mode": str(getattr(route, "mapping_mode", "") or ""),
+        "requested_model": str(getattr(route, "requested_model", "") or ""),
+        "catalog_path": str(getattr(route, "catalog_path", "") or ""),
+        "priority": getattr(route, "priority", None),
+        "breaker_state": str(getattr(route, "breaker_state", "") or ""),
+        "breaker_allowed": getattr(route, "breaker_allowed", None),
+        "context_window": getattr(route, "context_window", None),
+        "learned_token_limit": getattr(route, "learned_token_limit", None),
         "token_limit": int(getattr(route, "token_limit", 0) or 0),
+        "supports_tools": getattr(route, "supports_tools", None),
+        "supports_tools_truth": str(getattr(route, "supports_tools_truth", "") or ""),
+        "supports_tools_confidence": str(getattr(route, "supports_tools_confidence", "") or ""),
+        "supports_tools_source": str(getattr(route, "supports_tools_source", "") or ""),
+        "supports_thinking": getattr(route, "supports_thinking", None),
+        "supports_thinking_truth": str(getattr(route, "supports_thinking_truth", "") or ""),
+        "supports_thinking_confidence": str(getattr(route, "supports_thinking_confidence", "") or ""),
+        "supports_thinking_source": str(getattr(route, "supports_thinking_source", "") or ""),
     }
+    model_route = getattr(route, "route_diagnostics", None)
+    if isinstance(model_route, dict):
+        diagnostics.update(
+            {
+                "resolution_kind": model_route.get("resolution_kind"),
+                "catalog_source": model_route.get("catalog_source"),
+                "route_intent": model_route.get("route_intent"),
+                "selected_reason": model_route.get("selected_reason"),
+                "fallback_reason": model_route.get("fallback_reason"),
+                "candidate_count": model_route.get("candidate_count"),
+                "allowed_candidate_count": model_route.get("allowed_candidate_count"),
+                "blocked_candidate_count": model_route.get("blocked_candidate_count"),
+                "bootstrap_selected_provider": model_route.get("bootstrap_selected_provider"),
+                "bootstrap_selection_reason": model_route.get("bootstrap_selection_reason"),
+                "bootstrap_selection_policy": model_route.get("bootstrap_selection_policy"),
+                "bootstrap_preferred_provider": model_route.get("bootstrap_preferred_provider"),
+                "bootstrap_preferred_provider_available": (
+                    model_route.get("bootstrap_preferred_provider_available")
+                ),
+                "bootstrap_alternatives": list(model_route.get("bootstrap_alternatives", [])),
+                "error": model_route.get("error"),
+                "candidates": [
+                    dict(item)
+                    for item in model_route.get("candidates", [])
+                    if isinstance(item, dict)
+                ],
+            }
+        )
+    return diagnostics
 
 
 def _turn_context_diagnostics(
@@ -86,11 +140,53 @@ def _runtime_policy_diagnostics(runtime_policy: Any) -> dict[str, Any]:
     }
 
 
+def _route_requirements_diagnostics(requirements: RouteRequirementProfile) -> dict[str, Any]:
+    return {
+        "require_tools": bool(requirements.require_tools),
+        "prefer_thinking": bool(requirements.prefer_thinking),
+        "min_context_window": (
+            int(requirements.min_context_window)
+            if requirements.min_context_window is not None
+            else None
+        ),
+    }
+
+
+def _should_require_tools(config: Config, runtime_policy: Any) -> bool:
+    allowed = runtime_policy.is_tool_allowed if runtime_policy is not None else (lambda _name: True)
+    static_tool_groups = [
+        (bool(config.tools.enable_bash), ("bash", "bash_output", "bash_kill")),
+        (bool(config.tools.enable_file_tools), ("read_file", "write_file", "edit_file", "docling_parse")),
+        (bool(getattr(config.tools, "enable_knowledge_base", True)), ("knowledge_base_query",)),
+        (bool(config.tools.enable_note), ("record_note", "recall_notes", "user_modeling")),
+    ]
+    for enabled, tool_names in static_tool_groups:
+        if enabled and any(allowed(name) for name in tool_names):
+            return True
+
+    # Skills and MCP are dynamic catalogs. If enabled, the agent is operating in a tool-using
+    # mode even though the concrete tool names are not known before bootstrap.
+    if bool(config.tools.enable_skills):
+        return True
+    if bool(config.tools.enable_mcp):
+        return True
+    return False
+
+
+def _build_route_requirements(config: Config, runtime_policy: Any) -> RouteRequirementProfile:
+    return RouteRequirementProfile(
+        require_tools=_should_require_tools(config, runtime_policy),
+        prefer_thinking=True,
+        min_context_window=None,
+    ).normalized()
+
+
 def _build_kernel_diagnostics(
     *,
     workspace_dir: Path,
     options: AgentKernelBuildOptions,
     llm_route: Any,
+    route_requirements: RouteRequirementProfile,
     runtime_policy: Any,
     tool_diagnostics: dict[str, Any],
     turn_context_providers: list[Any],
@@ -101,6 +197,7 @@ def _build_kernel_diagnostics(
         "allow_interactive_setup": bool(options.allow_interactive_setup),
         "background_output_suppressed": bool(options.suppress_background_output),
         "route": _route_diagnostics(llm_route),
+        "route_requirements": _route_requirements_diagnostics(route_requirements),
         "runtime_policy": _runtime_policy_diagnostics(runtime_policy),
         "tools": dict(tool_diagnostics.get("total_tools", {})),
         "workspace_tools": dict(tool_diagnostics.get("workspace_tools", {})),
@@ -134,15 +231,56 @@ def _load_system_prompt(config: Config, skill_loader: Any) -> str:
 
 
 def _build_retry_config(config: Config) -> RetryConfig | None:
-    if not config.llm.retry.enabled:
+    if not config.runtime.retry.enabled:
         return None
     return RetryConfig(
-        enabled=config.llm.retry.enabled,
-        max_retries=config.llm.retry.max_retries,
-        initial_delay=config.llm.retry.initial_delay,
-        max_delay=config.llm.retry.max_delay,
-        exponential_base=config.llm.retry.exponential_base,
+        enabled=config.runtime.retry.enabled,
+        max_retries=config.runtime.retry.max_retries,
+        initial_delay=config.runtime.retry.initial_delay,
+        max_delay=config.runtime.retry.max_delay,
+        exponential_base=config.runtime.retry.exponential_base,
     )
+
+
+def _build_request_policy(config: Config) -> ProtocolRequestPolicy:
+    request_policy = config.runtime.request_policy
+    return ProtocolRequestPolicy(
+        max_output_tokens=request_policy.max_output_tokens,
+        reasoning_split_enabled=request_policy.reasoning_split_enabled,
+        thinking_budget_tokens=request_policy.thinking_budget_tokens,
+        temperature=request_policy.temperature,
+        streaming_enabled=request_policy.streaming_enabled,
+        include_stream_usage=request_policy.include_stream_usage,
+    )
+
+
+def _build_rectifier_options(config: Config) -> RequestRectifierOptions:
+    rectifier = config.runtime.rectifier
+    return RequestRectifierOptions(
+        enabled=rectifier.enabled,
+        cache_injection=rectifier.cache_injection,
+        strip_thinking_signature=rectifier.strip_thinking_signature,
+    )
+
+
+def _resolve_requested_model_route_intent(
+    options: AgentKernelBuildOptions,
+    *,
+    requested_model: str | None,
+) -> RouteIntent:
+    if options.requested_model_route_intent == "automatic":
+        return "automatic"
+    if options.requested_model_route_intent == "explicit":
+        return "explicit"
+    return "explicit" if requested_model is not None else "automatic"
+
+
+def _resolve_kernel_config(opts: AgentKernelBuildOptions) -> Config:
+    if opts.config is not None:
+        return opts.config
+    if opts.config_loader is not None:
+        return opts.config_loader(bool(opts.allow_interactive_setup))
+    raise RuntimeError("Agent kernel config/config_loader was not injected.")
 
 
 async def build_agent_kernel(
@@ -162,16 +300,23 @@ async def build_agent_kernel(
             stack.enter_context(redirect_stdout(stdout_sink))
             stack.enter_context(redirect_stderr(stderr_sink))
 
-        if opts.allow_interactive_setup:
-            config = Config.load()
-        else:
-            config = Config.load(allow_interactive_setup=False)
+        config = _resolve_kernel_config(opts)
 
-        requested_model = (opts.requested_model or config.llm.model).strip()
+        runtime_policy = resolve_runtime_policy(
+            config,
+            approval_profile_override=opts.approval_profile,
+            access_level_override=opts.access_level,
+        )
+        route_requirements = _build_route_requirements(config, runtime_policy)
+        bootstrap_llm = bootstrap_llm_settings_from_config(config)
+        requested_model = (opts.requested_model or "").strip() or None
+        requested_model_route_intent = _resolve_requested_model_route_intent(
+            opts,
+            requested_model=requested_model,
+        )
         if opts.requested_provider_source and opts.requested_provider_id:
             llm_routes = [
                 resolve_pinned_llm_candidate(
-                    config,
                     provider_source=opts.requested_provider_source,
                     provider_id=opts.requested_provider_id,
                     model_id=requested_model,
@@ -179,12 +324,16 @@ async def build_agent_kernel(
             ]
         else:
             llm_routes = resolve_routed_llm_candidates(
-                config,
+                bootstrap_llm=bootstrap_llm,
                 requested_model=requested_model,
+                route_requirements=route_requirements,
+                route_intent=requested_model_route_intent,
             )
         llm_client = FailoverLLMClient(
             routes=llm_routes,
             retry_config=_build_retry_config(config),
+            request_policy=_build_request_policy(config),
+            rectifier_options=_build_rectifier_options(config),
         )
 
         tools, skill_loader, tool_diagnostics = await initialize_agent_tools(
@@ -194,11 +343,6 @@ async def build_agent_kernel(
             access_level_override=opts.access_level,
         )
     system_prompt = _load_system_prompt(config, skill_loader)
-    runtime_policy = resolve_runtime_policy(
-        config,
-        approval_profile_override=opts.approval_profile,
-        access_level_override=opts.access_level,
-    )
     sandbox_manager = build_workspace_sandbox_manager(
         config,
         resolved_workspace,
@@ -240,20 +384,18 @@ async def build_agent_kernel(
         ),
         turn_runtime_task_memory=TurnRuntimeTaskMemory(str(resolved_workspace)),
     )
-    setattr(agent, "runtime_route", llm_routes[0] if llm_routes else None)
-    setattr(agent, "skill_runtime", skill_loader)
-    setattr(
+    set_agent_runtime_bindings(
         agent,
-        "skill_catalog_loader",
-        getattr(skill_loader, "loader", skill_loader) if skill_loader is not None else None,
-    )
-    setattr(
-        agent,
-        "kernel_diagnostics",
-        _build_kernel_diagnostics(
+        runtime_route=llm_routes[0] if llm_routes else None,
+        skill_runtime=skill_loader,
+        skill_catalog_loader=(
+            getattr(skill_loader, "loader", skill_loader) if skill_loader is not None else None
+        ),
+        kernel_diagnostics=_build_kernel_diagnostics(
             workspace_dir=resolved_workspace,
             options=opts,
             llm_route=llm_routes[0] if llm_routes else None,
+            route_requirements=route_requirements,
             runtime_policy=runtime_policy,
             tool_diagnostics=tool_diagnostics,
             turn_context_providers=turn_context_providers,

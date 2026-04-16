@@ -80,6 +80,13 @@
 ### Next Likely Seam
 
 - reopen `P39.2` as the downstream `kernel` adoption and diagnostics closure seam
+- initial `P39.2` boundary rule:
+  - prefer `kernel + tooling/turn-context support + kernel-focused tests`
+  - do not automatically absorb `tests/test_cli_submission_loop.py` unless it proves to be a hard dependency of the kernel consumer cut
+- current `P39.2` validation result:
+  - narrowed consumer slice is coherent
+  - focused/consumer verification is green
+  - the slice is ready to be cut without widening into broader CLI/TUI mixed diffs
 
 ## Latest Sync: 2026-04-16 P38 Round-1 Narrow Commit Finalization
 

@@ -60,6 +60,30 @@
   - focused tests, adjacent regressions, `ruff`, and patch hygiene are all green
 - [next] commit `P39.1` and then reopen `P39.2` kernel adoption
 
+## 2026-04-16 P39.2 Kernel Consumer Closure
+
+- [completed] reopened `P39.2` after `P39.1` landed as commit `771fc6f`
+- [completed] first-pass `P39.2` audit confirmed the current likely consumer files:
+  - [kernel.py](/d:/file/Mini-Agent/src/mini_agent/agent_core/kernel.py)
+  - [tooling.py](/d:/file/Mini-Agent/src/mini_agent/runtime/tooling.py)
+  - [turn_context_provider_builder.py](/d:/file/Mini-Agent/src/mini_agent/runtime/turn_context_provider_builder.py)
+  - [test_agent_core_kernel.py](/d:/file/Mini-Agent/tests/test_agent_core_kernel.py)
+- [completed] identified one likely mixed-edge file to keep out unless proven necessary:
+  - [test_cli_submission_loop.py](/d:/file/Mini-Agent/tests/test_cli_submission_loop.py)
+  - current diff there looks broader than the kernel consumer story
+- [completed] verified the narrowed `P39.2` boundary on focused tests:
+  - `uv run pytest tests/test_agent_core_kernel.py -q`
+  - result: `12 passed`
+  - `uv run pytest tests/test_agent_core_kernel.py tests/test_agent_core_turn_context.py tests/test_security_policy.py tests/test_bash_tool.py -q`
+  - result: `68 passed`
+- [completed] verified direct consumer compatibility without widening the staged boundary:
+  - `uv run pytest tests/test_cli_submission_loop.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - result: included in combined `120 passed`
+- [completed] ran narrowed `P39.2` lint / hygiene:
+  - `ruff` green on `kernel.py`, `tooling.py`, `turn_context_provider_builder.py`, `test_agent_core_kernel.py`
+  - `git diff --check` surfaced one EOF blank-line issue in `runtime/tooling.py`, then passed after fix
+- [next] cut `P39.2` as the downstream kernel-consumer slice
+
 ## 2026-04-16 P38 Round-1 Narrow Commit Finalization
 
 - [completed] chose the explicit post-round-1 path:

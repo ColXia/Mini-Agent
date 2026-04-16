@@ -85,6 +85,33 @@
   - the next unresolved work is no longer "is the substrate coherent?"
   - the next unresolved work is the downstream `kernel` consumer closure in `P39.2`
 
+## 2026-04-16 P39.2 Kernel Consumer Closure
+
+- The first useful `P39.2` correction is a boundary correction, not a code change.
+- Current `tests/test_cli_submission_loop.py` diff is a likely mixed file:
+  - config injection
+  - streaming event handling
+  - model command flows
+  - command-side behavior unrelated to the minimal kernel consumer closure
+- That means it should not be included in `P39.2` by default just because it mentions `build_agent_kernel(...)`.
+- The safer initial `P39.2` boundary is:
+  - `src/mini_agent/agent_core/kernel.py`
+  - `src/mini_agent/runtime/tooling.py`
+  - `src/mini_agent/runtime/turn_context_provider_builder.py`
+  - `tests/test_agent_core_kernel.py`
+- Only if focused verification proves another file is truly required should the boundary widen from there.
+- Follow-up verification confirms that the boundary did not need to widen.
+- Important confirmation points:
+  - `tests/test_agent_core_kernel.py`: green
+  - `tests/test_agent_core_turn_context.py`: green
+  - `tests/test_security_policy.py` and `tests/test_bash_tool.py`: green
+  - direct consumer checks for `tests/test_cli_submission_loop.py` and `tests/test_agent_studio_gateway_api_v1.py`: green
+- That means the current consumer integration can be preserved as a narrow slice even though broader CLI/TUI files in the worktree remain dirty for other reasons.
+- Practical `P39.2` judgment now is:
+  - include the consumer-facing implementation files
+  - keep broader mixed CLI/TUI diffs out
+  - commit the narrowed kernel consumer closure as its own slice
+
 ## 2026-04-16 P38 Round-1 Narrow Commit Finalization
 
 - The round-1 closure result is already strong enough to stand as its own checkpoint.
