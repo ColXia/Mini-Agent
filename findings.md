@@ -1,5 +1,28 @@
 # Findings
 
+## 2026-04-16 P40.20 Shared Transport Package Landing
+
+- After `P40.19`, `surface-transport-orchestration` became the top remaining bucket.
+- The first useful thing the audit exposed was not the whole TUI/desktop rewrite.
+- It was a cleaner blocker:
+  - current dirty desktop/TUI files already import `mini_agent.transport`
+  - but the package itself was still untracked
+- That is exactly the kind of clean-clone integrity gap that should be closed early.
+- The value of this slice is broader than just adding files:
+  - transport error normalization now has one owner
+  - gateway HTTP session transport now has one shared client
+  - typed remote session access now has one shared facade/port contract
+- Structural effect:
+  - total dirty paths: `122 -> 117`
+  - `surface-transport-orchestration`: `40 -> 35`
+- Practical implication:
+  - future desktop/TUI adoption no longer needs to smuggle in the missing transport package
+  - the remaining surface bucket is now more honestly about coordinator/adoption work in:
+    - TUI command coordinators
+    - remote session projection
+    - remote turn stream orchestration
+    - desktop surface adoption
+
 ## 2026-04-16 P40.19 Runtime Session Test Contracts Sync
 
 - After `P40.18`, the remaining runtime bucket was no longer about production ownership.

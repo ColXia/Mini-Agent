@@ -1,5 +1,41 @@
 # Progress
 
+## 2026-04-16 P40.20 Shared Transport Package Landing
+
+- [completed] audited the post-`P40.19` `surface-transport-orchestration` bucket and confirmed the next clean-clone blocker was the missing shared `mini_agent.transport` package
+- [completed] landed the shared transport package:
+  - `src/mini_agent/transport/__init__.py`
+  - `src/mini_agent/transport/gateway_client.py`
+  - `src/mini_agent/transport/gateway_error.py`
+  - `src/mini_agent/transport/remote_session_client.py`
+  - `src/mini_agent/transport/remote_stream_error_service.py`
+  - `src/mini_agent/transport/session_transport_port.py`
+- [completed] landed focused transport regressions:
+  - `tests/test_transport_gateway_client.py`
+  - `tests/test_transport_gateway_error.py`
+  - `tests/test_transport_remote_session_client.py`
+  - `tests/test_transport_remote_stream_error_service.py`
+- [completed] verified the narrowed transport slice:
+  - `uv run ruff check src/mini_agent/transport/__init__.py src/mini_agent/transport/gateway_client.py src/mini_agent/transport/gateway_error.py src/mini_agent/transport/remote_session_client.py src/mini_agent/transport/remote_stream_error_service.py src/mini_agent/transport/session_transport_port.py tests/test_transport_gateway_client.py tests/test_transport_gateway_error.py tests/test_transport_remote_session_client.py tests/test_transport_remote_stream_error_service.py`
+  - result: `All checks passed!`
+  - `uv run pytest tests/test_transport_gateway_client.py tests/test_transport_gateway_error.py tests/test_transport_remote_session_client.py tests/test_transport_remote_stream_error_service.py -q`
+  - result: `21 passed`
+  - adjacent surface checks:
+    - `uv run pytest tests/test_desktop_window_helpers.py -k "desktop_error_detail or approval_failure" -q`
+    - result: `2 passed, 8 deselected`
+    - `uv run pytest tests/test_tui_app.py -k "remote_stream or GatewayTransportError" -q`
+    - result: `2 passed, 142 deselected`
+- [completed] committed the narrowed transport slice:
+  - commit: `976b92e`
+  - message: `p40: land shared transport package`
+- [completed] re-ran the dirty-worktree classifier after the commit:
+  - `python scripts/worktree_slice_report.py`
+  - result:
+    - total dirty paths: `117`
+    - `surface-transport-orchestration`: `35`
+    - recommended next slice remains `surface-transport-orchestration`
+- [next] audit the remaining TUI coordinator / remote projection cluster inside `surface-transport-orchestration`
+
 ## 2026-04-16 P40.19 Runtime Session Test Contracts Sync
 
 - [completed] re-audited the post-`P40.18` runtime residue and confirmed it was test-only architecture cleanup rather than another production-runtime seam

@@ -1,5 +1,83 @@
 # Task Plan
 
+## Latest Sync: 2026-04-16 P40.20 Shared Transport Package Landing
+
+## Current Execution Slice: P40.20 Shared Transport Package Landing (2026-04-16)
+
+### Why This Slice Is Next
+
+- after `P40.19`, the next top bucket became `surface-transport-orchestration`
+- the strict blocker audit showed one immediately landable clean-clone seam:
+  - current dirty desktop/TUI files already import the untracked `mini_agent.transport` package
+  - leaving that package untracked would recreate the same false progress problem previously seen with `interaction/`
+- the honest next move was therefore to land the shared transport package first, without bundling the larger desktop/TUI adoption diff yet
+
+### Scope
+
+- land the shared transport package:
+  - `src/mini_agent/transport/__init__.py`
+  - `src/mini_agent/transport/gateway_client.py`
+  - `src/mini_agent/transport/gateway_error.py`
+  - `src/mini_agent/transport/remote_session_client.py`
+  - `src/mini_agent/transport/remote_stream_error_service.py`
+  - `src/mini_agent/transport/session_transport_port.py`
+- land focused transport regressions:
+  - `tests/test_transport_gateway_client.py`
+  - `tests/test_transport_gateway_error.py`
+  - `tests/test_transport_remote_session_client.py`
+  - `tests/test_transport_remote_stream_error_service.py`
+- verify adjacent surface helpers that already consume the shared transport errors
+
+### Acceptance
+
+- clean clone contains the shared transport package required by current dirty desktop/TUI adoption
+- gateway transport, typed remote session client, and remote stream error normalization have focused test coverage
+- adjacent desktop/TUI helper tests can consume the shared transport error semantics
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- landed commit:
+  - `976b92e`
+  - `p40: land shared transport package`
+- focused verification:
+  - `uv run ruff check src/mini_agent/transport/__init__.py src/mini_agent/transport/gateway_client.py src/mini_agent/transport/gateway_error.py src/mini_agent/transport/remote_session_client.py src/mini_agent/transport/remote_stream_error_service.py src/mini_agent/transport/session_transport_port.py tests/test_transport_gateway_client.py tests/test_transport_gateway_error.py tests/test_transport_remote_session_client.py tests/test_transport_remote_stream_error_service.py`
+  - result: `All checks passed!`
+  - `uv run pytest tests/test_transport_gateway_client.py tests/test_transport_gateway_error.py tests/test_transport_remote_session_client.py tests/test_transport_remote_stream_error_service.py -q`
+  - result: `21 passed`
+  - adjacent surface checks:
+    - `uv run pytest tests/test_desktop_window_helpers.py -k "desktop_error_detail or approval_failure" -q`
+    - result: `2 passed, 8 deselected`
+    - `uv run pytest tests/test_tui_app.py -k "remote_stream or GatewayTransportError" -q`
+    - result: `2 passed, 142 deselected`
+- post-commit residual snapshot from `python scripts/worktree_slice_report.py`:
+  - total dirty paths: `122 -> 117`
+  - `surface-transport-orchestration`: `40 -> 35`
+  - recommended next slice remains `surface-transport-orchestration`
+- important boundary result:
+  - the repo no longer has the false state where current dirty desktop/TUI code imports `mini_agent.transport` but the package is missing from git
+  - the remaining surface bucket is now more honestly centered on TUI coordinators, remote projection/stream orchestration, and desktop adoption
+
+### Next Likely Seam
+
+- stay inside `surface-transport-orchestration`
+- the next healthy audit target is the untracked TUI coordinator cluster:
+  - `session_approval_command_coordinator.py`
+  - `session_context_command_coordinator.py`
+  - `session_kb_command_coordinator.py`
+  - `session_mcp_command_coordinator.py`
+  - `session_memory_command_coordinator.py`
+  - `session_model_command_coordinator.py`
+  - `session_remote_projector.py`
+  - `session_remote_turn_stream_coordinator.py`
+  - `session_runtime_policy_command_coordinator.py`
+  - `session_skill_command_coordinator.py`
+  - `session_turn_outcome_coordinator.py`
+  - `session_turn_state_coordinator.py`
+
 ## Latest Sync: 2026-04-16 P40.19 Runtime Session Test Contracts Sync
 
 ## Current Execution Slice: P40.19 Runtime Session Test Contracts Sync (2026-04-16)
