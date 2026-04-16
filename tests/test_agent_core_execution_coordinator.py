@@ -6,7 +6,7 @@ import asyncio
 
 import pytest
 
-from mini_agent.code_agent import (
+from mini_agent.agent_core.execution import (
     CoordinatorStage,
     InMemoryCoordinatorProgressBus,
     MiniCoordinator,

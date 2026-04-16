@@ -4,10 +4,10 @@ import platform
 
 import pytest
 
-from mini_agent.code_agent import PermissionDecision, ToolBuilder, ToolKind
-from mini_agent.code_agent.tools import DeclarativeToolAttributes
+from mini_agent.agent_core.execution import PermissionDecision, ToolBuilder, ToolKind
+from mini_agent.agent_core.execution.tools import DeclarativeToolAttributes
 from mini_agent.config import AgentConfig, Config, LLMConfig, SecurityConfig, ToolsConfig
-from mini_agent.code_agent.sandbox import NetworkAccessMode
+from mini_agent.agent_core.execution.sandbox import NetworkAccessMode
 from mini_agent.runtime.tooling import (
     add_workspace_tools,
     build_approval_engine,

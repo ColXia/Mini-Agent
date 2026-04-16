@@ -7,8 +7,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from mini_agent.code_agent.sandbox import SandboxBackend, SandboxManager
-from mini_agent.code_agent.sandbox.windows import SandboxTransformResult
+from mini_agent.agent_core.execution.sandbox import SandboxBackend, SandboxManager
+from mini_agent.agent_core.execution.sandbox.windows import SandboxTransformResult
 from mini_agent.config import AgentConfig, Config, LLMConfig, SecurityConfig, ToolsConfig
 from mini_agent.runtime.tooling import resolve_runtime_policy
 from mini_agent.security.policy import BashCommandPolicyDecision
