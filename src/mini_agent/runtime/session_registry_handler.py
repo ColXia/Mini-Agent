@@ -22,6 +22,7 @@ from mini_agent.runtime.session_snapshot_handler import (
     RuntimeSessionSnapshotHandler,
     RuntimeSessionSnapshotImportCommand,
 )
+from mini_agent.session import DEFAULT_SESSION_TITLE
 
 if TYPE_CHECKING:
     from mini_agent.interfaces import (
@@ -47,7 +48,7 @@ class RuntimeSessionRegistryHandler:
     session_catalog: "RuntimeSessionCatalogHandler"
     drop_expired_sessions: Callable[..., None]
     enforce_workspace_entry: Callable[[Sequence["MainAgentSessionState"], Path], None]
-    enforce_capacity: Callable[[int], None]
+    enforce_capacity: Callable[..., None]
     raise_workspace_mismatch: Callable[[], None]
     allocate_session_id: Callable[[], str]
     load_persisted_record: Callable[[str], dict[str, Any] | None]
@@ -103,7 +104,7 @@ class RuntimeSessionRegistryHandler:
                 self.list_persisted_records(),
             ),
             raise_workspace_mismatch=self.raise_workspace_mismatch,
-            enforce_capacity=lambda: self.enforce_capacity(len(sessions)),
+            enforce_capacity=lambda: self._enforce_capacity(sessions),
             allocate_session_id=self.allocate_session_id,
         )
         return await self._execute_access_plan(
@@ -298,7 +299,9 @@ class RuntimeSessionRegistryHandler:
             RuntimeSessionCreationCommand(
                 session_id=new_session_id,
                 workspace_dir=plan.workspace_dir,
-                title=plan.normalized_title_hint,
+                title=DEFAULT_SESSION_TITLE if plan.is_default_session else plan.normalized_title_hint,
+                default_title=DEFAULT_SESSION_TITLE if plan.is_default_session else None,
+                is_default=bool(plan.is_default_session),
                 surface=plan.normalized_surface if plan.surface_provided else None,
                 surface_provided=plan.surface_provided,
                 channel_type=plan.normalized_channel_type,
@@ -324,6 +327,15 @@ class RuntimeSessionRegistryHandler:
         self.drop_expired_sessions(now_utc=now_utc)
         self.enforce_workspace_entry(list(sessions.values()), workspace_dir)
         if enforce_capacity:
+            self._enforce_capacity(sessions)
+
+    def _enforce_capacity(
+        self,
+        sessions: MutableMapping[str, "MainAgentSessionState"],
+    ) -> None:
+        try:
+            self.enforce_capacity()
+        except TypeError:
             self.enforce_capacity(len(sessions))
 
 

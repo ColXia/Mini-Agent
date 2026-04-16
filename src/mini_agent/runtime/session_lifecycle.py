@@ -15,16 +15,11 @@ from mini_agent.agent_core.session import (
     SessionLifecycleState,
     SessionResetMode,
 )
+from mini_agent.runtime.workspace_path_utils import workspace_path_key
 
 
 SESSION_RESET_MODE_ENV = "MINI_AGENT_SESSION_RESET_MODE"
 SESSION_IDLE_SECONDS_ENV = "MINI_AGENT_SESSION_IDLE_SECONDS"
-
-
-def _path_key(path: Path) -> str:
-    resolved = str(path.resolve())
-    return resolved.lower() if os.name == "nt" else resolved
-
 
 def resolve_session_lifecycle_policy(
     *,
@@ -62,7 +57,7 @@ def build_surface_session_key(
         agent_id=agent_id,
         channel=normalized_surface,
         peer_kind="workspace",
-        peer_id=_path_key(workspace_dir),
+        peer_id=workspace_path_key(workspace_dir),
         thread_id=session_id,
     )
 

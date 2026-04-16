@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-import os
 from pathlib import Path
 
 from mini_agent.agent_core.session import SessionLifecyclePolicy, SessionResetMode
@@ -14,15 +13,11 @@ from mini_agent.runtime.session_lifecycle import (
     build_surface_session_key,
     resolve_session_lifecycle_policy,
 )
+from mini_agent.runtime.workspace_path_utils import workspace_path_key
 
 
 def _dt(year: int, month: int, day: int, hour: int, minute: int, second: int = 0) -> datetime:
     return datetime(year, month, day, hour, minute, second, tzinfo=timezone.utc)
-
-
-def _path_key(path: Path) -> str:
-    resolved = str(path.resolve())
-    return resolved.lower() if os.name == "nt" else resolved
 
 
 def test_resolve_session_lifecycle_policy_reads_env(monkeypatch) -> None:
@@ -59,7 +54,7 @@ def test_build_surface_session_key_normalizes_surface_and_workspace(tmp_path: Pa
     assert key.agent_id == "main-agent"
     assert key.channel == "tui console"
     assert key.peer_kind == "workspace"
-    assert key.peer_id == _path_key(tmp_path)
+    assert key.peer_id == workspace_path_key(tmp_path)
     assert key.thread_id == "session-1"
 
 

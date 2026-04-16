@@ -9,8 +9,8 @@ if TYPE_CHECKING:
     from datetime import datetime
     from pathlib import Path
 
-    from mini_agent.agent import Agent
-    from mini_agent.agent_core.session import AgentSessionKey, SessionLifecycleState
+    from mini_agent.agent_core.engine import Agent
+    from mini_agent.agent_core.session import SessionLifecycleState
     from mini_agent.runtime.session_state import MainAgentSessionState
 
 
@@ -24,6 +24,7 @@ class RuntimeSessionCreationCommand:
     workspace_dir: "Path"
     title: str | None = None
     default_title: str | None = None
+    is_default: bool = False
     surface: str | None = None
     surface_provided: bool = False
     default_surface: str | None = None
@@ -39,11 +40,12 @@ class RuntimeSessionCreationHandler:
     normalize_surface: Callable[[str | None], str]
     normalize_channel_type: Callable[[str | None], str | None]
     build_agent_for_identity: Callable[[Any, tuple[str, str, str] | None], Awaitable["Agent"]]
-    build_session_key: Callable[[str, Any], "AgentSessionKey"]
-    lifecycle_bootstrap: Callable[["AgentSessionKey", "datetime"], "SessionLifecycleState"]
     agent_knowledge_base_enabled: Callable[[Any], bool]
     collect_sandbox_diagnostics: Callable[[Any], dict[str, Any]]
     route_model_identity: Callable[[Any], tuple[str, str, str] | None]
+    bootstrap_session_lifecycle: Callable[[str, Any, "datetime"], "SessionLifecycleState"] | None = None
+    build_session_key: Callable[[str, Any], Any] | None = None
+    lifecycle_bootstrap: Callable[[Any, "datetime"], "SessionLifecycleState"] | None = None
 
     async def create(
         self,
@@ -59,9 +61,10 @@ class RuntimeSessionCreationHandler:
         )
 
         agent = await self.build_agent_for_identity(command.workspace_dir, None)
-        lifecycle_state = self.lifecycle_bootstrap(
-            self.build_session_key(command.session_id, command.workspace_dir),
-            now_utc,
+        lifecycle_state = self._bootstrap_lifecycle_state(
+            session_id=command.session_id,
+            workspace_dir=command.workspace_dir,
+            now_utc=now_utc,
         )
         selected_identity = self.route_model_identity(agent)
         knowledge_base_enabled = self.agent_knowledge_base_enabled(agent)
@@ -84,6 +87,7 @@ class RuntimeSessionCreationHandler:
                 title=self._resolve_title(command),
                 origin_surface=self._resolve_surface(command),
                 active_surface=self._resolve_surface(command),
+                is_default=bool(command.is_default),
                 channel_type=self.normalize_channel_type(command.channel_type),
                 conversation_id=_safe_text(command.conversation_id) or None,
                 sender_id=_safe_text(command.sender_id) or None,
@@ -100,6 +104,8 @@ class RuntimeSessionCreationHandler:
         base_title = _safe_text(command.title) or _safe_text(command.default_title)
         if not base_title:
             return ""
+        if command.is_default:
+            return base_title
         return self.allocate_session_title(base_title, command.workspace_dir)
 
     def _resolve_surface(self, command: RuntimeSessionCreationCommand) -> str:
@@ -109,6 +115,20 @@ class RuntimeSessionCreationHandler:
         if fallback is None:
             return ""
         return self.normalize_surface(fallback)
+
+    def _bootstrap_lifecycle_state(
+        self,
+        *,
+        session_id: str,
+        workspace_dir: Any,
+        now_utc: "datetime",
+    ) -> "SessionLifecycleState":
+        if callable(self.bootstrap_session_lifecycle):
+            return self.bootstrap_session_lifecycle(session_id, workspace_dir, now_utc)
+        if callable(self.build_session_key) and callable(self.lifecycle_bootstrap):
+            session_key = self.build_session_key(session_id, workspace_dir)
+            return self.lifecycle_bootstrap(session_key, now_utc)
+        raise TypeError("RuntimeSessionCreationHandler requires lifecycle bootstrap wiring.")
 
 
 __all__ = [

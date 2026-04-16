@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Iterable, Sequence
 
 from fastapi import HTTPException
 
-from mini_agent.runtime.interaction_surface import normalize_surface_label
+try:
+    from mini_agent.interaction import normalize_surface_label
+except Exception:  # pragma: no cover - compatibility path for staged interaction extraction
+    from mini_agent.runtime.interaction_surface import normalize_surface_label
+from mini_agent.runtime.workspace_path_utils import workspace_path_key
 
 if TYPE_CHECKING:
     from mini_agent.interfaces import (
@@ -132,6 +135,9 @@ class RuntimeSessionCatalogHandler:
         if workspace_dir is not None:
             filtered: list["MainAgentSessionSummary"] = []
             for item in sessions:
+                if bool(getattr(item, "is_default", False)):
+                    filtered.append(item)
+                    continue
                 try:
                     item_workspace = Path(item.workspace_dir).expanduser().resolve()
                 except Exception:
@@ -193,11 +199,6 @@ class RuntimeSessionCatalogHandler:
         except Exception:
             return None
 
-    @staticmethod
-    def path_key(path: Path) -> str:
-        resolved = str(path.resolve())
-        return resolved.lower() if os.name == "nt" else resolved
-
     @classmethod
     def session_summary_dedup_key(
         cls,
@@ -209,7 +210,7 @@ class RuntimeSessionCatalogHandler:
             return None
         workspace_dir = _safe_text(summary.workspace_dir)
         try:
-            workspace_key = cls.path_key(Path(workspace_dir).expanduser().resolve())
+            workspace_key = workspace_path_key(Path(workspace_dir).expanduser().resolve())
         except Exception:
             workspace_key = workspace_dir.lower()
         title = _safe_text(summary.title) or "<untitled>"
@@ -227,7 +228,7 @@ class RuntimeSessionCatalogHandler:
             return None
         workspace_dir = _safe_text(summary.workspace_dir)
         try:
-            workspace_key = cls.path_key(Path(workspace_dir).expanduser().resolve())
+            workspace_key = workspace_path_key(Path(workspace_dir).expanduser().resolve())
         except Exception:
             workspace_key = workspace_dir.lower()
         return workspace_key, channel, conversation
