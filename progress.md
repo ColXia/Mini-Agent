@@ -1,5 +1,35 @@
 # Progress
 
+## 2026-04-16 P40.16 Shared Interaction Surface Package Landing
+
+- [completed] re-audited the post-`P40.15` residual blockers and confirmed the missing tracked `mini_agent.interaction` package was the next honest anti-chaos target
+- [completed] landed the shared interaction package:
+  - `src/mini_agent/interaction/__init__.py`
+  - `src/mini_agent/interaction/surface.py`
+- [completed] converted the old runtime-local path into a compatibility shim:
+  - `src/mini_agent/runtime/interaction_surface.py`
+- [completed] updated the focused semantic tests to the current shared interaction contract:
+  - `tests/test_interaction_surface.py`
+- [completed] verified the narrowed interaction slice:
+  - `uv run ruff check src/mini_agent/interaction/__init__.py src/mini_agent/interaction/surface.py src/mini_agent/runtime/interaction_surface.py tests/test_interaction_surface.py`
+  - result: `All checks passed!`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_interaction_request_adapter.py -q`
+  - result: `10 passed`
+  - adjacent surface checks:
+    - `uv run pytest tests/test_main_agent_surface_service.py -k "can_import_local_session_snapshot or runtime_manager_import_session_snapshot_can_register_lineage_child" -q`
+    - result: `2 passed, 74 deselected`
+- [completed] committed the narrowed cross-bucket slice:
+  - commit: `ff49c3e`
+  - message: `p40: land shared interaction surface package`
+- [completed] re-ran the dirty-worktree classifier after the commit:
+  - `python scripts/worktree_slice_report.py`
+  - result:
+    - total dirty paths: `143`
+    - `surface-transport-orchestration`: `40`
+    - `runtime-session-contract`: `15`
+    - recommended next slice remains `runtime-session-contract`
+- [next] re-audit the remaining runtime deletions and mixed operator/manager adoption now that the shared interaction package blocker is removed
+
 ## 2026-04-16 P40.15 Runtime Snapshot Default-Session Contract
 
 - [completed] re-audited the post-`P40.14` runtime residue and confirmed `session_snapshot.py` was the last clearly independent runtime seam

@@ -1,5 +1,22 @@
 # Findings
 
+## 2026-04-16 P40.16 Shared Interaction Surface Package Landing
+
+- After `P40.15`, forcing another runtime-only micro-slice would have hidden a real blocker.
+- The repo already had tracked imports from `mini_agent.interaction`, but the package itself was still untracked.
+- That is a clean-clone integrity problem, not just untidy packaging.
+- The right correction was:
+  - land the shared package
+  - preserve `runtime.interaction_surface` as a compatibility shim
+  - update the semantic tests to current architecture truth
+- Structural effect:
+  - total dirty paths: `146 -> 143`
+  - `surface-transport-orchestration`: `42 -> 40`
+  - `runtime-session-contract`: `16 -> 15`
+- Practical implication:
+  - one cross-bucket blocker for future runtime closure is now gone
+  - the remaining runtime residue is even more honestly concentrated in mixed operator/manager adoption plus legacy deletions
+
 ## 2026-04-16 P40.15 Runtime Snapshot Default-Session Contract
 
 - After `P40.14`, `session_snapshot.py` was the last obviously independent runtime seam.

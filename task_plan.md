@@ -1,5 +1,69 @@
 # Task Plan
 
+## Latest Sync: 2026-04-16 P40.16 Shared Interaction Surface Package Landing
+
+## Current Execution Slice: P40.16 Shared Interaction Surface Package Landing (2026-04-16)
+
+### Why This Slice Is Next
+
+- after `P40.15`, the remaining runtime bucket still looked largest, but the strict runtime-only audit exposed a real blocker:
+  - clean-clone safety for the eventual `runtime.interaction_surface` closure depended on the still-untracked `mini_agent.interaction` package
+- `HEAD` already had tracked code importing `mini_agent.interaction`
+- that meant the next honest anti-chaos move was not another forced runtime-only cut
+- it was to land the shared interaction package itself, while preserving the old runtime path as a compatibility shim
+
+### Scope
+
+- land the shared interaction package:
+  - `src/mini_agent/interaction/__init__.py`
+  - `src/mini_agent/interaction/surface.py`
+- convert the old runtime path into a compatibility shim instead of deleting it:
+  - `src/mini_agent/runtime/interaction_surface.py`
+- land focused semantic tests on the shared package contract:
+  - `tests/test_interaction_surface.py`
+
+### Acceptance
+
+- clean clone contains the tracked `mini_agent.interaction` package required by current tracked imports
+- legacy `mini_agent.runtime.interaction_surface` imports still work through a compatibility shim
+- interaction semantics reflect the current active architecture:
+  - QQ is the maintained remote adapter
+  - removed browser/webui routes no longer present as active entrances
+- focused tests and adjacent request-adapter checks are green
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- landed commit:
+  - `ff49c3e`
+  - `p40: land shared interaction surface package`
+- focused verification:
+  - `uv run ruff check src/mini_agent/interaction/__init__.py src/mini_agent/interaction/surface.py src/mini_agent/runtime/interaction_surface.py tests/test_interaction_surface.py`
+  - result: `All checks passed!`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_interaction_request_adapter.py -q`
+  - result: `10 passed`
+  - adjacent surface checks:
+    - `uv run pytest tests/test_main_agent_surface_service.py -k "can_import_local_session_snapshot or runtime_manager_import_session_snapshot_can_register_lineage_child" -q`
+    - result: `2 passed, 74 deselected`
+- post-commit residual snapshot from `python scripts/worktree_slice_report.py`:
+  - total dirty paths: `146 -> 143`
+  - `surface-transport-orchestration`: `42 -> 40`
+  - `runtime-session-contract`: `16 -> 15`
+- important boundary result:
+  - the repo no longer has the false clean-clone state where tracked code imports `mini_agent.interaction` but the package is missing from git
+  - runtime closure is still incomplete, but one cross-bucket blocker is now honestly removed
+
+### Next Likely Seam
+
+- `runtime-session-contract` still remains the top classifier bucket, but the next honest move is now narrower than before:
+  - re-audit whether the remaining legacy runtime deletions can be grouped with the now-tracked interaction shim
+  - otherwise reopen the mixed adoption line around:
+    - `session_operator_handler.py`
+    - `main_agent_runtime_manager.py`
+
 ## Latest Sync: 2026-04-16 P40.15 Runtime Snapshot Default-Session Contract
 
 ## Current Execution Slice: P40.15 Runtime Snapshot Default-Session Contract (2026-04-16)
