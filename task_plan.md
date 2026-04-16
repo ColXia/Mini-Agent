@@ -1,5 +1,73 @@
 # Task Plan
 
+## Latest Sync: 2026-04-16 P40.12 Runtime Contract Compatibility Utilities Landing
+
+## Current Execution Slice: P40.12 Runtime Contract Compatibility Utilities Landing (2026-04-16)
+
+### Why This Slice Is Next
+
+- after `P40.11`, the remaining `runtime-session-contract` residue was no longer another honest support-file bundle
+- the next narrow cut had to reduce compatibility risk inside the still-modified runtime files without reopening the broader manager/operator adoption line
+- `session_agent_runtime_handler.py` and adjacent runtime package seams were the healthiest first target because they could be made dual-compatible with:
+  - old manager wiring
+  - newer extracted support wiring
+- this slice also let us tighten one clean-clone edge without forcing the pending `session_live_state_handler.py` and `session_memory_command_handler.py` adoption work into the same commit
+
+### Scope
+
+- land runtime compatibility utilities around the agent-runtime seam:
+  - `src/mini_agent/runtime/session_agent_runtime_handler.py`
+  - `src/mini_agent/runtime/sandbox_state.py`
+  - `src/mini_agent/runtime/__init__.py`
+- land focused regression coverage:
+  - `tests/test_runtime_session_agent_runtime_handler.py`
+  - `tests/test_sandbox_state.py`
+  - `tests/test_runtime_package_exports.py`
+- keep `main_agent_runtime_manager.py`, `session_live_state_handler.py`, and operator adoption out of this cut
+
+### Acceptance
+
+- `RuntimeSessionAgentRuntimeHandler` supports both:
+  - explicit `agent_messages(...)` wiring and legacy `agent.messages`
+  - explicit `refresh_runtime_projection(...)` wiring and legacy sandbox-diagnostics builder wiring
+- sandbox diagnostics read the maintained runtime-service owner instead of only legacy direct attributes
+- runtime package exports keep the new contracts importable without forcing the larger manager slice
+- focused tests and lint are green
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- landed commit:
+  - `b308e11`
+  - `p40: land runtime contract compatibility utilities`
+- focused verification:
+  - `uv run pytest tests/test_runtime_session_agent_runtime_handler.py tests/test_sandbox_state.py tests/test_runtime_package_exports.py -q`
+  - result: `5 passed`
+  - `uv run ruff check src/mini_agent/runtime/session_agent_runtime_handler.py src/mini_agent/runtime/sandbox_state.py src/mini_agent/runtime/__init__.py tests/test_runtime_session_agent_runtime_handler.py tests/test_sandbox_state.py tests/test_runtime_package_exports.py`
+  - result: `All checks passed!`
+  - adjacent old-manager checks:
+    - `uv run pytest tests/test_main_agent_surface_service.py -k "can_update_shared_session_runtime_policy or control_session_mcp_reload_rebuilds_session_agent or control_session_mcp_list_records_operator_snapshot" -q`
+    - result: `3 passed`
+- post-commit residual snapshot from `python scripts/worktree_slice_report.py`:
+  - total dirty paths: `154 -> 149`
+  - `runtime-session-contract`: `24 -> 19`
+- important boundary result:
+  - the remaining runtime residue is now more clearly a compatibility/adoption story than a missing-utility story
+  - the most promising next narrow seam is:
+    - `session_live_state_handler.py` compatibility bridging
+  - after that:
+    - `session_memory_command_handler.py` compatibility bridging
+
+### Next Likely Seam
+
+- current recommended next slice remains `runtime-session-contract`
+- the next honest cut should continue compatibility bridging before reopening the larger manager/operator convergence:
+  - `session_live_state_handler.py`
+  - then likely `session_memory_command_handler.py`
+
 ## Latest Sync: 2026-04-16 P40.11 Runtime MCP Control Support Landing
 
 ## Current Execution Slice: P40.11 Runtime MCP Control Support Landing (2026-04-16)

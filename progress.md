@@ -1,5 +1,35 @@
 # Progress
 
+## 2026-04-16 P40.12 Runtime Contract Compatibility Utilities Landing
+
+- [completed] re-audited the post-`P40.11` runtime residue and narrowed the next honest cut to compatibility utilities instead of a premature manager/operator convergence commit
+- [completed] landed the runtime compatibility seam:
+  - `src/mini_agent/runtime/session_agent_runtime_handler.py`
+  - `src/mini_agent/runtime/sandbox_state.py`
+  - `src/mini_agent/runtime/__init__.py`
+- [completed] landed focused regression coverage:
+  - `tests/test_runtime_session_agent_runtime_handler.py`
+  - `tests/test_sandbox_state.py`
+  - `tests/test_runtime_package_exports.py`
+- [completed] verified the narrowed compatibility slice:
+  - `uv run pytest tests/test_runtime_session_agent_runtime_handler.py tests/test_sandbox_state.py tests/test_runtime_package_exports.py -q`
+  - result: `5 passed`
+  - `uv run ruff check src/mini_agent/runtime/session_agent_runtime_handler.py src/mini_agent/runtime/sandbox_state.py src/mini_agent/runtime/__init__.py tests/test_runtime_session_agent_runtime_handler.py tests/test_sandbox_state.py tests/test_runtime_package_exports.py`
+  - result: `All checks passed!`
+  - adjacent old-manager checks:
+    - `uv run pytest tests/test_main_agent_surface_service.py -k "can_update_shared_session_runtime_policy or control_session_mcp_reload_rebuilds_session_agent or control_session_mcp_list_records_operator_snapshot" -q`
+    - result: `3 passed`
+- [completed] committed the narrowed compatibility slice:
+  - commit: `b308e11`
+  - message: `p40: land runtime contract compatibility utilities`
+- [completed] re-ran the dirty-worktree classifier after the commit:
+  - `python scripts/worktree_slice_report.py`
+  - result:
+    - total dirty paths: `149`
+    - `runtime-session-contract`: `19`
+    - recommended next slice remains `runtime-session-contract`
+- [next] continue shrinking the remaining runtime adoption line through `session_live_state_handler.py` compatibility first, then likely `session_memory_command_handler.py`
+
 ## 2026-04-16 P40.11 Runtime MCP Control Support Landing
 
 - [completed] re-audited the post-`P40.10` runtime control residue and identified one remaining support-only MCP seam that could land independently

@@ -1,5 +1,25 @@
 # Findings
 
+## 2026-04-16 P40.12 Runtime Contract Compatibility Utilities Landing
+
+- After `P40.11`, the runtime residue was no longer best attacked as another missing support-file bundle.
+- The useful next move was a compatibility utility cut that reduced clean-clone and old-manager risk without pretending the broader manager rewrite was ready.
+- `session_agent_runtime_handler.py` was a good target because it sits on a real seam between:
+  - old manager-era wiring
+  - new extracted runtime support owners
+- The most valuable compatibility outcomes in this slice were:
+  - support both explicit `agent_messages(...)` wiring and legacy `agent.messages`
+  - support both explicit `refresh_runtime_projection(...)` wiring and older sandbox-diagnostics builder wiring
+  - make `sandbox_state.py` read runtime services through the maintained owner path
+  - keep `MainAgentRuntimeDiagnostics` importable from the runtime package without reopening the full manager adoption diff
+- Structural effect:
+  - total dirty paths: `154 -> 149`
+  - `runtime-session-contract`: `24 -> 19`
+- Practical implication:
+  - the remaining runtime work is now even more honestly concentrated in adoption/compatibility files
+  - the next narrow runtime cut should target `session_live_state_handler.py`, not `main_agent_runtime_manager.py`
+  - `session_memory_command_handler.py` is likely the seam after that
+
 ## 2026-04-16 P40.11 Runtime MCP Control Support Landing
 
 - After `P40.10`, the remaining MCP control residue was one of the last truly support-only runtime seams.
