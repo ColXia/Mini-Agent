@@ -1,5 +1,91 @@
 # Task Plan
 
+## Latest Sync: 2026-04-16 P40.18 Runtime Operator Adoption Closure
+
+## Current Execution Slice: P40.18 Runtime Operator Adoption Closure (2026-04-16)
+
+### Why This Slice Is Next
+
+- after `P40.17`, the old cross-bucket blocker around missing shared skill/model support owners was removed
+- that made the remaining runtime truth much cleaner:
+  - `session_operator_handler.py` had already absorbed the shared context/control/skill/model/runtime-policy semantics
+  - but `main_agent_runtime_manager.py` still needed the matching wiring adoption
+  - and the legacy runtime handlers were still sitting in the tree as deletions not yet honestly landed
+- the next healthy move was therefore a paired runtime closure:
+  - land the new operator/manager wiring together
+  - delete the now-redundant legacy handlers in the same commit
+  - verify through focused runtime-manager surface paths rather than delete-only bookkeeping
+
+### Scope
+
+- land the paired runtime adoption:
+  - `src/mini_agent/runtime/session_operator_handler.py`
+  - `src/mini_agent/runtime/main_agent_runtime_manager.py`
+- land the legacy runtime handler deletions that are now subsumed by shared support owners:
+  - `src/mini_agent/runtime/session_context_policy_handler.py`
+  - `src/mini_agent/runtime/session_control_handler.py`
+  - `src/mini_agent/runtime/session_model_selection_handler.py`
+  - `src/mini_agent/runtime/session_runtime_memory_backend_adapter.py`
+  - `src/mini_agent/runtime/session_runtime_policy_handler.py`
+  - `src/mini_agent/runtime/session_skill_command_handler.py`
+- land focused operator-adoption regression coverage:
+  - `tests/test_runtime_session_operator_handler.py`
+- verify adjacent runtime/surface behavior for:
+  - shared session skills
+  - shared model selection
+  - runtime policy updates
+  - session context mutations
+
+### Acceptance
+
+- runtime manager wiring uses the shared support owners already landed in prior slices
+- session operator orchestration no longer depends on the removed legacy handler modules
+- legacy context/control/skill/model/runtime-policy/runtime-memory adapter files are no longer required by tracked code
+- focused operator tests and adjacent runtime surface checks are green
+- post-slice runtime residue shrinks to the remaining runtime-test contract cleanup only
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- landed commit:
+  - `9fd5d10`
+  - `p40: land runtime operator adoption closure`
+- focused verification:
+  - `uv run ruff check src/mini_agent/runtime/session_operator_handler.py src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_runtime_session_operator_handler.py`
+  - result: `All checks passed!`
+  - `uv run pytest tests/test_runtime_session_operator_handler.py -q`
+  - result: `2 passed`
+  - adjacent runtime surface checks:
+    - `uv run pytest tests/test_main_agent_surface_service.py -k "test_use_case_can_list_and_refresh_shared_session_skills or test_use_case_can_update_shared_session_model_selection or test_use_case_can_update_shared_session_model_selection_without_provider_source or test_use_case_can_update_shared_session_runtime_policy or test_use_case_rejects_runtime_policy_change_while_busy_without_pending_approval or test_use_case_update_session_context_persists_and_applies_on_next_turn or test_use_case_update_session_context_budget_and_reset or test_use_case_rejects_context_update_while_busy" -q`
+    - result: `8 passed, 68 deselected`
+    - `uv run pytest tests/test_session_service.py -q`
+    - result: `6 passed`
+    - `uv run pytest tests/test_p19_runtime_matrix.py -q`
+    - result: `2 passed`
+- post-commit residual snapshot from `python scripts/worktree_slice_report.py`:
+  - total dirty paths: `137 -> 128`
+  - `runtime-session-contract`: `15 -> 6`
+- important boundary result:
+  - runtime/session residue is no longer dominated by production runtime adoption
+  - the remaining runtime bucket is now test-only:
+    - `tests/test_session_integration.py`
+    - `tests/test_session_projection.py`
+    - `tests/test_session_service.py`
+    - `tests/test_session_remote_service.py`
+    - `tests/test_session_store_persistence.py`
+    - `tests/test_session_persistence_contract.py`
+
+### Next Likely Seam
+
+- the classifier still reports `runtime-session-contract`, but its shape has changed materially
+- the next honest move is no longer runtime production code
+- it is runtime test-contract realignment:
+  - finish the test side of the session/runtime persistence and projection architecture truth
+  - retire or replace tests that still describe removed remote/store paths
+
 ## Latest Sync: 2026-04-16 P40.17 Skill / Model Support Owners Landing
 
 ## Current Execution Slice: P40.17 Skill / Model Support Owners Landing (2026-04-16)

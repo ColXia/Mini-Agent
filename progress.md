@@ -1,5 +1,44 @@
 # Progress
 
+## 2026-04-16 P40.18 Runtime Operator Adoption Closure
+
+- [completed] re-audited the post-`P40.17` runtime residue and confirmed the next honest move was a paired adoption closure, not another delete-only runtime cleanup
+- [completed] landed the paired runtime adoption:
+  - `src/mini_agent/runtime/session_operator_handler.py`
+  - `src/mini_agent/runtime/main_agent_runtime_manager.py`
+- [completed] landed the matching legacy runtime handler deletions now subsumed by shared owners:
+  - `src/mini_agent/runtime/session_context_policy_handler.py`
+  - `src/mini_agent/runtime/session_control_handler.py`
+  - `src/mini_agent/runtime/session_model_selection_handler.py`
+  - `src/mini_agent/runtime/session_runtime_memory_backend_adapter.py`
+  - `src/mini_agent/runtime/session_runtime_policy_handler.py`
+  - `src/mini_agent/runtime/session_skill_command_handler.py`
+- [completed] landed focused operator-adoption regression coverage:
+  - `tests/test_runtime_session_operator_handler.py`
+- [completed] verified the paired runtime slice:
+  - `uv run ruff check src/mini_agent/runtime/session_operator_handler.py src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_runtime_session_operator_handler.py`
+  - result: `All checks passed!`
+  - `uv run pytest tests/test_runtime_session_operator_handler.py -q`
+  - result: `2 passed`
+  - adjacent runtime/surface checks:
+    - `uv run pytest tests/test_main_agent_surface_service.py -k "test_use_case_can_list_and_refresh_shared_session_skills or test_use_case_can_update_shared_session_model_selection or test_use_case_can_update_shared_session_model_selection_without_provider_source or test_use_case_can_update_shared_session_runtime_policy or test_use_case_rejects_runtime_policy_change_while_busy_without_pending_approval or test_use_case_update_session_context_persists_and_applies_on_next_turn or test_use_case_update_session_context_budget_and_reset or test_use_case_rejects_context_update_while_busy" -q`
+    - result: `8 passed, 68 deselected`
+    - `uv run pytest tests/test_session_service.py -q`
+    - result: `6 passed`
+    - `uv run pytest tests/test_p19_runtime_matrix.py -q`
+    - result: `2 passed`
+- [completed] committed the paired runtime slice:
+  - commit: `9fd5d10`
+  - message: `p40: land runtime operator adoption closure`
+- [completed] re-ran the dirty-worktree classifier after the commit:
+  - `python scripts/worktree_slice_report.py`
+  - result:
+    - total dirty paths: `128`
+    - `runtime-session-contract`: `6`
+    - recommended next slice remains `runtime-session-contract`
+- [completed] confirmed the residual runtime bucket is now test-only rather than production-runtime adoption
+- [next] audit the remaining runtime test contract residue and choose the next honest test-side closure
+
 ## 2026-04-16 P40.17 Skill / Model Support Owners Landing
 
 - [completed] re-audited the post-`P40.16` runtime-adoption blockers and confirmed the next honest seam was outside runtime-only code:

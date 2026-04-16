@@ -1,5 +1,29 @@
 # Findings
 
+## 2026-04-16 P40.18 Runtime Operator Adoption Closure
+
+- After `P40.17`, the runtime bucket finally had an honest next step:
+  - the missing shared support owners were already tracked
+  - what remained was the actual operator/manager adoption boundary
+- The key point is that this slice is not just "large diff landed".
+- It resolves a real ownership ambiguity:
+  - `session_operator_handler.py` now truly owns the shared context/control/skill/model/runtime-policy orchestration line
+  - `main_agent_runtime_manager.py` now wires that owner and the extracted support services directly
+  - the old specialized runtime handlers are no longer left behind as half-deleted residue
+- This was exactly the kind of boundary that should be landed together:
+  - landing only the deletions would have been dishonest
+  - landing only the operator file would still have left the manager wiring story half-open
+- Structural effect:
+  - total dirty paths: `137 -> 128`
+  - `runtime-session-contract`: `15 -> 6`
+- The most important result is not just the count reduction.
+- It is that the runtime bucket changed character:
+  - before this cut, it still represented production runtime adoption residue
+  - after this cut, it represents only test-side architecture truth cleanup
+- Practical implication:
+  - the next runtime move should be framed as test-contract/persistence/projection realignment
+  - runtime production code is no longer the main blocker in this bucket
+
 ## 2026-04-16 P40.17 Skill / Model Support Owners Landing
 
 - After `P40.16`, the classifier still recommended `runtime-session-contract`, but the stricter dependency audit showed that was still slightly misleading.
