@@ -1,5 +1,42 @@
 # Findings
 
+## 2026-04-16 P40.14 Runtime Memory Command Compatibility Bridge
+
+- After `P40.13`, the memory-command runtime seam was one of the last compatibility-friendly cuts left inside the runtime bucket.
+- The shared owner already existed in `mini_agent.memory.command_service`.
+- The missing part was truthful compatibility:
+  - current handler should wrap the shared owner
+  - but it still had to tolerate legacy runtime command and constructor expectations to land independently
+- The key value of this cut is not just less code in one file.
+- It is that runtime memory control now has one semantic owner while still remaining landable before the broader operator/manager adoption story is ready.
+- Structural effect:
+  - total dirty paths: `148 -> 147`
+  - `runtime-session-contract`: `18 -> 17`
+- Practical implication:
+  - the remaining runtime residue is now even more clearly an adoption/deletion closure problem rather than a missing shared-semantics problem
+  - the next slice should be chosen carefully from:
+    - `session_snapshot.py`
+    - `session_operator_handler.py`
+    - `main_agent_runtime_manager.py`
+
+## 2026-04-16 P40.13 Runtime Live-State Compatibility Bridge
+
+- After `P40.12`, `session_live_state_handler.py` was the cleanest remaining compatibility seam.
+- Two issues made it unsafe to leave half-landed:
+  - direct dependency on the still-untracked `mini_agent.interaction` package
+  - removed legacy pending-approval / recovery / reset entrypoints
+- The right fix was a compatibility bridge rather than reviving a mixed manager commit.
+- The most useful outcomes in this slice were:
+  - fallback import support for staged `interaction` extraction
+  - restored live-state compatibility wrappers delegating to the extracted pending-approval and recovery/reset owners
+  - preservation of newer injected support owners as the preferred path when available
+- Structural effect:
+  - total dirty paths: `149 -> 148`
+  - `runtime-session-contract`: `19 -> 18`
+- Practical implication:
+  - another compatibility seam is now closed without reopening manager adoption
+  - this made `session_memory_command_handler.py` the next healthy target
+
 ## 2026-04-16 P40.12 Runtime Contract Compatibility Utilities Landing
 
 - After `P40.11`, the runtime residue was no longer best attacked as another missing support-file bundle.

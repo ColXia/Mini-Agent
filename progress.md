@@ -1,5 +1,68 @@
 # Progress
 
+## 2026-04-16 P40.14 Runtime Memory Command Compatibility Bridge
+
+- [completed] re-audited the post-`P40.13` runtime residue and narrowed the next honest cut to the remaining memory-command compatibility seam
+- [completed] landed the runtime memory compatibility bridge:
+  - `src/mini_agent/runtime/session_memory_command_handler.py`
+- [completed] restored legacy compatibility while preserving the newer shared command-service owner:
+  - legacy `RuntimeSessionMemoryCommand`
+  - legacy constructor wiring through runtime backend / save-note / save-profile callables
+  - newer injected `MemoryCommandService`
+- [completed] landed focused regression coverage:
+  - `tests/test_runtime_session_memory_command_handler.py`
+- [completed] verified the narrowed memory-command slice:
+  - `uv run ruff check src/mini_agent/runtime/session_memory_command_handler.py tests/test_runtime_session_memory_command_handler.py`
+  - result: `All checks passed!`
+  - `uv run pytest tests/test_runtime_session_memory_command_handler.py -q`
+  - result: `3 passed`
+  - adjacent runtime-memory checks:
+    - `uv run pytest tests/test_main_agent_surface_service.py -k "manage_session_memory_reports_runtime_entries_and_can_promote_note_and_shared or manage_session_memory_can_save_distilled_note_and_profile" -q`
+    - result: `2 passed, 74 deselected`
+    - `uv run pytest tests/test_command_execution_service.py -k "builds_memory_list_from_runtime_state or runs_workspace_memory_mutations" -q`
+    - result: `2 passed, 21 deselected`
+- [completed] committed the narrowed compatibility slice:
+  - commit: `1f3d4a8`
+  - message: `p40: land runtime memory command compatibility bridge`
+- [completed] re-ran the dirty-worktree classifier after the commit:
+  - `python scripts/worktree_slice_report.py`
+  - result:
+    - total dirty paths: `147`
+    - `runtime-session-contract`: `17`
+    - recommended next slice remains `runtime-session-contract`
+- [next] re-audit the remaining runtime adoption/deletion cluster before choosing between `session_snapshot.py` and broader operator/manager convergence work
+
+## 2026-04-16 P40.13 Runtime Live-State Compatibility Bridge
+
+- [completed] re-audited the post-`P40.12` runtime residue and cut the next honest compatibility seam at `session_live_state_handler.py`
+- [completed] landed the live-state compatibility bridge:
+  - `src/mini_agent/runtime/session_live_state_handler.py`
+- [completed] restored staged compatibility for:
+  - `mini_agent.interaction` extraction fallback
+  - legacy pending-approval mutations
+  - legacy recovery/reset entrypoints
+  - newer injected support-owner delegation
+- [completed] landed focused regression coverage:
+  - `tests/test_runtime_session_live_state_handler.py`
+- [completed] verified the narrowed live-state slice:
+  - `uv run ruff check src/mini_agent/runtime/session_live_state_handler.py tests/test_runtime_session_live_state_handler.py`
+  - result: `All checks passed!`
+  - `uv run pytest tests/test_runtime_session_live_state_handler.py tests/test_runtime_session_pending_approval_state_handler.py tests/test_runtime_session_recovery_reset_handler.py -q`
+  - result: `10 passed`
+  - adjacent recovery checks:
+    - `uv run pytest tests/test_main_agent_surface_service.py -k "persisted_interrupted_session_exposes_recovery_snapshot_after_restart or restarted_shared_session_keeps_recovery_until_next_turn_consumes_it" -q`
+    - result: `2 passed, 74 deselected`
+- [completed] committed the narrowed compatibility slice:
+  - commit: `b62672f`
+  - message: `p40: land runtime live-state compatibility bridge`
+- [completed] re-ran the dirty-worktree classifier after the commit:
+  - `python scripts/worktree_slice_report.py`
+  - result:
+    - total dirty paths: `148`
+    - `runtime-session-contract`: `18`
+    - recommended next slice remained `runtime-session-contract`
+- [next] continue shrinking the remaining runtime adoption line through the memory-command compatibility seam
+
 ## 2026-04-16 P40.12 Runtime Contract Compatibility Utilities Landing
 
 - [completed] re-audited the post-`P40.11` runtime residue and narrowed the next honest cut to compatibility utilities instead of a premature manager/operator convergence commit

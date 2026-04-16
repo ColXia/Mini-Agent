@@ -1,5 +1,125 @@
 # Task Plan
 
+## Latest Sync: 2026-04-16 P40.14 Runtime Memory Command Compatibility Bridge
+
+## Current Execution Slice: P40.14 Runtime Memory Command Compatibility Bridge (2026-04-16)
+
+### Why This Slice Is Next
+
+- after `P40.13`, the remaining runtime residue still contained one more clean compatibility seam before the larger operator/manager convergence:
+  - `src/mini_agent/runtime/session_memory_command_handler.py`
+- this seam was still narrow enough to land honestly because the underlying shared memory command owner had already been landed in `P40.6`
+- the real unfinished part was compatibility:
+  - keep the newer `MemoryCommandService` wrapper
+  - restore old runtime command/constructor expectations so the handler can land independently
+
+### Scope
+
+- land the compatibility bridge for:
+  - `src/mini_agent/runtime/session_memory_command_handler.py`
+- land focused regression coverage:
+  - `tests/test_runtime_session_memory_command_handler.py`
+- verify adjacent runtime-memory behavior without reopening operator/manager adoption
+
+### Acceptance
+
+- runtime memory handler supports both:
+  - `MemoryCommandRequest`
+  - legacy `RuntimeSessionMemoryCommand`
+- handler supports both:
+  - injected shared `MemoryCommandService`
+  - legacy constructor wiring through runtime backend / save-note / save-profile callables
+- runtime memory results still update session diagnostics and preserve current user-facing payload shape
+- focused tests and adjacent runtime-memory regressions are green
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- landed commit:
+  - `1f3d4a8`
+  - `p40: land runtime memory command compatibility bridge`
+- focused verification:
+  - `uv run ruff check src/mini_agent/runtime/session_memory_command_handler.py tests/test_runtime_session_memory_command_handler.py`
+  - result: `All checks passed!`
+  - `uv run pytest tests/test_runtime_session_memory_command_handler.py -q`
+  - result: `3 passed`
+  - adjacent runtime-memory checks:
+    - `uv run pytest tests/test_main_agent_surface_service.py -k "manage_session_memory_reports_runtime_entries_and_can_promote_note_and_shared or manage_session_memory_can_save_distilled_note_and_profile" -q`
+    - result: `2 passed, 74 deselected`
+    - `uv run pytest tests/test_command_execution_service.py -k "builds_memory_list_from_runtime_state or runs_workspace_memory_mutations" -q`
+    - result: `2 passed, 21 deselected`
+- post-commit residual snapshot from `python scripts/worktree_slice_report.py`:
+  - total dirty paths: `148 -> 147`
+  - `runtime-session-contract`: `18 -> 17`
+- important boundary result:
+  - runtime/session residue is now even less about missing shared owners
+  - it is mostly:
+    - `main_agent_runtime_manager.py`
+    - `session_operator_handler.py`
+    - `session_snapshot.py`
+    - legacy handler deletions / interaction extraction cleanup
+
+### Next Likely Seam
+
+- current recommended next slice remains `runtime-session-contract`
+- the next honest cut now needs a stricter adoption/deletion audit:
+  - likely `session_snapshot.py` compatibility if it can stand alone
+  - otherwise reopen `session_operator_handler.py` and `main_agent_runtime_manager.py` only with a deliberately bounded adoption slice
+
+## Latest Sync: 2026-04-16 P40.13 Runtime Live-State Compatibility Bridge
+
+## Current Execution Slice: P40.13 Runtime Live-State Compatibility Bridge (2026-04-16)
+
+### Why This Slice Is Next
+
+- after `P40.12`, `session_live_state_handler.py` was the next narrow compatibility seam inside the remaining runtime cluster
+- the handler had two clean-clone / adoption problems that could be fixed without reopening the manager rewrite:
+  - it imported the still-untracked `mini_agent.interaction` package directly
+  - it had removed older pending-approval / recovery / reset entrypoints that some runtime paths still expected
+- the right fix was compatibility bridging, not re-bundling the old inline implementation or forcing the new manager wiring to land at the same time
+
+### Scope
+
+- land the live-state compatibility bridge:
+  - `src/mini_agent/runtime/session_live_state_handler.py`
+- land focused regression coverage:
+  - `tests/test_runtime_session_live_state_handler.py`
+- keep broader operator/manager adoption out of this cut
+
+### Acceptance
+
+- live-state owner tolerates staged `interaction` extraction through fallback imports
+- legacy pending-approval / recovery / reset entrypoints are restored as wrappers over the extracted support owners
+- newer support-owner injection still works and is preferred when supplied
+- focused tests and adjacent recovery-surface regressions are green
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- landed commit:
+  - `b62672f`
+  - `p40: land runtime live-state compatibility bridge`
+- focused verification:
+  - `uv run ruff check src/mini_agent/runtime/session_live_state_handler.py tests/test_runtime_session_live_state_handler.py`
+  - result: `All checks passed!`
+  - `uv run pytest tests/test_runtime_session_live_state_handler.py tests/test_runtime_session_pending_approval_state_handler.py tests/test_runtime_session_recovery_reset_handler.py -q`
+  - result: `10 passed`
+  - adjacent recovery checks:
+    - `uv run pytest tests/test_main_agent_surface_service.py -k "persisted_interrupted_session_exposes_recovery_snapshot_after_restart or restarted_shared_session_keeps_recovery_until_next_turn_consumes_it" -q`
+    - result: `2 passed, 74 deselected`
+- post-commit residual snapshot from `python scripts/worktree_slice_report.py`:
+  - total dirty paths: `149 -> 148`
+  - `runtime-session-contract`: `19 -> 18`
+- important boundary result:
+  - live session mutation ownership now supports both extracted support owners and older runtime expectations
+  - this removed another reason to reopen `main_agent_runtime_manager.py` too early
+
 ## Latest Sync: 2026-04-16 P40.12 Runtime Contract Compatibility Utilities Landing
 
 ## Current Execution Slice: P40.12 Runtime Contract Compatibility Utilities Landing (2026-04-16)
