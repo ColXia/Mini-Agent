@@ -16,7 +16,7 @@ from pydantic import Field, model_validator
 from .base import Tool, ToolResult
 
 if TYPE_CHECKING:
-    from mini_agent.code_agent.sandbox import SandboxManager
+    from mini_agent.agent_core.execution.sandbox import SandboxManager
     from mini_agent.security.policy import RuntimePolicyEngine
 
 

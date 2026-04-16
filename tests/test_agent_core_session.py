@@ -70,7 +70,7 @@ def test_lifecycle_daily_and_idle_reset_decisions():
 
 
 def test_lifecycle_ensure_active_resets_revision():
-    key = AgentSessionKey(agent_id="a2", channel="wechat", peer_kind="friend", peer_id="u-1")
+    key = AgentSessionKey(agent_id="a2", channel="qq", peer_kind="friend", peer_id="u-1")
     manager = SessionLifecycleManager(SessionLifecyclePolicy(mode=SessionResetMode.BOTH, idle_seconds=60))
     state = manager.bootstrap(key, now_utc=_dt(2026, 1, 1, 8, 0))
 
