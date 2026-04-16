@@ -1,5 +1,32 @@
 # Findings
 
+## 2026-04-16 P40.17 Skill / Model Support Owners Landing
+
+- After `P40.16`, the classifier still recommended `runtime-session-contract`, but the stricter dependency audit showed that was still slightly misleading.
+- The next important gap was not another runtime micro-slice.
+- It was the still-untracked shared support owners that future runtime adoption already depended on:
+  - `agent_core.skills.command_service`
+  - `agent_core.skills.workspace_support`
+  - `agent_core.skills.path_resolver`
+  - `model_manager.session_selection_service`
+- Two parts of this were already concrete clean-clone breakpoints, not just future cleanup:
+  - tracked tests imported `path_resolver`
+  - tracked tests imported `session_selection_service`
+- Landing `runtime_feedback.py` in the same slice was also worthwhile because it completes the shared skill-runtime feedback line with direct tests.
+- The key anti-chaos value of this cut is not just reducing the dirty count by 6.
+- It removes one more false dependency story:
+  - future runtime closure no longer needs to smuggle in missing skill/model support owners
+  - the remaining runtime residue is more honestly adoption/deletion work
+- Structural effect:
+  - total dirty paths: `143 -> 137`
+  - `runtime-session-contract`: `15 -> 15`
+- The unchanged runtime count is actually informative:
+  - this slice was not about pretending runtime got smaller
+  - it was about making the next runtime slice truthful and clean-clone safe
+- Practical implication:
+  - `session_operator_handler.py` and `main_agent_runtime_manager.py` can now be reopened without the previous missing-owner excuse
+  - the next good cut should target the actual runtime adoption boundary itself
+
 ## 2026-04-16 P40.16 Shared Interaction Surface Package Landing
 
 - After `P40.15`, forcing another runtime-only micro-slice would have hidden a real blocker.

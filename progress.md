@@ -1,5 +1,39 @@
 # Progress
 
+## 2026-04-16 P40.17 Skill / Model Support Owners Landing
+
+- [completed] re-audited the post-`P40.16` runtime-adoption blockers and confirmed the next honest seam was outside runtime-only code:
+  - tracked tests still depended on the missing `path_resolver`
+  - tracked tests still depended on the missing `session_selection_service`
+  - shared skill-surface checks still referenced `command_service`
+- [completed] landed the shared skill/model support owners:
+  - `src/mini_agent/agent_core/skills/command_service.py`
+  - `src/mini_agent/agent_core/skills/path_resolver.py`
+  - `src/mini_agent/agent_core/skills/workspace_support.py`
+  - `src/mini_agent/agent_core/skills/runtime_feedback.py`
+  - `src/mini_agent/model_manager/session_selection_service.py`
+- [completed] added focused direct coverage for the landed skill-support seam:
+  - `tests/test_agent_core_skill_command_service.py`
+  - `tests/test_agent_core_skills_runtime_feedback.py`
+- [completed] verified the narrowed support slice:
+  - `uv run ruff check src/mini_agent/agent_core/skills/command_service.py src/mini_agent/agent_core/skills/path_resolver.py src/mini_agent/agent_core/skills/workspace_support.py src/mini_agent/agent_core/skills/runtime_feedback.py src/mini_agent/model_manager/session_selection_service.py tests/test_agent_core_skill_command_service.py tests/test_agent_core_skills_runtime_feedback.py tests/test_session_model_selection_service.py`
+  - result: `All checks passed!`
+  - `uv run pytest tests/test_agent_core_skill_command_service.py tests/test_agent_core_skills_runtime_feedback.py tests/test_session_model_selection_service.py tests/test_agent_core_turn_context.py -k "skill_command_service or skill_runtime_reload_feedback or session_model_selection_service or resolve_workspace_skills_dir" -q`
+  - result: `9 passed`
+  - adjacent shared-surface checks:
+    - `uv run pytest tests/test_main_agent_surface_service.py -k "test_use_case_reports_shared_session_skill_catalog_unavailable or test_use_case_can_update_shared_session_model_selection or test_use_case_can_update_shared_session_model_selection_without_provider_source" -q`
+    - result: `3 passed, 73 deselected`
+- [completed] committed the narrowed shared-support slice:
+  - commit: `d13f0ce`
+  - message: `p40: land skill and model selection support owners`
+- [completed] re-ran the dirty-worktree classifier after the commit:
+  - `python scripts/worktree_slice_report.py`
+  - result:
+    - total dirty paths: `137`
+    - `runtime-session-contract`: `15`
+    - recommended next slice remains `runtime-session-contract`
+- [next] reopen the remaining runtime adoption/deletion line now that shared skill/model replacement owners are tracked
+
 ## 2026-04-16 P40.16 Shared Interaction Surface Package Landing
 
 - [completed] re-audited the post-`P40.15` residual blockers and confirmed the missing tracked `mini_agent.interaction` package was the next honest anti-chaos target

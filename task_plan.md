@@ -1,5 +1,90 @@
 # Task Plan
 
+## Latest Sync: 2026-04-16 P40.17 Skill / Model Support Owners Landing
+
+## Current Execution Slice: P40.17 Skill / Model Support Owners Landing (2026-04-16)
+
+### Why This Slice Is Next
+
+- after `P40.16`, the next honest move was no longer another forced runtime-only edit
+- the stricter audit showed two real clean-clone/runtime-adoption gaps still sitting outside the runtime bucket:
+  - shared skill command support was still untracked:
+    - `agent_core.skills.command_service`
+    - `agent_core.skills.workspace_support`
+    - `agent_core.skills.path_resolver`
+  - shared session model-selection support was still untracked:
+    - `model_manager.session_selection_service`
+- this mattered immediately, not just "later":
+  - tracked tests already referenced `path_resolver`
+  - tracked tests already referenced `session_selection_service`
+  - tracked skill-surface tests monkeypatched `agent_core.skills.command_service`
+- the honest anti-chaos move was therefore to land these support owners first, plus focused tests, before reopening `session_operator_handler.py` / `main_agent_runtime_manager.py`
+
+### Scope
+
+- land shared skill/model support owners:
+  - `src/mini_agent/agent_core/skills/command_service.py`
+  - `src/mini_agent/agent_core/skills/path_resolver.py`
+  - `src/mini_agent/agent_core/skills/workspace_support.py`
+  - `src/mini_agent/agent_core/skills/runtime_feedback.py`
+  - `src/mini_agent/model_manager/session_selection_service.py`
+- land focused direct regression coverage:
+  - `tests/test_agent_core_skill_command_service.py`
+  - `tests/test_agent_core_skills_runtime_feedback.py`
+- verify adjacent tracked support surfaces:
+  - path-resolution coverage
+  - model-selection feedback coverage
+  - shared surface skill/model behavior smoke checks
+
+### Acceptance
+
+- clean clone contains the shared skill/model support modules already referenced by tracked tests and upcoming runtime adoption
+- skill command support can:
+  - resolve builtin/workspace skill catalogs
+  - prepare workspace policy mutations
+  - format queued runtime-reload metadata
+- skill runtime reload feedback remains surface-neutral and CLI-friendly
+- session model-selection feedback/service semantics remain importable and tested
+- focused tests and adjacent shared-surface checks are green
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- landed commit:
+  - `d13f0ce`
+  - `p40: land skill and model selection support owners`
+- focused verification:
+  - `uv run ruff check src/mini_agent/agent_core/skills/command_service.py src/mini_agent/agent_core/skills/path_resolver.py src/mini_agent/agent_core/skills/workspace_support.py src/mini_agent/agent_core/skills/runtime_feedback.py src/mini_agent/model_manager/session_selection_service.py tests/test_agent_core_skill_command_service.py tests/test_agent_core_skills_runtime_feedback.py tests/test_session_model_selection_service.py`
+  - result: `All checks passed!`
+  - `uv run pytest tests/test_agent_core_skill_command_service.py tests/test_agent_core_skills_runtime_feedback.py tests/test_session_model_selection_service.py tests/test_agent_core_turn_context.py -k "skill_command_service or skill_runtime_reload_feedback or session_model_selection_service or resolve_workspace_skills_dir" -q`
+  - result: `9 passed`
+  - adjacent shared-surface checks:
+    - `uv run pytest tests/test_main_agent_surface_service.py -k "test_use_case_reports_shared_session_skill_catalog_unavailable or test_use_case_can_update_shared_session_model_selection or test_use_case_can_update_shared_session_model_selection_without_provider_source" -q`
+    - result: `3 passed, 73 deselected`
+- post-commit residual snapshot from `python scripts/worktree_slice_report.py`:
+  - total dirty paths: `143 -> 137`
+  - `runtime-session-contract`: `15 -> 15`
+  - recommended next slice remains `runtime-session-contract`
+- important boundary result:
+  - the earlier cross-bucket blocker around missing shared skill/model replacement owners is now removed
+  - the remaining runtime bucket is more honestly about:
+    - `session_operator_handler.py`
+    - `main_agent_runtime_manager.py`
+    - legacy runtime handler deletions
+
+### Next Likely Seam
+
+- `runtime-session-contract` remains the top classifier bucket
+- but the shape of the next cut is now cleaner than before:
+  - reopen the operator/manager adoption line with the replacement owners now tracked
+  - prefer a bounded closure around:
+    - `session_operator_handler.py`
+    - related legacy runtime handler deletions
+  - only pull `main_agent_runtime_manager.py` in when the exact ownership line is explicit
+
 ## Latest Sync: 2026-04-16 P40.16 Shared Interaction Surface Package Landing
 
 ## Current Execution Slice: P40.16 Shared Interaction Surface Package Landing (2026-04-16)
