@@ -1,14 +1,16 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from pathlib import Path
 
 import pytest
 
-from mini_agent.agent import Agent, TurnStopReason
+from mini_agent.agent_core.engine import Agent, TurnStopReason
 from mini_agent.logger import AgentLogger
 from mini_agent.memory.automation import TurnMemoryAutomation
-from mini_agent.schema import FunctionCall, LLMResponse, Message, ToolCall
-from mini_agent.turn_context import RuntimeTurnContext
+from mini_agent.memory.memoria_runtime import WorkspaceMemoriaRuntime
+from mini_agent.memory.runtime_task_memory import TurnRuntimeTaskMemory
+from mini_agent.schema import FunctionCall, LLMCompletionResult, Message, ToolCall
+from mini_agent.agent_core.context.turn_context import RuntimeTurnContext
 
 
 @pytest.fixture(autouse=True)
@@ -17,7 +19,7 @@ def _global_memory_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
 
 
 class _StaticLLM:
-    def __init__(self, response: LLMResponse) -> None:
+    def __init__(self, response: LLMCompletionResult) -> None:
         self.response = response
 
     async def generate(self, messages, tools=None):  # noqa: ANN001,ARG002
@@ -72,7 +74,7 @@ def test_turn_memory_automation_stores_long_term_decision_and_daily_note(tmp_pat
     monkeypatch.setattr(
         automation,
         "_extract_project_decision",
-        lambda _message: "WebUI is paused for now; TUI/CLI remains the main workflow.",
+        lambda _message: "Desktop and remote surfaces share the same session core; TUI/CLI remain the main local workflow.",
     )
 
     result = automation.process_turn(
@@ -90,7 +92,7 @@ def test_turn_memory_automation_stores_long_term_decision_and_daily_note(tmp_pat
     assert result.stored_long_term_note is True
     assert result.stored_daily_note is True
     assert result.stored_profile_fact is False
-    assert "WebUI is paused for now; TUI/CLI remains the main workflow." in (
+    assert "Desktop and remote surfaces share the same session core; TUI/CLI remain the main local workflow." in (
         workspace / "MEMORY.md"
     ).read_text(encoding="utf-8")
 
@@ -131,7 +133,7 @@ def test_turn_memory_automation_suppresses_duplicate_writeback_after_successful_
     monkeypatch.setattr(
         automation,
         "_extract_project_decision",
-        lambda _message: "WebUI is paused for now; TUI/CLI remains the main workflow.",
+        lambda _message: "Desktop and remote surfaces share the same session core; TUI/CLI remain the main local workflow.",
     )
 
     result = automation.process_turn(
@@ -175,7 +177,7 @@ def test_turn_memory_automation_backfills_after_failed_memory_tools(
     monkeypatch.setattr(
         automation,
         "_extract_project_decision",
-        lambda _message: "WebUI is paused for now; TUI/CLI remains the main workflow.",
+        lambda _message: "Desktop and remote surfaces share the same session core; TUI/CLI remain the main local workflow.",
     )
 
     result = automation.process_turn(
@@ -206,7 +208,7 @@ def test_turn_memory_automation_backfills_after_failed_memory_tools(
     assert result.stored_daily_note is True
     assert "User prefers concise Chinese replies." in global_user_file.read_text(encoding="utf-8")
     assert not (workspace / "USER.md").exists()
-    assert "WebUI is paused for now; TUI/CLI remains the main workflow." in (
+    assert "Desktop and remote surfaces share the same session core; TUI/CLI remain the main local workflow." in (
         workspace / "MEMORY.md"
     ).read_text(encoding="utf-8")
 
@@ -284,11 +286,11 @@ async def test_agent_run_turn_triggers_memory_automation(
     monkeypatch.setattr(
         automation,
         "_extract_project_decision",
-        lambda _message: "WebUI is paused for now; TUI/CLI remains the main workflow.",
+        lambda _message: "Desktop and remote surfaces share the same session core; TUI/CLI remain the main local workflow.",
     )
     agent = Agent(
         llm_client=_StaticLLM(
-            LLMResponse(
+            LLMCompletionResult(
                 content="Confirmed. I will keep implementation focused on TUI and CLI.",
                 thinking=None,
                 tool_calls=None,
@@ -317,6 +319,61 @@ async def test_agent_run_turn_triggers_memory_automation(
     assert result.stop_reason == TurnStopReason.END_TURN
     assert agent.last_memory_automation["stored_long_term_note"] is True
     assert agent.last_memory_automation["stored_daily_note"] is True
-    assert "WebUI is paused for now; TUI/CLI remains the main workflow." in (
+    assert "Desktop and remote surfaces share the same session core; TUI/CLI remain the main local workflow." in (
         workspace / "MEMORY.md"
     ).read_text(encoding="utf-8")
+
+
+@pytest.mark.asyncio
+async def test_agent_run_turn_records_runtime_task_memory(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    state_root = tmp_path / "state"
+    logger = AgentLogger(log_dir=tmp_path / "logs")
+    runtime_task_memory = TurnRuntimeTaskMemory(
+        str(workspace),
+        state_root=str(state_root),
+    )
+    agent = Agent(
+        llm_client=_StaticLLM(
+            LLMCompletionResult(
+                content="Gateway shared sessions should route replies through the active surface.",
+                thinking=None,
+                tool_calls=None,
+                finish_reason="stop",
+            )
+        ),
+        system_prompt="system",
+        tools=[],
+        max_steps=2,
+        workspace_dir=str(workspace),
+        logger=logger,
+        console_output=False,
+        turn_runtime_task_memory=runtime_task_memory,
+    )
+    agent.add_user_message("How should gateway shared-session replies work?")
+
+    result = await agent.run_turn(
+        turn_context=RuntimeTurnContext(
+            session_id="sess-runtime-memory",
+            submission_id="sub-runtime-memory",
+            user_input="How should gateway shared-session replies work?",
+            metadata={"surface": "cli"},
+        )
+    )
+
+    assert result.stop_reason == TurnStopReason.END_TURN
+    assert agent.last_runtime_task_memory["stored"] is True
+    assert agent.last_runtime_task_memory["duplicate"] is False
+    assert "route replies through the active surface" in agent.last_runtime_task_memory["content"]
+
+    runtime = WorkspaceMemoriaRuntime(workspace, state_root=state_root)
+    hits = runtime.retrieve(
+        namespace=runtime.session_namespace("sess-runtime-memory"),
+        query="active surface reply routing",
+        limit=5,
+    )
+    assert hits
+    assert any(
+        "route replies through the active surface" in item.content
+        for item in hits
+    )

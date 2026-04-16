@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
@@ -7,7 +7,7 @@ import pytest
 
 from mini_agent.memory.memoria_runtime import WorkspaceMemoriaRuntime
 from mini_agent.memory.runtime_task_memory import TurnRuntimeTaskMemory
-from mini_agent.turn_context import RuntimeTaskMemoryTurnContextProvider, RuntimeTurnContext
+from mini_agent.agent_core.context.turn_context import RuntimeTaskMemoryTurnContextProvider, RuntimeTurnContext
 
 
 def test_workspace_memoria_runtime_persists_namespaced_memory_across_restart(tmp_path: Path) -> None:
@@ -442,3 +442,4 @@ def test_workspace_memoria_runtime_can_promote_session_memory_to_global_profile(
     user_file = global_root / "USER.md"
     assert user_file.exists()
     assert "concise Chinese replies across workspaces" in user_file.read_text(encoding="utf-8")
+

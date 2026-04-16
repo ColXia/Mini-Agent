@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,7 +13,7 @@ from mini_agent.memory.runtime_task_memory import TurnRuntimeTaskMemory
 from mini_agent.memory.service import MemoryService
 from mini_agent.schema import FunctionCall, Message, ToolCall
 from mini_agent.session.persistence import SessionPersistence
-from mini_agent.turn_context import (
+from mini_agent.agent_core.context.turn_context import (
     RuntimeTaskMemoryTurnContextProvider,
     RuntimeTurnContext,
     SessionSearchTurnContextProvider,
@@ -213,3 +213,4 @@ async def test_personal_real_use_flow_keeps_boundaries_and_requires_explicit_kb_
     assert "TUI/CLI-first workflow remains the default for this workspace." in memory_text
     assert "kb_confirmed" in memory_text
     assert "gateway reply routing follows the active surface" in memory_text
+

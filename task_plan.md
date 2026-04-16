@@ -1,5 +1,64 @@
 # Task Plan
 
+## Latest Sync: 2026-04-16 P40.2 Memory Core Landing
+
+## Current Execution Slice: P40.2 Memory Core Landing (2026-04-16)
+
+### Why This Slice Is Next
+
+- the new `P40` guardrail report identified `memory-governance` as the safest first code-bearing residual line
+- a stricter follow-up audit found a more urgent issue than ordinary dirty-tree size:
+  - already-committed `agent_core` files import `mini_agent.memory` modules that are still only present as untracked files
+- that means a clean clone is not yet self-consistent on the memory/runtime path
+- the next move must therefore land the minimum `memory` core needed to close those imports honestly
+
+### Scope
+
+- land the missing `mini_agent.memory` core modules required by committed `agent_core` and workspace-memory surfaces
+- keep broader `memory command service / diagnostics / runtime-session / TUI` adoption out of this cut
+- verify the landed memory core against focused memory + `agent_core` context/post-turn tests
+
+### Acceptance
+
+- committed `agent_core` no longer depends on untracked `mini_agent.memory` modules
+- the landed slice includes the minimum helper modules those imports need transitively
+- focused `memory` and adjacent `agent_core` tests are green
+
+### Status
+
+- in_progress
+
+### Implementation Notes
+
+- missing-core import closure currently requires at least:
+  - `automation.py`
+  - `service.py`
+  - `memoria_runtime.py`
+  - `runtime_task_memory.py`
+  - `knowledge_base_grounding.py`
+  - `promotion.py`
+  - `quality.py`
+  - `paths.py`
+- optional later-line files intentionally kept out for now:
+  - `command_service.py`
+  - `diagnostics.py`
+  - `runtime_backend.py`
+  - broader runtime/TUI adoption files
+- focused validation target for this slice:
+  - `tests/test_memory_core_baseline.py`
+  - `tests/test_memory_service.py`
+  - `tests/test_memoria_runtime.py`
+  - `tests/test_memory_automation.py`
+  - `tests/test_memory_real_use_flow.py`
+  - `tests/test_agent_core_post_turn.py`
+  - `tests/test_agent_core_turn_context.py`
+
+### Next Likely Seam
+
+- after this memory-core closure, reopen the remaining `memory-governance` adjuncts only if still necessary:
+  - diagnostics / command-service adoption
+  - or the larger `runtime-session-contract` residual line
+
 ## Latest Sync: 2026-04-16 P40 Iteration Guardrails Baseline
 
 ## Current Execution Slice: P40.1 Iteration Guardrails Baseline (2026-04-16)

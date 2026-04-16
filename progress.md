@@ -1,5 +1,31 @@
 # Progress
 
+## 2026-04-16 P40.2 Memory Core Landing
+
+- [completed] followed the `P40` guardrail result instead of reopening the largest dirty bucket blindly
+- [completed] identified a higher-risk issue inside the `memory-governance` line:
+  - committed `agent_core` and workspace-memory surfaces already import `mini_agent.memory` modules that are still untracked in git
+- [completed] narrowed the minimum memory-core closure to the transitive files needed by those committed imports:
+  - `automation.py`
+  - `service.py`
+  - `memoria_runtime.py`
+  - `runtime_task_memory.py`
+  - `knowledge_base_grounding.py`
+  - `promotion.py`
+  - `quality.py`
+  - `paths.py`
+- [completed] kept broader later-line files out of this cut on purpose:
+  - `command_service.py`
+  - `diagnostics.py`
+  - `runtime_backend.py`
+  - `runtime / tui` adoption files
+- [completed] verified the narrowed memory-core slice:
+  - `uv run pytest tests/test_memory_core_baseline.py tests/test_memory_service.py tests/test_memoria_runtime.py tests/test_memory_automation.py tests/test_memory_real_use_flow.py tests/test_agent_core_post_turn.py tests/test_agent_core_turn_context.py -q`
+  - result: `62 passed`
+  - `uv run ruff check src/mini_agent/memory/__init__.py src/mini_agent/memory/automation.py src/mini_agent/memory/knowledge_base_grounding.py src/mini_agent/memory/memoria_runtime.py src/mini_agent/memory/operator_actions.py src/mini_agent/memory/paths.py src/mini_agent/memory/promotion.py src/mini_agent/memory/quality.py src/mini_agent/memory/runtime_task_memory.py src/mini_agent/memory/service.py tests/test_memory_core_baseline.py tests/test_memory_service.py tests/test_memoria_runtime.py tests/test_memory_automation.py tests/test_memory_real_use_flow.py`
+  - result: `All checks passed!`
+- [next] stage the memory-core slice as the first real post-guardrail code landing
+
 ## 2026-04-16 P40.1 Iteration Guardrails Baseline
 
 - [completed] reclassified the residual post-`P39` dirty worktree instead of continuing from stale assumptions

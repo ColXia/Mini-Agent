@@ -1,5 +1,32 @@
 # Findings
 
+## 2026-04-16 P40.2 Memory Core Landing
+
+- The `memory-governance` line is not just "nice to clean up later".
+- It currently contains a clean-clone integrity problem:
+  - committed `agent_core` files already import `mini_agent.memory.automation`
+  - committed `agent_core` files already import `mini_agent.memory.runtime_task_memory`
+  - committed workspace-memory surfaces already import `mini_agent.memory.service`
+  - those modules are still untracked in git
+- That makes this slice higher leverage than its raw bucket count alone suggests.
+- The right fix is not to commit every memory-adjacent file at once.
+- The right fix is the minimum transitive memory core:
+  - `automation.py`
+  - `service.py`
+  - `memoria_runtime.py`
+  - `runtime_task_memory.py`
+  - `knowledge_base_grounding.py`
+  - `promotion.py`
+  - `quality.py`
+  - `paths.py`
+- `command_service.py`, `diagnostics.py`, and broader runtime/TUI adoption remain real work, but they are later work.
+- Focused validation is strong enough for the narrowed closure:
+  - `62 passed`
+  - targeted `ruff` green
+- One useful negative finding from this slice:
+  - adding eager package-level exports for the new memory services immediately surfaced a real `note_tool -> memory -> service -> note_tool` import cycle
+  - so the package should land the modules first, not pretend the package-level export boundary is already clean
+
 ## 2026-04-16 P40.1 Iteration Guardrails Baseline
 
 - The project is currently safe for controlled iteration, but not yet safe for casual iteration.
