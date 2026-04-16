@@ -1,5 +1,29 @@
 # Findings
 
+## 2026-04-16 P40.3 Runtime Support Substrate Landing
+
+- The large `runtime-session-contract` bucket should not be attacked through `main_agent_runtime_manager.py` first.
+- The safer next move is its upstream support substrate.
+- The strongest concrete reason is a clean-clone risk:
+  - committed `main_agent_runtime_policy_loader.py` already imports `mini_agent.runtime.main_agent_runtime_contracts`
+  - that module is still untracked
+- Beyond that immediate fix, the other three substrate files are also worthwhile as a grouped landing:
+  - `session_agent_support.py`
+  - `session_model_identity_codec.py`
+  - `session_payload_codec.py`
+- They form one coherent support layer:
+  - agent build/config/KB support
+  - runtime model identity normalization
+  - payload/message/token normalization
+- This is a much healthier next cut than jumping directly into the current modified `main_agent_runtime_manager.py`, which still carries too many handler/adoption concerns at once.
+- Focused substrate verification is already strong:
+  - `13 passed`
+  - targeted `ruff` green
+- Recommended sequence after this cut:
+  1. land runtime support substrate
+  2. then adopt it into diagnostics/state/read-model/persistence paths
+  3. only then consider wider runtime-manager closure
+
 ## 2026-04-16 P40.2 Memory Core Landing
 
 - The `memory-governance` line is not just "nice to clean up later".

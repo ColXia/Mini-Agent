@@ -1,5 +1,59 @@
 # Task Plan
 
+## Latest Sync: 2026-04-16 P40.3 Runtime Support Substrate Landing
+
+## Current Execution Slice: P40.3 Runtime Support Substrate Landing (2026-04-16)
+
+### Why This Slice Is Next
+
+- after `P40.2`, the next anti-chaos target is the large `runtime-session-contract` residue
+- a stricter audit showed that the safest next cut is not the whole runtime manager line
+- it is the runtime support substrate underneath that line:
+  - contracts
+  - payload codec
+  - model identity codec
+  - agent support helpers
+- one part of that substrate is already a clean-clone integrity risk:
+  - committed `main_agent_runtime_policy_loader.py` imports `main_agent_runtime_contracts.py`
+  - but `main_agent_runtime_contracts.py` is still untracked
+
+### Scope
+
+- land the narrow runtime support substrate files:
+  - `main_agent_runtime_contracts.py`
+  - `session_agent_support.py`
+  - `session_model_identity_codec.py`
+  - `session_payload_codec.py`
+- land the focused tests for those seams
+- keep manager/handler adoption for a later slice
+
+### Acceptance
+
+- committed runtime policy loading no longer depends on an untracked contracts module
+- the runtime support substrate exists as maintained repo code rather than floating in the dirty tree
+- focused substrate tests and `ruff` are green
+
+### Status
+
+- in_progress
+
+### Implementation Notes
+
+- this slice is intentionally upstream-only, similar to an earlier substrate-first landing:
+  - support substrate first
+  - broader runtime-manager adoption later
+- current focused verification target:
+  - `tests/test_main_agent_runtime_policy_loader.py`
+  - `tests/test_runtime_session_agent_support.py`
+  - `tests/test_runtime_session_model_identity_codec.py`
+  - `tests/test_runtime_session_payload_codec.py`
+
+### Next Likely Seam
+
+- after this substrate lands, reopen one narrower adoption seam above it:
+  - `session_diagnostics_service / state / persistence / read-model` support adoption
+  - or the broader runtime-manager/handler convergence line if it can be kept honest
+
 ## Latest Sync: 2026-04-16 P40.2 Memory Core Landing
 
 ## Current Execution Slice: P40.2 Memory Core Landing (2026-04-16)

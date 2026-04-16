@@ -1,5 +1,23 @@
 # Progress
 
+## 2026-04-16 P40.3 Runtime Support Substrate Landing
+
+- [completed] audited the large `runtime-session-contract` residue for a smaller, phase-honest upstream cut
+- [completed] identified one clean-clone integrity problem inside that runtime residue:
+  - committed [main_agent_runtime_policy_loader.py](/d:/file/Mini-Agent/src/mini_agent/runtime/main_agent_runtime_policy_loader.py) already imports `mini_agent.runtime.main_agent_runtime_contracts`
+  - but `main_agent_runtime_contracts.py` is still untracked
+- [completed] narrowed the next runtime slice to the independent support substrate:
+  - [main_agent_runtime_contracts.py](/d:/file/Mini-Agent/src/mini_agent/runtime/main_agent_runtime_contracts.py)
+  - [session_agent_support.py](/d:/file/Mini-Agent/src/mini_agent/runtime/session_agent_support.py)
+  - [session_model_identity_codec.py](/d:/file/Mini-Agent/src/mini_agent/runtime/session_model_identity_codec.py)
+  - [session_payload_codec.py](/d:/file/Mini-Agent/src/mini_agent/runtime/session_payload_codec.py)
+- [completed] validated the narrowed runtime substrate:
+  - `uv run pytest tests/test_main_agent_runtime_policy_loader.py tests/test_runtime_session_agent_support.py tests/test_runtime_session_model_identity_codec.py tests/test_runtime_session_payload_codec.py -q`
+  - result: `13 passed`
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_contracts.py src/mini_agent/runtime/session_agent_support.py src/mini_agent/runtime/session_model_identity_codec.py src/mini_agent/runtime/session_payload_codec.py tests/test_main_agent_runtime_policy_loader.py tests/test_runtime_session_agent_support.py tests/test_runtime_session_model_identity_codec.py tests/test_runtime_session_payload_codec.py`
+  - result: `All checks passed!`
+- [next] land this runtime support substrate as the next narrow post-guardrail/runtime slice
+
 ## 2026-04-16 P40.2 Memory Core Landing
 
 - [completed] followed the `P40` guardrail result instead of reopening the largest dirty bucket blindly
