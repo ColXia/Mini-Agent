@@ -10,17 +10,23 @@ This module provides automatic model discovery capabilities:
 from __future__ import annotations
 
 import asyncio
+from hashlib import sha256
 import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
+from typing import Literal
 from typing import Any
+from urllib.parse import urlsplit
 
 import httpx
 
 logger = logging.getLogger(__name__)
+
+
+CapabilityTruth = Literal["supported", "unsupported", "unknown"]
 
 
 class ProviderType(str, Enum):
@@ -28,14 +34,124 @@ class ProviderType(str, Enum):
 
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
-    GEMINI = "gemini"
     MINIMAX = "minimax"
+    OLLAMA = "ollama"
     CUSTOM = "custom"
+
+
+_CURATED_MODEL_ORDERS: dict[ProviderType, list[str]] = {
+    ProviderType.OPENAI: [
+        "gpt-5.4",
+        "gpt-5.3",
+        "gpt-5.2",
+        "gpt-5.1",
+        "gpt-4.1",
+        "gpt-4o",
+    ],
+    ProviderType.ANTHROPIC: [
+        "claude-sonnet-4-6",
+        "claude-opus-4-1",
+        "claude-sonnet-4-5",
+        "claude-haiku-4-0",
+    ],
+    ProviderType.MINIMAX: [
+        "MiniMax-M2.7",
+        "MiniMax-M2.5",
+        "MiniMax-M1",
+        "abab6.5s-chat",
+        "abab6.5-chat",
+    ],
+    ProviderType.OLLAMA: [
+        "qwen3-coder",
+        "gpt-oss:20b",
+        "glm-4.7:cloud",
+        "minimax-m2.1:cloud",
+    ],
+}
+
+_DISCOVERY_CONFIDENCE_BY_SOURCE = {
+    "api_discovery": "high",
+    "curated_manifest": "high",
+    "fallback_manifest": "medium",
+    "configured_default": "medium",
+    "heuristic_recommendation": "medium",
+}
 
 
 def _normalize_provider_name(provider: str) -> str:
     """Normalize external aliases to internal provider keys."""
     return provider.lower().strip()
+
+
+def _normalize_provider_type(provider: ProviderType | str) -> ProviderType:
+    if isinstance(provider, ProviderType):
+        return provider
+    try:
+        return ProviderType(_normalize_provider_name(str(provider)))
+    except ValueError:
+        return ProviderType.CUSTOM
+
+
+def _should_bypass_proxy_env(api_base: str | None) -> bool:
+    """Bypass proxy env for loopback/local discovery endpoints.
+
+    Real local runtimes such as Ollama often expose `localhost` / `127.0.0.1`
+    endpoints. On developer machines with corporate proxy env vars, letting
+    `httpx` trust env can incorrectly route these loopback requests through the
+    proxy and break local discovery.
+    """
+
+    normalized = str(api_base or "").strip()
+    if not normalized:
+        return False
+    try:
+        parsed = urlsplit(normalized)
+    except Exception:
+        return False
+    host = str(parsed.hostname or "").strip().lower()
+    return host in {"localhost", "127.0.0.1", "::1"}
+
+
+def _discovery_protocol_flavor(
+    provider: "ProviderType",
+    api_base: str | None = None,
+) -> str:
+    _ = api_base
+    if provider == ProviderType.ANTHROPIC:
+        return "anthropic-curated-manifest"
+    if provider == ProviderType.OLLAMA:
+        return "ollama-openai-compat"
+    return "openai-models"
+
+
+def _normalize_discovery_cache_base_url(
+    provider: "ProviderType",
+    api_base: str | None,
+) -> str:
+    raw = str(api_base or "").strip()
+    if not raw:
+        default_endpoint = str(ModelDiscoveryService.PROVIDER_ENDPOINTS.get(provider) or "").strip()
+        raw = default_endpoint
+    if not raw:
+        return f"provider://{provider.value}/default"
+
+    try:
+        parsed = urlsplit(raw)
+    except Exception:
+        return raw.rstrip("/") or f"provider://{provider.value}/default"
+
+    if not parsed.scheme or not parsed.hostname:
+        return raw.rstrip("/") or f"provider://{provider.value}/default"
+
+    scheme = parsed.scheme.lower()
+    host = str(parsed.hostname or "").strip().lower()
+    port = parsed.port
+    netloc = f"{host}:{port}" if port is not None else host
+    path = str(parsed.path or "").rstrip("/")
+    if path.endswith("/models"):
+        path = path[: -len("/models")]
+    path = path.rstrip("/")
+    return f"{scheme}://{netloc}{path}" or f"provider://{provider.value}/default"
 
 
 _KNOWN_CONTEXT_WINDOWS: dict[ProviderType, dict[str, int]] = {
@@ -97,6 +213,212 @@ def resolve_known_context_window(
     return None
 
 
+def resolve_curated_model_order(provider: ProviderType | str) -> list[str]:
+    """Return the curated model-order manifest for one provider."""
+
+    return list(_CURATED_MODEL_ORDERS.get(_normalize_provider_type(provider), []))
+
+
+def resolve_official_default_model(provider: ProviderType | str) -> str | None:
+    """Return the configured official/default model fallback for one provider."""
+
+    order = resolve_curated_model_order(provider)
+    return order[0] if order else None
+
+
+def discovery_confidence_for_source(source: str | None) -> str:
+    """Map one discovery source to a coarse confidence label."""
+
+    normalized = " ".join((source or "").strip().split()).lower()
+    return _DISCOVERY_CONFIDENCE_BY_SOURCE.get(normalized, "low")
+
+
+def is_flagship_model(provider: ProviderType | str, model_id: str) -> bool:
+    """Filter obvious non-runtime or non-flagship model ids for preset recommendation."""
+
+    provider_type = _normalize_provider_type(provider)
+    normalized = str(model_id or "").strip().lower()
+    if not normalized:
+        return False
+
+    blocked_tokens = (
+        "embedding",
+        "moderation",
+        "whisper",
+        "tts",
+        "audio",
+        "image",
+        "vision",
+        "speech",
+        "transcribe",
+        "rerank",
+    )
+    if any(token in normalized for token in blocked_tokens):
+        return False
+
+    if provider_type == ProviderType.OPENAI:
+        return normalized.startswith("gpt-") or normalized.startswith("o")
+    if provider_type == ProviderType.ANTHROPIC:
+        return "claude" in normalized
+    if provider_type == ProviderType.MINIMAX:
+        return normalized.startswith("minimax") or normalized.startswith("abab")
+    if provider_type == ProviderType.OLLAMA:
+        return True
+    return True
+
+
+def _infer_capability_evidence(
+    raw_capabilities: set[str],
+    *,
+    positive_tokens: tuple[str, ...],
+    negative_tokens: tuple[str, ...] = (),
+) -> dict[str, str | bool | None]:
+    positive_match = any(token in capability for capability in raw_capabilities for token in positive_tokens)
+    negative_match = any(token in capability for capability in raw_capabilities for token in negative_tokens)
+
+    if positive_match and not negative_match:
+        return {
+            "value": True,
+            "truth": "supported",
+            "confidence": "high",
+            "source": "api_capabilities",
+        }
+    if negative_match and not positive_match:
+        return {
+            "value": False,
+            "truth": "unsupported",
+            "confidence": "high",
+            "source": "api_capabilities",
+        }
+    if raw_capabilities:
+        return {
+            "value": None,
+            "truth": "unknown",
+            "confidence": "medium",
+            "source": "ambiguous_capability_evidence",
+        }
+    return {
+        "value": None,
+        "truth": "unknown",
+        "confidence": "low",
+        "source": "no_capability_evidence",
+    }
+
+
+def infer_model_capabilities(
+    provider: ProviderType | str,
+    model_id: str,
+    raw_capabilities: list[str] | None = None,
+) -> dict[str, str | bool | None]:
+    """Infer minimal routing-relevant capability flags for one model."""
+
+    _ = (provider, model_id)
+    raw = {str(item or "").strip().lower() for item in raw_capabilities or [] if str(item or "").strip()}
+    tools_evidence = _infer_capability_evidence(
+        raw,
+        positive_tokens=("tool", "function"),
+        negative_tokens=("no_tool", "toolless", "text_only", "text-only"),
+    )
+    thinking_evidence = _infer_capability_evidence(
+        raw,
+        positive_tokens=("thinking", "reasoning", "reason"),
+        negative_tokens=("no_thinking", "no-thinking", "no_reasoning", "no-reasoning"),
+    )
+
+    return {
+        "supports_tools": tools_evidence["value"],
+        "supports_tools_truth": tools_evidence["truth"],
+        "supports_tools_confidence": tools_evidence["confidence"],
+        "supports_tools_source": tools_evidence["source"],
+        "supports_thinking": thinking_evidence["value"],
+        "supports_thinking_truth": thinking_evidence["truth"],
+        "supports_thinking_confidence": thinking_evidence["confidence"],
+        "supports_thinking_source": thinking_evidence["source"],
+    }
+
+
+@dataclass(frozen=True)
+class ModelRecommendation:
+    """Explicit recommendation result for one provider inventory."""
+
+    model_id: str
+    strategy: str
+    confidence: str
+    discovery_source: str
+
+
+def recommend_discovered_model(
+    provider: ProviderType | str,
+    result: "DiscoveryResult",
+    *,
+    curated_order: list[str] | None = None,
+    official_default: str | None = None,
+) -> ModelRecommendation | None:
+    """Choose one recommended model from a discovery result using explicit policy."""
+
+    provider_type = _normalize_provider_type(provider)
+    normalized_curated_order = [
+        str(item).strip()
+        for item in (curated_order if curated_order is not None else resolve_curated_model_order(provider_type))
+        if str(item).strip()
+    ]
+    official_default_model = str(official_default or resolve_official_default_model(provider_type) or "").strip()
+    available_models = [item for item in result.available_models if is_flagship_model(provider_type, item.id)]
+    discovered_lookup = {
+        str(item.id).strip().lower(): str(item.id).strip()
+        for item in available_models
+        if str(item.id).strip()
+    }
+    confidence = discovery_confidence_for_source(result.discovery_source)
+
+    for candidate in normalized_curated_order:
+        discovered_id = discovered_lookup.get(candidate.lower())
+        if discovered_id:
+            return ModelRecommendation(
+                model_id=discovered_id,
+                strategy="curated_latest",
+                confidence=confidence,
+                discovery_source=result.discovery_source,
+            )
+
+    if official_default_model:
+        discovered_id = discovered_lookup.get(official_default_model.lower())
+        if discovered_id:
+            return ModelRecommendation(
+                model_id=discovered_id,
+                strategy="official_default",
+                confidence=confidence,
+                discovery_source=result.discovery_source,
+            )
+
+    latest = result.latest_base_model
+    if latest and is_flagship_model(provider_type, latest.id):
+        return ModelRecommendation(
+            model_id=str(latest.id).strip(),
+            strategy="discovered_latest",
+            confidence=confidence if confidence != "low" else "medium",
+            discovery_source=result.discovery_source or "heuristic_recommendation",
+        )
+
+    if available_models:
+        return ModelRecommendation(
+            model_id=str(available_models[0].id).strip(),
+            strategy="discovered_latest",
+            confidence=confidence if confidence != "low" else "medium",
+            discovery_source=result.discovery_source or "heuristic_recommendation",
+        )
+
+    if official_default_model:
+        return ModelRecommendation(
+            model_id=official_default_model,
+            strategy="official_default",
+            confidence="medium",
+            discovery_source="configured_default",
+        )
+
+    return None
+
+
 @dataclass
 class ModelInfo:
     """Information about a discovered model."""
@@ -135,6 +457,7 @@ class DiscoveryResult:
     provider: ProviderType
     models: list[ModelInfo]
     fetched_at: datetime
+    discovery_source: str = "unknown"
     error: str | None = None
     cache_hit: bool = False
 
@@ -172,7 +495,48 @@ class ModelDiscoveryCache:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.ttl = timedelta(hours=ttl_hours)
 
-    def get(self, provider: ProviderType) -> DiscoveryResult | None:
+    def _cache_scope(
+        self,
+        provider: ProviderType,
+        *,
+        api_base: str | None = None,
+        protocol_flavor: str | None = None,
+    ) -> dict[str, str]:
+        normalized_base_url = _normalize_discovery_cache_base_url(provider, api_base)
+        resolved_protocol_flavor = (
+            " ".join(str(protocol_flavor or "").strip().split()).lower()
+            or _discovery_protocol_flavor(provider, api_base)
+        )
+        return {
+            "provider": provider.value,
+            "base_url": normalized_base_url,
+            "protocol_flavor": resolved_protocol_flavor,
+        }
+
+    def _cache_file(
+        self,
+        provider: ProviderType,
+        *,
+        api_base: str | None = None,
+        protocol_flavor: str | None = None,
+    ) -> Path:
+        scope = self._cache_scope(
+            provider,
+            api_base=api_base,
+            protocol_flavor=protocol_flavor,
+        )
+        digest = sha256(
+            f"{scope['provider']}|{scope['base_url']}|{scope['protocol_flavor']}".encode("utf-8")
+        ).hexdigest()[:16]
+        return self.cache_dir / f"models_{provider.value}_{digest}.json"
+
+    def get(
+        self,
+        provider: ProviderType,
+        *,
+        api_base: str | None = None,
+        protocol_flavor: str | None = None,
+    ) -> DiscoveryResult | None:
         """Get cached discovery result.
 
         Args:
@@ -181,7 +545,16 @@ class ModelDiscoveryCache:
         Returns:
             Cached result or None if not found/expired
         """
-        cache_file = self.cache_dir / f"models_{provider.value}.json"
+        scope = self._cache_scope(
+            provider,
+            api_base=api_base,
+            protocol_flavor=protocol_flavor,
+        )
+        cache_file = self._cache_file(
+            provider,
+            api_base=api_base,
+            protocol_flavor=protocol_flavor,
+        )
         if not cache_file.exists():
             return None
 
@@ -191,7 +564,12 @@ class ModelDiscoveryCache:
 
             # Check if cache is expired
             if datetime.now() - fetched_at > self.ttl:
-                logger.debug(f"Cache expired for {provider.value}")
+                logger.debug(
+                    "Cache expired for %s [%s, %s]",
+                    provider.value,
+                    scope["base_url"],
+                    scope["protocol_flavor"],
+                )
                 return None
 
             models = [
@@ -216,34 +594,62 @@ class ModelDiscoveryCache:
                 provider=provider,
                 models=models,
                 fetched_at=fetched_at,
+                discovery_source=str(data.get("discovery_source") or "unknown"),
                 error=data.get("error"),
                 cache_hit=True,
             )
 
-            logger.debug(f"Cache hit for {provider.value}: {len(models)} models")
+            logger.debug(
+                "Cache hit for %s [%s, %s]: %s models",
+                provider.value,
+                scope["base_url"],
+                scope["protocol_flavor"],
+                len(models),
+            )
             return result
 
         except Exception as e:
             logger.warning(f"Failed to load cache for {provider.value}: {e}")
             return None
 
-    def set(self, result: DiscoveryResult) -> None:
+    def set(
+        self,
+        result: DiscoveryResult,
+        *,
+        api_base: str | None = None,
+        protocol_flavor: str | None = None,
+    ) -> None:
         """Save discovery result to cache.
 
         Args:
             result: Discovery result to cache
         """
-        cache_file = self.cache_dir / f"models_{result.provider.value}.json"
+        scope = self._cache_scope(
+            result.provider,
+            api_base=api_base,
+            protocol_flavor=protocol_flavor,
+        )
+        cache_file = self._cache_file(
+            result.provider,
+            api_base=api_base,
+            protocol_flavor=protocol_flavor,
+        )
         try:
             data = {
                 "provider": result.provider.value,
                 "models": [m.to_dict() for m in result.models],
                 "fetched_at": result.fetched_at.isoformat(),
+                "discovery_source": result.discovery_source,
                 "error": result.error,
+                "cache_scope": scope,
             }
             cache_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
             logger.debug(
-                f"Cached {len(result.models)} models for {result.provider.value}"
+                "Cached %s models for %s [%s, %s]",
+                len(result.models),
+                result.provider.value,
+                scope["base_url"],
+                scope["protocol_flavor"],
             )
         except Exception as e:
             logger.warning(f"Failed to cache models for {result.provider.value}: {e}")
@@ -255,8 +661,8 @@ class ModelDiscoveryService:
     # Provider API endpoints for model listing
     PROVIDER_ENDPOINTS = {
         ProviderType.OPENAI: "https://api.openai.com/v1/models",
-        ProviderType.GEMINI: "https://generativelanguage.googleapis.com/v1beta/models",
         ProviderType.MINIMAX: "https://api.minimaxi.com/v1/models",  # Assuming similar to OpenAI
+        ProviderType.OLLAMA: "http://localhost:11434/v1/models",
     }
 
     # Fallback model lists (when API is unavailable)
@@ -275,13 +681,6 @@ class ModelDiscoveryService:
             "claude-sonnet-4-5",
             "claude-haiku-4-0",
         ],
-        ProviderType.GEMINI: [
-            "gemini-3.1-pro",
-            "gemini-3.1-flash",
-            "gemini-2.5-pro",
-            "gemini-2.0-flash",
-            "gemini-1.5-pro",
-        ],
         ProviderType.MINIMAX: [
             "MiniMax-M2.7",
             "MiniMax-M2.5",
@@ -289,6 +688,7 @@ class ModelDiscoveryService:
             "abab6.5s-chat",
             "abab6.5-chat",
         ],
+        ProviderType.OLLAMA: [],
     }
 
     def __init__(
@@ -323,9 +723,16 @@ class ModelDiscoveryService:
         Returns:
             Discovery result with list of models
         """
+        normalized_api_base = _normalize_discovery_cache_base_url(provider, api_base)
+        protocol_flavor = _discovery_protocol_flavor(provider, normalized_api_base)
+
         # Check cache first
         if use_cache:
-            cached = self.cache.get(provider)
+            cached = self.cache.get(
+                provider,
+                api_base=normalized_api_base,
+                protocol_flavor=protocol_flavor,
+            )
             if cached:
                 return cached
 
@@ -336,6 +743,9 @@ class ModelDiscoveryService:
                 provider=provider,
                 models=models,
                 fetched_at=datetime.now(),
+                discovery_source="curated_manifest"
+                if provider == ProviderType.ANTHROPIC
+                else "api_discovery",
             )
         except Exception as e:
             logger.warning(f"Failed to fetch models from {provider.value}: {e}")
@@ -345,11 +755,16 @@ class ModelDiscoveryService:
                 provider=provider,
                 models=models,
                 fetched_at=datetime.now(),
+                discovery_source="fallback_manifest",
                 error=str(e),
             )
 
         # Cache the result
-        self.cache.set(result)
+        self.cache.set(
+            result,
+            api_base=normalized_api_base,
+            protocol_flavor=protocol_flavor,
+        )
         return result
 
     async def _fetch_models(
@@ -376,15 +791,37 @@ class ModelDiscoveryService:
         if not url:
             return self._get_fallback_models(provider)
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
+        async with httpx.AsyncClient(
+            timeout=self.timeout,
+            trust_env=not _should_bypass_proxy_env(url),
+        ) as client:
             if provider == ProviderType.OPENAI:
                 return await self._fetch_openai_models(client, url, api_key)
-            elif provider == ProviderType.GEMINI:
-                return await self._fetch_gemini_models(client, url, api_key)
             elif provider == ProviderType.MINIMAX:
                 return await self._fetch_minimax_models(client, url, api_key)
+            elif provider == ProviderType.OLLAMA:
+                return await self._fetch_ollama_models(client, url, api_key)
             else:
                 return self._get_fallback_models(provider)
+
+    @staticmethod
+    def _parse_model_created(value: Any) -> datetime | None:
+        if value in {None, ""}:
+            return None
+        if isinstance(value, (int, float)):
+            try:
+                return datetime.fromtimestamp(value)
+            except Exception:
+                return None
+        text = str(value).strip()
+        if not text:
+            return None
+        try:
+            if text.endswith("Z"):
+                text = f"{text[:-1]}+00:00"
+            return datetime.fromisoformat(text)
+        except Exception:
+            return None
 
     async def _fetch_openai_models(
         self,
@@ -434,40 +871,6 @@ class ModelDiscoveryService:
 
         return models
 
-    async def _fetch_gemini_models(
-        self,
-        client: httpx.AsyncClient,
-        url: str,
-        api_key: str,
-    ) -> list[ModelInfo]:
-        """Fetch models from Gemini API."""
-        # Gemini uses query parameter for API key
-        response = await client.get(f"{url}?key={api_key}")
-        response.raise_for_status()
-        data = response.json()
-
-        models = []
-        for model_data in data.get("models", []):
-            model_name = model_data.get("name", "").replace("models/", "")
-            if not model_name:
-                continue
-
-            # Parse supported methods to determine capabilities
-            methods = model_data.get("supportedGenerationMethods", [])
-
-            models.append(
-                ModelInfo(
-                    id=model_name,
-                    name=model_data.get("displayName", model_name),
-                    provider=ProviderType.GEMINI,
-                    context_window=model_data.get("inputTokenLimit"),
-                    capabilities=methods,
-                    metadata=model_data,
-                )
-            )
-
-        return models
-
     async def _fetch_minimax_models(
         self,
         client: httpx.AsyncClient,
@@ -506,7 +909,79 @@ class ModelDiscoveryService:
             return models
         except Exception as e:
             logger.debug(f"MiniMax models API not available: {e}")
-            return self._get_fallback_models(ProviderType.MINIMAX)
+            raise
+
+    async def _fetch_ollama_models(
+        self,
+        client: httpx.AsyncClient,
+        url: str,
+        api_key: str,
+    ) -> list[ModelInfo]:
+        """Fetch models from Ollama's local compatibility/runtime endpoints."""
+
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+        openai_models_url = url.rstrip("/")
+        if not openai_models_url.endswith("/v1/models"):
+            if openai_models_url.endswith("/v1"):
+                openai_models_url = f"{openai_models_url}/models"
+            else:
+                openai_models_url = f"{openai_models_url}/v1/models"
+        try:
+            response = await client.get(openai_models_url, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+            raw_models = data.get("data", [])
+            provider_owned_by = "library"
+            models: list[ModelInfo] = []
+            for model_data in raw_models:
+                if not isinstance(model_data, dict):
+                    continue
+                model_id = str(model_data.get("id") or "").strip()
+                if not model_id:
+                    continue
+                models.append(
+                    ModelInfo(
+                        id=model_id,
+                        name=str(model_data.get("id") or model_id),
+                        provider=ProviderType.OLLAMA,
+                        created=self._parse_model_created(model_data.get("created")),
+                        owned_by=str(model_data.get("owned_by") or provider_owned_by),
+                        metadata=model_data,
+                    )
+                )
+            return models
+        except Exception:
+            # Fall back to the native tags endpoint for older/local daemon layouts.
+            native_base = openai_models_url
+            if native_base.endswith("/v1/models"):
+                native_base = native_base[: -len("/v1/models")]
+            tags_response = await client.get(f"{native_base}/api/tags", headers=headers)
+            tags_response.raise_for_status()
+            data = tags_response.json()
+            models = []
+            for model_data in data.get("models", []):
+                if not isinstance(model_data, dict):
+                    continue
+                model_id = str(model_data.get("model") or model_data.get("name") or "").strip()
+                if not model_id:
+                    continue
+                display_name = str(model_data.get("name") or model_id).strip() or model_id
+                models.append(
+                    ModelInfo(
+                        id=model_id,
+                        name=display_name,
+                        provider=ProviderType.OLLAMA,
+                        created=self._parse_model_created(
+                            model_data.get("modified_at") or model_data.get("created_at")
+                        ),
+                        owned_by="library",
+                        metadata=model_data,
+                    )
+                )
+            return models
 
     def _get_fallback_models(self, provider: ProviderType) -> list[ModelInfo]:
         """Get fallback model list when API is unavailable.
@@ -599,7 +1074,7 @@ async def list_available_models(
     """List available models for a provider (CLI helper).
 
     Args:
-        provider: Provider name (openai, anthropic, gemini, minimax)
+        provider: Provider name (openai, anthropic, minimax, ollama)
         api_key: API key
         api_base: Optional custom API base
         show_all: Show all models including deprecated/fine-tuned
@@ -639,8 +1114,12 @@ async def list_available_models(
 
         print(f"  - {model.id}{flag_str}{created_str}")
 
-    if result.latest_base_model:
-        print(f"\n  Recommended: {result.latest_base_model.id}")
+    recommended = recommend_discovered_model(provider_type, result)
+    if recommended:
+        print(
+            f"\n  Recommended: {recommended.model_id}"
+            f" [{recommended.strategy}, {recommended.discovery_source}]"
+        )
 
 
 async def get_latest_model_id(
@@ -665,5 +1144,5 @@ async def get_latest_model_id(
 
     service = ModelDiscoveryService()
     result = await service.discover_models(provider_type, api_key, api_base)
-    latest = result.latest_base_model
-    return latest.id if latest else None
+    recommendation = recommend_discovered_model(provider_type, result)
+    return recommendation.model_id if recommendation else None

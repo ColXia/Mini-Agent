@@ -26,6 +26,7 @@ def _reset_rectifier_metrics():
 def test_rectify_anthropic_request_applies_budget_cache_and_signature_strip():
     params = {
         "model": "claude-3-7-sonnet",
+        "thinking": {"type": "enabled", "budget_tokens": 2048},
         "system": "You are system.",
         "messages": [
             {
@@ -45,7 +46,6 @@ def test_rectify_anthropic_request_applies_budget_cache_and_signature_strip():
         params,
         options=RequestRectifierOptions(
             enabled=True,
-            thinking_budget_tokens=2048,
             cache_injection=True,
             strip_thinking_signature=True,
         ),
@@ -70,7 +70,7 @@ def test_rectify_anthropic_request_applies_budget_cache_and_signature_strip():
     metrics = snapshot_rectifier_metrics()
     assert metrics["total_requests"] == 1
     assert metrics["anthropic_requests"] == 1
-    assert metrics["thinking_budget_injections"] == 1
+    assert metrics["thinking_budget_injections"] == 0
     assert metrics["cache_injections"] >= 2
     assert metrics["signature_strips"] == 1
 
@@ -89,14 +89,12 @@ def test_rectify_openai_request_normalizes_reasoning_details_and_content():
                 "content": None,
             },
         ],
-        "extra_body": {"reasoning_split": True},
+        "extra_body": {"reasoning_split": True, "thinking_budget": 1536},
     }
     rectified = rectify_openai_request(
         params,
-        api_base="https://api.minimaxi.com/v1",
         options=RequestRectifierOptions(
             enabled=True,
-            thinking_budget_tokens=1536,
             cache_injection=False,
             strip_thinking_signature=True,
         ),
@@ -113,7 +111,7 @@ def test_rectify_openai_request_normalizes_reasoning_details_and_content():
     metrics = snapshot_rectifier_metrics()
     assert metrics["total_requests"] == 1
     assert metrics["openai_requests"] == 1
-    assert metrics["thinking_budget_injections"] == 1
+    assert metrics["thinking_budget_injections"] == 0
     assert metrics["cache_injections"] == 0
 
 
@@ -166,3 +164,32 @@ def test_openai_to_gemini_contents_baseline():
     metrics = snapshot_rectifier_metrics()
     assert metrics["protocol_conversion_calls"] == 1
     assert metrics["openai_to_gemini_conversions"] == 1
+
+
+def test_rectifier_defaults_do_not_read_env(monkeypatch):
+    monkeypatch.setenv("MINI_AGENT_RECTIFIER_ENABLED", "0")
+    monkeypatch.setenv("MINI_AGENT_RECTIFIER_CACHE_INJECTION", "0")
+    monkeypatch.setenv("MINI_AGENT_RECTIFIER_STRIP_THINKING_SIGNATURE", "0")
+
+    params = {
+        "model": "claude-3-7-sonnet",
+        "system": "You are system.",
+        "messages": [
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "thinking", "thinking": "chain", "signature": "sig-1"},
+                    {"type": "text", "text": "answer"},
+                ],
+            },
+            {
+                "role": "user",
+                "content": "latest prompt",
+            },
+        ],
+    }
+
+    rectified = rectify_anthropic_request(params)
+
+    assert rectified["system"][-1]["cache_control"]["type"] == "ephemeral"
+    assert "signature" not in rectified["messages"][0]["content"][0]

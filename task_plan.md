@@ -1,5 +1,86 @@
 # Task Plan
 
+## Latest Sync: 2026-04-16 P39 Kernel / Model-Runtime Mixed Boundary Slice
+
+## Current Execution Slice: P39 Kernel / Model-Runtime Mixed Boundary Slice (2026-04-16)
+
+### Why This Slice Is Next
+
+- `P38` round-1 active-baseline closure is now committed as its own checkpoint
+- the highest-value deferred work is the still-mixed `kernel / model-runtime` boundary
+- keeping that work unclassified any longer would invite another phase-fake commit
+- the user explicitly chose to reopen this deferred line as its own slice
+
+### Scope
+
+- audit the real dependency closure of the dirty-tree `kernel / model-runtime` work
+- decide the minimum honest slice boundary
+- write the active plan for landing or reducing that mixed bundle
+
+### Acceptance
+
+- the mixed boundary is explicitly restated as a new post-`P38` slice
+- the minimum dependency bundle is named in concrete files and behaviors
+- the next implementation order is clear enough to start landing the slice honestly
+
+### Status
+
+- in_progress
+
+### Implementation Notes
+
+- first-pass diff audit already confirms that the current line is a true mixed bundle, not a pure `kernel` adoption:
+  - `src/mini_agent/agent_core/kernel.py`
+  - `src/mini_agent/model_manager/runtime.py`
+  - `src/mini_agent/model_manager/failover.py`
+  - `src/mini_agent/model_manager/bootstrap.py`
+  - `src/mini_agent/llm/protocol_binding.py`
+  - `tests/test_agent_core_kernel.py`
+- current audit focus:
+  - config/config_loader injection
+  - runtime config migration to `runtime.retry / request_policy / rectifier`
+  - route-intent and route-requirement propagation
+  - bootstrap-provider fallback truth
+  - request-policy / rectifier binding
+  - protocol execution profile + streaming failover
+  - richer route diagnostics and capability truth
+- formal plan added:
+  - `docs/P39_KERNEL_MODEL_RUNTIME_BOUNDARY_PLAN_2026-04-16.md`
+- focused validation already confirms that the current dirty-tree line is technically coherent enough to continue from:
+  - upstream substrate suite:
+    - `91 passed`
+  - downstream kernel-consumer suite:
+    - `118 passed`
+- current `P39.1` working set is now narrowed to the upstream substrate files only:
+  - `src/mini_agent/llm/__init__.py`
+  - `src/mini_agent/model_manager/__init__.py`
+  - `src/mini_agent/config.py`
+  - `src/mini_agent/config/config-example.yaml`
+  - `src/mini_agent/model_manager/bootstrap.py`
+  - `src/mini_agent/model_manager/provider.py`
+  - `src/mini_agent/model_manager/preset_providers.py`
+  - `src/mini_agent/model_manager/model_discovery.py`
+  - `src/mini_agent/model_manager/model_registry_service.py`
+  - `src/mini_agent/model_manager/runtime.py`
+  - `src/mini_agent/model_manager/failover.py`
+  - `src/mini_agent/llm/protocol_binding.py`
+  - `src/mini_agent/llm/base.py`
+  - `src/mini_agent/llm/llm_wrapper.py`
+  - `src/mini_agent/llm/openai_client.py`
+  - `src/mini_agent/llm/anthropic_client.py`
+- current `P39.1` test set is also narrowed and does not require `kernel.py` yet:
+  - routing / failover / config / registry / protocol / streaming / CLI models tests
+- additional adjacent validation is also green:
+  - `tests/test_config_local_env.py tests/test_llm.py tests/test_llm_clients.py`
+  - result: `14 passed, 9 skipped`
+- current `P39.1` status:
+  - implementation slice is coherent and ready to be cut as the first post-`P38` mixed-boundary commit
+  - `P39.1` should now be treated as materially complete once this commit lands
+
+### Next Likely Seam
+
+- reopen `P39.2` as the downstream `kernel` adoption and diagnostics closure seam
+
 ## Latest Sync: 2026-04-16 P38 Round-1 Narrow Commit Finalization
 
 ## Current Execution Slice: P38 Round-1 Narrow Commit Finalization (2026-04-16)

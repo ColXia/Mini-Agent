@@ -1,5 +1,90 @@
 # Findings
 
+## 2026-04-16 P39 Kernel / Model-Runtime Mixed Boundary Slice
+
+- Reopening the deferred `kernel / model-runtime` line as its own slice is the right move.
+- The first-pass diff audit already shows that this is a real mixed boundary, not just a delayed `kernel.py` cleanup.
+- The current `kernel.py` diff bundles at least five different behavior classes:
+  - typed `agent_core.engine.Agent` + `set_agent_runtime_bindings(...)` adoption
+  - injected `config / config_loader` ownership instead of internal `Config.load(...)`
+  - route-intent and route-requirement propagation into routed selection
+  - request-policy / rectifier construction for failover client creation
+  - richer route/capability/bootstrap diagnostics shaping the exported kernel story
+- The upstream runtime layer confirms that this is not fake coupling:
+  - `runtime.py` now introduces bootstrap-only routing input, capability-truth metadata, candidate diagnostics, route snapshots, and explicit routed/pinned error recording
+  - `failover.py` now depends on `ProtocolRequestPolicy`, `RequestRectifierOptions`, protocol execution profiles, and streaming failover semantics
+- The updated `tests/test_agent_core_kernel.py` diff is especially important evidence:
+  - tests now assert route intent
+  - route requirements
+  - bootstrap model input
+  - capability truth in diagnostics
+  - selection-story diagnostics
+  - runtime retry / request policy / rectifier propagation
+  - injected config/config_loader behavior
+- That means the current dirty-tree tests are no longer validating a pure core-only kernel refactor.
+- They are validating a combined `kernel + model-runtime-governance + protocol-binding` story.
+- Immediate implication:
+  - `P39` should be treated as an honest mixed slice by default
+  - any attempt to shrink it back to pure `P34` would require active reduction work, not just careful commit wording
+- Second-pass upstream audit sharpens that conclusion further:
+  - `bootstrap.py` is deliberately thin and only extracts bootstrap-only route input from loaded config
+  - `model_registry_service.py` turns that bootstrap input into a synthetic `bootstrap-config` provider only when the runtime catalog would otherwise be empty
+  - `protocol_binding.py` is the real new substrate:
+    - provider-compatible API-base normalization
+    - request-policy defaults and override merge
+    - rectifier binding
+    - execution-profile assembly for protocol clients
+  - `llm/base.py`, `llm/llm_wrapper.py`, `llm/openai_client.py`, and `llm/anthropic_client.py` are already refactored around that protocol execution profile and normalized streaming/completion model
+- This means the honest landing order is no longer ambiguous:
+  1. upstream runtime/protocol substrate
+  2. downstream `kernel` adoption and kernel-test closure
+- Additional dependency that cannot be ignored:
+  - `config.py` and `config/config-example.yaml` are already migrated so retry/request-policy/rectifier defaults live under `runtime.*`
+  - current `kernel.py` directly consumes that runtime config shape
+  - therefore `config` belongs to the upstream `P39` substrate, not to a later incidental cleanup
+- Focused verification materially improves confidence in the slice order:
+  - upstream substrate-focused tests passed:
+    - `91 passed`
+  - downstream `kernel` consumer-focused tests passed:
+    - `118 passed`
+- This matters because it means the current dirty-tree line is not just theoretically well-factored.
+- It is already coherent enough to keep moving without reopening full-suite uncertainty first.
+- Practical implication:
+  - the next coding move should begin at `P39.1`
+  - not because `kernel` is unimportant
+  - but because the upstream substrate is already a stable, test-backed seam that the kernel can consume cleanly afterwards
+- The narrowed `P39.1` working set is a meaningful additional signal.
+- It shows that the current upstream substrate is not diffused randomly through the repo.
+- It is concentrated in:
+  - `config`
+  - `model_manager`
+  - `llm`
+  - matching focused tests
+- That concentration is exactly what we want for the first implementation slice.
+- It reduces the risk that starting `P39.1` will silently reopen `kernel`, TUI, Desktop, or session-surface work.
+- A second-pass boundary audit surfaced one important correction:
+  - `P39.1` also includes package-export and preset/discovery/provider ownership files
+  - not just `config + runtime + failover + protocol clients`
+- The most important added source files are:
+  - `src/mini_agent/llm/__init__.py`
+  - `src/mini_agent/model_manager/__init__.py`
+  - `src/mini_agent/model_manager/provider.py`
+  - `src/mini_agent/model_manager/preset_providers.py`
+  - `src/mini_agent/model_manager/model_discovery.py`
+- This does not weaken the slice boundary.
+- It strengthens it, because those files are clearly part of the same upstream substrate and are still upstream of `kernel.py`.
+- The final pre-cut validation outcome is strong enough for a real commit boundary:
+  - focused upstream substrate tests: green
+  - focused downstream consumer tests: green
+  - adjacent config / LLM client regressions: green
+  - targeted Python lint perimeter: green
+  - patch hygiene: green after one trivial EOF fix
+- That combination is enough to treat the current upstream substrate as a real first implementation slice rather than just a working-theory branch.
+- Final boundary judgment for this turn:
+  - `P39.1` is ready to land as a real first slice
+  - the next unresolved work is no longer "is the substrate coherent?"
+  - the next unresolved work is the downstream `kernel` consumer closure in `P39.2`
+
 ## 2026-04-16 P38 Round-1 Narrow Commit Finalization
 
 - The round-1 closure result is already strong enough to stand as its own checkpoint.

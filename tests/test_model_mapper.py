@@ -7,6 +7,7 @@ from mini_agent.model_manager import (
     ProviderCatalog,
     ProviderConfig,
     ProviderRouteSelector,
+    RouteRequirementProfile,
     map_model_for_provider,
 )
 
@@ -117,3 +118,186 @@ def test_provider_route_selector_prefers_api_type_when_available():
         preferred_api_type=ProviderAPIType.ANTHROPIC,
     )
     assert route.provider.api_type.value == "anthropic"
+
+
+def test_provider_route_selector_filters_non_tool_models_and_prefers_thinking():
+    catalog = ProviderCatalog(
+        providers=[
+            ProviderConfig(
+                id="no-tools",
+                name="No Tools",
+                api_type="openai",
+                api_base="https://no-tools.example.com/v1",
+                api_key="sk-no-tools",
+                models=["gpt-4o-mini"],
+                model_metadata={
+                    "gpt-4o-mini": {
+                        "supports_tools": False,
+                        "supports_thinking": False,
+                    }
+                },
+                priority=9,
+            ),
+            ProviderConfig(
+                id="thinking-tools",
+                name="Thinking Tools",
+                api_type="openai",
+                api_base="https://thinking-tools.example.com/v1",
+                api_key="sk-thinking-tools",
+                models=["gpt-5.4"],
+                model_metadata={
+                    "gpt-5.4": {
+                        "supports_tools": True,
+                        "supports_thinking": True,
+                    }
+                },
+                priority=4,
+            ),
+            ProviderConfig(
+                id="tools-only",
+                name="Tools Only",
+                api_type="openai",
+                api_base="https://tools-only.example.com/v1",
+                api_key="sk-tools-only",
+                models=["gpt-4.1"],
+                model_metadata={
+                    "gpt-4.1": {
+                        "supports_tools": True,
+                        "supports_thinking": False,
+                    }
+                },
+                priority=8,
+            ),
+        ]
+    )
+    selector = ProviderRouteSelector(catalog)
+
+    ranked = selector.rank(
+        requested_model=None,
+        requirements=RouteRequirementProfile(
+            require_tools=True,
+            prefer_thinking=True,
+        ),
+    )
+
+    assert [route.provider.id for route in ranked] == ["thinking-tools", "tools-only"]
+    assert ranked[0].provider.id == "thinking-tools"
+
+
+def test_provider_route_selector_prefers_confirmed_tool_support_over_unknown_when_tools_required():
+    catalog = ProviderCatalog(
+        providers=[
+            ProviderConfig(
+                id="unknown-tools",
+                name="Unknown Tools",
+                api_type="openai",
+                api_base="https://unknown-tools.example.com/v1",
+                api_key="sk-unknown-tools",
+                models=["gpt-4.1"],
+                priority=9,
+            ),
+            ProviderConfig(
+                id="confirmed-tools",
+                name="Confirmed Tools",
+                api_type="openai",
+                api_base="https://confirmed-tools.example.com/v1",
+                api_key="sk-confirmed-tools",
+                models=["gpt-4o-mini"],
+                model_metadata={
+                    "gpt-4o-mini": {
+                        "supports_tools": True,
+                        "supports_thinking": False,
+                    }
+                },
+                priority=1,
+            ),
+        ]
+    )
+    selector = ProviderRouteSelector(catalog)
+
+    ranked = selector.rank(
+        requested_model=None,
+        requirements=RouteRequirementProfile(require_tools=True),
+    )
+
+    assert [route.provider.id for route in ranked] == ["confirmed-tools", "unknown-tools"]
+
+
+def test_provider_route_selector_prefers_unknown_thinking_over_known_unsupported_when_only_preferred():
+    catalog = ProviderCatalog(
+        providers=[
+            ProviderConfig(
+                id="unsupported-thinking",
+                name="Unsupported Thinking",
+                api_type="openai",
+                api_base="https://unsupported-thinking.example.com/v1",
+                api_key="sk-unsupported-thinking",
+                models=["gpt-4.1"],
+                model_metadata={
+                    "gpt-4.1": {
+                        "supports_tools": True,
+                        "supports_thinking": False,
+                    }
+                },
+                priority=9,
+            ),
+            ProviderConfig(
+                id="unknown-thinking",
+                name="Unknown Thinking",
+                api_type="openai",
+                api_base="https://unknown-thinking.example.com/v1",
+                api_key="sk-unknown-thinking",
+                models=["gpt-4o-mini"],
+                model_metadata={
+                    "gpt-4o-mini": {
+                        "supports_tools": True,
+                        "supports_thinking_truth": "unknown",
+                    }
+                },
+                priority=1,
+            ),
+        ]
+    )
+    selector = ProviderRouteSelector(catalog)
+
+    ranked = selector.rank(
+        requested_model=None,
+        requirements=RouteRequirementProfile(prefer_thinking=True),
+    )
+
+    assert [route.provider.id for route in ranked] == ["unknown-thinking", "unsupported-thinking"]
+
+
+def test_provider_route_selector_filters_known_undersized_context_window():
+    catalog = ProviderCatalog(
+        providers=[
+            ProviderConfig(
+                id="small",
+                name="Small",
+                api_type="anthropic",
+                api_base="https://small.example.com",
+                api_key="sk-small",
+                models=["claude-small"],
+                model_context_windows={"claude-small": 32_000},
+                priority=9,
+            ),
+            ProviderConfig(
+                id="large",
+                name="Large",
+                api_type="anthropic",
+                api_base="https://large.example.com",
+                api_key="sk-large",
+                models=["claude-large"],
+                model_context_windows={"claude-large": 200_000},
+                priority=1,
+            ),
+        ]
+    )
+    selector = ProviderRouteSelector(catalog)
+
+    ranked = selector.rank(
+        requested_model=None,
+        requirements=RouteRequirementProfile(min_context_window=128_000),
+    )
+
+    assert [route.provider.id for route in ranked] == ["large"]

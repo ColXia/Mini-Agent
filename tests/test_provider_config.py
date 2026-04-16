@@ -104,6 +104,20 @@ def test_provider_catalog_normalized_order_and_find():
     assert redacted["providers"][0]["api_key"] == "****"
 
 
+def test_provider_config_legacy_custom_api_type_normalizes_to_openai():
+    provider = normalize_provider_config(
+        {
+            "name": "Legacy Custom",
+            "api_type": "custom",
+            "api_base": "https://legacy.example.com/v1",
+            "api_key": "sk-legacy-valid",
+            "models": ["legacy-model"],
+        }
+    )
+
+    assert provider.api_type.value == "openai"
+
+
 @pytest.mark.parametrize(
     "payload",
     [
@@ -143,6 +157,13 @@ def test_provider_catalog_normalized_order_and_find():
             "api_key": "sk-valid",
             "models": ["x"],
             "timeout": 1,
+        },
+        {
+            "name": "Gemini Removed",
+            "api_type": "gemini",
+            "api_base": "https://gemini.example.com",
+            "api_key": "sk-valid",
+            "models": ["gemini-2.5-pro"],
         },
     ],
 )

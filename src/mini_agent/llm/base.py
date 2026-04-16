@@ -1,10 +1,47 @@
 """Base class for LLM clients."""
 
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, AsyncIterator
+from urllib.parse import urlsplit
+
+import httpx
 
 from ..retry import RetryConfig
-from ..schema import LLMResponse, Message
+from ..schema import LLMCompletionResult, LLMStreamEvent, Message
+
+
+def _should_bypass_proxy_env(api_base: str | None) -> bool:
+    normalized = str(api_base or "").strip()
+    if not normalized:
+        return False
+    try:
+        parsed = urlsplit(normalized)
+    except Exception:
+        return False
+    host = str(parsed.hostname or "").strip().lower()
+    return host in {"localhost", "127.0.0.1", "::1"}
+
+
+def build_sdk_http_client(
+    api_base: str | None,
+    *,
+    timeout_seconds: float | None = None,
+) -> httpx.AsyncClient | None:
+    """Build a dedicated SDK transport for loopback endpoints.
+
+    Developer machines may export global proxy env vars. For local compatible
+    providers such as Ollama, trusting those env vars can incorrectly send
+    `localhost` traffic through the proxy and break runtime calls.
+    """
+
+    if not _should_bypass_proxy_env(api_base):
+        return None
+    request_timeout = float(timeout_seconds) if timeout_seconds is not None else 600.0
+    connect_timeout = min(request_timeout, 10.0)
+    return httpx.AsyncClient(
+        trust_env=False,
+        timeout=httpx.Timeout(timeout=request_timeout, connect=connect_timeout),
+    )
 
 
 class LLMClientBase(ABC):
@@ -42,7 +79,7 @@ class LLMClientBase(ABC):
         self,
         messages: list[Message],
         tools: list[Any] | None = None,
-    ) -> LLMResponse:
+    ) -> LLMCompletionResult:
         """Generate response from LLM.
 
         Args:
@@ -50,9 +87,25 @@ class LLMClientBase(ABC):
             tools: Optional list of Tool objects or dicts
 
         Returns:
-            LLMResponse containing the generated content, thinking, and tool calls
+            LLMCompletionResult containing normalized buffered completion output
         """
         pass
+
+    async def stream_generate(
+        self,
+        messages: list[Message],
+        tools: list[Any] | None = None,
+    ) -> AsyncIterator[LLMStreamEvent]:
+        """Stream normalized events from the provider when supported.
+
+        The default implementation falls back to buffered generation and
+        replays the synthesized normalized event list. Protocol clients that
+        support native streaming should override this method.
+        """
+
+        result = await self.generate(messages=messages, tools=tools)
+        for event in result.events:
+            yield event
 
     @abstractmethod
     def _prepare_request(

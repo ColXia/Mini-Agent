@@ -1,5 +1,65 @@
 # Progress
 
+## 2026-04-16 P39 Kernel / Model-Runtime Mixed Boundary Slice
+
+- [completed] reopened the deferred `kernel / model-runtime` line as a new explicit post-`P38` slice
+- [completed] performed the first-pass boundary audit on the currently dirty files:
+  - [kernel.py](/d:/file/Mini-Agent/src/mini_agent/agent_core/kernel.py)
+  - [runtime.py](/d:/file/Mini-Agent/src/mini_agent/model_manager/runtime.py)
+  - [failover.py](/d:/file/Mini-Agent/src/mini_agent/model_manager/failover.py)
+  - [test_agent_core_kernel.py](/d:/file/Mini-Agent/tests/test_agent_core_kernel.py)
+- [completed] confirmed the mixed behaviors already visible in that first pass:
+  - `kernel` now injects config/config_loader rather than loading config internally
+  - runtime policy defaults now come from `config.runtime.retry / request_policy / rectifier`
+  - routed selection now carries `RouteIntent` and `RouteRequirementProfile`
+  - `FailoverLLMClient` now depends on request-policy and rectifier options
+  - route/capability/bootstrap diagnostics now flow into kernel diagnostics
+  - kernel tests now assert mixed provider/runtime-governance behavior, not only core structure
+- [in_progress] auditing the remaining upstream closure:
+  - [bootstrap.py](/d:/file/Mini-Agent/src/mini_agent/model_manager/bootstrap.py)
+  - [protocol_binding.py](/d:/file/Mini-Agent/src/mini_agent/llm/protocol_binding.py)
+- [completed] confirmed the upstream substrate shape behind the mixed bundle:
+  - [bootstrap.py](/d:/file/Mini-Agent/src/mini_agent/model_manager/bootstrap.py) is a thin bootstrap-only route input carrier
+  - [model_registry_service.py](/d:/file/Mini-Agent/src/mini_agent/model_manager/model_registry_service.py) synthesizes the `bootstrap-config` provider when no catalog providers are available
+  - [protocol_binding.py](/d:/file/Mini-Agent/src/mini_agent/llm/protocol_binding.py) owns provider-compatible execution profiles and request-policy defaults
+  - `llm` protocol clients and wrapper are already refactored around that execution-profile seam
+- [completed] added the formal active plan:
+  - [P39_KERNEL_MODEL_RUNTIME_BOUNDARY_PLAN_2026-04-16.md](/d:/file/Mini-Agent/docs/P39_KERNEL_MODEL_RUNTIME_BOUNDARY_PLAN_2026-04-16.md)
+- [completed] validated the upstream runtime/protocol substrate on focused tests:
+  - `uv run pytest tests/test_model_routing_runtime.py tests/test_model_failover.py tests/test_provider_config.py tests/test_request_rectifier.py tests/test_model_mapper.py tests/test_preset_providers.py tests/test_llm_protocol_binding.py tests/test_llm_streaming.py tests/test_llm_completion_result.py tests/test_model_registry_service.py tests/test_model_discovery.py tests/test_session_model_selection_service.py tests/test_cli_models_command.py -q`
+  - result: `91 passed`
+- [completed] validated the downstream kernel-consumer slice on focused tests:
+  - `uv run pytest tests/test_agent_core_kernel.py tests/test_cli_submission_loop.py tests/test_main_agent_surface_service.py -q`
+  - result: `118 passed`
+- [completed] narrowed the active `P39.1` source working set to the upstream substrate only:
+  - `llm.__init__`
+  - `model_manager.__init__`
+  - `config`
+  - `bootstrap`
+  - `provider`
+  - `preset_providers`
+  - `model_discovery`
+  - `model_registry_service`
+  - `runtime`
+  - `failover`
+  - `protocol_binding`
+  - `llm` base/wrapper/protocol clients
+- [completed] confirmed the current active `P39.1` test working set is also upstream-only:
+  - routing / failover / config / provider / registry / protocol / streaming / model-selection / CLI models tests
+- [completed] expanded the `P39.1` source boundary after second-pass audit:
+  - added package export and preset/discovery/provider files that are part of the same substrate story
+  - still did not reopen `kernel`, session-runtime, or surface files
+- [completed] ran targeted lint / patch-hygiene on the narrowed `P39.1` bundle:
+  - Python-only `ruff` perimeter: `All checks passed!`
+  - `git diff --check` surfaced one EOF blank-line issue in `tests/test_model_failover.py`, then passed after fix
+- [completed] ran adjacent regression coverage for the modified config / LLM-client seam:
+  - `uv run pytest tests/test_config_local_env.py tests/test_llm.py tests/test_llm_clients.py -q`
+  - result: `14 passed, 9 skipped`
+- [completed] prepared `P39.1` as the first independent implementation slice:
+  - slice boundary expanded once to include the real preset/discovery/provider/export files
+  - focused tests, adjacent regressions, `ruff`, and patch hygiene are all green
+- [next] commit `P39.1` and then reopen `P39.2` kernel adoption
+
 ## 2026-04-16 P38 Round-1 Narrow Commit Finalization
 
 - [completed] chose the explicit post-round-1 path:

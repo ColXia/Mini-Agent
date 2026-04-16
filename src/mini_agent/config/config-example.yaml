@@ -26,13 +26,25 @@ model: "MiniMax-M2.5"
 # For third-party APIs (e.g., https://api.siliconflow.cn/v1), api_base is used as-is.
 provider: "anthropic"  # Default: anthropic
 
-# ===== Retry Configuration =====
-retry:
-  enabled: true           # Enable retry mechanism
-  max_retries: 3          # Maximum number of retries
-  initial_delay: 1.0      # Initial delay time (seconds)
-  max_delay: 60.0         # Maximum delay time (seconds)
-  exponential_base: 2.0   # Exponential backoff base (delay = initial_delay * base^attempt)
+# ===== Runtime Configuration =====
+runtime:
+  retry:
+    enabled: true           # Enable retry mechanism
+    max_retries: 3          # Maximum number of retries
+    initial_delay: 1.0      # Initial delay time (seconds)
+    max_delay: 60.0         # Maximum delay time (seconds)
+    exponential_base: 2.0   # Exponential backoff base (delay = initial_delay * base^attempt)
+  request_policy:
+    max_output_tokens: null       # Optional global override; null keeps provider default
+    reasoning_split_enabled: null # Optional override; null keeps provider/protocol default
+    thinking_budget_tokens: null  # Optional global thinking budget
+    temperature: null             # Optional global temperature
+    streaming_enabled: true       # Enable native streaming in the runtime hot path
+    include_stream_usage: true    # Include stream usage blocks when the protocol supports it
+  rectifier:
+    enabled: true                 # Enable payload rectification/normalization
+    cache_injection: true         # Inject Anthropic cache-control hints where supported
+    strip_thinking_signature: true # Strip provider-specific thinking signatures from replayed context
 
 # ===== Agent Configuration =====
 max_steps: 100  # Maximum execution steps

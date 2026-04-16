@@ -7,10 +7,16 @@ from mini_agent.model_manager.provider import (
     normalize_provider_catalog,
     normalize_provider_config,
 )
+from mini_agent.model_manager.bootstrap import (
+    BootstrapLLMSettings,
+    bootstrap_llm_settings_from_config,
+)
 from mini_agent.model_manager.model_mapper import (
     ModelMappingResult,
     ProviderRoute,
     ProviderRouteSelector,
+    RouteIntent,
+    RouteRequirementProfile,
     map_model_for_provider,
 )
 from mini_agent.model_manager.circuit_breaker import (
@@ -34,7 +40,6 @@ from mini_agent.model_manager.rectifier import (
     RequestRectifierOptions,
     anthropic_messages_to_openai,
     openai_messages_to_anthropic,
-    openai_messages_to_gemini_contents,
     reset_rectifier_metrics,
     rectify_anthropic_request,
     rectify_openai_request,
@@ -58,11 +63,15 @@ __all__ = [
     "ProviderAPIType",
     "ProviderConfig",
     "ProviderCatalog",
+    "BootstrapLLMSettings",
+    "bootstrap_llm_settings_from_config",
     "normalize_provider_config",
     "normalize_provider_catalog",
     "ModelMappingResult",
     "ProviderRoute",
     "ProviderRouteSelector",
+    "RouteIntent",
+    "RouteRequirementProfile",
     "map_model_for_provider",
     "CircuitBreakerState",
     "CircuitBreakerConfig",
@@ -80,7 +89,6 @@ __all__ = [
     "rectify_anthropic_request",
     "openai_messages_to_anthropic",
     "anthropic_messages_to_openai",
-    "openai_messages_to_gemini_contents",
     "snapshot_rectifier_metrics",
     "reset_rectifier_metrics",
     "ProviderCatalogResolution",

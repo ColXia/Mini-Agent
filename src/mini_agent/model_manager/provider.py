@@ -20,12 +20,40 @@ class ProviderAPIType(str, Enum):
 
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
-    GEMINI = "gemini"
-    CUSTOM = "custom"
 
 
 def _normalize_text(value: str) -> str:
     return " ".join(value.strip().split())
+
+
+def normalize_provider_api_type(
+    value: Any,
+    *,
+    allow_legacy_custom: bool = False,
+) -> ProviderAPIType:
+    """Normalize one provider protocol family.
+
+    The maintained runtime families are only ``openai`` and ``anthropic``.
+    Historical ``custom`` provider payloads are treated as legacy
+    OpenAI-compatible aliases only when explicitly allowed by the caller.
+    """
+
+    if isinstance(value, ProviderAPIType):
+        return value
+
+    normalized = _normalize_text(str(value or "")).lower()
+    if normalized == ProviderAPIType.OPENAI.value:
+        return ProviderAPIType.OPENAI
+    if normalized == ProviderAPIType.ANTHROPIC.value:
+        return ProviderAPIType.ANTHROPIC
+    if normalized == "custom":
+        if allow_legacy_custom:
+            return ProviderAPIType.OPENAI
+        raise ValueError(
+            "api_type 'custom' was removed; use 'openai' for OpenAI-compatible "
+            "providers or 'anthropic' for Anthropic-compatible providers."
+        )
+    raise ValueError("api_type must be one of: openai, anthropic.")
 
 
 def _slugify(value: str) -> str:
@@ -128,6 +156,24 @@ def _normalize_model_token_limits(value: dict[str, Any]) -> dict[str, int]:
     return normalized
 
 
+def _normalize_model_metadata(value: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    normalized: dict[str, dict[str, Any]] = {}
+    for raw_key, raw_val in value.items():
+        model_id = _normalize_text(str(raw_key))
+        if not model_id or not isinstance(raw_val, dict):
+            continue
+        cleaned: dict[str, Any] = {}
+        for inner_key, inner_val in raw_val.items():
+            metadata_key = _normalize_text(str(inner_key))
+            if not metadata_key:
+                continue
+            if isinstance(inner_val, (str, int, float, bool)) or inner_val is None:
+                cleaned[metadata_key] = inner_val
+        if cleaned:
+            normalized[model_id] = cleaned
+    return normalized
+
+
 class ProviderConfig(BaseModel):
     """Custom provider configuration."""
 
@@ -140,6 +186,7 @@ class ProviderConfig(BaseModel):
     model_display_names: dict[str, str] = Field(default_factory=dict)
     model_context_windows: dict[str, int] = Field(default_factory=dict)
     model_learned_token_limits: dict[str, int] = Field(default_factory=dict)
+    model_metadata: dict[str, dict[str, Any]] = Field(default_factory=dict)
     enabled: bool = True
     priority: int = 0
     headers: dict[str, str] = Field(default_factory=dict)
@@ -172,6 +219,11 @@ class ProviderConfig(BaseModel):
         if not candidate:
             raise ValueError("name must not be empty.")
         return candidate
+
+    @field_validator("api_type", mode="before")
+    @classmethod
+    def _validate_api_type(cls, value: Any) -> ProviderAPIType:
+        return normalize_provider_api_type(value, allow_legacy_custom=True)
 
     @field_validator("api_base")
     @classmethod
@@ -246,6 +298,15 @@ class ProviderConfig(BaseModel):
             raise ValueError("model_learned_token_limits must be an object.")
         return _normalize_model_token_limits(value)
 
+    @field_validator("model_metadata", mode="before")
+    @classmethod
+    def _validate_model_metadata(cls, value: Any) -> dict[str, dict[str, Any]]:
+        if value is None:
+            return {}
+        if not isinstance(value, dict):
+            raise ValueError("model_metadata must be an object.")
+        return _normalize_model_metadata(value)
+
     @model_validator(mode="after")
     def _validate_model_display_name_keys(self) -> "ProviderConfig":
         allowed = set(self.models)
@@ -259,6 +320,10 @@ class ProviderConfig(BaseModel):
             key: value for key, value in self.model_learned_token_limits.items() if key in allowed
         }
         object.__setattr__(self, "model_learned_token_limits", filtered_learned_limits)
+        filtered_metadata = {
+            key: value for key, value in self.model_metadata.items() if key in allowed
+        }
+        object.__setattr__(self, "model_metadata", filtered_metadata)
         return self
 
     @property
