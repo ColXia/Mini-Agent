@@ -5,8 +5,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from mini_agent.agent import Agent
-from mini_agent.code_agent.tools import ToolBuilder, ToolKind
+from mini_agent.agent_core.engine import Agent
+from mini_agent.agent_core.execution.tools import ToolBuilder, ToolKind
 from mini_agent.config import AgentConfig, Config, LLMConfig, SecurityConfig, ToolsConfig
 from mini_agent.rag import HybridSearchStore
 from mini_agent.runtime.tooling import add_workspace_tools, resolve_runtime_policy
