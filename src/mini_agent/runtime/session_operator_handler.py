@@ -7,6 +7,21 @@ from typing import TYPE_CHECKING, Any, Awaitable, Callable, Sequence
 
 from fastapi import HTTPException
 
+from mini_agent.agent_core.context.command_service import (
+    ContextCommandError,
+    ContextCommandRequest,
+    ContextCommandService,
+)
+from mini_agent.agent_core.context.turn_context import (
+    context_policy_summary_line,
+    format_context_policy_details,
+)
+from mini_agent.agent_core.skills.command_service import (
+    SkillCommandError,
+    SkillCommandMutationPlan,
+    SkillCommandRequest,
+    SkillCommandService,
+)
 from mini_agent.interfaces import (
     MainAgentSessionApprovalResponse,
     MainAgentSessionContextResponse,
@@ -17,35 +32,32 @@ from mini_agent.interfaces import (
     MainAgentSessionRuntimePolicyResponse,
     MainAgentSessionSkillResponse,
 )
+from mini_agent.memory.command_service import MemoryCommandRequest
+from mini_agent.model_manager.session_selection_service import (
+    SessionModelSelectionPlan,
+    SessionModelSelectionService,
+)
 from mini_agent.runtime.session_command_coordinator import (
     RuntimeSessionCommandCoordinator,
     RuntimeSessionCommandTranscript,
 )
-from mini_agent.runtime.session_context_policy_handler import (
-    RuntimeSessionContextPolicyCommand,
-    RuntimeSessionContextPolicyHandler,
-)
-from mini_agent.runtime.session_control_handler import (
+from mini_agent.runtime.session_agent_control_handler import RuntimeSessionAgentControlHandler
+from mini_agent.runtime.session_control_models import (
     RuntimeSessionControlCommand,
-    RuntimeSessionControlHandler,
+    RuntimeSessionControlExecution,
+    SESSION_MCP_CONTROL_ACTIONS,
+    normalize_session_control_action,
 )
+from mini_agent.runtime.session_mcp_control_handler import RuntimeSessionMcpControlHandler
 from mini_agent.runtime.session_memory_command_handler import (
-    RuntimeSessionMemoryCommand,
     RuntimeSessionMemoryCommandExecution,
     RuntimeSessionMemoryCommandHandler,
 )
-from mini_agent.runtime.session_model_selection_handler import (
-    RuntimeSessionModelSelectionHandler,
-    RuntimeSessionModelSelectionPlan,
+from mini_agent.runtime.runtime_policy_service import (
+    SessionRuntimePolicyPlan,
+    SessionRuntimePolicyService,
 )
-from mini_agent.runtime.session_runtime_policy_handler import (
-    RuntimeSessionRuntimePolicyHandler,
-    RuntimeSessionRuntimePolicyPlan,
-)
-from mini_agent.runtime.session_skill_command_handler import (
-    RuntimeSessionSkillCommand,
-    RuntimeSessionSkillCommandHandler,
-)
+from mini_agent.runtime.session_control_error_service import SessionControlErrorService
 from mini_agent.runtime.session_interrupt_handler import RuntimeSessionInterruptHandler
 
 if TYPE_CHECKING:
@@ -60,8 +72,16 @@ def _safe_text(value: object) -> str:
 
 @dataclass(frozen=True, slots=True)
 class RuntimeSessionRuntimePolicyExecution:
-    plan: RuntimeSessionRuntimePolicyPlan
+    plan: SessionRuntimePolicyPlan
     diagnostics: dict[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
+class RuntimeSessionContextPolicyExecution:
+    response: MainAgentSessionContextResponse
+    transcript_command: str
+    transcript_summary: str
+    transcript_details: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,22 +92,26 @@ class RuntimeSessionSkillMutationExecution:
 
 @dataclass(frozen=True, slots=True)
 class RuntimeSessionModelSelectionExecution:
-    plan: RuntimeSessionModelSelectionPlan
+    plan: SessionModelSelectionPlan
 
 
 @dataclass(slots=True)
 class RuntimeSessionOperatorHandler:
     normalize_surface: Callable[[str | None], str]
+    normalize_context_policy_payload: Callable[[Any], dict[str, Any]]
+    normalize_sandbox_diagnostics_payload: Callable[[Any], dict[str, Any]]
     session_commands: RuntimeSessionCommandCoordinator
-    session_control: RuntimeSessionControlHandler
-    session_context_policy: RuntimeSessionContextPolicyHandler
+    session_agent_control: RuntimeSessionAgentControlHandler
+    session_mcp_control: RuntimeSessionMcpControlHandler
+    session_context_commands: ContextCommandService
     session_memory_commands: RuntimeSessionMemoryCommandHandler
-    session_skill_commands: RuntimeSessionSkillCommandHandler
-    session_model_selection: RuntimeSessionModelSelectionHandler
-    session_runtime_policy: RuntimeSessionRuntimePolicyHandler
+    session_skill_commands: SkillCommandService
+    session_model_selection: SessionModelSelectionService
+    session_runtime_policy: SessionRuntimePolicyService
     session_interrupt: RuntimeSessionInterruptHandler
     session_agent_runtime: "RuntimeSessionAgentRuntimeHandler"
     session_live_state: "RuntimeSessionLiveStateHandler"
+    load_runtime_config: Callable[[], Any]
     selected_model_identity: Callable[["MainAgentSessionState"], tuple[str, str, str] | None]
     pending_model_identity: Callable[["MainAgentSessionState"], tuple[str, str, str] | None]
     set_pending_model_identity: Callable[["MainAgentSessionState", tuple[str, str, str] | None], None]
@@ -110,17 +134,13 @@ class RuntimeSessionOperatorHandler:
             action=action,
             reason=_safe_text(reason) or None,
         )
-        normalized_action = self.session_control.validate_action(command.action)
+        normalized_action = normalize_session_control_action(command.action)
         execution = await self.session_commands.execute_locked(
             session,
-            operation=lambda: self.session_control.execute(
+            operation=lambda: self._execute_session_control(
                 session,
-                command,
-                cleanup_mcp_connections=self.cleanup_mcp_connections,
-                rebuild_session_agent=lambda: self.session_agent_runtime.rebuild_agent_with_identity(
-                    session,
-                    self.selected_model_identity(session),
-                ),
+                command=command,
+                normalized_action=normalized_action,
             ),
             transcript_builder=lambda execution: RuntimeSessionCommandTranscript(
                 command=self._session_control_command_name(normalized_action),
@@ -134,6 +154,28 @@ class RuntimeSessionOperatorHandler:
             sender_id=sender_id,
         )
         return execution.response
+
+    async def _execute_session_control(
+        self,
+        session: "MainAgentSessionState",
+        *,
+        command: RuntimeSessionControlCommand,
+        normalized_action: str,
+    ) -> RuntimeSessionControlExecution:
+        if normalized_action in SESSION_MCP_CONTROL_ACTIONS:
+            return await self.session_mcp_control.execute(
+                session,
+                command,
+                cleanup_mcp_connections=self.cleanup_mcp_connections,
+                rebuild_session_agent=lambda: self.session_agent_runtime.rebuild_agent_with_identity(
+                    session,
+                    self.selected_model_identity(session),
+                ),
+            )
+        return await self.session_agent_control.execute(
+            session,
+            command,
+        )
 
     def cancel_turn(
         self,
@@ -231,7 +273,7 @@ class RuntimeSessionOperatorHandler:
         conversation_id: str | None = None,
         sender_id: str | None = None,
     ) -> MainAgentSessionContextResponse:
-        command = RuntimeSessionContextPolicyCommand(
+        command = ContextCommandRequest(
             action=action,
             sources=tuple(sources or ()),
             max_items=max_items,
@@ -240,7 +282,7 @@ class RuntimeSessionOperatorHandler:
         )
         execution = await self.session_commands.execute_locked(
             session,
-            operation=lambda: self.session_context_policy.execute(session, command),
+            operation=lambda: self._execute_context_policy_update(session, command),
             transcript_builder=lambda execution: RuntimeSessionCommandTranscript(
                 command=execution.transcript_command,
                 summary=execution.transcript_summary,
@@ -253,6 +295,41 @@ class RuntimeSessionOperatorHandler:
             sender_id=sender_id,
         )
         return execution.response
+
+    def _execute_context_policy_update(
+        self,
+        session: "MainAgentSessionState",
+        command: ContextCommandRequest,
+    ) -> RuntimeSessionContextPolicyExecution:
+        if session.projection.busy:
+            raise HTTPException(status_code=409, detail=SessionControlErrorService.busy_detail())
+        try:
+            mutation = self.session_context_commands.apply_mutation(
+                current_policy=session.projection.context_policy,
+                command=command,
+            )
+        except ContextCommandError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+
+        normalized_policy = self.normalize_context_policy_payload(mutation.policy)
+        session.projection.context_policy = dict(normalized_policy)
+        transcript_summary = context_policy_summary_line(normalized_policy, include_default=True)
+        transcript_details = format_context_policy_details(normalized_policy, include_header=True)
+        response = MainAgentSessionContextResponse(
+            status="updated",
+            session_id=session.session_id,
+            action=mutation.action,
+            active_surface=self.normalize_surface(
+                session.projection.active_surface or session.projection.origin_surface
+            ),
+            context_policy=dict(normalized_policy),
+        )
+        return RuntimeSessionContextPolicyExecution(
+            response=response,
+            transcript_command=mutation.command_name,
+            transcript_summary=transcript_summary,
+            transcript_details=transcript_details,
+        )
 
     async def manage_memory(
         self,
@@ -273,7 +350,7 @@ class RuntimeSessionOperatorHandler:
         normalized_detail_mode = _safe_text(detail_mode).lower() or "full"
         if normalized_detail_mode not in {"brief", "full"}:
             raise HTTPException(status_code=400, detail="detail_mode must be brief or full.")
-        command = RuntimeSessionMemoryCommand(
+        command = MemoryCommandRequest(
             action=_safe_text(action).lower().replace("-", "_"),
             engram_id=_safe_text(engram_id) or None,
             content=_safe_text(content) or None,
@@ -332,15 +409,23 @@ class RuntimeSessionOperatorHandler:
         conversation_id: str | None = None,
         sender_id: str | None = None,
     ) -> MainAgentSessionSkillResponse:
-        command = RuntimeSessionSkillCommand(
+        command = SkillCommandRequest(
             action=_safe_text(action).lower().replace("-", "_"),
             skill_name=_safe_text(skill_name) or None,
             path=_safe_text(path) or None,
             query=_safe_text(query) or None,
             mode=_safe_text(mode) or None,
         )
-        self.session_skill_commands.validate_action(command.action)
-        prepared = self.session_skill_commands.prepare(session, command)
+        try:
+            self.session_skill_commands.validate_action(command.action)
+            prepared = self.session_skill_commands.prepare(
+                workspace_dir=session.workspace_dir,
+                command=command,
+                agent=session.runtime.agent,
+                config=self.load_runtime_config(),
+            )
+        except SkillCommandError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
         if prepared.mutation is None:
             return self._build_session_skill_response(
                 session=session,
@@ -362,8 +447,8 @@ class RuntimeSessionOperatorHandler:
                 action=command.action,
                 status="busy",
                 result=self.session_skill_commands.build_busy_result(
-                    session,
-                    mutation,
+                    session_id=session.session_id,
+                    mutation=mutation,
                     queued_ids=queued_ids,
                     include_current_note=True,
                 ),
@@ -504,10 +589,10 @@ class RuntimeSessionOperatorHandler:
     def _execute_mutating_memory_command(
         self,
         session: "MainAgentSessionState",
-        command: RuntimeSessionMemoryCommand,
+        command: MemoryCommandRequest,
     ) -> RuntimeSessionMemoryCommandExecution:
         if session.projection.busy:
-            raise HTTPException(status_code=409, detail="Session is busy. Wait for the current turn to finish.")
+            raise HTTPException(status_code=409, detail=SessionControlErrorService.busy_detail())
         return self.session_memory_commands.execute(session, command)
 
     def _build_session_skill_response(
@@ -532,7 +617,7 @@ class RuntimeSessionOperatorHandler:
         self,
         session: "MainAgentSessionState",
         *,
-        plan: RuntimeSessionModelSelectionPlan,
+        plan: SessionModelSelectionPlan,
     ) -> None:
         if plan.update_pending_identity:
             self.set_pending_model_identity(session, plan.pending_identity)
@@ -569,18 +654,30 @@ class RuntimeSessionOperatorHandler:
         self,
         *,
         session: "MainAgentSessionState",
-        plan: RuntimeSessionRuntimePolicyPlan,
+        plan: SessionRuntimePolicyPlan,
         diagnostics: dict[str, Any],
     ) -> MainAgentSessionRuntimePolicyResponse:
+        active_surface = self.normalize_surface(
+            session.projection.active_surface or session.projection.origin_surface
+        )
         return MainAgentSessionRuntimePolicyResponse(
             status="updated",
             session_id=session.session_id,
-            active_surface=self.normalize_surface(
-                session.projection.active_surface or session.projection.origin_surface
-            ),
+            active_surface=active_surface,
             applied=True,
             approval_profile=plan.approval_profile,
             access_level=plan.access_level,
+            summary=self.session_runtime_policy.command_summary(plan),
+            details=self.session_runtime_policy.command_details(
+                plan,
+                session_label=_safe_text(session.projection.title) or None,
+                session_id=session.session_id,
+                active_surface=active_surface,
+            ),
+            status_text=self.session_runtime_policy.command_status_text(
+                plan,
+                session_label=_safe_text(session.projection.title) or None,
+            ),
             sandbox_diagnostics=dict(diagnostics),
         )
 
@@ -595,10 +692,19 @@ class RuntimeSessionOperatorHandler:
         conversation_id: str | None,
         sender_id: str | None,
     ) -> RuntimeSessionRuntimePolicyExecution:
+        current_profile, current_access = self.session_runtime_policy.current_runtime_policy(
+            agent=session.runtime.agent,
+            sandbox_diagnostics=session.projection.sandbox_diagnostics,
+        )
         plan = self.session_runtime_policy.build_plan(
-            session,
-            approval_profile=approval_profile,
-            access_level=access_level,
+            current_approval_profile=current_profile,
+            current_access_level=current_access,
+            requested_approval_profile=approval_profile,
+            requested_access_level=access_level,
+            busy=bool(session.projection.busy),
+            waiting_on_approval=bool(session.runtime.pending_approvals),
+            runtime_attached=session.runtime.agent is not None,
+            sandbox_diagnostics=session.projection.sandbox_diagnostics,
         )
         if session.runtime.agent is not None:
             diagnostics = self.session_agent_runtime.reconfigure_runtime_policy(
@@ -607,7 +713,7 @@ class RuntimeSessionOperatorHandler:
                 access_level=plan.access_level,
             )
         else:
-            diagnostics = dict(plan.local_sandbox_diagnostics or {})
+            diagnostics = self.normalize_sandbox_diagnostics_payload(plan.local_sandbox_diagnostics)
             session.projection.sandbox_diagnostics = dict(diagnostics)
 
         self.session_live_state.bind_surface(
@@ -626,7 +732,7 @@ class RuntimeSessionOperatorHandler:
         self,
         session: "MainAgentSessionState",
         *,
-        mutation: Any,
+        mutation: SkillCommandMutationPlan,
         queued_other_ids: tuple[str, ...],
     ) -> RuntimeSessionSkillMutationExecution:
         if session.projection.busy:
@@ -639,17 +745,19 @@ class RuntimeSessionOperatorHandler:
             return RuntimeSessionSkillMutationExecution(
                 status="busy",
                 result=self.session_skill_commands.build_busy_result(
-                    session,
-                    mutation,
+                    session_id=session.session_id,
+                    mutation=mutation,
                     queued_ids=queued_ids,
                     include_current_note=True,
                 ),
             )
 
         result = await self.session_skill_commands.complete_mutation(
-            session,
-            mutation,
+            workspace_dir=session.workspace_dir,
+            mutation=mutation,
             queued_ids=queued_other_ids,
+            session_id=session.session_id,
+            include_current_note=False,
             rebuild_session_agent=lambda identity: self.session_agent_runtime.rebuild_agent_with_identity(
                 session,
                 identity,
@@ -671,10 +779,16 @@ class RuntimeSessionOperatorHandler:
         conversation_id: str | None,
         sender_id: str | None,
     ) -> RuntimeSessionModelSelectionExecution:
-        plan = self.session_model_selection.plan_update(session, request)
+        plan = self.session_model_selection.plan_update(
+            request=request,
+            current_identity=self.selected_model_identity(session),
+            pending_identity=self.pending_model_identity(session),
+            busy=bool(session.projection.busy),
+            runtime_attached=session.runtime.agent is not None,
+        )
         self._apply_model_selection_plan_state(session, plan=plan)
-        if plan.rebuild_identity is not None:
-            await self.session_agent_runtime.rebuild_agent_with_identity(session, plan.rebuild_identity)
+        if plan.activate_identity is not None:
+            await self.session_agent_runtime.rebuild_agent_with_identity(session, plan.activate_identity)
         if plan.bind_surface:
             self.session_live_state.bind_surface(
                 session,
@@ -687,7 +801,7 @@ class RuntimeSessionOperatorHandler:
 
     @staticmethod
     def _session_control_command_name(action: str) -> str:
-        normalized = _safe_text(action).lower().replace("-", "_")
+        normalized = normalize_session_control_action(action)
         if normalized.startswith("mcp_"):
             return normalized.replace("_", " ")
         return normalized
