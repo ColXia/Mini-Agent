@@ -1,5 +1,113 @@
 # Progress
 
+## 2026-04-16 P40.23 Surface DTO Contract Tail Sync
+
+- [completed] re-audited the post-`P40.22` residual surface bucket and confirmed only one DTO contract test still carried the remaining architecture truth drift
+- [completed] synced the last remaining surface DTO contract:
+  - `tests/test_interface_dto_contracts.py`
+- [completed] verified the narrowed DTO tail slice:
+  - `uv run ruff check tests/test_interface_dto_contracts.py`
+  - result: `All checks passed!`
+  - `uv run pytest tests/test_interface_dto_contracts.py -q`
+  - result: `8 passed`
+- [completed] committed the DTO truth-sync slice:
+  - commit: `198473f`
+  - message: `p40: sync surface dto contract tail`
+- [completed] re-ran the dirty-worktree classifier after the commit:
+  - `python scripts/worktree_slice_report.py`
+  - result:
+    - total dirty paths: `82`
+    - recommended next slice: `agent-core-and-cli-surface`
+- [completed] confirmed `surface-transport-orchestration` no longer appears in the classifier output
+- [next] sync planning memory for `P40.21` to `P40.23`, then audit the new top bucket `agent-core-and-cli-surface`
+
+## 2026-04-16 P40.22 Surface Transport Adoption Closure
+
+- [completed] re-audited the post-`P40.21` surface residue and confirmed the next honest move was the bounded desktop/TUI adoption closure rather than another support-owner micro-slice
+- [completed] landed the desktop/TUI surface adoption:
+  - `src/mini_agent/desktop/app.py`
+  - `src/mini_agent/desktop/gateway_supervisor.py`
+  - `src/mini_agent/desktop/window.py`
+  - `src/mini_agent/tui/app.py`
+- [completed] landed the legacy TUI transport client deletion:
+  - `src/mini_agent/tui/gateway_client.py`
+- [completed] synced the adjacent surface tests:
+  - `tests/test_desktop_app.py`
+  - `tests/test_desktop_window_helpers.py`
+  - `tests/test_interaction_request_adapter.py`
+  - `tests/test_tui_app.py`
+  - deleted `tests/test_tui_gateway_client.py`
+- [completed] verified the narrowed surface adoption slice:
+  - `uv run ruff check src/mini_agent/desktop/app.py src/mini_agent/desktop/gateway_supervisor.py src/mini_agent/desktop/window.py src/mini_agent/tui/app.py tests/test_desktop_app.py tests/test_desktop_window_helpers.py tests/test_interaction_request_adapter.py tests/test_tui_app.py`
+  - result: `All checks passed!`
+  - `uv run pytest tests/test_desktop_app.py tests/test_desktop_window_helpers.py tests/test_interaction_request_adapter.py tests/test_tui_app.py -q`
+  - result: `159 passed`
+  - pre-commit adjacent checks:
+    - `uv run pytest tests/test_tui_app.py -k "runtime_policy or remote_stream or approve_multiple_pending or session_new or fork_failure or creation_failed or remote_projector" -q`
+    - result: `11 passed, 133 deselected`
+    - `uv run pytest tests/test_desktop_app.py tests/test_desktop_window_helpers.py -q`
+    - result: `12 passed`
+- [completed] committed the surface adoption slice:
+  - commit: `d4a2dfa`
+  - message: `p40: land surface transport adoption closure`
+- [completed] re-ran the dirty-worktree classifier after the commit:
+  - `python scripts/worktree_slice_report.py`
+  - result:
+    - total dirty paths: `83`
+    - `surface-transport-orchestration`: `1`
+- [completed] confirmed the remaining surface bucket had shrunk to a one-file DTO tail rather than app-wiring/adoption residue
+- [next] finish the last surface contract file so the bucket can disappear cleanly
+
+## 2026-04-16 P40.21 TUI Session Coordination Support Landing
+
+- [completed] re-audited the post-`P40.20` `surface-transport-orchestration` bucket and confirmed the next clean-clone blocker was the untracked TUI coordinator cluster already imported by dirty `tui/app.py`
+- [completed] landed the TUI session coordination support owners:
+  - `src/mini_agent/tui/session_approval_command_coordinator.py`
+  - `src/mini_agent/tui/session_context_command_coordinator.py`
+  - `src/mini_agent/tui/session_kb_command_coordinator.py`
+  - `src/mini_agent/tui/session_mcp_command_coordinator.py`
+  - `src/mini_agent/tui/session_memory_command_coordinator.py`
+  - `src/mini_agent/tui/session_model_command_coordinator.py`
+  - `src/mini_agent/tui/session_remote_projector.py`
+  - `src/mini_agent/tui/session_remote_turn_stream_coordinator.py`
+  - `src/mini_agent/tui/session_runtime_policy_command_coordinator.py`
+  - `src/mini_agent/tui/session_skill_command_coordinator.py`
+  - `src/mini_agent/tui/session_turn_outcome_coordinator.py`
+  - `src/mini_agent/tui/session_turn_state_coordinator.py`
+- [completed] landed focused regressions for the coordinator owners:
+  - `tests/test_tui_approval_command_coordinator.py`
+  - `tests/test_tui_context_command_coordinator.py`
+  - `tests/test_tui_kb_command_coordinator.py`
+  - `tests/test_tui_mcp_command_coordinator.py`
+  - `tests/test_tui_memory_command_coordinator.py`
+  - `tests/test_tui_model_command_coordinator.py`
+  - `tests/test_tui_remote_projector.py`
+  - `tests/test_tui_remote_turn_stream_coordinator.py`
+  - `tests/test_tui_runtime_policy_command_coordinator.py`
+  - `tests/test_tui_skill_command_coordinator.py`
+  - `tests/test_tui_turn_outcome_coordinator.py`
+  - `tests/test_tui_turn_state_coordinator.py`
+- [completed] verified the narrowed coordinator-support slice:
+  - `uv run ruff check src/mini_agent/tui/session_approval_command_coordinator.py src/mini_agent/tui/session_context_command_coordinator.py src/mini_agent/tui/session_kb_command_coordinator.py src/mini_agent/tui/session_mcp_command_coordinator.py src/mini_agent/tui/session_memory_command_coordinator.py src/mini_agent/tui/session_model_command_coordinator.py src/mini_agent/tui/session_remote_projector.py src/mini_agent/tui/session_remote_turn_stream_coordinator.py src/mini_agent/tui/session_runtime_policy_command_coordinator.py src/mini_agent/tui/session_skill_command_coordinator.py src/mini_agent/tui/session_turn_outcome_coordinator.py src/mini_agent/tui/session_turn_state_coordinator.py tests/test_tui_approval_command_coordinator.py tests/test_tui_context_command_coordinator.py tests/test_tui_kb_command_coordinator.py tests/test_tui_mcp_command_coordinator.py tests/test_tui_memory_command_coordinator.py tests/test_tui_model_command_coordinator.py tests/test_tui_remote_projector.py tests/test_tui_remote_turn_stream_coordinator.py tests/test_tui_runtime_policy_command_coordinator.py tests/test_tui_skill_command_coordinator.py tests/test_tui_turn_outcome_coordinator.py tests/test_tui_turn_state_coordinator.py`
+  - result: `All checks passed!`
+  - `uv run pytest tests/test_tui_approval_command_coordinator.py tests/test_tui_context_command_coordinator.py tests/test_tui_kb_command_coordinator.py tests/test_tui_mcp_command_coordinator.py tests/test_tui_memory_command_coordinator.py tests/test_tui_model_command_coordinator.py tests/test_tui_remote_projector.py tests/test_tui_remote_turn_stream_coordinator.py tests/test_tui_runtime_policy_command_coordinator.py tests/test_tui_skill_command_coordinator.py tests/test_tui_turn_outcome_coordinator.py tests/test_tui_turn_state_coordinator.py -q`
+  - result: `42 passed`
+  - adjacent app checks:
+    - `uv run pytest tests/test_tui_app.py -k "runtime_policy or remote_stream or approve_multiple_pending or session_new or fork_failure or creation_failed or remote_projector" -q`
+    - result: `11 passed, 133 deselected`
+    - `uv run pytest tests/test_desktop_app.py tests/test_desktop_window_helpers.py -q`
+    - result: `12 passed`
+- [completed] committed the narrowed coordinator-support slice:
+  - commit: `d994620`
+  - message: `p40: land tui session coordination support`
+- [completed] re-ran the dirty-worktree classifier after the commit:
+  - `python scripts/worktree_slice_report.py`
+  - result:
+    - total dirty paths: `93`
+    - `surface-transport-orchestration`: `11`
+- [completed] confirmed the remaining surface bucket had changed from missing support owners to bounded app-wiring adoption
+- [next] land the desktop/TUI adoption closure that now sits on tracked support owners
+
 ## 2026-04-16 P40.20 Shared Transport Package Landing
 
 - [completed] audited the post-`P40.19` `surface-transport-orchestration` bucket and confirmed the next clean-clone blocker was the missing shared `mini_agent.transport` package

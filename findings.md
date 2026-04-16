@@ -1,5 +1,66 @@
 # Findings
 
+## 2026-04-16 P40.23 Surface DTO Contract Tail Sync
+
+- After `P40.22`, the surface bucket was already functionally closed.
+- What remained was one small but meaningful truth gap:
+  - `tests/test_interface_dto_contracts.py` still encoded the pre-sync shared session DTO shape
+- This kind of tail matters in repo-hygiene work.
+- Leaving one residual contract file behind would keep teaching that the surface migration was still partially open.
+- The right finish was therefore intentionally small:
+  - update the DTO contract
+  - verify it directly
+  - let the classifier confirm the whole bucket disappears
+- Structural effect:
+  - total dirty paths: `83 -> 82`
+  - `surface-transport-orchestration`: removed from classifier output
+- Practical implication:
+  - the surface/transport line is no longer the main anti-chaos risk
+  - the repo-hygiene focus now shifts to `agent-core-and-cli-surface`
+
+## 2026-04-16 P40.22 Surface Transport Adoption Closure
+
+- After `P40.21`, the remaining surface residue was finally honest.
+- It was no longer about missing support owners.
+- It was the actual app-wiring/adoption boundary:
+  - desktop entry flow
+  - shared transport usage
+  - TUI app integration
+  - legacy `tui.gateway_client` retirement
+- That made this a good coordinated cut.
+- Landing only more support files would have been fake progress.
+- Landing only the deletion would have been dishonest.
+- The healthy move was to land the adoption and the legacy transport-client retirement together, with the matching surface tests.
+- Structural effect:
+  - total dirty paths: `93 -> 83`
+  - `surface-transport-orchestration`: `11 -> 1`
+- The residual count is important because it shows the adoption closure really worked:
+  - the bucket no longer represented broad desktop/TUI drift
+  - only a one-file DTO tail remained
+- Practical implication:
+  - one final contract sync could now close the entire surface bucket cleanly
+
+## 2026-04-16 P40.21 TUI Session Coordination Support Landing
+
+- After `P40.20`, the next honest seam inside `surface-transport-orchestration` was not the whole `tui/app.py` rewrite.
+- The audit showed a cleaner blocker first:
+  - dirty `tui/app.py` already imported a large cluster of untracked coordinator owners
+  - leaving those owners untracked would recreate the same clean-clone integrity problem already seen with `interaction/` and `transport/`
+- That made the coordinator cluster a strong anti-chaos cut:
+  - approval/context/kb/mcp/memory/model/skill/runtime-policy command coordination
+  - remote projection and remote turn stream support
+  - turn state / outcome tracking
+- The value of this slice is not just file count.
+- It changed the nature of the remaining surface work:
+  - before this cut, the surface bucket still hid missing-owner risk
+  - after this cut, the bucket more honestly became app-wiring/adoption residue
+- Structural effect:
+  - total dirty paths: `117 -> 93`
+  - `surface-transport-orchestration`: `35 -> 11`
+- Practical implication:
+  - the next healthy move became the actual desktop/TUI adoption closure itself
+  - future surface progress would no longer need to smuggle in untracked coordinator owners
+
 ## 2026-04-16 P40.20 Shared Transport Package Landing
 
 - After `P40.19`, `surface-transport-orchestration` became the top remaining bucket.

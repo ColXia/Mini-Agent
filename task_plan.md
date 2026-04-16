@@ -1,5 +1,184 @@
 # Task Plan
 
+## Latest Sync: 2026-04-16 P40.23 Surface DTO Contract Tail Sync
+
+## Current Execution Slice: P40.23 Surface DTO Contract Tail Sync (2026-04-16)
+
+### Why This Slice Is Next
+
+- after `P40.22`, the `surface-transport-orchestration` bucket was effectively closed except for one remaining DTO contract test
+- that tail still mattered because it encoded the shared surface projection shape
+- the honest finish was therefore one tiny DTO truth sync rather than leaving a single residual path behind
+
+### Scope
+
+- sync the last remaining surface DTO contract:
+  - `tests/test_interface_dto_contracts.py`
+
+### Acceptance
+
+- shared session DTO contract includes `remote_recovery_text`
+- focused interface DTO tests remain green
+- post-slice classifier no longer reports a `surface-transport-orchestration` bucket
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- landed commit:
+  - `198473f`
+  - `p40: sync surface dto contract tail`
+- focused verification:
+  - `uv run ruff check tests/test_interface_dto_contracts.py`
+  - result: `All checks passed!`
+  - `uv run pytest tests/test_interface_dto_contracts.py -q`
+  - result: `8 passed`
+- post-commit residual snapshot from `python scripts/worktree_slice_report.py`:
+  - total dirty paths: `83 -> 82`
+  - recommended next slice: `agent-core-and-cli-surface`
+- important boundary result:
+  - `surface-transport-orchestration` is now fully absent from the classifier output
+  - the repo-hygiene focus shifts to `agent-core-and-cli-surface`
+
+## Latest Sync: 2026-04-16 P40.22 Surface Transport Adoption Closure
+
+## Current Execution Slice: P40.22 Surface Transport Adoption Closure (2026-04-16)
+
+### Why This Slice Is Next
+
+- after `P40.21`, the remaining surface bucket had shrunk from support-owner gaps to a bounded adoption closure:
+  - desktop entry/adoption files
+  - TUI app wiring
+  - legacy `tui.gateway_client` deletion
+  - matching surface tests
+- the import audit showed no remaining hidden support-owner blocker
+- the healthy next move was therefore to land the surface adoption itself as one coordinated cut
+
+### Scope
+
+- land the desktop/TUI surface adoption:
+  - `src/mini_agent/desktop/app.py`
+  - `src/mini_agent/desktop/gateway_supervisor.py`
+  - `src/mini_agent/desktop/window.py`
+  - `src/mini_agent/tui/app.py`
+- delete the legacy TUI-only gateway client:
+  - `src/mini_agent/tui/gateway_client.py`
+- sync the adjacent surface tests:
+  - `tests/test_desktop_app.py`
+  - `tests/test_desktop_window_helpers.py`
+  - `tests/test_interaction_request_adapter.py`
+  - `tests/test_tui_app.py`
+  - delete `tests/test_tui_gateway_client.py`
+
+### Acceptance
+
+- desktop/TUI surfaces use shared transport and shared session coordination owners
+- legacy `TuiGatewayClient` path is fully retired with no remaining repo references
+- focused surface tests stay green
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- landed commit:
+  - `d4a2dfa`
+  - `p40: land surface transport adoption closure`
+- focused verification:
+  - `uv run ruff check src/mini_agent/desktop/app.py src/mini_agent/desktop/gateway_supervisor.py src/mini_agent/desktop/window.py src/mini_agent/tui/app.py tests/test_desktop_app.py tests/test_desktop_window_helpers.py tests/test_interaction_request_adapter.py tests/test_tui_app.py`
+  - result: `All checks passed!`
+  - `uv run pytest tests/test_desktop_app.py tests/test_desktop_window_helpers.py tests/test_interaction_request_adapter.py tests/test_tui_app.py -q`
+  - result: `159 passed`
+  - pre-commit adjacent checks:
+    - `uv run pytest tests/test_tui_app.py -k "runtime_policy or remote_stream or approve_multiple_pending or session_new or fork_failure or creation_failed or remote_projector" -q`
+    - result: `11 passed, 133 deselected`
+    - `uv run pytest tests/test_desktop_app.py tests/test_desktop_window_helpers.py -q`
+    - result: `12 passed`
+- post-commit residual snapshot from `python scripts/worktree_slice_report.py`:
+  - total dirty paths: `93 -> 83`
+  - `surface-transport-orchestration`: `11 -> 1`
+- important boundary result:
+  - the surface bucket is no longer about app wiring or legacy transport client replacement
+  - only a one-file DTO contract tail remained after this cut
+
+## Latest Sync: 2026-04-16 P40.21 TUI Session Coordination Support Landing
+
+## Current Execution Slice: P40.21 TUI Session Coordination Support Landing (2026-04-16)
+
+### Why This Slice Is Next
+
+- after `P40.20`, the strict audit showed the next clean-clone-safe seam inside `surface-transport-orchestration` was the untracked TUI coordinator cluster
+- current dirty `tui/app.py` already imported these owners:
+  - approval/context/kb/mcp/memory/model/skill/runtime-policy command coordinators
+  - remote projector
+  - remote turn stream coordinator
+  - turn state / turn outcome coordinators
+- the honest next move was to land the support owners first, not to force the whole `tui/app.py` adoption into the same commit
+
+### Scope
+
+- land the TUI session coordination support owners:
+  - `src/mini_agent/tui/session_approval_command_coordinator.py`
+  - `src/mini_agent/tui/session_context_command_coordinator.py`
+  - `src/mini_agent/tui/session_kb_command_coordinator.py`
+  - `src/mini_agent/tui/session_mcp_command_coordinator.py`
+  - `src/mini_agent/tui/session_memory_command_coordinator.py`
+  - `src/mini_agent/tui/session_model_command_coordinator.py`
+  - `src/mini_agent/tui/session_remote_projector.py`
+  - `src/mini_agent/tui/session_remote_turn_stream_coordinator.py`
+  - `src/mini_agent/tui/session_runtime_policy_command_coordinator.py`
+  - `src/mini_agent/tui/session_skill_command_coordinator.py`
+  - `src/mini_agent/tui/session_turn_outcome_coordinator.py`
+  - `src/mini_agent/tui/session_turn_state_coordinator.py`
+- land focused direct regressions for each coordinator owner:
+  - `tests/test_tui_approval_command_coordinator.py`
+  - `tests/test_tui_context_command_coordinator.py`
+  - `tests/test_tui_kb_command_coordinator.py`
+  - `tests/test_tui_mcp_command_coordinator.py`
+  - `tests/test_tui_memory_command_coordinator.py`
+  - `tests/test_tui_model_command_coordinator.py`
+  - `tests/test_tui_remote_projector.py`
+  - `tests/test_tui_remote_turn_stream_coordinator.py`
+  - `tests/test_tui_runtime_policy_command_coordinator.py`
+  - `tests/test_tui_skill_command_coordinator.py`
+  - `tests/test_tui_turn_outcome_coordinator.py`
+  - `tests/test_tui_turn_state_coordinator.py`
+
+### Acceptance
+
+- clean clone contains the TUI coordination owners already referenced by the current `tui/app.py` adoption diff
+- direct coordinator tests are green
+- adjacent TUI/Desktop app tests consuming the shared support owners are green
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- landed commit:
+  - `d994620`
+  - `p40: land tui session coordination support`
+- focused verification:
+  - `uv run ruff check src/mini_agent/tui/session_approval_command_coordinator.py src/mini_agent/tui/session_context_command_coordinator.py src/mini_agent/tui/session_kb_command_coordinator.py src/mini_agent/tui/session_mcp_command_coordinator.py src/mini_agent/tui/session_memory_command_coordinator.py src/mini_agent/tui/session_model_command_coordinator.py src/mini_agent/tui/session_remote_projector.py src/mini_agent/tui/session_remote_turn_stream_coordinator.py src/mini_agent/tui/session_runtime_policy_command_coordinator.py src/mini_agent/tui/session_skill_command_coordinator.py src/mini_agent/tui/session_turn_outcome_coordinator.py src/mini_agent/tui/session_turn_state_coordinator.py tests/test_tui_approval_command_coordinator.py tests/test_tui_context_command_coordinator.py tests/test_tui_kb_command_coordinator.py tests/test_tui_mcp_command_coordinator.py tests/test_tui_memory_command_coordinator.py tests/test_tui_model_command_coordinator.py tests/test_tui_remote_projector.py tests/test_tui_remote_turn_stream_coordinator.py tests/test_tui_runtime_policy_command_coordinator.py tests/test_tui_skill_command_coordinator.py tests/test_tui_turn_outcome_coordinator.py tests/test_tui_turn_state_coordinator.py`
+  - result: `All checks passed!`
+  - `uv run pytest tests/test_tui_approval_command_coordinator.py tests/test_tui_context_command_coordinator.py tests/test_tui_kb_command_coordinator.py tests/test_tui_mcp_command_coordinator.py tests/test_tui_memory_command_coordinator.py tests/test_tui_model_command_coordinator.py tests/test_tui_remote_projector.py tests/test_tui_remote_turn_stream_coordinator.py tests/test_tui_runtime_policy_command_coordinator.py tests/test_tui_skill_command_coordinator.py tests/test_tui_turn_outcome_coordinator.py tests/test_tui_turn_state_coordinator.py -q`
+  - result: `42 passed`
+  - adjacent app checks:
+    - `uv run pytest tests/test_tui_app.py -k "runtime_policy or remote_stream or approve_multiple_pending or session_new or fork_failure or creation_failed or remote_projector" -q`
+    - result: `11 passed, 133 deselected`
+    - `uv run pytest tests/test_desktop_app.py tests/test_desktop_window_helpers.py -q`
+    - result: `12 passed`
+- post-commit residual snapshot from `python scripts/worktree_slice_report.py`:
+  - total dirty paths: `117 -> 93`
+  - `surface-transport-orchestration`: `35 -> 11`
+- important boundary result:
+  - the surface bucket changed from support-owner gaps to a bounded app-wiring closure
+  - the next healthy move became the desktop/TUI adoption closure itself
+
 ## Latest Sync: 2026-04-16 P40.20 Shared Transport Package Landing
 
 ## Current Execution Slice: P40.20 Shared Transport Package Landing (2026-04-16)
