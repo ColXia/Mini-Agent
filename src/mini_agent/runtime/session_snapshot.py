@@ -33,6 +33,7 @@ class RuntimeSessionImportRequest(BaseModel):
     origin_surface: str | None = None
     active_surface: str | None = None
     reply_enabled: bool = False
+    is_default: bool = False
     channel_type: str | None = None
     conversation_id: str | None = None
     sender_id: str | None = None

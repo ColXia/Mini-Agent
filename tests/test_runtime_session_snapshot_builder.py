@@ -116,6 +116,7 @@ def test_runtime_session_snapshot_builder_builds_snapshot_from_live_session(tmp_
     snapshot = builder.build_session_snapshot(session)
 
     assert snapshot.session_id == "sess-live"
+    assert snapshot.is_default is False
     assert snapshot.origin_surface == "tui"
     assert snapshot.active_surface == "qq"
     assert snapshot.selected_provider_id == "openai"
@@ -136,6 +137,7 @@ def test_runtime_session_snapshot_builder_builds_snapshot_from_persisted_record(
         "origin_surface": "qq",
         "active_surface": "tui",
         "reply_enabled": False,
+        "is_default": True,
         "channel_type": "qq",
         "conversation_id": "group:2",
         "sender_id": "user-2",
@@ -174,6 +176,7 @@ def test_runtime_session_snapshot_builder_builds_snapshot_from_persisted_record(
     snapshot = builder.build_session_snapshot_from_record(record)
 
     assert snapshot.session_id == "sess-record"
+    assert snapshot.is_default is True
     assert snapshot.active_surface == "tui"
     assert snapshot.selected_model_source == "preset"
     assert snapshot.memory_diagnostics == {"memory": "sess-record"}
