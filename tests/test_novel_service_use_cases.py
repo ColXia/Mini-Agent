@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from mini_agent.application import NovelAgentProfile, NovelServiceUseCases
+from mini_agent.novel import NovelAgentProfile, NovelServiceUseCases
 
 
 class _DemoStub:

@@ -26,15 +26,12 @@ SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from mini_agent.agent import TurnExecutionResult, TurnStopReason
-from mini_agent.application import (
-    ChannelIngressUseCases,
-    MainAgentGatewayUseCases,
-    RemoteConversationBindingService,
-)
+from mini_agent.agent_core.engine import TurnExecutionResult, TurnStopReason
+from mini_agent.application import ChannelIngressUseCases, ChannelNovelActionHandler, MainAgentSurfaceService, SessionApplicationService
+from mini_agent.config import AgentConfig, Config, LLMConfig, ToolsConfig
 from mini_agent.interfaces import ChannelMessageRequest, MainAgentChatRequest
 from mini_agent.runtime.main_agent_runtime_manager import MainAgentRuntimeManager
-from mini_agent.session import ConversationBindingStore
+from mini_agent.session import ConversationBindingService, ConversationBindingStore
 
 
 @dataclass(frozen=True)
@@ -134,13 +131,36 @@ def _format_bootstrap_error(exc: Exception) -> Exception:
     raise RuntimeError(str(exc))
 
 
+def _test_runtime_config() -> Config:
+    return Config(
+        llm=LLMConfig(
+            api_key="sk-test",
+            api_base="https://api.example.com/v1",
+            model="gpt-5.4",
+            provider="openai",
+        ),
+        agent=AgentConfig(
+            max_steps=8,
+            max_tool_calls_per_step=2,
+            system_prompt_path="system_prompt.md",
+        ),
+        tools=ToolsConfig(
+            enable_file_tools=False,
+            enable_bash=False,
+            enable_note=False,
+            enable_skills=False,
+            enable_mcp=False,
+        ),
+    )
+
+
 async def _activate_runtime_surface(
-    use_cases: MainAgentGatewayUseCases,
+    use_cases: MainAgentSurfaceService,
     session_id: str,
     *,
     surface: str,
 ):
-    return await use_cases._runtime_manager.set_active_surface(session_id, surface=surface)
+    return await use_cases._session_service._runtime_manager.set_active_surface(session_id, surface=surface)
 
 
 def _clip(text: str, limit: int = 1000) -> str:
@@ -191,14 +211,15 @@ def _new_gateway_use_cases(
     *,
     storage_dir: Path,
     build_agent,
-) -> MainAgentGatewayUseCases:
+) -> MainAgentSurfaceService:
     runtime = MainAgentRuntimeManager(
         ttl_seconds=3600,
         build_agent=build_agent,
         storage_dir=storage_dir,
+        load_runtime_config=_test_runtime_config,
     )
-    return MainAgentGatewayUseCases(
-        runtime_manager=runtime,
+    return MainAgentSurfaceService(
+        session_service=SessionApplicationService(runtime_manager=runtime),
         resolve_workspace_dir=_resolve_workspace_dir,
         to_utc_iso=_to_utc_iso,
         sse_event=_sse_event,
@@ -207,13 +228,15 @@ def _new_gateway_use_cases(
     )
 
 
-def _new_channel_use_cases(gateway_use_cases: MainAgentGatewayUseCases, *, root: Path) -> ChannelIngressUseCases:
+def _new_channel_use_cases(gateway_use_cases: MainAgentSurfaceService, *, root: Path) -> ChannelIngressUseCases:
     return ChannelIngressUseCases(
         run_main_agent_chat=gateway_use_cases.run_chat,
-        novel_use_cases=_UnusedNovelUseCases(),
-        resolve_workspace_dir=_resolve_workspace_dir,
-        to_utc_iso=_to_utc_iso,
-        remote_binding_service=RemoteConversationBindingService(
+        novel_action_handler=ChannelNovelActionHandler(
+            novel_use_cases=_UnusedNovelUseCases(),
+            resolve_workspace_dir=_resolve_workspace_dir,
+            to_utc_iso=_to_utc_iso,
+        ),
+        conversation_binding=ConversationBindingService(
             binding_store=ConversationBindingStore(root / "conversation-bindings.json"),
         ),
     )

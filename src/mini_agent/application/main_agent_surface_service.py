@@ -4,14 +4,16 @@ from __future__ import annotations
 
 from typing import AsyncIterator, Awaitable, Callable
 
-from mini_agent.application.gateway_chat_flow_handler import (
+from mini_agent.application.agent_delegation_execution_handler import AgentDelegationExecutionHandler
+from mini_agent.application.surface_chat_flow_handler import (
     SurfaceChatExecutionRequest,
     SurfaceChatFlowHandler,
 )
-from mini_agent.application.gateway_agent_execution_handler import AgentTurnExecutionHandler
-from mini_agent.application.gateway_route_execution_handler import AgentRouteExecutionHandler
+from mini_agent.application.agent_turn_execution_handler import AgentTurnExecutionHandler
+from mini_agent.application.agent_route_execution_handler import AgentRouteExecutionHandler
 from mini_agent.application.interaction_request_adapter import ApplicationInteractionBinding
-from mini_agent.application.session_service import ManagedSessionTurn, SessionApplicationService
+from mini_agent.application.managed_session_turn import ManagedSessionTurn
+from mini_agent.application.session_service import SessionApplicationService
 from mini_agent.application.surface_service_types import (
     FormatBootstrapErrorFn,
     ResolveWorkspaceDirFn,
@@ -30,6 +32,7 @@ from mini_agent.interfaces import (
     MainAgentSessionControlRequest,
     MainAgentSessionControlResponse,
     MainAgentSessionCreateRequest,
+    MainAgentDefaultSessionRequest,
     MainAgentSessionDetail,
     MainAgentSessionForkRequest,
     MainAgentSessionMemoryRequest,
@@ -46,9 +49,6 @@ from mini_agent.interfaces import (
     MainAgentSessionSkillResponse,
     MainAgentSessionSummary,
 )
-from mini_agent.runtime.main_agent_runtime_manager import MainAgentRuntimeManager
-
-
 class MainAgentSurfaceService:
     """Shared main-agent interaction service for all user surfaces."""
 
@@ -60,15 +60,14 @@ class MainAgentSurfaceService:
     def __init__(
         self,
         *,
-        runtime_manager: MainAgentRuntimeManager,
+        session_service: SessionApplicationService,
         resolve_workspace_dir: ResolveWorkspaceDirFn,
         to_utc_iso: ToUtcIsoFn,
         sse_event: SseEventFn,
         format_bootstrap_error: FormatBootstrapErrorFn,
         stream_chunk_size: int,
     ) -> None:
-        self._runtime_manager = runtime_manager
-        self._session_service = SessionApplicationService(runtime_manager=runtime_manager)
+        self._session_service = session_service
         self._resolve_workspace_dir = resolve_workspace_dir
         self._to_utc_iso = to_utc_iso
         self._sse_event = sse_event
@@ -81,13 +80,19 @@ class MainAgentSurfaceService:
             format_bootstrap_error=self._format_bootstrap_error,
             stream_chunk_size=self._stream_chunk_size,
         )
-        self._route_execution = AgentRouteExecutionHandler(
+        self._agent_execution = AgentTurnExecutionHandler()
+        self._delegation_execution = AgentDelegationExecutionHandler(
             session_service=self._session_service,
-            agent_execution=AgentTurnExecutionHandler(),
+            agent_execution=self._agent_execution,
+            delegation_owner=self._DELEGATION_OWNER,
+            fallback_worker_id=self._ROUTE_AGENT_MAIN,
+        )
+        self._route_execution = AgentRouteExecutionHandler(
+            agent_execution=self._agent_execution,
+            delegation_execution=self._delegation_execution,
             route_agent_main=self._ROUTE_AGENT_MAIN,
             route_agent_delegate=self._ROUTE_AGENT_DELEGATE,
             delegation_command=self._DELEGATION_COMMAND,
-            delegation_owner=self._DELEGATION_OWNER,
         )
 
     async def run_chat(self, request: MainAgentChatRequest) -> MainAgentChatResponse:
@@ -123,6 +128,11 @@ class MainAgentSurfaceService:
         resolved_workspace = self._resolve_workspace_dir(request.workspace_dir)
         self._session_service.validate_workspace(resolved_workspace)
         return await self._session_service.create_session(request, workspace_dir=resolved_workspace)
+
+    async def ensure_default_session(self, request: MainAgentDefaultSessionRequest) -> MainAgentSessionDetail:
+        resolved_workspace = self._resolve_workspace_dir(request.workspace_dir)
+        self._session_service.validate_workspace(resolved_workspace)
+        return await self._session_service.ensure_default_session(request, workspace_dir=resolved_workspace)
 
     async def create_derived_session(
         self,
@@ -162,29 +172,14 @@ class MainAgentSurfaceService:
         session_id: str,
         request: MainAgentSessionCancelRequest,
     ) -> MainAgentSessionMutationResponse:
-        return await self._session_service.cancel_session(
-            session_id,
-            reason=request.reason,
-            surface=request.surface,
-            channel_type=request.channel_type,
-            conversation_id=request.conversation_id,
-            sender_id=request.sender_id,
-        )
+        return await self._session_service.cancel_session(session_id, request)
 
     async def control_session(
         self,
         session_id: str,
         request: MainAgentSessionControlRequest,
     ) -> MainAgentSessionControlResponse:
-        return await self._session_service.control_session(
-            session_id,
-            action=request.action,
-            reason=request.reason,
-            surface=request.surface,
-            channel_type=request.channel_type,
-            conversation_id=request.conversation_id,
-            sender_id=request.sender_id,
-        )
+        return await self._session_service.control_session(session_id, request)
 
     async def update_session_context(
         self,
@@ -219,15 +214,7 @@ class MainAgentSurfaceService:
         session_id: str,
         request: MainAgentSessionApprovalRequest,
     ) -> MainAgentSessionApprovalResponse:
-        return await self._session_service.respond_to_approval(
-            session_id,
-            approved=bool(request.approved),
-            token=request.token,
-            surface=request.surface,
-            channel_type=request.channel_type,
-            conversation_id=request.conversation_id,
-            sender_id=request.sender_id,
-        )
+        return await self._session_service.respond_to_approval(session_id, request)
 
     async def update_session_runtime_policy(
         self,
@@ -281,10 +268,6 @@ class MainAgentSurfaceService:
             activity_emitter=activity_emitter,
         )
 
-
-MainAgentGatewayUseCases = MainAgentSurfaceService
-
 __all__ = [
-    "MainAgentGatewayUseCases",
     "MainAgentSurfaceService",
 ]

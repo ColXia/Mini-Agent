@@ -1,4 +1,4 @@
-"""Deterministic runtime-mode matrix tests for P19 rollout."""
+﻿"""Deterministic runtime-mode matrix tests for P19 rollout."""
 
 from __future__ import annotations
 
@@ -8,11 +8,49 @@ from types import SimpleNamespace
 import pytest
 
 from apps.agent_studio_gateway import main as gateway_main
-from mini_agent.runtime.main_agent_runtime_manager import (
-    MainAgentRuntimeManager,
+from mini_agent.config import AgentConfig, Config, LLMConfig, ToolsConfig
+from mini_agent.runtime.main_agent_runtime_contracts import (
     MainAgentRuntimeMode,
     MainAgentRuntimePolicy,
 )
+from mini_agent.runtime.main_agent_runtime_manager import (
+    MainAgentRuntimeManager,
+)
+from mini_agent.runtime.main_agent_runtime_policy_loader import (
+    MAIN_AGENT_MAIN_WORKSPACE_ENV,
+    MAIN_AGENT_RUNTIME_MODE_ENV,
+    MAIN_AGENT_TEAM_MAX_AGENTS_ENV,
+    load_main_agent_runtime_policy,
+)
+
+
+def _test_runtime_config() -> Config:
+    return Config(
+        llm=LLMConfig(
+            api_key="sk-test",
+            api_base="https://api.example.com/v1",
+            model="gpt-5.4",
+            provider="openai",
+        ),
+        agent=AgentConfig(
+            max_steps=8,
+            max_tool_calls_per_step=2,
+            system_prompt_path="system_prompt.md",
+        ),
+        tools=ToolsConfig(
+            enable_file_tools=False,
+            enable_bash=False,
+            enable_note=False,
+            enable_skills=False,
+            enable_mcp=False,
+        ),
+    )
+
+
+def _runtime_manager(**kwargs):
+    if "load_runtime_config" not in kwargs:
+        kwargs["load_runtime_config"] = lambda: _test_runtime_config()
+    return MainAgentRuntimeManager(**kwargs)
 
 
 class _DummyAgent:
@@ -34,19 +72,19 @@ class _DummyAgent:
 async def test_single_main_profile_contract(monkeypatch: pytest.MonkeyPatch) -> None:
     repo_root = gateway_main.REPO_ROOT.resolve()
 
-    monkeypatch.setattr(gateway_main, "MAIN_AGENT_RUNTIME_MODE_RAW", "single_main")
-    monkeypatch.setattr(gateway_main, "MAIN_AGENT_MAIN_WORKSPACE_RAW", str(repo_root))
-    monkeypatch.setattr(gateway_main, "MAIN_AGENT_TEAM_MAX_AGENTS_RAW", "4")
-    monkeypatch.setattr(gateway_main, "_MAIN_AGENT_RUNTIME_MANAGER", None)
+    monkeypatch.setenv(MAIN_AGENT_RUNTIME_MODE_ENV, "single_main")
+    monkeypatch.setenv(MAIN_AGENT_MAIN_WORKSPACE_ENV, str(repo_root))
+    monkeypatch.setenv(MAIN_AGENT_TEAM_MAX_AGENTS_ENV, "4")
+    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_runtime_manager", None)
 
-    policy = gateway_main._parse_main_agent_runtime_policy()
+    policy = load_main_agent_runtime_policy(repo_root)
     assert policy.mode == MainAgentRuntimeMode.SINGLE_MAIN
     assert policy.max_active_sessions == 1
     assert policy.reserved_team_slots == 4
     assert policy.workspace_application_required is True
     assert policy.main_workspace_dir == repo_root
 
-    health = await gateway_main._build_health_response()
+    health = await gateway_main.GATEWAY_COMPOSITION.build_health_response()
     assert health.runtime.mode == "single_main"
     assert health.runtime.max_active_sessions == 1
     assert health.runtime.active_sessions == 0
@@ -64,19 +102,19 @@ async def test_single_main_profile_contract(monkeypatch: pytest.MonkeyPatch) -> 
 async def test_team_profile_contract(monkeypatch: pytest.MonkeyPatch) -> None:
     repo_root = gateway_main.REPO_ROOT.resolve()
 
-    monkeypatch.setattr(gateway_main, "MAIN_AGENT_RUNTIME_MODE_RAW", "team")
-    monkeypatch.setattr(gateway_main, "MAIN_AGENT_MAIN_WORKSPACE_RAW", str(repo_root))
-    monkeypatch.setattr(gateway_main, "MAIN_AGENT_TEAM_MAX_AGENTS_RAW", "2")
-    monkeypatch.setattr(gateway_main, "_MAIN_AGENT_RUNTIME_MANAGER", None)
+    monkeypatch.setenv(MAIN_AGENT_RUNTIME_MODE_ENV, "team")
+    monkeypatch.setenv(MAIN_AGENT_MAIN_WORKSPACE_ENV, str(repo_root))
+    monkeypatch.setenv(MAIN_AGENT_TEAM_MAX_AGENTS_ENV, "2")
+    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_runtime_manager", None)
 
-    policy = gateway_main._parse_main_agent_runtime_policy()
+    policy = load_main_agent_runtime_policy(repo_root)
     assert policy.mode == MainAgentRuntimeMode.TEAM
     assert policy.max_active_sessions == 2
     assert policy.reserved_team_slots == 2
     assert policy.workspace_application_required is True
     assert policy.main_workspace_dir == repo_root
 
-    health = await gateway_main._build_health_response()
+    health = await gateway_main.GATEWAY_COMPOSITION.build_health_response()
     assert health.runtime.mode == "team"
     assert health.runtime.max_active_sessions == 2
     assert health.runtime.active_sessions == 0
@@ -92,7 +130,7 @@ async def test_team_profile_contract(monkeypatch: pytest.MonkeyPatch) -> None:
     async def _build_agent(_workspace: Path):
         return _DummyAgent()
 
-    runtime = MainAgentRuntimeManager(
+    runtime = _runtime_manager(
         ttl_seconds=3600,
         build_agent=_build_agent,
         policy=MainAgentRuntimePolicy(
@@ -112,9 +150,10 @@ async def test_team_profile_contract(monkeypatch: pytest.MonkeyPatch) -> None:
     assert first.session_id == "sess-a"
     assert second.session_id == "sess-b"
 
-    # Guardrail: no session_id on same workspace should reuse existing session.
+    # Guardrail: no session_id now resolves to the global default session.
     reused = await runtime.get_or_create_session(None, workspace_a)
-    assert reused.session_id == "sess-a"
+    assert reused.session_id == "default"
+    assert reused.projection.is_default is True
 
     # Guardrail: capacity remains bounded at max_active_sessions.
     with pytest.raises(Exception) as exc_info:

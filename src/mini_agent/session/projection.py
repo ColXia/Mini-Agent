@@ -18,6 +18,10 @@ def _safe_text(value: object | None) -> str:
     return " ".join(str(value or "").split())
 
 
+def _safe_multiline_text(value: object | None) -> str:
+    return str(value or "").strip()
+
+
 def _nonnegative_int(value: Any, *, default: int = 0) -> int:
     try:
         return max(0, int(value))
@@ -210,6 +214,7 @@ class SessionSummaryProjection:
     reply_enabled: bool = False
     busy: bool = False
     running_state: str | None = None
+    is_default: bool = False
     channel_type: str | None = None
     conversation_id: str | None = None
     sender_id: str | None = None
@@ -227,6 +232,7 @@ class SessionSummaryProjection:
     pending_skill_reload_reason: str | None = None
     pending_approvals: tuple[SessionPendingApprovalProjection, ...] = ()
     recovery: SessionRecoveryProjection | None = None
+    remote_recovery_text: str | None = None
     memory_diagnostics: dict[str, Any] = field(default_factory=dict)
     sandbox_diagnostics: dict[str, Any] = field(default_factory=dict)
 
@@ -248,6 +254,7 @@ class SessionSummaryProjection:
             reply_enabled=bool(data.get("reply_enabled", False)),
             busy=bool(data.get("busy", False)),
             running_state=_safe_text(data.get("running_state")) or None,
+            is_default=bool(data.get("is_default", False)),
             channel_type=_safe_text(data.get("channel_type")) or None,
             conversation_id=_safe_text(data.get("conversation_id")) or None,
             sender_id=_safe_text(data.get("sender_id")) or None,
@@ -265,6 +272,7 @@ class SessionSummaryProjection:
             pending_skill_reload_reason=_safe_text(data.get("pending_skill_reload_reason")) or None,
             pending_approvals=SessionPendingApprovalProjection.from_payloads(data.get("pending_approvals")),
             recovery=SessionRecoveryProjection.from_payload(data.get("recovery")),
+            remote_recovery_text=_safe_multiline_text(data.get("remote_recovery_text")) or None,
             memory_diagnostics=_copy_dict(data.get("memory_diagnostics")),
             sandbox_diagnostics=_copy_dict(data.get("sandbox_diagnostics")),
         )
@@ -282,6 +290,7 @@ class SessionSummaryProjection:
             reply_enabled=bool(self.reply_enabled),
             busy=bool(self.busy),
             running_state=self.running_state,
+            is_default=bool(self.is_default),
             channel_type=self.channel_type,
             conversation_id=self.conversation_id,
             sender_id=self.sender_id,
@@ -299,6 +308,7 @@ class SessionSummaryProjection:
             pending_skill_reload_reason=self.pending_skill_reload_reason,
             pending_approvals=[item.to_transport() for item in self.pending_approvals],
             recovery=self.recovery.to_transport() if self.recovery is not None else None,
+            remote_recovery_text=self.remote_recovery_text,
             memory_diagnostics=dict(self.memory_diagnostics),
             sandbox_diagnostics=dict(self.sandbox_diagnostics),
         )
@@ -333,6 +343,7 @@ class SessionDetailProjection(SessionSummaryProjection):
             reply_enabled=bool(summary.reply_enabled),
             busy=bool(summary.busy),
             running_state=summary.running_state,
+            is_default=bool(summary.is_default),
             channel_type=summary.channel_type,
             conversation_id=summary.conversation_id,
             sender_id=summary.sender_id,
@@ -350,6 +361,7 @@ class SessionDetailProjection(SessionSummaryProjection):
             pending_skill_reload_reason=summary.pending_skill_reload_reason,
             pending_approvals=tuple(summary.pending_approvals),
             recovery=summary.recovery,
+            remote_recovery_text=summary.remote_recovery_text,
             memory_diagnostics=dict(summary.memory_diagnostics),
             sandbox_diagnostics=dict(summary.sandbox_diagnostics),
             context_policy=_copy_dict(context_policy),

@@ -27,8 +27,9 @@ SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from mini_agent.agent import TurnExecutionResult, TurnStopReason  # noqa: E402
-from mini_agent.application import MainAgentGatewayUseCases  # noqa: E402
+from mini_agent.agent_core.engine import TurnExecutionResult, TurnStopReason  # noqa: E402
+from mini_agent.application import MainAgentSurfaceService, SessionApplicationService  # noqa: E402
+from mini_agent.config import AgentConfig, Config, LLMConfig, ToolsConfig  # noqa: E402
 from mini_agent.interfaces import (  # noqa: E402
     MainAgentChatRequest,
     MainAgentSessionCancelRequest,
@@ -197,16 +198,40 @@ def _format_bootstrap_error(exc: Exception) -> Exception:
     raise RuntimeError(str(exc))
 
 
+def _test_runtime_config() -> Config:
+    return Config(
+        llm=LLMConfig(
+            api_key="sk-test",
+            api_base="https://api.example.com/v1",
+            model="gpt-5.4",
+            provider="openai",
+        ),
+        agent=AgentConfig(
+            max_steps=8,
+            max_tool_calls_per_step=2,
+            system_prompt_path="system_prompt.md",
+        ),
+        tools=ToolsConfig(
+            enable_file_tools=False,
+            enable_bash=False,
+            enable_note=False,
+            enable_skills=False,
+            enable_mcp=False,
+        ),
+    )
+
+
 async def _import_runtime_session(
-    use_cases: MainAgentGatewayUseCases,
+    use_cases: MainAgentSurfaceService,
     *,
     workspace_dir: str | None,
     session_id: str | None = None,
     **kwargs: object,
 ):
     resolved_workspace = use_cases._resolve_workspace_dir(workspace_dir)
-    use_cases._runtime_manager.validate_workspace(resolved_workspace)
-    session = await use_cases._runtime_manager.import_session_snapshot(
+    runtime_manager = use_cases._session_service._runtime_manager
+    runtime_manager.validate_workspace(resolved_workspace)
+    session = await runtime_manager.import_session_snapshot(
         RuntimeSessionSnapshotImportCommand(
             session_id=session_id,
             workspace_dir=resolved_workspace,
@@ -215,20 +240,20 @@ async def _import_runtime_session(
     )
     transcript = kwargs.get("transcript")
     recent_limit = max(50, len(transcript) if isinstance(transcript, list) else 0)
-    return await use_cases._runtime_manager.get_session_detail(session.session_id, recent_limit=recent_limit)
+    return await runtime_manager.get_session_detail(session.session_id, recent_limit=recent_limit)
 
 
-async def _export_runtime_session(use_cases: MainAgentGatewayUseCases, session_id: str):
-    return await use_cases._runtime_manager.export_session_snapshot(session_id)
+async def _export_runtime_session(use_cases: MainAgentSurfaceService, session_id: str):
+    return await use_cases._session_service._runtime_manager.export_session_snapshot(session_id)
 
 
 async def _activate_runtime_surface(
-    use_cases: MainAgentGatewayUseCases,
+    use_cases: MainAgentSurfaceService,
     session_id: str,
     *,
     surface: str,
 ):
-    return await use_cases._runtime_manager.set_active_surface(session_id, surface=surface)
+    return await use_cases._session_service._runtime_manager.set_active_surface(session_id, surface=surface)
 
 
 def _clip(text: str, limit: int = 1000) -> str:
@@ -301,15 +326,16 @@ def _new_use_cases(
     storage_dir: Path,
     build_agent,
     build_agent_with_selection=None,
-) -> MainAgentGatewayUseCases:
+) -> MainAgentSurfaceService:
     runtime = MainAgentRuntimeManager(
         ttl_seconds=3600,
         build_agent=build_agent,
         build_agent_with_selection=build_agent_with_selection,
         storage_dir=storage_dir,
+        load_runtime_config=_test_runtime_config,
     )
-    return MainAgentGatewayUseCases(
-        runtime_manager=runtime,
+    return MainAgentSurfaceService(
+        session_service=SessionApplicationService(runtime_manager=runtime),
         resolve_workspace_dir=_resolve_workspace_dir,
         to_utc_iso=_to_utc_iso,
         sse_event=_sse_event,
@@ -574,7 +600,7 @@ async def _check_shared_model_selection(root: Path) -> WalkthroughResult:
     _require(detail_after_select.selected_model_id == "gpt-5.3", "selected model detail mismatch after immediate switch")
     _require(detail_after_select.pending_model_id is None, "pending model should be empty after immediate switch")
 
-    managed_session = await use_cases._runtime_manager.get_or_create_session("sess-model", workspace)
+    managed_session = await use_cases._session_service._runtime_manager.get_or_create_session("sess-model", workspace)
     managed_session.projection.busy = True
     managed_session.projection.running_state = "qq request running"
     queued = await use_cases.update_session_model_selection(
@@ -745,9 +771,10 @@ async def _check_restart_recovery_snapshot(root: Path) -> WalkthroughResult:
         ttl_seconds=3600,
         build_agent=_build_agent,
         storage_dir=storage_dir,
+        load_runtime_config=_test_runtime_config,
     )
-    _use_cases_first = MainAgentGatewayUseCases(
-        runtime_manager=runtime_first,
+    _use_cases_first = MainAgentSurfaceService(
+        session_service=SessionApplicationService(runtime_manager=runtime_first),
         resolve_workspace_dir=_resolve_workspace_dir,
         to_utc_iso=_to_utc_iso,
         sse_event=_sse_event,
@@ -849,7 +876,10 @@ async def _check_restart_recovery_snapshot(root: Path) -> WalkthroughResult:
         )
     )
     _require(second.reply == "hooked:continue after interruption", "interrupted recovery continuation reply mismatch")
-    managed_session = await use_cases_second._runtime_manager.get_or_create_session("sess-recovery", workspace)
+    managed_session = await use_cases_second._session_service._runtime_manager.get_or_create_session(
+        "sess-recovery",
+        workspace,
+    )
     captured_turn_context = getattr(managed_session.runtime.agent, "captured_turn_contexts", [])[-1]
     recovery_metadata = {}
     if isinstance(captured_turn_context, dict):

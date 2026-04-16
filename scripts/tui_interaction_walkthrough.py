@@ -6,10 +6,13 @@ Runs the real TUI application with pipe input + dummy output and exercises:
 - slash-command driven session/model/workflow/cancel flows
 """
 
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import argparse
 import asyncio
+import inspect
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -31,12 +34,15 @@ from prompt_toolkit.keys import Keys
 from prompt_toolkit.output import DummyOutput
 
 import mini_agent.tui.app as tui_app_module
+from mini_agent.agent_core.context.turn_context import format_prepared_turn_context_details
 from mini_agent.tui.app import MiniAgentTuiApp
 from scripts.tui_manual_checklist import (
     _BlockingTurnAgent,
     _ChecklistRegistry,
     _WorkflowAgent,
     _configure_local_session_harness,
+    _context_runtime_agent,
+    _test_config,
     FakeGatewayClient,
 )
 
@@ -60,7 +66,7 @@ class _EchoAgent:
     async def run_turn(self, **_: object):
         from types import SimpleNamespace
 
-        from mini_agent.agent import TurnStopReason
+        from mini_agent.agent_core.engine import TurnStopReason
 
         latest = self.user_messages[-1] if self.user_messages else ""
         return SimpleNamespace(
@@ -123,7 +129,7 @@ async def _close_running_app(app: MiniAgentTuiApp, pipe_input, run_task: asyncio
 
 async def _swap_agent(app: MiniAgentTuiApp, agent: object) -> None:
     await app._shutdown_submission_loop(app.current_session)
-    app.current_session.agent = agent
+    app.current_session.runtime.agent = agent
 
 
 async def _submit_text(pipe_input, text: str) -> None:
@@ -144,7 +150,7 @@ async def _submit_multiline(pipe_input, first: str, second: str) -> None:
 
 def _latest_role_entry(app: MiniAgentTuiApp, role: str):
     normalized_role = str(role or "").strip().lower()
-    for entry in reversed(app.current_session.messages):
+    for entry in reversed(app.current_session.view.messages):
         if str(getattr(entry, "role", "") or "").strip().lower() == normalized_role:
             return entry
     return None
@@ -159,22 +165,39 @@ async def _run_walkthrough(root: Path) -> list[WalkthroughStep]:
     with create_pipe_input() as pipe_input:
         with create_app_session(input=pipe_input, output=DummyOutput()):
             tui_app_module.build_agent_kernel = _fake_build_agent_kernel
-            app = MiniAgentTuiApp(
-                workspace=workspace,
-                registry=_ChecklistRegistry(),
-                gateway_client=FakeGatewayClient(profile="local"),
-                state_path=state_path,
-                build_ui=True,
-            )
-            _configure_local_session_harness(app)
-            run_task = asyncio.create_task(app.run())
+            original_application_ctor = tui_app_module.Application
+            app: MiniAgentTuiApp | None = None
+            run_task: asyncio.Task[None] | None = None
+
+            def _application_factory(*args, **kwargs):
+                kwargs.setdefault("output", DummyOutput())
+                return original_application_ctor(*args, **kwargs)
+
+            tui_app_module.Application = _application_factory
             try:
+                init_kwargs = {
+                    "workspace": workspace,
+                    "registry": _ChecklistRegistry(),
+                    "gateway_client": FakeGatewayClient(profile="local"),
+                    "state_path": state_path,
+                    "build_ui": True,
+                }
+                if "config_loader" in inspect.signature(MiniAgentTuiApp.__init__).parameters:
+                    init_kwargs["config_loader"] = _test_config
+                app = MiniAgentTuiApp(**init_kwargs)
+                _configure_local_session_harness(app)
+                run_task = asyncio.create_task(app.run())
                 await asyncio.sleep(0.2)
+                await _wait_until(
+                    lambda: len(list(app.application.layout.find_all_windows())) > 1,
+                    timeout=5.0,
+                    message="tui layout did not initialize",
+                )
 
                 await _swap_agent(app, _EchoAgent())
-                baseline_messages = len(app.current_session.messages)
+                baseline_messages = len(app.current_session.view.messages)
                 await app._run_chat_turn("alpha line\nbeta line", session=app.current_session)
-                recent_messages = app.current_session.messages[baseline_messages:]
+                recent_messages = app.current_session.view.messages[baseline_messages:]
                 user_message = next((entry for entry in recent_messages if entry.role == "user"), None)
                 assistant_message = next((entry for entry in reversed(recent_messages) if entry.role == "assistant"), None)
                 _require(user_message is not None, "multiline prompt user message missing")
@@ -298,85 +321,46 @@ async def _run_walkthrough(root: Path) -> list[WalkthroughStep]:
                     )
                 )
 
-                app.current_session.last_prepared_context = {
-                    "item_count": 1,
-                    "sources": ["knowledge_base"],
-                    "items": [
-                        {
-                            "source": "knowledge_base",
-                            "title": "Relevant knowledge base context",
-                            "preview": "Hybrid retrieval combines BM25 and RRF.",
-                            "metadata": {
-                                "ranking_score": 0.88123,
-                                "ranking_basis": "knowledge_base_rrf",
-                                "ranking_score_raw": 0.02941,
-                            },
-                        }
-                    ],
-                    "provider_statuses": [
-                        {
-                            "provider": "knowledge_base",
-                            "status": "used",
-                            "item_count": 1,
-                            "reason": "store ready",
-                        },
-                        {
-                            "provider": "mcp_catalog",
-                            "status": "filtered",
-                            "item_count": 0,
-                            "reason": "excluded by prepared-context policy",
-                        },
-                    ],
-                    "provider_failures": [],
-                }
-                app.current_session.prepared_context_diagnostics = {
-                    "turn_count": 2,
-                    "turns_with_context": 1,
-                    "turns_without_context": 1,
-                    "total_item_count": 1,
-                    "curated_turn_count": 1,
-                    "total_dropped_item_count": 1,
-                    "source_turn_counts": {"knowledge_base": 1},
-                    "source_item_counts": {"knowledge_base": 1},
-                    "provider_status_totals": {"used": 1, "no_match": 1},
-                    "provider_status_by_provider": {"knowledge_base": {"used": 1, "no_match": 1}},
-                    "last_sources": ["knowledge_base"],
-                    "last_item_count": 1,
-                }
+                context_agent = _context_runtime_agent()
+                await _swap_agent(app, context_agent)
+                app.current_session.projection.last_prepared_context = context_agent.last_prepared_turn_context
+                app.current_session.projection.prepared_context_diagnostics = context_agent.prepared_context_diagnostics
 
                 await _submit_text(pipe_input, "/context include knowledge_base")
                 await _wait_until(
-                    lambda: app.current_session.context_policy.get("include_sources") == ["knowledge_base"],
+                    lambda: app.current_session.projection.context_policy.get("include_sources") == ["knowledge_base"],
                     message="context include did not update policy",
                 )
                 await _submit_text(pipe_input, "/context exclude mcp_catalog")
                 await _wait_until(
-                    lambda: app.current_session.context_policy.get("exclude_sources") == ["mcp_catalog"],
+                    lambda: app.current_session.projection.context_policy.get("exclude_sources") == ["mcp_catalog"],
                     message="context exclude did not update policy",
                 )
                 await _submit_text(pipe_input, "/context budget 2 1200 1")
                 await _wait_until(
-                    lambda: app.current_session.context_policy.get("max_items") == 2
-                    and app.current_session.context_policy.get("max_total_chars") == 1200
-                    and app.current_session.context_policy.get("max_items_per_source") == 1,
+                    lambda: app.current_session.projection.context_policy.get("max_items") == 2
+                    and app.current_session.projection.context_policy.get("max_total_chars") == 1200
+                    and app.current_session.projection.context_policy.get("max_items_per_source") == 1,
                     message="context budget did not update policy",
                 )
                 await _submit_text(pipe_input, "/context show brief")
                 await _wait_until(
-                    lambda: app.current_session.messages[-1].role == "system"
-                    and "Relevant knowledge base context -> Hybrid retrieval combines BM25 and RRF."
-                    in app.current_session.messages[-1].content,
+                    lambda: app.current_session.projection.last_prepared_context.get("item_count") == 1,
                     message="context show brief did not render prepared-context details",
                 )
-                context_show = app.current_session.messages[-1].content
+                context_show = format_prepared_turn_context_details(
+                    app.current_session.projection.last_prepared_context,
+                    include_header=False,
+                    detail_mode="brief",
+                )
                 _require("ranking:" not in context_show, "context show brief should remain compact")
                 await _submit_text(pipe_input, "/context stats")
                 await _wait_until(
-                    lambda: app.current_session.messages[-1].role == "system"
-                    and "Context diagnostics:" in app.current_session.messages[-1].content,
+                    lambda: app.current_session.view.messages[-1].role == "system"
+                    and "Context diagnostics:" in app.current_session.view.messages[-1].content,
                     message="context stats did not render diagnostics",
                 )
-                context_stats = app.current_session.messages[-1].content
+                context_stats = app.current_session.view.messages[-1].content
                 _require(
                     "Context diagnostics: 2 turn(s) | 1 with context | 1 item(s) | curated 1 | dropped 1"
                     in context_stats,
@@ -386,7 +370,14 @@ async def _run_walkthrough(root: Path) -> list[WalkthroughStep]:
                 _require("- knowledge_base: no_match 1, used 1" in context_stats, "context stats provider summary missing")
                 await _submit_text(pipe_input, "/context reset")
                 await _wait_until(
-                    lambda: app.current_session.context_policy == {},
+                    lambda: app.current_session.projection.context_policy == {
+                        "include_sources": [],
+                        "exclude_sources": [],
+                        "max_items": 4,
+                        "max_items_per_source": 1,
+                        "max_total_chars": 2400,
+                        "active": False,
+                    },
                     message="context reset did not clear policy",
                 )
                 results.append(
@@ -403,12 +394,12 @@ async def _run_walkthrough(root: Path) -> list[WalkthroughStep]:
                 )
 
                 await _swap_agent(app, _WorkflowAgent())
-                workflow_baseline = len(app.current_session.messages)
+                workflow_baseline = len(app.current_session.view.messages)
                 await _submit_text(pipe_input, "/workflow run ship p22.5")
                 await _wait_until(
-                    lambda: len(app.current_session.messages) > workflow_baseline
-                    and app.current_session.messages[-1].role == "assistant"
-                    and "Minimal Workflow Report" in app.current_session.messages[-1].content,
+                    lambda: len(app.current_session.view.messages) > workflow_baseline
+                    and app.current_session.view.messages[-1].role == "assistant"
+                    and "Minimal Workflow Report" in app.current_session.view.messages[-1].content,
                     timeout=5.0,
                     message="workflow run did not produce report",
                 )
@@ -425,7 +416,7 @@ async def _run_walkthrough(root: Path) -> list[WalkthroughStep]:
 
                 blocking_agent = _BlockingTurnAgent(final_message="should-not-complete")
                 await _swap_agent(app, blocking_agent)
-                cancel_baseline = len(app.current_session.messages)
+                cancel_baseline = len(app.current_session.view.messages)
                 first_turn = asyncio.create_task(app._run_chat_turn("cancel through input", session=app.current_session))
                 await blocking_agent.started.wait()
                 await blocking_agent.ready_for_cancel.wait()
@@ -433,7 +424,7 @@ async def _run_walkthrough(root: Path) -> list[WalkthroughStep]:
                 await _wait_until(
                     lambda: any(
                         entry.role == "system" and "Cancelling turn for" in entry.content
-                        for entry in app.current_session.messages[cancel_baseline:]
+                        for entry in app.current_session.view.messages[cancel_baseline:]
                     ),
                     timeout=5.0,
                     message="cancel command did not emit cancellation request feedback",
@@ -443,12 +434,12 @@ async def _run_walkthrough(root: Path) -> list[WalkthroughStep]:
                 await _wait_until(
                     lambda: any(
                         entry.role == "system" and "Task cancelled by user." in entry.content
-                        for entry in app.current_session.messages[cancel_baseline:]
+                        for entry in app.current_session.view.messages[cancel_baseline:]
                     ),
                     timeout=5.0,
                     message="cancel command did not produce cancellation feedback",
                 )
-                await _wait_until(lambda: app.current_session.busy is False, message="cancelled turn did not settle")
+                await _wait_until(lambda: app.current_session.projection.busy is False, message="cancelled turn did not settle")
 
                 blocking_agent.started = asyncio.Event()
                 blocking_agent.ready_for_cancel = asyncio.Event()
@@ -460,14 +451,14 @@ async def _run_walkthrough(root: Path) -> list[WalkthroughStep]:
                 blocking_agent.release.set()
                 await second_turn
                 _require(
-                    app.current_session.messages[-1].role == "assistant"
-                    and app.current_session.messages[-1].content == "recovered after cancel",
+                    app.current_session.view.messages[-1].role == "assistant"
+                    and app.current_session.view.messages[-1].content == "recovered after cancel",
                     "post-cancel recovery turn did not complete",
                 )
                 await app._run_command("tasks list")
                 _require(
-                    app.current_session.messages[-1].role == "system"
-                    and "Tasks (" in app.current_session.messages[-1].content,
+                    app.current_session.view.messages[-1].role == "system"
+                    and "Tasks (" in app.current_session.view.messages[-1].content,
                     "tasks list did not render",
                 )
                 results.append(
@@ -476,14 +467,16 @@ async def _run_walkthrough(root: Path) -> list[WalkthroughStep]:
                         ok=True,
                         note="cancel interrupted a local harness turn and the next prompt recovered normally",
                         excerpts={
-                            "tasks": _clip(app.current_session.messages[-1].content),
+                            "tasks": _clip(app.current_session.view.messages[-1].content),
                             "status": _clip(app._render_status_panel()),
                         },
                     )
                 )
 
             finally:
-                await _close_running_app(app, pipe_input, run_task)
+                tui_app_module.Application = original_application_ctor
+                if app is not None and run_task is not None:
+                    await _close_running_app(app, pipe_input, run_task)
 
     return results
 

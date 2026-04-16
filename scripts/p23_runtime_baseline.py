@@ -23,9 +23,10 @@ SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from mini_agent.application import MainAgentGatewayUseCases
-from mini_agent.interfaces import MainAgentChatRequest
-from mini_agent.runtime.main_agent_runtime_manager import MainAgentRuntimeManager
+from mini_agent.application import MainAgentSurfaceService, SessionApplicationService  # noqa: E402
+from mini_agent.config import AgentConfig, Config, LLMConfig, ToolsConfig  # noqa: E402
+from mini_agent.interfaces import MainAgentChatRequest  # noqa: E402
+from mini_agent.runtime.main_agent_runtime_manager import MainAgentRuntimeManager  # noqa: E402
 
 
 class _BenchAgent:
@@ -75,6 +76,29 @@ def _format_bootstrap_error(exc: Exception):
     raise RuntimeError(str(exc))
 
 
+def _test_runtime_config() -> Config:
+    return Config(
+        llm=LLMConfig(
+            api_key="sk-test",
+            api_base="https://api.example.com/v1",
+            model="gpt-5.4",
+            provider="openai",
+        ),
+        agent=AgentConfig(
+            max_steps=8,
+            max_tool_calls_per_step=2,
+            system_prompt_path="system_prompt.md",
+        ),
+        tools=ToolsConfig(
+            enable_file_tools=False,
+            enable_bash=False,
+            enable_note=False,
+            enable_skills=False,
+            enable_mcp=False,
+        ),
+    )
+
+
 def _resolve_workspace_dir(workspace_dir: str | None) -> Path:
     return Path(workspace_dir or ".").resolve()
 
@@ -86,9 +110,10 @@ async def _run_benchmark(workspace: Path, runs: int) -> dict[str, Any]:
     runtime = MainAgentRuntimeManager(
         ttl_seconds=3600,
         build_agent=_build_agent,
+        load_runtime_config=_test_runtime_config,
     )
-    use_cases = MainAgentGatewayUseCases(
-        runtime_manager=runtime,
+    use_cases = MainAgentSurfaceService(
+        session_service=SessionApplicationService(runtime_manager=runtime),
         resolve_workspace_dir=_resolve_workspace_dir,
         to_utc_iso=_to_utc_iso,
         sse_event=_sse_event,

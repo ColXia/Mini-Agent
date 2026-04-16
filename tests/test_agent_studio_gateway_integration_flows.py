@@ -81,7 +81,7 @@ def test_integration_novel_profile_and_channel_novel_action() -> None:
             channel_action = client.post(
                 "/api/v1/channel/message",
                 json={
-                    "channel_type": "wechat",
+                    "channel_type": "qq",
                     "conversation_id": "dm:integration-novel",
                     "message": "ignored",
                     "metadata": {

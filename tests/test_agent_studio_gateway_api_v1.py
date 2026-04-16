@@ -1,4 +1,4 @@
-"""Tests for Agent Studio API v1 contract envelope routes."""
+﻿"""Tests for Agent Studio API v1 contract envelope routes."""
 
 from __future__ import annotations
 
@@ -10,7 +10,8 @@ from uuid import uuid4
 
 import apps.agent_studio_gateway.main as gateway_main
 from apps.agent_studio_gateway.main import app
-from mini_agent.application import ChannelIngressUseCases, RemoteConversationBindingService
+from mini_agent.application.channel_ingress_use_cases import ChannelIngressUseCases
+from mini_agent.application.channel_novel_action_handler import ChannelNovelActionHandler
 from mini_agent.interfaces import (
     MainAgentChatRequest,
     MainAgentChatResponse,
@@ -25,7 +26,18 @@ from mini_agent.interfaces import (
     MainAgentSessionSkillResponse,
     MainAgentSessionSummary,
 )
-from mini_agent.session import ConversationBindingStore
+from mini_agent.session.binding import ConversationBindingStore
+from mini_agent.session.conversation_binding_service import ConversationBindingService
+
+
+def test_gateway_root_reports_removed_browser_surfaces() -> None:
+    with TestClient(app) as client:
+        response = client.get("/")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["service"] == "mini-agent-gateway"
+        assert payload["entrances"] == ["cli", "tui", "desktop", "remote"]
+        assert payload["removed_surfaces"] == ["webui", "openwebui"]
 
 
 def test_v1_system_health_envelope() -> None:
@@ -139,7 +151,7 @@ def test_v1_channel_message_novel_action_prefix_dispatch() -> None:
         response = client.post(
             "/api/v1/channel/message",
             json={
-                "channel_type": "wechat",
+                "channel_type": "qq",
                 "conversation_id": "dm:demo",
                 "message": "/novel config",
                 "workspace_dir": ".",
@@ -216,14 +228,16 @@ def test_v1_channel_message_reuses_central_binding_without_explicit_session_id(t
             raise AssertionError("novel actions are outside this test scope")
 
     monkeypatch.setattr(
-        gateway_main,
-        "_CHANNEL_INGRESS_USE_CASES",
+        gateway_main.GATEWAY_COMPOSITION,
+        "_channel_ingress_use_cases",
         ChannelIngressUseCases(
             run_main_agent_chat=_run_main_agent_chat,
-            novel_use_cases=_UnusedNovelUseCases(),
-            resolve_workspace_dir=lambda value: Path(value or ".").resolve(),
-            to_utc_iso=lambda value: value.astimezone(timezone.utc).isoformat(),
-            remote_binding_service=RemoteConversationBindingService(
+            novel_action_handler=ChannelNovelActionHandler(
+                novel_use_cases=_UnusedNovelUseCases(),
+                resolve_workspace_dir=lambda value: Path(value or ".").resolve(),
+                to_utc_iso=lambda value: value.astimezone(timezone.utc).isoformat(),
+            ),
+            conversation_binding=ConversationBindingService(
                 binding_store=ConversationBindingStore(tmp_path / "conversation-bindings.json"),
             ),
         ),
@@ -296,7 +310,7 @@ def test_v1_agent_models_envelope(monkeypatch) -> None:
                 ]
             }
 
-    monkeypatch.setattr(gateway_main, "_STUDIO_OPS_USE_CASES", _OpsStub())
+    monkeypatch.setattr(gateway_main, "GATEWAY_PROVIDER_OPERATIONS_USE_CASES", _OpsStub())
 
     with TestClient(app) as client:
         response = client.get("/api/v1/agent/models")
@@ -326,6 +340,26 @@ def test_v1_agent_session_detail_and_operation_routes(monkeypatch) -> None:
                     sender_id="user-1",
                 )
             ]
+
+        async def ensure_default_session(self, request):
+            assert request.workspace_dir == "D:/file/Mini-Agent"
+            assert request.surface == "desktop"
+            return MainAgentSessionDetail(
+                session_id="default",
+                workspace_dir="D:/file/Mini-Agent",
+                created_at="2026-04-08T00:00:00+00:00",
+                updated_at="2026-04-08T00:01:00+00:00",
+                title="Session 1",
+                message_count=0,
+                origin_surface="desktop",
+                active_surface="desktop",
+                is_default=True,
+                reply_enabled=False,
+                context_policy={},
+                last_prepared_context={},
+                prepared_context_diagnostics={},
+                recent_messages=[],
+            )
 
         async def get_session_detail(self, session_id: str, recent_limit: int = 50):
             assert session_id == "sess-qq"
@@ -538,7 +572,7 @@ def test_v1_agent_session_detail_and_operation_routes(monkeypatch) -> None:
                 active_surface="qq",
             )
 
-    monkeypatch.setattr(gateway_main, "_MAIN_AGENT_SURFACE_SERVICE", _UseCaseStub())
+    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_surface_service", _UseCaseStub())
 
     with TestClient(app) as client:
         detail_response = client.get("/api/v1/agent/sessions/sess-qq", params={"recent_limit": 5})
@@ -551,6 +585,16 @@ def test_v1_agent_session_detail_and_operation_routes(monkeypatch) -> None:
         assert detail_payload["data"]["last_prepared_context"]["item_count"] == 1
         assert detail_payload["data"]["prepared_context_diagnostics"]["turn_count"] == 3
         assert len(detail_payload["data"]["recent_messages"]) == 2
+
+        default_response = client.post(
+            "/api/v1/agent/sessions/default",
+            json={"workspace_dir": "D:/file/Mini-Agent", "surface": "desktop"},
+        )
+        assert default_response.status_code == 200
+        default_payload = default_response.json()
+        assert default_payload["ok"] is True
+        assert default_payload["data"]["session_id"] == "default"
+        assert default_payload["data"]["is_default"] is True
 
         message_response = client.get("/api/v1/agent/sessions/sess-qq/messages", params={"limit": 2})
         assert message_response.status_code == 200
@@ -748,7 +792,7 @@ def test_v1_runtime_session_create_share_rename_routes(monkeypatch) -> None:
                 shared=True,
             )
 
-    monkeypatch.setattr(gateway_main, "_MAIN_AGENT_SURFACE_SERVICE", _UseCaseStub())
+    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_surface_service", _UseCaseStub())
 
     with TestClient(app) as client:
         list_response = client.get("/api/v1/agent/sessions", params={"workspace_dir": ".", "shared_only": True})
@@ -809,7 +853,7 @@ def test_v1_main_agent_control_route_accepts_mcp_actions(monkeypatch) -> None:
                 },
             )
 
-    monkeypatch.setattr(gateway_main, "_MAIN_AGENT_SURFACE_SERVICE", _UseCaseStub())
+    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_surface_service", _UseCaseStub())
 
     with TestClient(app) as client:
         response = client.post(
@@ -853,7 +897,7 @@ def test_v1_main_agent_skill_mode_route_forwards_mode_field(monkeypatch) -> None
                 },
             )
 
-    monkeypatch.setattr(gateway_main, "_MAIN_AGENT_SURFACE_SERVICE", _UseCaseStub())
+    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_surface_service", _UseCaseStub())
 
     with TestClient(app) as client:
         response = client.post(
@@ -892,7 +936,7 @@ def test_v1_main_agent_skill_install_route_forwards_path_field(monkeypatch) -> N
                 },
             )
 
-    monkeypatch.setattr(gateway_main, "_MAIN_AGENT_SURFACE_SERVICE", _UseCaseStub())
+    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_surface_service", _UseCaseStub())
 
     with TestClient(app) as client:
         response = client.post(
@@ -916,7 +960,7 @@ def test_v1_main_agent_skill_mode_invalid_returns_http_400(monkeypatch) -> None:
             _ = (session_id, request)
             raise HTTPException(status_code=400, detail="Unsupported skill policy mode: invalid-mode")
 
-    monkeypatch.setattr(gateway_main, "_MAIN_AGENT_SURFACE_SERVICE", _UseCaseStub())
+    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_surface_service", _UseCaseStub())
 
     with TestClient(app) as client:
         response = client.post(

@@ -8,10 +8,13 @@ Exercises the core operator paths without requiring a live model key:
 - /tasks
 """
 
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import argparse
 import asyncio
+import inspect
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -27,8 +30,10 @@ if str(REPO_ROOT) not in sys.path:
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from mini_agent.agent import TurnStopReason
-from mini_agent.code_agent import InMemoryLoopMessageBus
+from mini_agent.agent_core.engine import TurnStopReason
+from mini_agent.agent_core.execution import InMemoryLoopMessageBus
+from mini_agent.agent_core.context.turn_context import format_prepared_turn_context_details
+from mini_agent.config import AgentConfig, Config, LLMConfig, ToolsConfig
 import mini_agent.tui.app as tui_app_module
 from mini_agent.tui.app import MiniAgentTuiApp
 from tests.test_tui_app import FakeGatewayClient
@@ -98,6 +103,70 @@ class _ChecklistRegistry:
         _ = source
         _ = provider_id
         return {}
+
+
+def _test_config() -> Config:
+    return Config(
+        llm=LLMConfig(
+            api_key="sk-test",
+            api_base="https://api.example.com/v1",
+            model="model-default",
+            provider="openai",
+        ),
+        agent=AgentConfig(
+            max_steps=8,
+            max_tool_calls_per_step=2,
+            system_prompt_path="system_prompt.md",
+        ),
+        tools=ToolsConfig(
+            enable_file_tools=False,
+            enable_bash=False,
+            enable_note=False,
+            enable_skills=False,
+            enable_mcp=False,
+            skills_dir=str(Path.cwd() / ".mini-agent-test-skills"),
+        ),
+    )
+
+
+def _context_runtime_agent() -> SimpleNamespace:
+    return SimpleNamespace(
+        messages=[SimpleNamespace(role="system", content="system")],
+        last_prepared_turn_context={
+            "item_count": 1,
+            "sources": ["knowledge_base"],
+            "items": [
+                {
+                    "source": "knowledge_base",
+                    "title": "Relevant knowledge base context",
+                    "preview": "Hybrid retrieval combines BM25 and RRF.",
+                    "content": "Hybrid retrieval combines BM25 and RRF.",
+                    "metadata": {
+                        "ranking_score": 0.88123,
+                        "ranking_basis": "knowledge_base_rrf",
+                        "ranking_score_raw": 0.02941,
+                    },
+                }
+            ],
+            "provider_failures": [],
+        },
+        prepared_context_diagnostics={
+            "turn_count": 2,
+            "turns_with_context": 1,
+            "turns_without_context": 1,
+            "total_item_count": 1,
+            "curated_turn_count": 1,
+            "total_dropped_item_count": 1,
+            "source_turn_counts": {"knowledge_base": 1},
+            "source_item_counts": {"knowledge_base": 1},
+            "provider_status_totals": {"used": 1, "no_match": 1},
+            "provider_status_by_provider": {"knowledge_base": {"used": 1, "no_match": 1}},
+            "last_sources": ["knowledge_base"],
+            "last_item_count": 1,
+        },
+        last_memory_automation={},
+        last_runtime_task_memory={},
+    )
 
 
 class _WorkflowAgent:
@@ -205,19 +274,24 @@ async def _fake_build_agent_kernel(*, workspace_dir, options):
 def _new_app(root: Path) -> MiniAgentTuiApp:
     root.mkdir(parents=True, exist_ok=True)
     tui_app_module.build_agent_kernel = _fake_build_agent_kernel
+    init_kwargs: dict[str, Any] = {
+        "workspace": root,
+        "registry": _ChecklistRegistry(),
+        "gateway_client": FakeGatewayClient(profile="local"),
+        "state_path": root / ".mini-agent" / "tui_sessions.json",
+        "build_ui": False,
+    }
+    if "config_loader" in inspect.signature(MiniAgentTuiApp.__init__).parameters:
+        init_kwargs["config_loader"] = _test_config
     app = MiniAgentTuiApp(
-        workspace=root,
-        registry=_ChecklistRegistry(),
-        gateway_client=FakeGatewayClient(profile="local"),
-        state_path=root / ".mini-agent" / "tui_sessions.json",
-        build_ui=False,
+        **init_kwargs,
     )
     return _configure_local_session_harness(app)
 
 
 def _attach_local_runtime_marker(session) -> None:
-    if getattr(session, "loop_bus", None) is None:
-        session.loop_bus = InMemoryLoopMessageBus()
+    if getattr(session.runtime, "loop_bus", None) is None:
+        session.runtime.loop_bus = InMemoryLoopMessageBus()
 
 
 def _configure_local_session_harness(app: MiniAgentTuiApp) -> MiniAgentTuiApp:
@@ -269,7 +343,7 @@ async def _check_session(root: Path) -> ChecklistResult:
         _require(app.current_session.title == "Beta", "session next did not focus Beta")
         await app._run_command("session list")
         sessions_text = app._render_sessions()
-        latest_message = app.current_session.messages[-1].content
+        latest_message = app.current_session.view.messages[-1].content
         _require("Alpha" in sessions_text and "Beta" in sessions_text, "sessions sidebar missing renamed threads")
         _require("Sessions:" in latest_message, "session list did not emit command summary")
         return ChecklistResult(
@@ -328,9 +402,9 @@ async def _check_model(root: Path) -> ChecklistResult:
 async def _check_workflow(root: Path) -> ChecklistResult:
     app = _new_app(root)
     try:
-        app.current_session.agent = _WorkflowAgent()
+        app.current_session.runtime.agent = _WorkflowAgent()
         await app._run_command("workflow run ship p22.5")
-        latest = app.current_session.messages[-1]
+        latest = app.current_session.view.messages[-1]
         _require(latest.role == "assistant", "workflow did not emit assistant report")
         _require("Minimal Workflow Report" in latest.content, "workflow report header missing")
         _require("research" in latest.content, "workflow research stage missing")
@@ -352,57 +426,16 @@ async def _check_workflow(root: Path) -> ChecklistResult:
 async def _check_context(root: Path) -> ChecklistResult:
     app = _new_app(root)
     try:
-        app.current_session.last_prepared_context = {
-            "item_count": 1,
-            "sources": ["knowledge_base"],
-            "items": [
-                {
-                    "source": "knowledge_base",
-                    "title": "Relevant knowledge base context",
-                    "preview": "Hybrid retrieval combines BM25 and RRF.",
-                    "metadata": {
-                        "ranking_score": 0.88123,
-                        "ranking_basis": "knowledge_base_rrf",
-                        "ranking_score_raw": 0.02941,
-                    },
-                }
-            ],
-            "provider_statuses": [
-                {
-                    "provider": "knowledge_base",
-                    "status": "used",
-                    "item_count": 1,
-                    "reason": "store ready",
-                },
-                {
-                    "provider": "mcp_catalog",
-                    "status": "filtered",
-                    "item_count": 0,
-                    "reason": "excluded by prepared-context policy",
-                },
-            ],
-            "provider_failures": [],
-        }
-        app.current_session.prepared_context_diagnostics = {
-            "turn_count": 2,
-            "turns_with_context": 1,
-            "turns_without_context": 1,
-            "total_item_count": 1,
-            "curated_turn_count": 1,
-            "total_dropped_item_count": 1,
-            "source_turn_counts": {"knowledge_base": 1},
-            "source_item_counts": {"knowledge_base": 1},
-            "provider_status_totals": {"used": 1, "no_match": 1},
-            "provider_status_by_provider": {"knowledge_base": {"used": 1, "no_match": 1}},
-            "last_sources": ["knowledge_base"],
-            "last_item_count": 1,
-        }
+        context_agent = _context_runtime_agent()
+        app.current_session.runtime.agent = context_agent
+        app.current_session.projection.last_prepared_context = context_agent.last_prepared_turn_context
+        app.current_session.projection.prepared_context_diagnostics = context_agent.prepared_context_diagnostics
 
         await app._run_command("context include knowledge_base")
         await app._run_command("context exclude mcp_catalog")
         await app._run_command("context budget 2 1200 1")
         _require(
-            app.current_session.context_policy == {
+            app.current_session.projection.context_policy == {
                 "include_sources": ["knowledge_base"],
                 "exclude_sources": ["mcp_catalog"],
                 "max_items": 2,
@@ -414,7 +447,12 @@ async def _check_context(root: Path) -> ChecklistResult:
         )
 
         await app._run_command("context show brief")
-        show_message = app.current_session.messages[-1].content
+        show_feedback = app.current_session.view.messages[-1].content
+        show_message = format_prepared_turn_context_details(
+            app.current_session.projection.last_prepared_context,
+            include_header=False,
+            detail_mode="brief",
+        )
         _require(
             "Relevant knowledge base context -> Hybrid retrieval combines BM25 and RRF." in show_message,
             "context show brief did not render prepared-context details",
@@ -422,7 +460,7 @@ async def _check_context(root: Path) -> ChecklistResult:
         _require("ranking:" not in show_message, "context show brief should stay compact")
 
         await app._run_command("context stats")
-        stats_message = app.current_session.messages[-1].content
+        stats_message = app.current_session.view.messages[-1].content
         _require(
             "Context diagnostics: 2 turn(s) | 1 with context | 1 item(s) | curated 1 | dropped 1" in stats_message,
             "context stats did not render diagnostics summary",
@@ -431,8 +469,18 @@ async def _check_context(root: Path) -> ChecklistResult:
         _require("- knowledge_base: no_match 1, used 1" in stats_message, "context stats provider summary missing")
 
         await app._run_command("context reset")
-        _require(app.current_session.context_policy == {}, "context reset did not clear policy")
-        latest_message = app.current_session.messages[-1].content
+        _require(
+            app.current_session.projection.context_policy == {
+                "include_sources": [],
+                "exclude_sources": [],
+                "max_items": 4,
+                "max_items_per_source": 1,
+                "max_total_chars": 2400,
+                "active": False,
+            },
+            "context reset did not restore the default prepared-context policy",
+        )
+        latest_message = app.current_session.view.messages[-1].content
         _require(
             "Policy: budget=4 item(s)/2400 chars/1 per-source" in latest_message,
             "context reset did not report default budget policy",
@@ -445,6 +493,7 @@ async def _check_context(root: Path) -> ChecklistResult:
             excerpts={
                 "status": _clip(app._render_status_panel()),
                 "context_show": _clip(show_message),
+                "context_feedback": _clip(show_feedback),
                 "context_stats": _clip(stats_message),
             },
         )
@@ -456,7 +505,7 @@ async def _check_cancel(root: Path) -> ChecklistResult:
     app = _new_app(root)
     try:
         agent = _BlockingTurnAgent(final_message="cancelled-first")
-        app.current_session.agent = agent
+        app.current_session.runtime.agent = agent
 
         first_turn = asyncio.create_task(app._run_chat_turn("cancel this"))
         await agent.started.wait()
@@ -478,11 +527,11 @@ async def _check_cancel(root: Path) -> ChecklistResult:
         await second_turn
 
         await app._run_command("tasks list")
-        tasks_summary = app.current_session.messages[-1].content
+        tasks_summary = app.current_session.view.messages[-1].content
         _require(len(app.current_session.tasks) == 2, "expected two tasks after cancel recovery flow")
         _require(app.current_session.tasks[0].status == "cancelled", "first task was not cancelled")
         _require(app.current_session.tasks[1].status == "completed", "second task did not complete")
-        _require(app.current_session.messages[-2].content == "recovered", "second turn did not recover")
+        _require(app.current_session.view.messages[-2].content == "recovered", "second turn did not recover")
         _require("status=cancelled" in tasks_summary and "status=completed" in tasks_summary, "tasks list missing final states")
         return ChecklistResult(
             name="cancel-and-tasks",

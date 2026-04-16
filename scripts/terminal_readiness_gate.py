@@ -29,14 +29,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 OFFICIAL_PRESET_ENV_KEYS = (
     "OPENAI_API_KEY",
     "ANTHROPIC_API_KEY",
-    "GEMINI_API_KEY",
     "MINIMAX_API_KEY",
 )
 PLACEHOLDER_KEYS = {
     "YOUR_API_KEY_HERE",
     "YOUR_OPENAI_API_KEY_HERE",
     "YOUR_ANTHROPIC_API_KEY_HERE",
-    "YOUR_GEMINI_API_KEY_HERE",
     "YOUR_MINIMAX_API_KEY_HERE",
     "your_api_key",
     "your-api-key",
@@ -452,7 +450,7 @@ def main(argv: list[str] | None = None) -> int:
             if not _has_any_real_key():
                 raise RuntimeError(
                     "Live headless smoke requested but no valid provider key found "
-                    "(env: OPENAI/ANTHROPIC/GEMINI/MINIMAX or .env.local)."
+                    "(env: OPENAI/ANTHROPIC/MINIMAX or .env.local)."
                 )
             results.append(
                 _run_step(
@@ -519,7 +517,7 @@ def main(argv: list[str] | None = None) -> int:
                     "-m",
                     "pytest",
                     "tests/test_agent_core_kernel.py",
-                    "tests/test_code_agent_minimal_workflow.py",
+                    "tests/test_agent_core_execution_minimal_workflow.py",
                     "tests/test_cli_unified_mode.py",
                     "tests/test_cli_submission_loop.py",
                     "tests/test_channel_ingress_gateway_walkthrough.py",
@@ -527,7 +525,7 @@ def main(argv: list[str] | None = None) -> int:
                     "tests/test_terminal_readiness_gate.py",
                     "tests/test_tui_readiness_walkthroughs.py",
                     "tests/test_tui_app.py",
-                    "tests/test_main_agent_gateway_use_cases.py",
+                    "tests/test_main_agent_surface_service.py",
                     "-q",
                 ],
                 env=env,
