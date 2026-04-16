@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import contextmanager
 from dataclasses import dataclass
 from types import SimpleNamespace
 
 import pytest
 
-from mini_agent.agent_core.engine import Agent, TurnExecutionResult, TurnStopReason
+from mini_agent.agent_core.engine import Agent, AgentExecutionPolicy, TurnExecutionResult, TurnStopReason
 from mini_agent.agent_core.context.context_compaction import estimate_tokens
 from mini_agent.agent_core.execution import ApprovalEngine, PermissionPolicy
 from mini_agent.agent_core.execution import AgentLoopContext, AgentSubmissionLoop, InMemoryLoopMessageBus
@@ -111,8 +112,31 @@ class _HookedFakeAgent(_FakeAgent):
 class _ObservedPolicyAgent(_FakeAgent):
     def __init__(self) -> None:
         super().__init__()
+        self.execution_policy = AgentExecutionPolicy(
+            max_steps=self.max_steps,
+            max_tool_calls_per_step=self.max_tool_calls_per_step,
+        )
         self.policy_types_during_run: list[str] = []
         self.policy_values_during_run: list[tuple[object, object]] = []
+
+    @contextmanager
+    def override_execution_policy(self, policy):  # noqa: ANN001
+        previous_policy = self.execution_policy
+        previous_max_steps = self.max_steps
+        previous_max_tool_calls = self.max_tool_calls_per_step
+        normalized_policy = AgentExecutionPolicy(
+            max_steps=policy.max_steps,
+            max_tool_calls_per_step=policy.max_tool_calls_per_step,
+        )
+        self.execution_policy = normalized_policy
+        self.max_steps = normalized_policy.max_steps
+        self.max_tool_calls_per_step = normalized_policy.max_tool_calls_per_step
+        try:
+            yield previous_policy
+        finally:
+            self.execution_policy = previous_policy
+            self.max_steps = previous_max_steps
+            self.max_tool_calls_per_step = previous_max_tool_calls
 
     async def run_turn(self, *, cancel_event=None, hooks=None, turn_context=None, start_new_run=True):  # noqa: ANN001
         del cancel_event
@@ -120,12 +144,12 @@ class _ObservedPolicyAgent(_FakeAgent):
         del turn_context
         policy = self.execution_policy
         self.policy_types_during_run.append(type(policy).__name__)
-        if isinstance(policy, dict):
-            self.policy_values_during_run.append(
-                (policy.get("max_steps"), policy.get("max_tool_calls_per_step"))
+        self.policy_values_during_run.append(
+            (
+                getattr(policy, "max_steps", None),
+                getattr(policy, "max_tool_calls_per_step", None),
             )
-        else:
-            self.policy_values_during_run.append((None, None))
+        )
         self.run_turn_calls.append(
             {
                 "max_steps": self.max_steps,
@@ -284,8 +308,31 @@ async def test_submission_loop_preserves_execution_policy_shape_during_turn_over
     await loop.join()
     await loop.stop()
 
-    assert agent.policy_types_during_run == ["dict"]
+    assert agent.policy_types_during_run == ["AgentExecutionPolicy"]
     assert agent.policy_values_during_run == [(5, 2)]
+    assert isinstance(agent.execution_policy, AgentExecutionPolicy)
+    assert agent.execution_policy.max_steps == 99
+    assert agent.execution_policy.max_tool_calls_per_step == 9
+
+
+@pytest.mark.asyncio
+async def test_submission_loop_fallback_override_keeps_legacy_execution_policy_shape():
+    bus = InMemoryLoopMessageBus()
+    config = _Config(agent=_AgentConfig(max_steps=20, max_tool_calls_per_step=3))
+    context = AgentLoopContext(config=config, message_bus=bus, session_id="session-policy-fallback")
+    agent = _FakeAgent()
+    loop = AgentSubmissionLoop(context=context, agent_factory=lambda _ctx: agent)
+
+    await loop.start()
+    await loop.submit_user_input(
+        "observe-policy-fallback",
+        policy_overrides={"max_steps": 5, "max_tool_calls_per_step": 2},
+    )
+    await loop.join()
+    await loop.stop()
+
+    assert agent.run_turn_calls[0]["max_steps"] == 5
+    assert agent.run_turn_calls[0]["max_tool_calls_per_step"] == 2
     assert isinstance(agent.execution_policy, dict)
     assert agent.execution_policy["max_steps"] == 99
     assert agent.execution_policy["max_tool_calls_per_step"] == 9
