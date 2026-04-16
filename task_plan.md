@@ -1,5 +1,137 @@
 # Task Plan
 
+## Latest Sync: 2026-04-16 P40.11 Runtime MCP Control Support Landing
+
+## Current Execution Slice: P40.11 Runtime MCP Control Support Landing (2026-04-16)
+
+### Why This Slice Is Next
+
+- after `P40.10`, the remaining runtime control residue still had one support seam that could be landed honestly without reopening the broader operator/manager adoption line:
+  - `src/mini_agent/runtime/session_mcp_control_handler.py`
+  - `src/mini_agent/tools/mcp/command_service.py`
+  - their focused tests
+- this seam stayed narrower than the remaining adoption work because:
+  - the handler and command service are both still untracked support files
+  - focused tests cover them directly
+  - the broader `session_operator_handler.py` and `main_agent_runtime_manager.py` diffs are still mixed with manager/runtime adoption
+
+### Scope
+
+- land the shared MCP control support layer:
+  - `src/mini_agent/tools/mcp/command_service.py`
+  - `src/mini_agent/runtime/session_mcp_control_handler.py`
+- land focused regression coverage:
+  - `tests/test_runtime_session_mcp_control_handler.py`
+  - `tests/test_mcp_command_service_feedback.py`
+- keep operator/manager adoption out of this cut
+
+### Acceptance
+
+- runtime and local MCP control semantics have maintained shared owners for:
+  - action validation
+  - reload conflict behavior
+  - snapshot-based summary/details formatting
+  - local MCP reload success/warm-reload text
+- focused MCP support tests and lint are green
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- landed commit:
+  - `9942b26`
+  - `p40: land runtime mcp control support`
+- focused verification:
+  - `uv run pytest tests/test_runtime_session_mcp_control_handler.py tests/test_mcp_command_service_feedback.py -q`
+  - result: `6 passed`
+  - `uv run ruff check src/mini_agent/tools/mcp/command_service.py src/mini_agent/runtime/session_mcp_control_handler.py tests/test_runtime_session_mcp_control_handler.py tests/test_mcp_command_service_feedback.py`
+  - result: `All checks passed!`
+- post-commit residual snapshot from `python scripts/worktree_slice_report.py`:
+  - total dirty paths: `158 -> 154`
+  - `runtime-session-contract`: `26 -> 24`
+  - `unmatched_count`: `6 -> 5`
+- important boundary result:
+  - the remaining runtime residue is now even more honestly concentrated in modified adoption files rather than missing support modules
+  - the remaining runtime cluster is primarily:
+    - `main_agent_runtime_manager.py`
+    - `session_operator_handler.py`
+    - `session_agent_runtime_handler.py`
+    - `session_live_state_handler.py`
+    - `session_memory_command_handler.py`
+    - legacy handler deletions and their adoption cleanup
+
+### Next Likely Seam
+
+- current recommended next slice remains `runtime-session-contract`
+- but the next honest cut is no longer another support-file landing
+- it now has to be a compatibility/adoption slice across the modified runtime files, likely split around:
+  - manager/live-state compatibility
+  - operator/agent-runtime adoption
+  - legacy handler deletion closure
+
+## Latest Sync: 2026-04-16 P40.10 Runtime Control Support Modules Landing
+
+## Current Execution Slice: P40.10 Runtime Control Support Modules Landing (2026-04-16)
+
+### Why This Slice Is Next
+
+- after `P40.9`, the broader `runtime-session-contract` residue was still too mixed to land as one operator/manager commit
+- the next honest narrow cut was the still-untracked support module group that had already stabilized under focused tests:
+  - `runtime_policy_service.py`
+  - `session_admin_handler.py`
+  - `session_agent_control_handler.py`
+  - `session_control_models.py`
+- these files were support owners, not manager adoption
+- landing them first reduced the dirty-tree chaos without forcing the remaining modified runtime files into the same commit
+
+### Scope
+
+- land the support modules:
+  - `src/mini_agent/runtime/runtime_policy_service.py`
+  - `src/mini_agent/runtime/session_admin_handler.py`
+  - `src/mini_agent/runtime/session_agent_control_handler.py`
+  - `src/mini_agent/runtime/session_control_models.py`
+- land focused tests:
+  - `tests/test_runtime_policy_service.py`
+  - `tests/test_runtime_session_admin_handler.py`
+  - `tests/test_runtime_session_agent_control_handler.py`
+- keep manager/operator adoption out of this cut
+
+### Acceptance
+
+- runtime policy planning/feedback has a dedicated shared owner
+- session admin mutations have a dedicated shared owner
+- session agent-control semantics have a dedicated shared owner
+- focused support tests and lint are green
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- landed commit:
+  - `ec1e1c6`
+  - `p40: land runtime control support modules`
+- focused verification:
+  - `uv run pytest tests/test_runtime_policy_service.py tests/test_runtime_session_admin_handler.py tests/test_runtime_session_agent_control_handler.py -q`
+  - result: `10 passed`
+  - `uv run ruff check src/mini_agent/runtime/runtime_policy_service.py src/mini_agent/runtime/session_admin_handler.py src/mini_agent/runtime/session_agent_control_handler.py src/mini_agent/runtime/session_control_models.py tests/test_runtime_policy_service.py tests/test_runtime_session_admin_handler.py tests/test_runtime_session_agent_control_handler.py`
+  - result: `All checks passed!`
+- post-commit residual snapshot from `python scripts/worktree_slice_report.py`:
+  - total dirty paths: `165 -> 158`
+  - `runtime-session-contract`: `33 -> 26`
+- important boundary result:
+  - the runtime control area no longer depends on a pile of untracked support modules for policy/admin/agent-control semantics
+  - the remaining runtime residue is more clearly an adoption/compatibility problem, not a missing-module problem
+
+### Next Likely Seam
+
+- after this cut, the next clean support candidate inside runtime control was the isolated MCP support layer
+- broader operator/manager convergence still remained too mixed for the immediate next commit
+
 ## Latest Sync: 2026-04-16 P40.9 Runtime Interrupt / Pending-Approval Support Landing
 
 ## Current Execution Slice: P40.9 Runtime Interrupt / Pending-Approval Support Landing (2026-04-16)

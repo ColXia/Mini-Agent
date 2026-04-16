@@ -1,5 +1,58 @@
 # Progress
 
+## 2026-04-16 P40.11 Runtime MCP Control Support Landing
+
+- [completed] re-audited the post-`P40.10` runtime control residue and identified one remaining support-only MCP seam that could land independently
+- [completed] landed the shared MCP control support files:
+  - `src/mini_agent/tools/mcp/command_service.py`
+  - `src/mini_agent/runtime/session_mcp_control_handler.py`
+- [completed] landed focused regression coverage:
+  - `tests/test_runtime_session_mcp_control_handler.py`
+  - `tests/test_mcp_command_service_feedback.py`
+- [completed] verified the narrowed MCP support slice:
+  - `uv run pytest tests/test_runtime_session_mcp_control_handler.py tests/test_mcp_command_service_feedback.py -q`
+  - result: `6 passed`
+  - `uv run ruff check src/mini_agent/tools/mcp/command_service.py src/mini_agent/runtime/session_mcp_control_handler.py tests/test_runtime_session_mcp_control_handler.py tests/test_mcp_command_service_feedback.py`
+  - result: `All checks passed!`
+- [completed] committed the narrowed slice:
+  - commit: `9942b26`
+  - message: `p40: land runtime mcp control support`
+- [completed] re-ran the dirty-worktree classifier after the commit:
+  - `python scripts/worktree_slice_report.py`
+  - result:
+    - total dirty paths: `154`
+    - `runtime-session-contract`: `24`
+    - recommended next slice remains `runtime-session-contract`
+- [next] reopen the remaining runtime residue as an adoption/compatibility line rather than another support-file landing
+
+## 2026-04-16 P40.10 Runtime Control Support Modules Landing
+
+- [completed] re-audited the post-`P40.9` runtime control residue and narrowed it to the stable support-module bundle
+- [completed] landed:
+  - `src/mini_agent/runtime/runtime_policy_service.py`
+  - `src/mini_agent/runtime/session_admin_handler.py`
+  - `src/mini_agent/runtime/session_agent_control_handler.py`
+  - `src/mini_agent/runtime/session_control_models.py`
+- [completed] landed focused regression coverage:
+  - `tests/test_runtime_policy_service.py`
+  - `tests/test_runtime_session_admin_handler.py`
+  - `tests/test_runtime_session_agent_control_handler.py`
+- [completed] verified the narrowed support-module slice:
+  - `uv run pytest tests/test_runtime_policy_service.py tests/test_runtime_session_admin_handler.py tests/test_runtime_session_agent_control_handler.py -q`
+  - result: `10 passed`
+  - `uv run ruff check src/mini_agent/runtime/runtime_policy_service.py src/mini_agent/runtime/session_admin_handler.py src/mini_agent/runtime/session_agent_control_handler.py src/mini_agent/runtime/session_control_models.py tests/test_runtime_policy_service.py tests/test_runtime_session_admin_handler.py tests/test_runtime_session_agent_control_handler.py`
+  - result: `All checks passed!`
+- [completed] committed the narrowed slice:
+  - commit: `ec1e1c6`
+  - message: `p40: land runtime control support modules`
+- [completed] re-ran the dirty-worktree classifier after the commit:
+  - `python scripts/worktree_slice_report.py`
+  - result:
+    - total dirty paths: `158`
+    - `runtime-session-contract`: `26`
+    - recommended next slice remains `runtime-session-contract`
+- [next] continue shrinking the remaining runtime control area before reopening the larger operator/manager adoption line
+
 ## 2026-04-16 P40.9 Runtime Interrupt / Pending-Approval Support Landing
 
 - [completed] re-audited the remaining `runtime-session-contract` residue after the docs closure and confirmed the larger operator/control line was still mixed

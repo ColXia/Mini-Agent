@@ -1,5 +1,43 @@
 # Findings
 
+## 2026-04-16 P40.11 Runtime MCP Control Support Landing
+
+- After `P40.10`, the remaining MCP control residue was one of the last truly support-only runtime seams.
+- This was a healthy next cut because it stayed outside the larger mixed adoption line:
+  - no `main_agent_runtime_manager.py` closure needed
+  - no `session_operator_handler.py` convergence needed
+  - no `session_agent_runtime_handler.py` compatibility work needed
+- The command-service extraction is valuable beyond raw file cleanup:
+  - runtime MCP control now has one owner for validation, reload conflict behavior, and summary/details shaping
+  - CLI/TUI-facing reload feedback also now has a shared semantic owner instead of ad-hoc local wording
+- Structural effect:
+  - total dirty paths: `158 -> 154`
+  - `runtime-session-contract`: `26 -> 24`
+- At this point, the remaining runtime residue is no longer mostly "missing modules".
+- It is mostly "modified adoption files still not landed".
+- Practical implication:
+  - the next runtime cut must be judged much more strictly as an adoption/compatibility slice
+  - if the next cut cannot avoid manager/operator mixing, it should be narrowed again rather than bundled
+
+## 2026-04-16 P40.10 Runtime Control Support Modules Landing
+
+- The most useful next move after `P40.9` was not another broad runtime-control commit.
+- It was the support-module bundle that had already stabilized under focused tests:
+  - runtime policy service
+  - session admin handler
+  - session agent-control handler
+  - shared control models
+- This slice matters because it converts one class of dirty-tree ambiguity into maintained repo truth:
+  - the runtime control area no longer looks half-landed because its support modules are missing from git
+- It was also a good anti-chaos cut because it avoided a common trap:
+  - bundling stable support files together with the still-mixed manager/operator adoption diff
+- Structural effect:
+  - total dirty paths: `165 -> 158`
+  - `runtime-session-contract`: `33 -> 26`
+- Practical implication:
+  - the remaining runtime control work is now more honestly about compatibility and adoption across modified files, not about whether the support layer itself exists
+  - this made the MCP support seam visible as the next clean sub-slice
+
 ## 2026-04-16 P40.9 Runtime Interrupt / Pending-Approval Support Landing
 
 - The remaining `runtime-session-contract` bucket was still too mixed to attack as one more "support layer" commit.
