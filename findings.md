@@ -1,5 +1,46 @@
 # Findings
 
+## 2026-04-16 P40.1 Iteration Guardrails Baseline
+
+- The project is currently safe for controlled iteration, but not yet safe for casual iteration.
+- The biggest remaining chaos source is no longer missing architecture.
+- It is the size and mixed nature of the residual dirty worktree after `P39` landed.
+- That risk needs one repo-visible guardrail, not just another verbal reminder.
+- A repeatable dirty-tree slice report is the right first move because it turns:
+  - one-off operator memory
+  - into a maintained repo artifact
+- This is especially important now that multiple earlier lines are materially complete:
+  - `P33b`
+  - `P34`
+  - `P36`
+  - `P37`
+  - `P39`
+- Without a current classifier, those completed lines can still leak back together inside the same residual worktree and produce misleading follow-up commits.
+- The first useful post-`P39` guardrail set is therefore:
+  - planning-memory sync
+  - dirty-tree classification command
+  - explicit next landing order
+- The first measured report gives us a much clearer residual map than the earlier coarse impression:
+  - total dirty paths: `250`
+  - `runtime-session-contract`: `75`
+  - `agent-core-and-cli-surface`: `62`
+  - `surface-transport-orchestration`: `42`
+  - `docs-planning-governance`: `26`
+  - `memory-governance`: `17`
+- This matters because the biggest bucket is not automatically the best next landing target.
+- `runtime-session-contract` is largest, but it is also the easiest place to accidentally reopen a giant mixed bundle.
+- `docs-planning-governance` is the safest immediate anti-chaos slice and is now the active one.
+- Current recommended landing order should stay conservative:
+  1. `docs-planning-governance`
+  2. `memory-governance`
+  3. `runtime-session-contract`
+  4. `surface-transport-orchestration`
+  5. `agent-core-and-cli-surface`
+- Reason for preferring `memory-governance` before `runtime / tui`:
+  - it improves physical/logical ownership directly
+  - it reduces future confusion around where memory, runtime-task-memory, and KB control logic belong
+  - it is less likely than `runtime / tui` to drag the whole residual tree into one mixed landing
+
 ## 2026-04-16 P39 Kernel / Model-Runtime Mixed Boundary Slice
 
 - Reopening the deferred `kernel / model-runtime` line as its own slice is the right move.

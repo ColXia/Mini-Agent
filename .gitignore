@@ -64,9 +64,10 @@ src/memory/*.md
 src/smoke_test*
 .mini-agent/
 .tmp-*/
-memory/
-MEMORY.md
-USER.md
+/memory/
+/MEMORY.md
+/USER.md
+/.git_status_snapshot.txt
 tmp_*.json
 delete.vbs
 delete2.vbs

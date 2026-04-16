@@ -1,5 +1,63 @@
 # Task Plan
 
+## Latest Sync: 2026-04-16 P40 Iteration Guardrails Baseline
+
+## Current Execution Slice: P40.1 Iteration Guardrails Baseline (2026-04-16)
+
+### Why This Slice Is Next
+
+- `P39.1` and `P39.2` are already landed as real commits
+- the project is technically runnable, but the residual dirty worktree is still large enough to invite mixed follow-up commits
+- the user explicitly wants the repo brought back to a clear, iterable state rather than continuing feature work blindly
+- the safest immediate move is therefore a guardrail baseline:
+  - sync planning-memory to post-`P39` truth
+  - classify the remaining dirty tree honestly
+  - lock the next landing order in repo-visible artifacts
+
+### Scope
+
+- mark `P39` as completed in planning-memory
+- add one maintained dirty-worktree slice report tool
+- add one formal guardrail plan for the residual worktree
+- keep this slice read-only with respect to product/runtime behavior
+
+### Acceptance
+
+- `P39` is no longer described as the active slice
+- the repo contains one repeatable command for current dirty-tree classification
+- the next landing order is explicit instead of living only in session memory
+- temp status-noise files are kept out of the active worktree story
+
+### Status
+
+- in_progress
+
+### Implementation Notes
+
+- new guardrail artifacts in this slice:
+  - `docs/P40_ITERATION_GUARDRAILS_PLAN_2026-04-16.md`
+  - `scripts/worktree_slice_report.py`
+- measured post-`P39` residual snapshot from `python scripts/worktree_slice_report.py`:
+  - total dirty paths: `250`
+  - `runtime-session-contract`: `75`
+  - `agent-core-and-cli-surface`: `62`
+  - `surface-transport-orchestration`: `42`
+  - `docs-planning-governance`: `26`
+  - `memory-governance`: `17`
+- current next landing order is intentionally conservative:
+  1. `docs-planning-governance`
+  2. `memory-governance`
+  3. `runtime-session-contract`
+  4. `surface-transport-orchestration`
+  5. `agent-core-and-cli-surface`
+
+### Next Likely Seam
+
+- after `P40.1`, reopen the first real code-bearing residual line from the classified buckets
+- current leading candidate:
+  - `memory-governance`
+  - because it improves physical/logical ownership without dragging the broader `runtime / tui` mixed surfaces into the same commit
+
 ## Latest Sync: 2026-04-16 P39 Kernel / Model-Runtime Mixed Boundary Slice
 
 ## Current Execution Slice: P39 Kernel / Model-Runtime Mixed Boundary Slice (2026-04-16)
@@ -25,7 +83,7 @@
 
 ### Status
 
-- in_progress
+- completed
 
 ### Implementation Notes
 
@@ -51,6 +109,9 @@
     - `91 passed`
   - downstream kernel-consumer suite:
     - `118 passed`
+- landed commits:
+  - `771fc6f` `p39: land runtime protocol substrate`
+  - `8e9a37d` `p39: close kernel consumer boundary`
 - current `P39.1` working set is now narrowed to the upstream substrate files only:
   - `src/mini_agent/llm/__init__.py`
   - `src/mini_agent/model_manager/__init__.py`
@@ -79,14 +140,9 @@
 
 ### Next Likely Seam
 
-- reopen `P39.2` as the downstream `kernel` adoption and diagnostics closure seam
-- initial `P39.2` boundary rule:
-  - prefer `kernel + tooling/turn-context support + kernel-focused tests`
-  - do not automatically absorb `tests/test_cli_submission_loop.py` unless it proves to be a hard dependency of the kernel consumer cut
-- current `P39.2` validation result:
-  - narrowed consumer slice is coherent
-  - focused/consumer verification is green
-  - the slice is ready to be cut without widening into broader CLI/TUI mixed diffs
+- open a new post-`P39` anti-chaos slice rather than extending `P39` by inertia
+- current recommended follow-up:
+  - establish dirty-tree classification + guardrail tooling first
 
 ## Latest Sync: 2026-04-16 P38 Round-1 Narrow Commit Finalization
 

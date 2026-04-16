@@ -1,5 +1,33 @@
 # Progress
 
+## 2026-04-16 P40.1 Iteration Guardrails Baseline
+
+- [completed] reclassified the residual post-`P39` dirty worktree instead of continuing from stale assumptions
+- [completed] confirmed that `P39` is no longer the active line:
+  - `771fc6f` `p39: land runtime protocol substrate`
+  - `8e9a37d` `p39: close kernel consumer boundary`
+- [completed] added a maintained dirty-worktree slice report helper:
+  - [worktree_slice_report.py](/d:/file/Mini-Agent/scripts/worktree_slice_report.py)
+- [completed] added the formal post-`P39` anti-chaos planning doc:
+  - [P40_ITERATION_GUARDRAILS_PLAN_2026-04-16.md](/d:/file/Mini-Agent/docs/P40_ITERATION_GUARDRAILS_PLAN_2026-04-16.md)
+- [completed] updated active script guidance to include the new report helper:
+  - [README.md](/d:/file/Mini-Agent/scripts/README.md)
+- [completed] blocked a temporary status-noise file from re-entering the active worktree story:
+  - [/.gitignore](/d:/file/Mini-Agent/.gitignore)
+- [completed] ran the new slice report on the current repo state:
+  - `python scripts/worktree_slice_report.py`
+  - result:
+    - total dirty paths: `250`
+    - `runtime-session-contract`: `75`
+    - `agent-core-and-cli-surface`: `62`
+    - `surface-transport-orchestration`: `42`
+    - `docs-planning-governance`: `26`
+    - `memory-governance`: `17`
+- [completed] confirmed the guardrail interpretation of that report:
+  - current anti-chaos slice remains `docs-planning-governance`
+  - next code-bearing slice should be `memory-governance`
+- [next] open the `memory-governance` landing line as the first post-guardrail code cleanup slice
+
 ## 2026-04-16 P39 Kernel / Model-Runtime Mixed Boundary Slice
 
 - [completed] reopened the deferred `kernel / model-runtime` line as a new explicit post-`P38` slice

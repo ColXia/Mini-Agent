@@ -1,6 +1,6 @@
 # Scripts
 
-> Last updated: 2026-04-12
+> Last updated: 2026-04-16
 > Purpose: keep active helper scripts discoverable and push stale launchers out of the main surface.
 
 ## Active helpers
@@ -13,6 +13,8 @@
   - Thin convenience wrapper around `uv run mini-agent stack up`.
 - `test_stable.py`
   - Curated stable pytest entry used for quick regression checks.
+- `worktree_slice_report.py`
+  - Read-only dirty-worktree classifier that groups current changes into honest cleanup slices before landing more code.
 
 ## Active validation and walkthrough scripts
 
