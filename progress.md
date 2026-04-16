@@ -1,5 +1,37 @@
 # Progress
 
+## 2026-04-16 P40.8 Historical Architecture Docs Landing
+
+- [completed] audited the second-stage `docs-planning-governance` residue after `P40.7`
+- [completed] confirmed the remaining 9 docs were legitimate tracked-doc candidates rather than scratch residue:
+  - they were already referenced by `docs/DOCS_INDEX.md`
+  - they were already referenced by `docs/DEVELOPMENT_INDEX.md`
+  - planning-memory files already linked to several of them
+- [completed] normalized obvious status drift before landing the historical docs:
+  - `P32`, `P33`, `P33b`, and `P34` moved from `active` to completed historical-plan status
+  - `AGENT_CORE_RUNTIME_SEAMS.md` remained active as a maintained seam-reference doc
+- [completed] landed the 9 untracked historical/reference docs:
+  - `docs/AGENT_CORE_RUNTIME_SEAMS.md`
+  - `docs/P32_PROJECT_STRUCTURE_REALIGNMENT_PLAN_2026-04-13.md`
+  - `docs/P33_LLM_RUNTIME_UPGRADE_PLAN_2026-04-14.md`
+  - `docs/P33B_RUNTIME_TRUTH_AND_PROVIDER_GOVERNANCE_PLAN_2026-04-15.md`
+  - `docs/P34_AGENT_CORE_REFACTOR_PLAN_2026-04-15.md`
+  - `docs/P36_SESSION_RUNTIME_CONTRACT_CONSOLIDATION_PLAN_2026-04-15.md`
+  - `docs/P37_TUI_SURFACE_ORCHESTRATION_CONVERGENCE_PLAN_2026-04-15.md`
+  - `docs/POST_P36_RUNTIME_SURFACE_EVALUATION_2026-04-15.md`
+  - `docs/POST_P37_TUI_SURFACE_EVALUATION_2026-04-16.md`
+- [completed] committed the second-stage docs slice:
+  - commit: `16a7e0c`
+  - message: `p40: land historical architecture docs`
+- [completed] re-ran the dirty-worktree classifier after the commit:
+  - `python scripts/worktree_slice_report.py`
+  - result:
+    - total dirty paths: `172`
+    - `docs-planning-governance`: closed
+    - recommended next slice: `runtime-session-contract`
+- [next] sync planning-memory files with the fully closed docs bucket
+- [next] with docs out of the way, reopen the next narrow code-bearing slice at `runtime-session-contract`
+
 ## 2026-04-16 P40.7 Active Doc Truth Sync
 
 - [completed] resumed the `docs-planning-governance` slice at the active-doc truth boundary instead of mixing in the 9 untracked historical docs

@@ -1,5 +1,79 @@
 # Task Plan
 
+## Latest Sync: 2026-04-16 P40.8 Historical Architecture Docs Landing
+
+## Current Execution Slice: P40.8 Historical Architecture Docs Landing (2026-04-16)
+
+### Why This Slice Is Next
+
+- after `P40.7`, the remaining `docs-planning-governance` residue was no longer modified active docs
+- it had narrowed cleanly to 9 untracked historical/reference docs that were already referenced by:
+  - `docs/DOCS_INDEX.md`
+  - `docs/DEVELOPMENT_INDEX.md`
+  - planning-memory files
+- leaving them untracked would keep the repo in a misleading state:
+  - index docs pointed to files that did not exist in git
+  - planning memory referred to docs that a clean clone could not open
+
+### Scope
+
+- land the remaining 9 referenced untracked docs:
+  - `docs/AGENT_CORE_RUNTIME_SEAMS.md`
+  - `docs/P32_PROJECT_STRUCTURE_REALIGNMENT_PLAN_2026-04-13.md`
+  - `docs/P33_LLM_RUNTIME_UPGRADE_PLAN_2026-04-14.md`
+  - `docs/P33B_RUNTIME_TRUTH_AND_PROVIDER_GOVERNANCE_PLAN_2026-04-15.md`
+  - `docs/P34_AGENT_CORE_REFACTOR_PLAN_2026-04-15.md`
+  - `docs/P36_SESSION_RUNTIME_CONTRACT_CONSOLIDATION_PLAN_2026-04-15.md`
+  - `docs/P37_TUI_SURFACE_ORCHESTRATION_CONVERGENCE_PLAN_2026-04-15.md`
+  - `docs/POST_P36_RUNTIME_SURFACE_EVALUATION_2026-04-15.md`
+  - `docs/POST_P37_TUI_SURFACE_EVALUATION_2026-04-16.md`
+- normalize obvious status drift in the historical plan docs before landing:
+  - completed historical plans should not still present as `active`
+  - maintained seam/reference docs may remain active if they still define live ownership truth
+
+### Acceptance
+
+- all 9 referenced docs exist in git
+- historical plan docs no longer claim to be active when later slices have already completed them
+- `docs-planning-governance` fully disappears from the dirty-worktree classifier
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- audit result:
+  - these 9 docs were not stray scratch files
+  - they were already referenced by repo indexes and planning-memory files
+- status normalization applied before landing:
+  - `P32`, `P33`, `P33b`, and `P34` now read as completed historical planning
+  - `AGENT_CORE_RUNTIME_SEAMS.md` remains active because it documents maintained live seam ownership
+  - `P36`, `P37`, and both post-evaluation docs were already marked completed and needed no semantic status correction
+- landed commit:
+  - `16a7e0c`
+  - `p40: land historical architecture docs`
+- post-commit residual snapshot from `python scripts/worktree_slice_report.py`:
+  - total dirty paths: `172`
+  - `agent-core-and-cli-surface`: `62`
+  - `surface-transport-orchestration`: `42`
+  - `runtime-session-contract`: `40`
+  - `developer-tooling-smokes`: `9`
+  - `interfaces-apps`: `7`
+  - `model-runtime-substrate`: `6`
+- important structural result:
+  - `docs-planning-governance` is now closed
+  - the classifier no longer reports a docs bucket
+  - the recommended next slice has advanced to `runtime-session-contract`
+
+### Next Likely Seam
+
+- with docs now closed, the next safest anti-chaos slice is:
+  - `runtime-session-contract`
+- after that, current classifier order is:
+  - `surface-transport-orchestration`
+  - `agent-core-and-cli-surface`
+
 ## Latest Sync: 2026-04-16 P40.7 Active Doc Truth Sync
 
 ## Current Execution Slice: P40.7 Active Doc Truth Sync (2026-04-16)

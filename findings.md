@@ -1,5 +1,29 @@
 # Findings
 
+## 2026-04-16 P40.8 Historical Architecture Docs Landing
+
+- The second-stage docs residue turned out to be fully legitimate repo content, not optional scratch notes.
+- All 9 untracked docs were already referenced by maintained repo-visible sources:
+  - `DOCS_INDEX.md`
+  - `DEVELOPMENT_INDEX.md`
+  - planning-memory files
+- That means leaving them untracked was a real clean-clone integrity problem:
+  - a clean clone would contain links to missing docs
+  - planning-memory references would point at non-existent files
+- The right fix was to land them, not to archive or ignore them.
+- One useful normalization step was worth doing before landing:
+  - `P32`, `P33`, `P33b`, and `P34` still presented as `active`
+  - by current project state, those are historical completed plan docs, not active execution lines
+  - `AGENT_CORE_RUNTIME_SEAMS.md` is different because it still documents maintained live ownership seams, so keeping it active is correct
+- Structural effect:
+  - total dirty paths: `181 -> 172`
+  - `docs-planning-governance`: `9 -> 0`
+- This is a cleaner closure than merely reducing the count:
+  - the classifier no longer reports any docs bucket
+  - the next recommended slice advances automatically to `runtime-session-contract`
+- Practical implication:
+  - the repo is now materially safer for continued iteration because active docs, historical plans, and planning-memory references are no longer split across tracked vs untracked states
+
 ## 2026-04-16 P40.7 Active Doc Truth Sync
 
 - The modified active-doc residue was worth cutting before any further code work.
