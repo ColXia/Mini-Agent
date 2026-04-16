@@ -17,12 +17,12 @@
 ## Active validation and walkthrough scripts
 
 - Smoke, walkthrough, readiness, and acceptance helpers remain in `scripts/` when they are still used by CI, release checks, or manual runtime verification.
-- Examples include `shared_session_gateway_walkthrough.py`, `terminal_readiness_gate.py`, `tui_interaction_walkthrough.py`, and `workspace_memory_acceptance.py`.
+- Examples include `ollama_live_smoke.py`, `shared_session_gateway_walkthrough.py`, `terminal_readiness_gate.py`, `tui_interaction_walkthrough.py`, and `workspace_memory_acceptance.py`.
 
 ## CI / release scripts
 
 - CI-oriented and release-oriented scripts now live under [`ci/`](./ci/).
-- Examples include `ci/release_gate.py`, `ci/release_promotion_checklist.py`, `ci/open_webui_verify.py`, and `ci/studio_ops_smoke.py`.
+- Examples include `ci/release_gate.py`, `ci/release_promotion_checklist.py`, `ci/studio_ops_smoke.py`, and `ci/p19_runtime_matrix.py`.
 
 ## Archived launchers
 

@@ -64,7 +64,7 @@ def build_promotion_report(
         f"# Release Promotion Checklist - {started_at.strftime('%Y-%m-%d %H:%M:%S %Z')}",
         "",
         f"- Decision: {'READY' if ready else 'BLOCKED'}",
-        "- Policy: deterministic gate is mandatory; no-dry-run gate is advisory.",
+        "- Policy: deterministic gate is mandatory; advisory gates do not block promotion.",
         f"- Started: {started_at.isoformat()}",
         f"- Ended: {ended_at.isoformat()}",
         f"- Duration: {(ended_at - started_at).total_seconds():.1f}s",

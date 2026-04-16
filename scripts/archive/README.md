@@ -13,10 +13,11 @@ These scripts are kept only for historical reference. They are not current entry
 - `run_wechat_channel.ps1`
   - Old WeChat launcher with hard-coded personal filesystem paths.
 - `run_release_gate_openwebui.ps1`
-  - Old OpenWebUI helper superseded by direct `python scripts/ci/release_gate.py ...` usage.
+  - Old OpenWebUI helper kept only because the browser/OpenWebUI adapter was removed from the active product path.
 
 ## Current replacements
 
 - Runtime stack: `uv run mini-agent stack up` or `scripts/start_runtime_stack.ps1`
 - Terminal entry: `uv run mini`
-- OpenWebUI release gate: `python scripts/ci/release_gate.py --start-local-gateway --openwebui-run-smoke ...`
+- Release gate: `python scripts/ci/release_gate.py --start-local-gateway`
+- Promotion checklist: `python scripts/ci/release_promotion_checklist.py`

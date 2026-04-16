@@ -40,7 +40,7 @@ def test_build_promotion_report_contains_policy_and_decision() -> None:
             report_file="workspace/release_gate/release_gate_deterministic.md",
         ),
         PromotionChecklistItem(
-            name="OpenWebUI no-dry-run gate",
+            name="Remote no-dry-run gate",
             mandatory=False,
             status="WARN",
             note="advisory failure: timeout",
@@ -48,6 +48,6 @@ def test_build_promotion_report_contains_policy_and_decision() -> None:
     ]
     report = build_promotion_report(started_at=started_at, ended_at=ended_at, items=items)
     assert "- Decision: READY" in report
-    assert "deterministic gate is mandatory; no-dry-run gate is advisory" in report
-    assert "OpenWebUI no-dry-run gate" in report
+    assert "deterministic gate is mandatory; advisory gates do not block promotion" in report
+    assert "Remote no-dry-run gate" in report
 

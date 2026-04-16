@@ -9,8 +9,6 @@ This folder contains release-gate, checklist, and CI-oriented validation scripts
 - `release_gate.py`
 - `release_promotion_checklist.py`
 - `check_deterministic_gate_artifact.py`
-- `open_webui_verify.py`
-- `open_webui_smoke.py`
 - `studio_ops_smoke.py`
 - `p19_runtime_matrix.py`
 - `p19_weekly_rollout_review.py`

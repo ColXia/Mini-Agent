@@ -1,9 +1,8 @@
 """Unified pre-release gate runner.
 
 Runs a bounded verification chain for release readiness:
-1) OpenWebUI adapter verification
-2) Studio Ops token-enabled smoke
-3) Stable regression set
+1) Gateway ops token-enabled smoke
+2) Stable regression set
 """
 
 from __future__ import annotations
@@ -171,7 +170,6 @@ def _write_report(
         "",
         "## Config",
         "",
-        f"- openwebui_verify: {'skip' if args.skip_openwebui_verify else 'run'}",
         f"- studio_ops_smoke: {'skip' if args.skip_studio_ops_smoke else 'run'}",
         f"- stable_tests: {'skip' if args.skip_stable_tests else 'run'}",
         f"- studio_base_url: {args.studio_base_url}",
@@ -195,17 +193,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run unified pre-release verification gates.")
     parser.add_argument("--python", default=None, help="Python interpreter path used for child commands.")
 
-    parser.add_argument("--skip-openwebui-verify", action="store_true", help="Skip open_webui_verify step.")
     parser.add_argument("--skip-studio-ops-smoke", action="store_true", help="Skip studio_ops_smoke step.")
     parser.add_argument("--skip-stable-tests", action="store_true", help="Skip scripts/test_stable.py step.")
     parser.add_argument("--no-fail-fast", action="store_true", help="Keep running remaining steps after a failure.")
-
-    parser.add_argument("--openwebui-run-smoke", action="store_true", help="Enable open_webui_verify --run-smoke.")
-    parser.add_argument("--openwebui-adapter-base-url", default="http://127.0.0.1:8010", help="OpenWebUI adapter base URL.")
-    parser.add_argument("--openwebui-api-key", default=None, help="OpenWebUI adapter token.")
-    parser.add_argument("--openwebui-model", default=None, help="Optional OpenWebUI model id.")
-    parser.add_argument("--openwebui-no-dry-run", action="store_true", help="Pass --no-dry-run to open_webui_verify.")
-    parser.add_argument("--openwebui-timeout", type=float, default=20.0, help="OpenWebUI smoke per-request timeout.")
 
     parser.add_argument("--studio-base-url", default="http://127.0.0.1:8008", help="Studio gateway base URL.")
     parser.add_argument("--studio-token", default=None, help="Studio token. Defaults to first MINI_AGENT_STUDIO_API_KEYS.")
@@ -265,18 +255,6 @@ def main(argv: list[str] | None = None) -> int:
                 base_url=args.studio_base_url,
                 studio_token=studio_token,
             )
-
-        if not args.skip_openwebui_verify:
-            cmd = [python_bin, "scripts/ci/open_webui_verify.py"]
-            if args.openwebui_run_smoke:
-                cmd.extend(["--run-smoke", "--adapter-base-url", args.openwebui_adapter_base_url, "--timeout", str(args.openwebui_timeout)])
-                if args.openwebui_api_key:
-                    cmd.extend(["--api-key", args.openwebui_api_key.strip()])
-                if args.openwebui_model:
-                    cmd.extend(["--model", args.openwebui_model.strip()])
-                if args.openwebui_no_dry_run:
-                    cmd.append("--no-dry-run")
-            results.append(_run_step(name="open_webui_verify", cmd=cmd, env=_build_env(), fail_fast=fail_fast))
 
         if not args.skip_studio_ops_smoke:
             cmd = [

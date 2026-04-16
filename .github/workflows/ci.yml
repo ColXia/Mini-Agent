@@ -6,25 +6,10 @@ name: Mini-Agent CI
   workflow_dispatch:
     inputs:
       release_handoff:
-        description: "Run release handoff checklist (deterministic mandatory + advisory skipped)"
+        description: "Run release handoff checklist (deterministic gate plus advisory summary)"
         required: false
         default: false
         type: boolean
-      run_advisory_no_dry_run:
-        description: "Optionally run advisory no-dry-run gate (requires OPENWEBUI_ADVISORY_API_KEY secret)"
-        required: false
-        default: false
-        type: boolean
-      advisory_adapter_base_url:
-        description: "OpenWebUI adapter base URL for advisory gate"
-        required: false
-        default: "http://127.0.0.1:8010"
-        type: string
-      advisory_timeout:
-        description: "OpenWebUI advisory timeout seconds"
-        required: false
-        default: "300"
-        type: string
       run_weekly_rollout_review_strict:
         description: "Optionally run strict weekly rollout review (runs matrix + strict KPI checklist)"
         required: false
@@ -74,50 +59,8 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install ".[dev]"
 
-      - name: Resolve Advisory Mode
-        id: advisory
-        run: |
-          if [[ "${{ inputs.run_advisory_no_dry_run }}" == "true" && -n "${{ secrets.OPENWEBUI_ADVISORY_API_KEY }}" ]]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Advisory Mode Note
-        if: ${{ inputs.run_advisory_no_dry_run == true && steps.advisory.outputs.enabled != 'true' }}
-        run: |
-          echo "Advisory no-dry-run requested but OPENWEBUI_ADVISORY_API_KEY is missing. Falling back to deterministic-only checklist."
-
-      - name: Start OpenWebUI Adapter (Advisory)
-        if: ${{ steps.advisory.outputs.enabled == 'true' }}
-        run: |
-          mkdir -p workspace/release_gate
-          nohup python -m uvicorn apps.open_webui.main:app --host 127.0.0.1 --port 8010 > workspace/release_gate/openwebui_adapter_ci.log 2>&1 &
-          echo $! > workspace/release_gate/openwebui_adapter_ci.pid
-          for i in {1..90}; do
-            if curl -fsS "${{ inputs.advisory_adapter_base_url }}/health" >/dev/null; then
-              echo "OpenWebUI adapter is healthy."
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "OpenWebUI adapter health check failed." >&2
-          exit 1
-
-      - name: Run Promotion Checklist (Deterministic + Advisory)
-        if: ${{ steps.advisory.outputs.enabled == 'true' }}
-        env:
-          OPENWEBUI_ADVISORY_API_KEY: ${{ secrets.OPENWEBUI_ADVISORY_API_KEY }}
-        run: |
-          python scripts/ci/release_promotion_checklist.py \
-            --studio-token studio-release-handoff-token \
-            --advisory-api-key "$OPENWEBUI_ADVISORY_API_KEY" \
-            --advisory-adapter-base-url "${{ inputs.advisory_adapter_base_url }}" \
-            --advisory-timeout "${{ inputs.advisory_timeout }}"
-
-      - name: Run Promotion Checklist (Deterministic Only)
-        if: ${{ steps.advisory.outputs.enabled != 'true' }}
-        run: python scripts/ci/release_promotion_checklist.py --studio-token studio-release-handoff-token --skip-advisory
+      - name: Run Promotion Checklist
+        run: python scripts/ci/release_promotion_checklist.py --studio-token studio-release-handoff-token
 
       - name: Validate Deterministic Gate Artifact (Required)
         run: python scripts/ci/check_deterministic_gate_artifact.py
@@ -130,13 +73,6 @@ jobs:
         if: ${{ inputs.run_weekly_rollout_review_strict == true }}
         run: python scripts/ci/p19_weekly_rollout_review.py --window-days 7 --target-profile stage --strict --strict-targets
 
-      - name: Stop OpenWebUI Adapter (Advisory)
-        if: ${{ always() && steps.advisory.outputs.enabled == 'true' }}
-        run: |
-          if [[ -f workspace/release_gate/openwebui_adapter_ci.pid ]]; then
-            kill "$(cat workspace/release_gate/openwebui_adapter_ci.pid)" || true
-          fi
-
       - name: Upload Release Handoff Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -145,9 +81,7 @@ jobs:
           path: |
             workspace/release_promotion/release_promotion_*.md
             workspace/release_gate/release_gate_deterministic_*.md
-            workspace/release_gate/release_gate_nodryrun_*.md
             workspace/release_gate/studio_ops_runtime_*.json
             workspace/p19_matrix/p19_runtime_matrix_*.md
             workspace/p19_rollout/p19_weekly_rollout_*.md
             workspace/p19_rollout/p19_weekly_rollout_*.json
-            workspace/release_gate/openwebui_adapter_ci.log

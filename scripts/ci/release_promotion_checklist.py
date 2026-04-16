@@ -2,7 +2,7 @@
 
 Policy enforcement:
 - Deterministic release gate is mandatory.
-- OpenWebUI no-dry-run gate is advisory.
+- Remote no-dry-run gate is advisory.
 """
 
 from __future__ import annotations
@@ -87,15 +87,6 @@ def _run_gate(*, name: str, cmd: list[str], report_file: Path) -> GateExecutionR
     )
 
 
-def _resolve_openwebui_api_key(cli_value: str | None) -> str:
-    if cli_value is not None:
-        return cli_value.strip()
-    primary = os.getenv("MINI_AGENT_OPENWEBUI_PRIMARY_API_KEY", "").strip()
-    if primary:
-        return primary
-    return _first_token(os.getenv("MINI_AGENT_OPENWEBUI_API_KEYS", ""))
-
-
 def _default_report_path(*, folder: str, prefix: str, started_at: datetime) -> Path:
     return REPO_ROOT / "workspace" / folder / f"{prefix}_{started_at.strftime('%Y%m%dT%H%M%SZ')}.md"
 
@@ -126,22 +117,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="Do not start local gateway inside release_gate runs.",
     )
 
-    parser.add_argument("--skip-advisory", action="store_true", help="Skip no-dry-run advisory gate.")
-    parser.add_argument(
-        "--advisory-adapter-base-url",
-        default="http://127.0.0.1:8010",
-        help="OpenWebUI adapter base URL for advisory no-dry-run gate.",
-    )
-    parser.add_argument(
-        "--advisory-api-key",
-        default=None,
-        help="OpenWebUI adapter token for advisory gate. Defaults to env key if available.",
-    )
-    parser.add_argument("--advisory-model", default=None, help="Optional OpenWebUI model id for advisory gate.")
-    parser.add_argument("--advisory-timeout", type=float, default=300.0, help="OpenWebUI advisory request timeout.")
-
     parser.add_argument("--deterministic-report-file", default=None, help="Optional deterministic gate report path.")
-    parser.add_argument("--advisory-report-file", default=None, help="Optional advisory gate report path.")
     parser.add_argument(
         "--report-file",
         default=None,
@@ -189,11 +165,6 @@ def main(argv: list[str] | None = None) -> int:
         if args.deterministic_report_file
         else _default_report_path(folder="release_gate", prefix="release_gate_deterministic", started_at=started_at)
     )
-    advisory_report = (
-        Path(args.advisory_report_file).expanduser().resolve()
-        if args.advisory_report_file
-        else _default_report_path(folder="release_gate", prefix="release_gate_nodryrun", started_at=started_at)
-    )
     promotion_report = (
         Path(args.report_file).expanduser().resolve()
         if args.report_file
@@ -201,7 +172,6 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     studio_token = (args.studio_token or "").strip() or _first_token(os.getenv("MINI_AGENT_STUDIO_API_KEYS", ""))
-    openwebui_api_key = _resolve_openwebui_api_key(args.advisory_api_key)
 
     deterministic_cmd = _base_gate_cmd(
         python_bin=python_bin,
@@ -228,75 +198,14 @@ def main(argv: list[str] | None = None) -> int:
             duration_seconds=deterministic_result.duration_seconds,
         )
     ]
-
-    if args.skip_advisory:
-        checklist_items.append(
-            PromotionChecklistItem(
-                name="OpenWebUI no-dry-run gate",
-                mandatory=False,
-                status="SKIP",
-                note="skipped by --skip-advisory",
-            )
+    checklist_items.append(
+        PromotionChecklistItem(
+            name="Remote no-dry-run gate",
+            mandatory=False,
+            status="SKIP",
+            note="No dedicated remote no-dry-run gate is configured in the current architecture.",
         )
-    elif not deterministic_result.ok:
-        checklist_items.append(
-            PromotionChecklistItem(
-                name="OpenWebUI no-dry-run gate",
-                mandatory=False,
-                status="SKIP",
-                note="skipped because deterministic mandatory gate failed",
-            )
-        )
-    elif not openwebui_api_key:
-        checklist_items.append(
-            PromotionChecklistItem(
-                name="OpenWebUI no-dry-run gate",
-                mandatory=False,
-                status="SKIP",
-                note="missing advisory API key; set --advisory-api-key or MINI_AGENT_OPENWEBUI_PRIMARY_API_KEY",
-            )
-        )
-    else:
-        advisory_cmd = _base_gate_cmd(
-            python_bin=python_bin,
-            report_file=advisory_report,
-            start_local_gateway=bool(args.start_local_gateway),
-            studio_base_url=args.studio_base_url,
-            studio_token=studio_token,
-            studio_timeout=float(args.studio_timeout),
-            studio_workspace_root=args.studio_workspace_root,
-        )
-        advisory_cmd.extend(
-            [
-                "--openwebui-run-smoke",
-                "--openwebui-no-dry-run",
-                "--openwebui-adapter-base-url",
-                args.advisory_adapter_base_url,
-                "--openwebui-api-key",
-                openwebui_api_key,
-                "--openwebui-timeout",
-                str(float(args.advisory_timeout)),
-            ]
-        )
-        if args.advisory_model and args.advisory_model.strip():
-            advisory_cmd.extend(["--openwebui-model", args.advisory_model.strip()])
-
-        advisory_result = _run_gate(
-            name="no_dry_run_advisory_gate",
-            cmd=advisory_cmd,
-            report_file=advisory_report,
-        )
-        checklist_items.append(
-            PromotionChecklistItem(
-                name="OpenWebUI no-dry-run gate",
-                mandatory=False,
-                status="PASS" if advisory_result.ok else "WARN",
-                note=advisory_result.note if advisory_result.ok else f"advisory failure: {advisory_result.note}",
-                report_file=str(advisory_result.report_file),
-                command=advisory_result.command,
-                duration_seconds=advisory_result.duration_seconds,
-            )
-        )
+    )
 
     ended_at = datetime.now(timezone.utc)
     promotion_report.parent.mkdir(parents=True, exist_ok=True)
