@@ -1,7 +1,3006 @@
 # Progress
 
+## 2026-04-16 P38 Round-1 Narrow Commit Finalization
+
+- [completed] chose the explicit post-round-1 path:
+  - commit the narrow `P38` closure slice
+- [completed] re-verified the restored baseline immediately before finalizing the slice:
+  - `uv run pytest -q`
+  - result: `1161 passed, 15 skipped`
+  - maintained active-path `ruff` perimeter:
+    - result: `All checks passed!`
+- [completed] locked the narrow commit boundary to:
+  - [test_cli_tui_command.py](/d:/file/Mini-Agent/tests/test_cli_tui_command.py)
+  - [findings.md](/d:/file/Mini-Agent/findings.md)
+  - [progress.md](/d:/file/Mini-Agent/progress.md)
+  - [task_plan.md](/d:/file/Mini-Agent/task_plan.md)
+  - [P38_FIRST_CLOSURE_PLAN_2026-04-16.md](/d:/file/Mini-Agent/docs/P38_FIRST_CLOSURE_PLAN_2026-04-16.md)
+  - [P38_FIRST_CLOSURE_ROUND1_REPORT_2026-04-16.md](/d:/file/Mini-Agent/docs/P38_FIRST_CLOSURE_ROUND1_REPORT_2026-04-16.md)
+  - [PROJECT_COMPLETENESS_EVALUATION_2026-04-16.md](/d:/file/Mini-Agent/docs/PROJECT_COMPLETENESS_EVALUATION_2026-04-16.md)
+- [next] reopen only one explicit next line after this checkpoint:
+  - wider round-2 closure
+  - or mixed `kernel / model-runtime` boundary work
+  - or targeted entrance/product polish
+
+## 2026-04-16 P38 First Closure Planning
+
+- [completed] created the first structured closure milestone above the completed architecture lines
+- [completed] defined the new closure line as:
+  - `P38 First Closure`
+- [completed] added the formal planning report:
+  - [P38_FIRST_CLOSURE_PLAN_2026-04-16.md](/d:/file/Mini-Agent/docs/P38_FIRST_CLOSURE_PLAN_2026-04-16.md)
+- [completed] locked round-1 priorities:
+  - restore full-suite green
+  - close active entrance contract drift
+  - clean one explicit active-path lint perimeter
+  - keep mixed `kernel / model-runtime` work out of the closure slice unless bundled honestly
+- [completed] executed `P38.1` active entrance contract closure:
+  - updated [test_cli_tui_command.py](/d:/file/Mini-Agent/tests/test_cli_tui_command.py) to match the current `run_tui(...)` contract
+  - added an explicit `config_loader` assertion instead of keeping the old stub signature
+  - verification:
+    - `uv run pytest tests/test_cli_tui_command.py tests/test_cli_unified_mode.py tests/test_tui_app.py -q`
+    - result: `155 passed`
+    - `uv run pytest -q`
+    - result: `1161 passed, 15 skipped`
+- [completed] executed the `P38.2` active-path lint baseline audit:
+  - maintained perimeter `ruff` check is green
+  - result: `All checks passed!`
+- [completed] executed the initial `P38.3` boundary and commit-slice closure pass:
+  - current round-1 closure slice is explicitly narrow
+  - it currently includes the repaired entrance test plus planning/closure docs only
+  - mixed `kernel / model-runtime` work remains deferred and out of this closure story
+- [completed] executed `P38.4` verification and closeout reporting:
+  - added [P38_FIRST_CLOSURE_ROUND1_REPORT_2026-04-16.md](/d:/file/Mini-Agent/docs/P38_FIRST_CLOSURE_ROUND1_REPORT_2026-04-16.md)
+  - finalized the decision to stop round 1 at the restored narrow active baseline
+  - kept wider repo hygiene and mixed `kernel / model-runtime` work deferred
+- [next] choose the next explicit path instead of widening by inertia:
+  - commit the narrow `P38` closure slice
+  - or open round-2 closure / mixed-boundary work deliberately
+
+## 2026-04-16 Overall Project Completeness Evaluation
+
+- [completed] evaluated current project completion against the intended architecture and product shape
+- [completed] inspected active project-definition docs:
+  - [README.md](/d:/file/Mini-Agent/README.md)
+  - [DEVELOPMENT_INDEX.md](/d:/file/Mini-Agent/docs/DEVELOPMENT_INDEX.md)
+  - [FRAMEWORK_SKELETON.md](/d:/file/Mini-Agent/docs/FRAMEWORK_SKELETON.md)
+  - [POST_P36_RUNTIME_SURFACE_EVALUATION_2026-04-15.md](/d:/file/Mini-Agent/docs/POST_P36_RUNTIME_SURFACE_EVALUATION_2026-04-15.md)
+  - [POST_P37_TUI_SURFACE_EVALUATION_2026-04-16.md](/d:/file/Mini-Agent/docs/POST_P37_TUI_SURFACE_EVALUATION_2026-04-16.md)
+- [completed] rechecked real implementation maturity through entrance/core/source inspection
+- [completed] ran project-wide validation on the current dirty worktree:
+  - `uv run pytest -q`
+  - result: `1160 passed, 15 skipped, 1 failed`
+  - `uv run ruff check src tests`
+  - result: `57` findings
+- [completed] recorded the formal evaluation report in:
+  - [PROJECT_COMPLETENESS_EVALUATION_2026-04-16.md](/d:/file/Mini-Agent/docs/PROJECT_COMPLETENESS_EVALUATION_2026-04-16.md)
+- [next] treat the main remaining work as closure/polish rather than missing architecture:
+  - clear contract drift
+  - clean mixed-boundary slices
+  - improve entrance parity
+  - continue repo hygiene closeout
+
+## 2026-04-16 Strict Kernel Boundary Evaluation
+
+- [completed] re-audited the current dirty-tree `kernel` dependency closure against the already-landed `P34.1 / P34.2` baseline
+- [completed] inspected the main mixed-boundary files:
+  - [kernel.py](/d:/file/Mini-Agent/src/mini_agent/agent_core/kernel.py)
+  - [runtime.py](/d:/file/Mini-Agent/src/mini_agent/model_manager/runtime.py)
+  - [failover.py](/d:/file/Mini-Agent/src/mini_agent/model_manager/failover.py)
+  - [bootstrap.py](/d:/file/Mini-Agent/src/mini_agent/model_manager/bootstrap.py)
+  - [protocol_binding.py](/d:/file/Mini-Agent/src/mini_agent/llm/protocol_binding.py)
+  - [tooling.py](/d:/file/Mini-Agent/src/mini_agent/runtime/tooling.py)
+  - [turn_context_provider_builder.py](/d:/file/Mini-Agent/src/mini_agent/runtime/turn_context_provider_builder.py)
+- [completed] classified the current `kernel` adoption story:
+  - not cuttable as a pure `P34` slice
+  - honest only as a combined `P34 + P33b` bundle
+  - shrink-first is required if we want to keep the next commit phase-pure
+- [completed] recorded the stricter boundary conclusion in:
+  - [findings.md](/d:/file/Mini-Agent/findings.md)
+- [next] choose one of two real follow-ups:
+  - bundle `kernel` with the remaining runtime-governance/provider-truth closure
+  - or design a reduced pure-`P34` kernel adoption diff before writing code
+
+## 2026-04-16 P34.2 Turn-Scoped Policy Contract Hardening
+
+- [completed] landed the second focused `P34` commit slice:
+  - commit: `972bbf6`
+  - message: `p34: harden typed turn policy override path`
+- [completed] tightened scheduler-owned turn policy application in:
+  - [scheduler.py](/d:/file/Mini-Agent/src/mini_agent/agent_core/execution/scheduler.py)
+- [completed] introduced an explicit typed override contract for turn-scoped execution policy application:
+  - scheduler now prefers `override_execution_policy(...)` when the agent supports it
+- [completed] removed legacy scheduler behavior that rewrote `execution_policy` objects during a turn
+- [completed] kept fallback behavior intact for non-override agents:
+  - temporary `max_steps`
+  - temporary `max_tool_calls_per_step`
+  - legacy `execution_policy` object shape preserved
+- [completed] updated focused loop coverage in:
+  - [test_agent_core_execution_loop.py](/d:/file/Mini-Agent/tests/test_agent_core_execution_loop.py)
+- [completed] verified the slice before commit:
+  - `uv run pytest tests/test_agent_core_execution_loop.py tests/test_agent_core_execution_policy.py -q`
+  - result: `25 passed`
+  - `git diff --cached --check`
+  - result: clean
+- [next] keep the next `P34` cut phase-honest:
+  - avoid bundling current `kernel + provider/bootstrap/protocol` entanglement into a fake core-only commit
+  - reopen only when either a cleaner `kernel` slice or another pure `agent_core` seam is ready
+
+## 2026-04-16 P34.1 Agent-Core Runtime Package Landing
+
+- [completed] landed the first real `P34` commit slice:
+  - commit: `d48f3c0`
+  - message: `p34: land agent_core runtime with compatibility shims`
+- [completed] introduced the new maintained `agent_core` runtime implementation package:
+  - execution loop / coordinator / permissions / sandbox / tool-runtime adapters
+  - turn-context preparation / curation / diagnostics / policy / context compaction
+  - history compaction, post-turn side effects, presenter seam, runtime bindings
+- [completed] restored legacy runtime entrypoints as compatibility shims instead of hard-deleting them in the same slice:
+  - [agent.py](/d:/file/Mini-Agent/src/mini_agent/agent.py)
+  - [turn_context.py](/d:/file/Mini-Agent/src/mini_agent/turn_context.py)
+  - [code_agent/__init__.py](/d:/file/Mini-Agent/src/mini_agent/code_agent/__init__.py)
+  - package shim surfaces for `context_compression`, `permissions`, `sandbox`, and `tools`
+- [completed] added schema/runtime compatibility so old buffered callers still fit the new core:
+  - `LLMResponse` remains available
+  - new completion events and buffered completions now share one normalized model
+- [completed] added focused `agent_core` regression coverage:
+  - compatibility shims
+  - runtime bindings
+  - context compaction
+  - execution loop / policy / permissions / tools / sandbox / mcp / minimal workflow
+  - turn context
+  - history summarization
+  - presenter / post-turn side effects
+  - package exports
+- [completed] verified the cut before commit:
+  - `uv run pytest tests/test_agent_core_compatibility_shims.py tests/test_agent_core_runtime_bindings.py tests/test_agent_core_context_compaction.py tests/test_agent_core_execution_loop.py tests/test_agent_core_execution_policy.py tests/test_agent_core_execution_permissions.py tests/test_agent_core_execution_tools.py tests/test_agent_core_execution_sandbox.py tests/test_agent_core_execution_mcp_client.py tests/test_agent_core_execution_minimal_workflow.py tests/test_agent_core_turn_context.py tests/test_agent_core_history_summarization.py tests/test_agent_core_presentation.py tests/test_agent_core_post_turn.py tests/test_agent_core_exports.py -q`
+  - result: `105 passed`
+  - `git diff --cached --check`
+  - result: clean
+- [next] choose the next post-landing seam from real remaining coupling:
+  - direct `kernel` adoption of `agent_core`
+  - or the next `P34` compatibility-removal slice once `P33b` bootstrap/runtime-truth dependencies are ready to travel honestly
+
+## 2026-04-16 P32b Final Doc And History Boundary Closure
+
+- [completed] landed the third and final narrow `P32b` closeout commit:
+  - commit: `d6343bc`
+  - message: `docs: close p32b remote and browser boundary sync`
+- [completed] synced the active architecture/contributor docs to the already-landed repo reality:
+  - browser `WebUI / OpenWebUI` are removed
+  - `QQ` is the only active remote adapter path
+  - `DesktopUI` remains the canonical graphical mainline
+- [completed] added the explicit remote-interaction lock doc:
+  - [P32_REMOTE_INTERACTION_ARCHITECTURE_LOCK_2026-04-14.md](/d:/file/Mini-Agent/docs/P32_REMOTE_INTERACTION_ARCHITECTURE_LOCK_2026-04-14.md)
+- [completed] marked older `P29 / P30 / P31` architecture docs as historical evidence where old browser/channel references still remain
+- [completed] kept mixed future-line docs out of the hygiene commit boundary instead of bundling them into `P32b`
+- [completed] `P32b` is now materially complete as a three-slice closeout:
+  - `4064fe6` `docs: sync p32b repo hygiene execution anchors`
+  - `2b3bae2` `p32b: align gateway host with browser surface removal`
+  - `d6343bc` `docs: close p32b remote and browser boundary sync`
+- [next] reopen work from the real next feature bucket instead of continuing repo hygiene by inertia
+
+## 2026-04-16 Post-2b3bae2 Dirty Worktree Classification
+
+- [completed] classified the remaining dirty worktree after the second focused `P32b` commit
+- [completed] recorded a coarse ownership split for the remaining paths:
+  - `p32b_hygiene_docs`: `14`
+  - `p33b_model_provider`: `37`
+  - `p34_agent_core`: `128`
+  - `p36_runtime_session`: `109`
+  - `p37_tui_surface`: `30`
+  - `cross_cutting_misc`: `42`
+- [completed] confirmed that residual `P32b` is now a minority slice and should stay narrow
+- [completed] recorded the next commit-boundary rule:
+  - do not bundle the remaining `P33b / P34 / P36 / P37` code buckets into another hygiene commit
+  - if `P32b` continues, keep it to docs/history/repo-metadata closure only
+- [next] choose between:
+  - one last narrow `P32b` docs/history slice
+  - or reopening the next commit from its real feature bucket
+
+## 2026-04-16 P32b Physical Structure Closure
+
+- [completed] landed the second focused `P32b` commit slice for physical structure closure:
+  - commit: `2b3bae2`
+  - message: `p32b: align gateway host with browser surface removal`
+- [completed] removed the obsolete browser studio surface from the active repo:
+  - deleted `src/apps/agent_studio/**`
+- [completed] aligned the maintained gateway host boundary:
+  - added [composition.py](/d:/file/Mini-Agent/src/apps/agent_studio_gateway/composition.py)
+  - added [main_agent_router.py](/d:/file/Mini-Agent/src/apps/agent_studio_gateway/main_agent_router.py)
+  - added [ops_auth.py](/d:/file/Mini-Agent/src/apps/agent_studio_gateway/ops_auth.py)
+  - added [ops_router.py](/d:/file/Mini-Agent/src/apps/agent_studio_gateway/ops_router.py)
+  - reduced [main.py](/d:/file/Mini-Agent/src/apps/agent_studio_gateway/main.py) to the maintained host/composition entry
+- [completed] realigned the directly affected app/session/novel ownership and active harnesses to current contracts:
+  - current walkthroughs now target `MainAgentSurfaceService` and `SessionApplicationService`
+  - readiness/TUI scripts were updated for current constructor signatures and Windows-safe `DummyOutput()` use
+- [completed] re-verified the narrowed closure slice before commit:
+  - `uv run pytest tests/test_agent_studio_gateway_api_v1.py tests/test_agent_studio_gateway_ops_router.py tests/test_agent_studio_gateway_ops_auth.py tests/test_agent_studio_gateway_integration_flows.py tests/test_channel_novel_action_handler.py tests/test_operations_memory_use_cases.py tests/test_operations_provider_use_cases.py tests/test_config_bootstrap.py tests/test_main_agent_runtime_policy_loader.py tests/test_main_agent_surface_service.py tests/test_novel_service_use_cases.py tests/test_p19_runtime_matrix.py tests/test_channel_ingress_use_cases.py tests/test_session_feedback_service.py tests/test_session_recovery_feedback_service.py tests/test_session_package_exports.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_shared_session_gateway_walkthrough.py tests/test_terminal_readiness_gate.py tests/test_tui_readiness_walkthroughs.py -q`
+  - result: `163 passed`
+  - `git diff --cached --check`
+  - result: clean
+- [completed] synced the `P32b` second-slice status back into the planning-memory files:
+  - [task_plan.md](/d:/file/Mini-Agent/task_plan.md)
+  - [findings.md](/d:/file/Mini-Agent/findings.md)
+  - [progress.md](/d:/file/Mini-Agent/progress.md)
+- [next] classify the remaining dirty worktree into residual `P32b` hygiene vs later feature-line commits, and keep those slices separate
+
+## 2026-04-16 P32b Repo Hygiene And Structure Alignment
+
+- [completed] re-audited the current repo state after the completed `P37` line
+- [completed] confirmed that the biggest remaining second-pass `P32` problem is repo hygiene, not another code-level ownership refactor:
+  - active code/test/script refs to deleted ownership paths are already gone
+  - remaining drift is concentrated in current doc/index surfaces
+- [completed] created the active second-pass `P32b` plan:
+  - [P32B_REPO_HYGIENE_AND_STRUCTURE_ALIGNMENT_PLAN_2026-04-16.md](/d:/file/Mini-Agent/docs/P32B_REPO_HYGIENE_AND_STRUCTURE_ALIGNMENT_PLAN_2026-04-16.md)
+- [completed] synced the active current-guidance layer to the new execution anchor:
+  - [DEVELOPMENT_INDEX.md](/d:/file/Mini-Agent/docs/DEVELOPMENT_INDEX.md)
+  - [DOCS_INDEX.md](/d:/file/Mini-Agent/docs/DOCS_INDEX.md)
+  - [REFACTOR_TASKS.md](/d:/file/Mini-Agent/docs/REFACTOR_TASKS.md)
+  - [MINIAGENT_DEV_HABIT_LEDGER.md](/d:/file/Mini-Agent/docs/MINIAGENT_DEV_HABIT_LEDGER.md)
+  - [DEVELOPMENT_GUIDE.md](/d:/file/Mini-Agent/docs/DEVELOPMENT_GUIDE.md)
+  - [DEVELOPMENT_GUIDE_CN.md](/d:/file/Mini-Agent/docs/DEVELOPMENT_GUIDE_CN.md)
+  - [README.md](/d:/file/Mini-Agent/README.md)
+  - [README_CN.md](/d:/file/Mini-Agent/README_CN.md)
+- [completed] recorded the new `P32b` working state in the planning-memory files:
+  - [task_plan.md](/d:/file/Mini-Agent/task_plan.md)
+  - [findings.md](/d:/file/Mini-Agent/findings.md)
+  - [progress.md](/d:/file/Mini-Agent/progress.md)
+- [completed] landed the first `P32b` commit slice for current-guidance hygiene:
+  - commit: `4064fe6`
+  - message: `docs: sync p32b repo hygiene execution anchors`
+- [next] classify the remaining dirty worktree into `physical structure closure` vs `post-structure feature lines` before cutting the next commit slice
+
+## 2026-04-16 Post-P37 TUI Surface Evaluation
+
+- [completed] evaluated the remaining post-`P37.3` TUI surface shape after the model-command extraction
+- [completed] recorded the evaluation report in:
+  - [POST_P37_TUI_SURFACE_EVALUATION_2026-04-16.md](/d:/file/Mini-Agent/docs/POST_P37_TUI_SURFACE_EVALUATION_2026-04-16.md)
+- [completed] main conclusions:
+  - `P37` should now be treated as materially complete
+  - the remaining larger `session` command tail is better understood as surface/lifecycle orchestration, not as another clean command-family convergence seam
+  - `sandbox` is already small enough that another extraction would likely be a thin shell
+  - the next TUI refactor, if any, should come from a fresh problem statement rather than a forced `P37.3` continuation
+
+## 2026-04-16 P37.3 Model Command Coordinator
+
+- [completed] landed the eighth `P37.3` extraction for TUI operator-command orchestration:
+  - added [session_model_command_coordinator.py](/d:/file/Mini-Agent/src/mini_agent/tui/session_model_command_coordinator.py)
+  - [app.py](/d:/file/Mini-Agent/src/mini_agent/tui/app.py) now delegates model command orchestration through that maintained coordinator
+- [completed] kept the extraction narrow:
+  - model command-plan resolution still stays in `tui/app.py`
+  - model-selection, discovery, filter, and limit helpers still stay in `tui/app.py`
+  - only plan-result handling, action dispatch, model-use failure mapping, and terminal render sequencing moved out of the main app class
+- [completed] added focused unit coverage for the extracted model-command owner:
+  - [test_tui_model_command_coordinator.py](/d:/file/Mini-Agent/tests/test_tui_model_command_coordinator.py)
+- Verification:
+  - `uv run ruff check src/mini_agent/tui/app.py src/mini_agent/tui/session_model_command_coordinator.py tests/test_tui_model_command_coordinator.py tests/test_tui_app.py`
+  - result: all green
+  - `uv run pytest tests/test_tui_model_command_coordinator.py tests/test_tui_skill_command_coordinator.py tests/test_tui_mcp_command_coordinator.py tests/test_tui_kb_command_coordinator.py tests/test_tui_memory_command_coordinator.py tests/test_tui_context_command_coordinator.py tests/test_tui_runtime_policy_command_coordinator.py tests/test_tui_approval_command_coordinator.py tests/test_tui_remote_turn_stream_coordinator.py tests/test_tui_turn_outcome_coordinator.py tests/test_tui_turn_state_coordinator.py tests/test_tui_remote_projector.py tests/test_tui_app.py -q`
+  - result: `186 passed in 4.28s`
+
+## 2026-04-16 P37.3 Skill Command Coordinator
+
+- [completed] landed the seventh `P37.3` extraction for TUI operator-command orchestration:
+  - added [session_skill_command_coordinator.py](/d:/file/Mini-Agent/src/mini_agent/tui/session_skill_command_coordinator.py)
+  - [app.py](/d:/file/Mini-Agent/src/mini_agent/tui/app.py) now delegates skill command orchestration through that maintained coordinator
+- [completed] kept the extraction narrow:
+  - skill command-plan resolution still stays in `tui/app.py`
+  - remote skill request/response helpers still stay in `tui/app.py`
+  - local skill-result application still stays in `tui/app.py`
+  - only plan-result handling, local-vs-remote branching, remote failure mapping, and terminal render sequencing moved out of the main app class
+- [completed] added focused unit coverage for the extracted skill-command owner:
+  - [test_tui_skill_command_coordinator.py](/d:/file/Mini-Agent/tests/test_tui_skill_command_coordinator.py)
+- Verification:
+  - `uv run ruff check src/mini_agent/tui/app.py src/mini_agent/tui/session_skill_command_coordinator.py tests/test_tui_skill_command_coordinator.py tests/test_tui_app.py`
+  - result: all green
+  - `uv run pytest tests/test_tui_skill_command_coordinator.py tests/test_tui_mcp_command_coordinator.py tests/test_tui_kb_command_coordinator.py tests/test_tui_memory_command_coordinator.py tests/test_tui_context_command_coordinator.py tests/test_tui_runtime_policy_command_coordinator.py tests/test_tui_approval_command_coordinator.py tests/test_tui_remote_turn_stream_coordinator.py tests/test_tui_turn_outcome_coordinator.py tests/test_tui_turn_state_coordinator.py tests/test_tui_remote_projector.py tests/test_tui_app.py -q`
+  - result: `180 passed in 4.37s`
+
+## 2026-04-16 P37.3 MCP Command Coordinator
+
+- [completed] landed the sixth `P37.3` extraction for TUI operator-command orchestration:
+  - added [session_mcp_command_coordinator.py](/d:/file/Mini-Agent/src/mini_agent/tui/session_mcp_command_coordinator.py)
+  - [app.py](/d:/file/Mini-Agent/src/mini_agent/tui/app.py) now delegates MCP command orchestration through that maintained coordinator
+- [completed] kept the extraction narrow:
+  - MCP command-plan resolution still stays in `tui/app.py`
+  - shared remote control helper still stays in `tui/app.py`
+  - local MCP reload runtime-rebuild details still stay in `tui/app.py`
+  - only local-vs-remote branching, unsynced-remote fallback feedback, and feedback/status/render sequencing moved out of the main app class
+- [completed] added focused unit coverage for the extracted MCP-command owner:
+  - [test_tui_mcp_command_coordinator.py](/d:/file/Mini-Agent/tests/test_tui_mcp_command_coordinator.py)
+- Verification:
+  - `uv run ruff check src/mini_agent/tui/app.py src/mini_agent/tui/session_mcp_command_coordinator.py tests/test_tui_mcp_command_coordinator.py tests/test_tui_app.py`
+  - result: all green
+  - `uv run pytest tests/test_tui_mcp_command_coordinator.py tests/test_tui_kb_command_coordinator.py tests/test_tui_memory_command_coordinator.py tests/test_tui_context_command_coordinator.py tests/test_tui_runtime_policy_command_coordinator.py tests/test_tui_approval_command_coordinator.py tests/test_tui_remote_turn_stream_coordinator.py tests/test_tui_turn_outcome_coordinator.py tests/test_tui_turn_state_coordinator.py tests/test_tui_remote_projector.py tests/test_tui_app.py -q`
+  - result: `176 passed in 4.26s`
+
+## 2026-04-16 P37.3 KB Command Coordinator
+
+- [completed] landed the fifth `P37.3` extraction for TUI operator-command orchestration:
+  - added [session_kb_command_coordinator.py](/d:/file/Mini-Agent/src/mini_agent/tui/session_kb_command_coordinator.py)
+  - [app.py](/d:/file/Mini-Agent/src/mini_agent/tui/app.py) now delegates KB command orchestration through that maintained coordinator
+- [completed] kept the extraction narrow:
+  - KB command-plan resolution still stays in `tui/app.py`
+  - remote KB execution helper still stays in `tui/app.py`
+  - local KB toggle callback details still stay in `tui/app.py`
+  - only status special-case orchestration, local-vs-remote branching, and feedback/status/render sequencing moved out of the main app class
+- [completed] added focused unit coverage for the extracted KB-command owner:
+  - [test_tui_kb_command_coordinator.py](/d:/file/Mini-Agent/tests/test_tui_kb_command_coordinator.py)
+- Verification:
+  - `uv run ruff check src/mini_agent/tui/app.py src/mini_agent/tui/session_kb_command_coordinator.py tests/test_tui_kb_command_coordinator.py tests/test_tui_app.py`
+  - result: all green
+  - `uv run pytest tests/test_tui_kb_command_coordinator.py tests/test_tui_memory_command_coordinator.py tests/test_tui_context_command_coordinator.py tests/test_tui_runtime_policy_command_coordinator.py tests/test_tui_approval_command_coordinator.py tests/test_tui_remote_turn_stream_coordinator.py tests/test_tui_turn_outcome_coordinator.py tests/test_tui_turn_state_coordinator.py tests/test_tui_remote_projector.py tests/test_tui_app.py -q`
+  - result: `172 passed in 4.24s`
+
+## 2026-04-16 P37.3 Memory Command Coordinator
+
+- [completed] landed the fourth `P37.3` extraction for TUI operator-command orchestration:
+  - added [session_memory_command_coordinator.py](/d:/file/Mini-Agent/src/mini_agent/tui/session_memory_command_coordinator.py)
+  - [app.py](/d:/file/Mini-Agent/src/mini_agent/tui/app.py) now delegates memory command orchestration through that maintained coordinator
+- [completed] kept the extraction narrow:
+  - memory command planning still stays in `tui/app.py`
+  - local/remote memory command execution helpers still stay in `tui/app.py`
+  - only plan-result handling, busy gating, and feedback/status/render sequencing moved out of the main app class
+- [completed] added focused unit coverage for the extracted memory-command owner:
+  - [test_tui_memory_command_coordinator.py](/d:/file/Mini-Agent/tests/test_tui_memory_command_coordinator.py)
+- Verification:
+  - `uv run ruff check src/mini_agent/tui/app.py src/mini_agent/tui/session_memory_command_coordinator.py tests/test_tui_memory_command_coordinator.py tests/test_tui_app.py`
+  - result: all green
+  - `uv run pytest tests/test_tui_memory_command_coordinator.py tests/test_tui_context_command_coordinator.py tests/test_tui_runtime_policy_command_coordinator.py tests/test_tui_approval_command_coordinator.py tests/test_tui_remote_turn_stream_coordinator.py tests/test_tui_turn_outcome_coordinator.py tests/test_tui_turn_state_coordinator.py tests/test_tui_remote_projector.py tests/test_tui_app.py -q`
+  - result: `167 passed in 4.07s`
+
+## 2026-04-16 P37.3 Context Command Coordinator
+
+- [completed] landed the third `P37.3` extraction for TUI operator-command orchestration:
+  - added [session_context_command_coordinator.py](/d:/file/Mini-Agent/src/mini_agent/tui/session_context_command_coordinator.py)
+  - [app.py](/d:/file/Mini-Agent/src/mini_agent/tui/app.py) now delegates context command orchestration through that maintained coordinator
+- [completed] kept the extraction narrow:
+  - context planner still stays in `tui/app.py`
+  - local command execution still stays in `tui/app.py`
+  - remote context update helpers still stay in `tui/app.py`
+- [completed] added focused unit coverage for the extracted context-command owner:
+  - [test_tui_context_command_coordinator.py](/d:/file/Mini-Agent/tests/test_tui_context_command_coordinator.py)
+- Verification:
+  - `uv run ruff check src/mini_agent/tui/app.py src/mini_agent/tui/session_context_command_coordinator.py tests/test_tui_context_command_coordinator.py tests/test_tui_app.py`
+  - result: all green
+  - `uv run pytest tests/test_tui_context_command_coordinator.py tests/test_tui_runtime_policy_command_coordinator.py tests/test_tui_approval_command_coordinator.py tests/test_tui_remote_turn_stream_coordinator.py tests/test_tui_turn_outcome_coordinator.py tests/test_tui_turn_state_coordinator.py tests/test_tui_remote_projector.py tests/test_tui_app.py -q`
+  - result: `164 passed in 4.07s`
+
+## 2026-04-16 P37.3 Runtime Policy Command Coordinator
+
+- [completed] landed the second `P37.3` extraction for TUI operator-command orchestration:
+  - added [session_runtime_policy_command_coordinator.py](/d:/file/Mini-Agent/src/mini_agent/tui/session_runtime_policy_command_coordinator.py)
+  - [app.py](/d:/file/Mini-Agent/src/mini_agent/tui/app.py) now delegates local-vs-remote runtime-policy command orchestration through that maintained coordinator
+- [completed] kept the extraction narrow:
+  - runtime-policy apply helpers still stay in `tui/app.py`
+  - only command routing, unchanged detection, failure mapping, and feedback/status orchestration moved out of the main app class
+- [completed] added focused unit coverage for the extracted runtime-policy owner:
+  - [test_tui_runtime_policy_command_coordinator.py](/d:/file/Mini-Agent/tests/test_tui_runtime_policy_command_coordinator.py)
+- Verification:
+  - `uv run ruff check src/mini_agent/tui/app.py src/mini_agent/tui/session_runtime_policy_command_coordinator.py tests/test_tui_runtime_policy_command_coordinator.py tests/test_tui_approval_command_coordinator.py tests/test_tui_app.py`
+  - result: all green
+  - `uv run pytest tests/test_tui_runtime_policy_command_coordinator.py tests/test_tui_approval_command_coordinator.py tests/test_tui_remote_turn_stream_coordinator.py tests/test_tui_turn_outcome_coordinator.py tests/test_tui_turn_state_coordinator.py tests/test_tui_remote_projector.py tests/test_tui_app.py -q`
+  - result: `161 passed in 4.07s`
+
+## 2026-04-16 P37.3 Approval Command Coordinator Kickoff
+
+- [completed] landed the first `P37.3` extraction for TUI operator-command orchestration:
+  - added [session_approval_command_coordinator.py](/d:/file/Mini-Agent/src/mini_agent/tui/session_approval_command_coordinator.py)
+  - [app.py](/d:/file/Mini-Agent/src/mini_agent/tui/app.py) now delegates local-vs-remote approval command orchestration through that maintained coordinator
+- [completed] kept the extraction narrow:
+  - modal rendering still stays in `tui/app.py`
+  - remote stream approval event handling still stays in `tui/app.py`
+  - only `approve` / `deny` command execution moved out of the main app class
+- [completed] added focused unit coverage for the extracted approval-command owner:
+  - [test_tui_approval_command_coordinator.py](/d:/file/Mini-Agent/tests/test_tui_approval_command_coordinator.py)
+- Verification:
+  - `uv run ruff check src/mini_agent/tui/app.py src/mini_agent/tui/session_approval_command_coordinator.py tests/test_tui_approval_command_coordinator.py tests/test_tui_app.py`
+  - result: all green
+  - `uv run pytest tests/test_tui_approval_command_coordinator.py tests/test_tui_remote_turn_stream_coordinator.py tests/test_tui_turn_outcome_coordinator.py tests/test_tui_turn_state_coordinator.py tests/test_tui_remote_projector.py tests/test_tui_app.py -q`
+  - result: `158 passed in 3.94s`
+
+## 2026-04-16 P37.2 Remote Turn Stream Coordinator
+
+- [completed] landed the third `P37.2` extraction for local-vs-remote turn execution convergence:
+  - added [session_remote_turn_stream_coordinator.py](/d:/file/Mini-Agent/src/mini_agent/tui/session_remote_turn_stream_coordinator.py)
+  - [app.py](/d:/file/Mini-Agent/src/mini_agent/tui/app.py) now delegates remote stream consumption and event dispatch through that maintained coordinator
+- [completed] kept the extraction narrow:
+  - remote turn outcome application still stays in `tui/app.py`
+  - final reply flush and remote detail sync still stay in `tui/app.py`
+  - local turn flow stayed untouched in this cut
+- [completed] added focused unit coverage for the extracted remote stream owner:
+  - [test_tui_remote_turn_stream_coordinator.py](/d:/file/Mini-Agent/tests/test_tui_remote_turn_stream_coordinator.py)
+  - updated [test_tui_app.py](/d:/file/Mini-Agent/tests/test_tui_app.py) with remote approval stream round-trip coverage
+- Verification:
+  - `uv run ruff check src/mini_agent/tui/app.py src/mini_agent/tui/session_remote_turn_stream_coordinator.py tests/test_tui_remote_turn_stream_coordinator.py tests/test_tui_app.py`
+  - result: all green
+  - `uv run pytest tests/test_tui_remote_turn_stream_coordinator.py tests/test_tui_turn_outcome_coordinator.py tests/test_tui_turn_state_coordinator.py tests/test_tui_remote_projector.py tests/test_tui_app.py -q`
+  - result: `154 passed in 4.33s`
+
+## 2026-04-16 P37.2 Turn Outcome Coordinator
+
+- [completed] landed the second `P37.2` extraction for local-vs-remote turn execution convergence:
+  - added [session_turn_outcome_coordinator.py](/d:/file/Mini-Agent/src/mini_agent/tui/session_turn_outcome_coordinator.py)
+  - [app.py](/d:/file/Mini-Agent/src/mini_agent/tui/app.py) now delegates shared local/remote turn completion and failure classification through that maintained coordinator
+- [completed] kept the extraction narrow:
+  - success reply streaming/finalization still stays in `tui/app.py`
+  - remote session-detail sync still stays in `tui/app.py`
+  - local `resume_pending` recovery branch still stays local
+- [completed] added focused unit coverage for the extracted outcome owner:
+  - [test_tui_turn_outcome_coordinator.py](/d:/file/Mini-Agent/tests/test_tui_turn_outcome_coordinator.py)
+- Verification:
+  - `uv run ruff check src/mini_agent/tui/app.py src/mini_agent/tui/session_turn_outcome_coordinator.py tests/test_tui_turn_outcome_coordinator.py tests/test_tui_turn_state_coordinator.py tests/test_tui_remote_projector.py`
+  - result: all green
+  - `uv run pytest tests/test_tui_turn_outcome_coordinator.py tests/test_tui_turn_state_coordinator.py tests/test_tui_remote_projector.py tests/test_tui_app.py -q`
+  - result: `150 passed in 3.95s`
+
+## 2026-04-16 P37.2 Turn State Coordinator Kickoff
+
+- [completed] landed the first `P37.2` extraction for local-vs-remote turn execution convergence:
+  - added [session_turn_state_coordinator.py](/d:/file/Mini-Agent/src/mini_agent/tui/session_turn_state_coordinator.py)
+  - [app.py](/d:/file/Mini-Agent/src/mini_agent/tui/app.py) now delegates the shared local/remote turn session-task state transitions through that maintained coordinator
+- [completed] added focused unit coverage for the extracted state owner:
+  - [test_tui_turn_state_coordinator.py](/d:/file/Mini-Agent/tests/test_tui_turn_state_coordinator.py)
+- [completed] kept the cut narrow:
+  - no stream/event/result branch rewrite yet
+  - only shared turn-state mutation moved out of `tui/app.py`
+- Verification:
+  - `uv run ruff check src/mini_agent/tui/app.py src/mini_agent/tui/session_turn_state_coordinator.py tests/test_tui_turn_state_coordinator.py`
+  - result: all green
+  - `uv run pytest tests/test_tui_turn_state_coordinator.py tests/test_tui_remote_projector.py tests/test_tui_app.py -q`
+  - result: `148 passed`
+
+## 2026-04-15 P37.1 Remote Session Projection Service Kickoff
+
+- [completed] opened the new `P37` line for TUI/surface orchestration convergence:
+  - added [P37_TUI_SURFACE_ORCHESTRATION_CONVERGENCE_PLAN_2026-04-15.md](/d:/file/Mini-Agent/docs/P37_TUI_SURFACE_ORCHESTRATION_CONVERGENCE_PLAN_2026-04-15.md)
+- [completed] landed the first `P37.1` extraction:
+  - added [session_remote_projector.py](/d:/file/Mini-Agent/src/mini_agent/tui/session_remote_projector.py)
+  - [app.py](/d:/file/Mini-Agent/src/mini_agent/tui/app.py) now delegates remote session `summary/detail/messages` projection application through that maintained TUI projector
+- [completed] added focused unit coverage for the extracted projector:
+  - [test_tui_remote_projector.py](/d:/file/Mini-Agent/tests/test_tui_remote_projector.py)
+- Verification:
+  - `uv run ruff check src/mini_agent/tui/app.py src/mini_agent/tui/session_remote_projector.py tests/test_tui_remote_projector.py`
+  - result: all green
+  - `uv run pytest tests/test_tui_remote_projector.py tests/test_tui_app.py -q`
+  - result: `146 passed`
+
+## 2026-04-15 Post-P36 Runtime/Surface Evaluation
+
+- [completed] audited the live post-`P36` code shape instead of assuming more `P36` work remained
+- [completed] confirmed the main post-`P36` structural pressure is now concentrated in TUI/surface orchestration, not in the maintained runtime/session support seams
+- [completed] recorded the evaluation report in:
+  - [POST_P36_RUNTIME_SURFACE_EVALUATION_2026-04-15.md](/d:/file/Mini-Agent/docs/POST_P36_RUNTIME_SURFACE_EVALUATION_2026-04-15.md)
+- [completed] key conclusions:
+  - `P36` should currently be treated as complete
+  - `MainAgentSurfaceService` and `SessionApplicationService` are comparatively thin and not the main next-risk area
+  - `MainAgentRuntimeManager` is still large, but is now mostly composition/wrapper weight rather than the main correctness hotspot
+  - `src/mini_agent/tui/app.py` is the dominant remaining architecture hotspot because it still owns broad local/remote runtime orchestration and direct session projection mutation
+- Verification:
+  - evaluation based on current code inspection plus the latest completed `P36` validation baseline:
+    - `uv run pytest ...`
+    - latest recorded focused bundle result: `294 passed`
+
+## 2026-04-15 P36.3 Runtime Session Tail Fixture Adoption Extension
+
+- [completed] finished and verified the next shared-fixture adoption cut for runtime/session identity and operator tests:
+  - [test_runtime_session_model_identity_codec.py](/d:/file/Mini-Agent/tests/test_runtime_session_model_identity_codec.py)
+  - [test_runtime_session_operator_handler.py](/d:/file/Mini-Agent/tests/test_runtime_session_operator_handler.py)
+- [completed] extended the same maintained fixture line into the next session-control tests:
+  - [test_runtime_session_admin_handler.py](/d:/file/Mini-Agent/tests/test_runtime_session_admin_handler.py)
+  - [test_runtime_session_mcp_control_handler.py](/d:/file/Mini-Agent/tests/test_runtime_session_mcp_control_handler.py)
+  - [test_runtime_session_pending_approval_state_handler.py](/d:/file/Mini-Agent/tests/test_runtime_session_pending_approval_state_handler.py)
+- [completed] closed the remaining worthwhile session-shell cleanup points in the runtime-session line:
+  - [test_runtime_session_recovery_reset_handler.py](/d:/file/Mini-Agent/tests/test_runtime_session_recovery_reset_handler.py)
+  - [test_runtime_session_lifecycle_handler.py](/d:/file/Mini-Agent/tests/test_runtime_session_lifecycle_handler.py)
+  - [test_runtime_session_hydration_coordinator.py](/d:/file/Mini-Agent/tests/test_runtime_session_hydration_coordinator.py)
+- [completed] kept the extraction narrow and contract-oriented:
+  - shared helpers now cover more repeated `session / projection / runtime / transcript` shells
+  - handler-specific service doubles and domain payload rows still stay local to each test file
+  - the remaining inline `SimpleNamespace(...)` usage in `test_runtime_session_*` is now mostly dependency stubs, message rows, or tiny policy/lifecycle wrappers rather than missing shared runtime carriers
+- Verification:
+  - `uv run pytest tests/test_runtime_session_model_identity_codec.py tests/test_runtime_session_operator_handler.py -q`
+  - result: `5 passed`
+  - `uv run ruff check tests/test_runtime_session_model_identity_codec.py tests/test_runtime_session_operator_handler.py`
+  - result: all green
+  - `uv run pytest tests/test_runtime_session_admin_handler.py tests/test_runtime_session_mcp_control_handler.py tests/test_runtime_session_pending_approval_state_handler.py -q`
+  - result: `8 passed`
+  - `uv run ruff check tests/test_runtime_session_admin_handler.py tests/test_runtime_session_mcp_control_handler.py tests/test_runtime_session_pending_approval_state_handler.py`
+  - result: all green
+  - `uv run pytest tests/test_runtime_session_recovery_reset_handler.py tests/test_runtime_session_lifecycle_handler.py tests/test_runtime_session_hydration_coordinator.py -q`
+  - result: `8 passed`
+  - `uv run ruff check tests/test_runtime_session_recovery_reset_handler.py tests/test_runtime_session_lifecycle_handler.py tests/test_runtime_session_hydration_coordinator.py`
+  - result: all green
+  - `uv run pytest tests/test_runtime_session_payload_codec.py tests/test_runtime_session_agent_support.py tests/test_runtime_session_diagnostics_service.py tests/test_runtime_session_state_hydrator.py tests/test_runtime_session_persistence_record_builder.py tests/test_runtime_session_snapshot_builder.py tests/test_runtime_session_agent_runtime_handler.py tests/test_runtime_session_agent_control_handler.py tests/test_runtime_session_recovery_reset_handler.py tests/test_runtime_session_operator_handler.py tests/test_runtime_session_model_identity_codec.py tests/test_runtime_session_admin_handler.py tests/test_runtime_session_mcp_control_handler.py tests/test_runtime_session_pending_approval_state_handler.py tests/test_runtime_session_lifecycle_handler.py tests/test_runtime_session_hydration_coordinator.py tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_runtime_policy_service.py tests/test_sandbox_state.py -q`
+  - result: `294 passed`
+
+## 2026-04-15 P36.3 Runtime Record And Diagnostics Fixture Adoption Extension
+
+- [completed] extended the shared `P36.3` fixture line into runtime record/diagnostics tests:
+  - [test_runtime_session_snapshot_builder.py](/d:/file/Mini-Agent/tests/test_runtime_session_snapshot_builder.py)
+  - [test_runtime_session_persistence_record_builder.py](/d:/file/Mini-Agent/tests/test_runtime_session_persistence_record_builder.py)
+  - [test_runtime_session_payload_codec.py](/d:/file/Mini-Agent/tests/test_runtime_session_payload_codec.py)
+  - [test_runtime_session_diagnostics_service.py](/d:/file/Mini-Agent/tests/test_runtime_session_diagnostics_service.py)
+  - [test_runtime_session_agent_control_handler.py](/d:/file/Mini-Agent/tests/test_runtime_session_agent_control_handler.py)
+- [completed] expanded [runtime_contract_fixtures.py](/d:/file/Mini-Agent/tests/runtime_contract_fixtures.py) with the next narrow contract-shaped carriers:
+  - lineage state
+  - transcript entry
+  - transcript state
+- [completed] kept the extraction seam narrow and reusable:
+  - snapshot/persistence tests now reuse the maintained session/projection/runtime/lineage/transcript shapes
+  - payload/diagnostics/control tests now reuse the maintained runtime agent/session shells instead of rebuilding the same shape inline
+- Verification:
+  - `uv run pytest tests/test_runtime_session_snapshot_builder.py tests/test_runtime_session_persistence_record_builder.py tests/test_runtime_session_payload_codec.py -q`
+  - result: `6 passed`
+  - `uv run pytest tests/test_runtime_session_diagnostics_service.py tests/test_runtime_session_agent_control_handler.py -q`
+  - result: `5 passed`
+  - `uv run ruff check tests/runtime_contract_fixtures.py tests/test_runtime_session_snapshot_builder.py tests/test_runtime_session_persistence_record_builder.py tests/test_runtime_session_payload_codec.py tests/test_runtime_session_diagnostics_service.py tests/test_runtime_session_agent_control_handler.py`
+  - result: all green
+  - `uv run pytest tests/test_runtime_session_payload_codec.py tests/test_runtime_session_agent_support.py tests/test_runtime_session_diagnostics_service.py tests/test_runtime_session_state_hydrator.py tests/test_runtime_session_persistence_record_builder.py tests/test_runtime_session_snapshot_builder.py tests/test_runtime_session_agent_runtime_handler.py tests/test_runtime_session_agent_control_handler.py tests/test_runtime_session_recovery_reset_handler.py tests/test_runtime_session_operator_handler.py tests/test_runtime_session_model_identity_codec.py tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_runtime_policy_service.py tests/test_sandbox_state.py -q`
+  - result: `282 passed`
+
+## 2026-04-15 P36.3 Runtime Session Fixture Extension
+
+- [completed] extended the `P36.3` shared runtime-facing test carrier into session/runtime handler tests:
+  - [runtime_contract_fixtures.py](/d:/file/Mini-Agent/tests/runtime_contract_fixtures.py) now also owns narrow shared session/runtime fixture helpers for:
+    - runtime policy engine shape
+    - sandbox manager selection shape
+    - projection state shape
+    - runtime state shape
+    - session state shape
+- [completed] reduced another set of bespoke `SimpleNamespace(...)` carrier stories in runtime/session tests:
+  - [test_runtime_session_agent_runtime_handler.py](/d:/file/Mini-Agent/tests/test_runtime_session_agent_runtime_handler.py)
+  - [test_runtime_session_state_hydrator.py](/d:/file/Mini-Agent/tests/test_runtime_session_state_hydrator.py)
+  - [test_runtime_session_recovery_reset_handler.py](/d:/file/Mini-Agent/tests/test_runtime_session_recovery_reset_handler.py)
+  - [test_runtime_policy_service.py](/d:/file/Mini-Agent/tests/test_runtime_policy_service.py)
+  - [test_sandbox_state.py](/d:/file/Mini-Agent/tests/test_sandbox_state.py)
+- [completed] kept the shared fixture line contract-oriented instead of overbuilding a fake runtime framework:
+  - test-specific behavior remains local to each test file
+  - only the repeated runtime/session carrier shapes moved into shared helpers
+- Verification:
+  - `uv run pytest tests/test_runtime_session_agent_runtime_handler.py tests/test_runtime_session_state_hydrator.py tests/test_runtime_session_recovery_reset_handler.py tests/test_runtime_policy_service.py tests/test_sandbox_state.py -q`
+  - result: `12 passed`
+  - `uv run ruff check tests/runtime_contract_fixtures.py tests/test_runtime_session_agent_runtime_handler.py tests/test_runtime_session_state_hydrator.py tests/test_runtime_session_recovery_reset_handler.py tests/test_runtime_policy_service.py tests/test_sandbox_state.py`
+  - result: all green
+  - `uv run pytest tests/test_runtime_session_payload_codec.py tests/test_runtime_session_agent_support.py tests/test_runtime_session_diagnostics_service.py tests/test_runtime_session_state_hydrator.py tests/test_runtime_session_persistence_record_builder.py tests/test_runtime_session_snapshot_builder.py tests/test_runtime_session_agent_runtime_handler.py tests/test_runtime_session_agent_control_handler.py tests/test_runtime_session_recovery_reset_handler.py tests/test_runtime_session_operator_handler.py tests/test_runtime_session_model_identity_codec.py tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_runtime_policy_service.py tests/test_sandbox_state.py -q`
+  - result: `282 passed`
+
+## 2026-04-15 P36.3 Runtime Contract Test Carrier Kickoff
+
+- [completed] started the `P36.3` surface/test contract cleanup with one shared runtime-facing test carrier:
+  - added [runtime_contract_fixtures.py](/d:/file/Mini-Agent/tests/runtime_contract_fixtures.py)
+  - it now owns one small maintained test double aligned with the runtime-facing contract:
+    - typed `runtime_services` carrier
+    - route/model identity shape
+    - prepared-context and diagnostics shape
+    - KB enable/disable contract
+    - basic message append helpers
+- [completed] reduced three separate ad hoc runtime-agent stories across the highest-frequency surface tests:
+  - [test_cli_submission_loop.py](/d:/file/Mini-Agent/tests/test_cli_submission_loop.py) now builds `_NoDirectRunAgent` on top of the shared runtime contract carrier
+  - [test_main_agent_surface_service.py](/d:/file/Mini-Agent/tests/test_main_agent_surface_service.py) now builds `_DummyAgent` / `_SelectableAgent` on top of the same carrier instead of maintaining a second runtime-services wrapper story
+  - [test_tui_app.py](/d:/file/Mini-Agent/tests/test_tui_app.py) now reuses the shared carrier for:
+    - fake kernel-built local runtime agents
+    - several high-traffic local model/runtime/prepared-context tests
+- [completed] narrowed the remaining `P36.3` target:
+  - the shared runtime-facing test contract is now established for the main `CLI / TUI / Surface` verification line
+  - the next extension can move into runtime/session handler tests that still rely on bespoke `SimpleNamespace(...)` session/agent carriers
+- Verification:
+  - `uv run pytest tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_main_agent_surface_service.py -q`
+  - result: `249 passed`
+  - `uv run ruff check tests/runtime_contract_fixtures.py tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_main_agent_surface_service.py`
+  - result: all green
+  - `uv run pytest tests/test_runtime_session_payload_codec.py tests/test_runtime_session_agent_support.py tests/test_runtime_session_diagnostics_service.py tests/test_runtime_session_state_hydrator.py tests/test_runtime_session_persistence_record_builder.py tests/test_runtime_session_snapshot_builder.py tests/test_runtime_session_agent_runtime_handler.py tests/test_runtime_session_agent_control_handler.py tests/test_runtime_session_recovery_reset_handler.py tests/test_runtime_session_operator_handler.py tests/test_runtime_session_model_identity_codec.py tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_cli_submission_loop.py -q`
+  - result: `278 passed`
+
+## 2026-04-15 P36.2 Local Prepared-Context Turn Result Consolidation Extension
+
+- [completed] removed the remaining split local turn-result prepared-context writeback path in TUI:
+  - [app.py](/d:/file/Mini-Agent/src/mini_agent/tui/app.py) now owns `_record_local_prepared_context_projection(...)` as the single local turn-result writeback seam for:
+    - prepared-context payload capture
+    - prepared-context diagnostics payload capture
+    - live-agent prepared-context hydration before local projection capture
+    - memory diagnostics refresh through the maintained local projection path
+- [completed] converged local turn-result feedback onto final projection truth instead of raw payload passthrough:
+  - local scheduler submission flow now records prepared-context state through the shared local writeback seam before rendering feedback
+  - local chat-turn completion flow now does the same, so command feedback reads the final synchronized projection state
+- [completed] reduced one more concrete TUI-local drift case:
+  - when a local turn result omits `prepared_context_diagnostics`, the TUI now still captures the current live diagnostics from the attached agent instead of dropping the projection back to an empty payload
+- [completed] added focused TUI regression coverage:
+  - updated [test_tui_app.py](/d:/file/Mini-Agent/tests/test_tui_app.py)
+  - coverage now proves:
+    - local turn completion still surfaces prepared-context feedback correctly through the unified seam
+    - local turn completion can capture live prepared-context diagnostics even when the completion payload omits them
+- Verification:
+  - `uv run pytest tests/test_tui_app.py -q`
+  - result: `143 passed`
+  - `uv run ruff check src/mini_agent/tui/app.py tests/test_tui_app.py`
+  - result: all green
+  - `uv run pytest tests/test_runtime_session_payload_codec.py tests/test_runtime_session_agent_support.py tests/test_runtime_session_diagnostics_service.py tests/test_runtime_session_state_hydrator.py tests/test_runtime_session_persistence_record_builder.py tests/test_runtime_session_snapshot_builder.py tests/test_runtime_session_agent_runtime_handler.py tests/test_runtime_session_agent_control_handler.py tests/test_runtime_session_recovery_reset_handler.py tests/test_runtime_session_operator_handler.py tests/test_runtime_session_model_identity_codec.py tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_cli_submission_loop.py -q`
+  - result: `278 passed`
+
+## 2026-04-15 P36.2 TUI Local Projection Refresh Consolidation Extension
+
+- [completed] extended the maintained projection-refresh story into the remaining high-traffic TUI-local runtime paths:
+  - [app.py](/d:/file/Mini-Agent/src/mini_agent/tui/app.py) now owns a narrow local `refresh/capture` pair that mirrors the runtime hydrator split:
+    - `_refresh_local_runtime_projection(...)` for KB + memory + sandbox refresh
+    - `_capture_local_runtime_projection(...)` for live prepared-context capture plus the shared refresh path
+- [completed] removed several remaining TUI-local parallel contract stories:
+  - local KB helpers now reuse `RuntimeSessionAgentSupport` instead of keeping a surface-local KB contract
+  - TUI payload normalization now reuses `RuntimeSessionPayloadCodec` for:
+    - prepared-context payloads
+    - prepared-context diagnostics
+    - memory diagnostics
+    - sandbox diagnostics
+    - context-policy normalization
+  - local agent snapshot capture now serializes live messages through the maintained payload codec instead of a parallel TUI-only path
+- [completed] converged scattered local mutation/writeback paths onto the new shared TUI-local refresh seam:
+  - local context snapshot refresh now updates from live runtime state when a local runtime is attached
+  - local context-policy mutations now normalize writeback through the maintained payload seam before persisting
+  - local KB toggles now refresh projection state through the shared local refresh helper instead of only writing `knowledge_base_enabled`
+  - local runtime-policy reconfigure now refreshes projection state after agent mutation instead of stopping at sandbox-only writeback
+- [completed] added focused TUI regression coverage:
+  - updated [test_tui_app.py](/d:/file/Mini-Agent/tests/test_tui_app.py)
+  - coverage now proves:
+    - local context show/stat paths can refresh prepared-context state from live runtime projection
+    - local context writeback stores normalized policy payloads
+    - local agent snapshot capture persists live prepared-context state through the shared contract
+- Verification:
+  - `uv run pytest tests/test_tui_app.py -q`
+  - result: `142 passed`
+  - `uv run ruff check src/mini_agent/tui/app.py tests/test_tui_app.py`
+  - result: all green
+  - `uv run pytest tests/test_runtime_session_payload_codec.py tests/test_runtime_session_agent_support.py tests/test_runtime_session_diagnostics_service.py tests/test_runtime_session_state_hydrator.py tests/test_runtime_session_persistence_record_builder.py tests/test_runtime_session_snapshot_builder.py tests/test_runtime_session_agent_runtime_handler.py tests/test_runtime_session_agent_control_handler.py tests/test_runtime_session_recovery_reset_handler.py tests/test_runtime_session_operator_handler.py tests/test_runtime_session_model_identity_codec.py tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_cli_submission_loop.py -q`
+  - result: `277 passed`
+
+## 2026-04-15 P36.2 Model Identity Contract Reuse Extension
+
+- [completed] extended the maintained model-identity contract from runtime/session into projection-shape helpers:
+  - [session_model_identity_codec.py](/d:/file/Mini-Agent/src/mini_agent/runtime/session_model_identity_codec.py) now owns:
+    - route identity normalization from raw runtime-route payloads
+    - selected/pending identity reads from projection-shaped objects
+    - selected/pending identity writes back into projection-shaped objects
+- [completed] removed another parallel TUI/runtime contract story for model identity handling:
+  - [app.py](/d:/file/Mini-Agent/src/mini_agent/tui/app.py) now reuses `RuntimeSessionModelIdentityCodec` for:
+    - local selected/pending identity reads
+    - local selected/pending identity writes
+    - remote model-identity payload normalization during session sync
+- [completed] reduced one more TUI-local projection drift risk:
+  - remote session summaries with mixed-case / padded model-source payloads now normalize through the same maintained identity owner as runtime/session code
+- [completed] added focused regression coverage:
+  - updated [test_runtime_session_model_identity_codec.py](/d:/file/Mini-Agent/tests/test_runtime_session_model_identity_codec.py)
+  - updated [test_tui_app.py](/d:/file/Mini-Agent/tests/test_tui_app.py)
+- Verification:
+  - `uv run pytest tests/test_runtime_session_payload_codec.py tests/test_runtime_session_agent_support.py tests/test_runtime_session_diagnostics_service.py tests/test_runtime_session_state_hydrator.py tests/test_runtime_session_persistence_record_builder.py tests/test_runtime_session_snapshot_builder.py tests/test_runtime_session_agent_runtime_handler.py tests/test_runtime_session_agent_control_handler.py tests/test_runtime_session_recovery_reset_handler.py tests/test_runtime_session_operator_handler.py tests/test_runtime_session_model_identity_codec.py tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_cli_submission_loop.py -q`
+  - result: `274 passed`
+  - `uv run ruff check src/mini_agent/runtime/session_model_identity_codec.py src/mini_agent/tui/app.py tests/test_runtime_session_model_identity_codec.py tests/test_tui_app.py`
+  - result: all green
+
+## 2026-04-15 P36.2 Operator Projection Normalization Extension
+
+- [completed] extended the maintained projection-contract line into operator-side writeback paths:
+  - [session_operator_handler.py](/d:/file/Mini-Agent/src/mini_agent/runtime/session_operator_handler.py) now normalizes `context_policy` writes through the maintained payload helper instead of storing raw mutation payloads directly
+  - detached runtime-policy updates now normalize and store local `sandbox_diagnostics` through the same maintained payload normalization path
+  - [main_agent_runtime_manager.py](/d:/file/Mini-Agent/src/mini_agent/runtime/main_agent_runtime_manager.py) now wires those write-side normalizers from [session_payload_codec.py](/d:/file/Mini-Agent/src/mini_agent/runtime/session_payload_codec.py)
+- [completed] reduced two more write-side projection drift risks:
+  - operator-side context-policy responses and stored projection state now share the same normalized contract
+  - no-agent runtime-policy fallback no longer bypasses the maintained sandbox-diagnostics normalization path
+- [completed] added focused operator-layer regression coverage:
+  - added [test_runtime_session_operator_handler.py](/d:/file/Mini-Agent/tests/test_runtime_session_operator_handler.py)
+  - coverage proves:
+    - context-policy writeback uses the shared normalization seam
+    - detached runtime-policy updates use the shared sandbox normalization seam
+- Verification:
+  - `uv run pytest tests/test_runtime_session_payload_codec.py tests/test_runtime_session_agent_support.py tests/test_runtime_session_diagnostics_service.py tests/test_runtime_session_state_hydrator.py tests/test_runtime_session_persistence_record_builder.py tests/test_runtime_session_snapshot_builder.py tests/test_runtime_session_agent_runtime_handler.py tests/test_runtime_session_agent_control_handler.py tests/test_runtime_session_recovery_reset_handler.py tests/test_runtime_session_operator_handler.py tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_cli_submission_loop.py -q`
+  - result: `270 passed`
+  - `uv run ruff check src/mini_agent/runtime/session_operator_handler.py src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_runtime_session_operator_handler.py`
+  - result: all green
+
+## 2026-04-15 P36.2 Live Runtime Projection Refresh Extension
+
+- [completed] extended the shared live-runtime projection refresh path beyond rebuild/reset:
+  - [session_runtime_state_hydrator.py](/d:/file/Mini-Agent/src/mini_agent/runtime/session_runtime_state_hydrator.py) now owns `refresh_runtime_projection(...)` for synchronized KB + memory + sandbox projection refresh
+  - [session_agent_runtime_handler.py](/d:/file/Mini-Agent/src/mini_agent/runtime/session_agent_runtime_handler.py) now uses that shared refresh path after runtime-policy reconfigure and agent rebuild
+  - [session_agent_control_handler.py](/d:/file/Mini-Agent/src/mini_agent/runtime/session_agent_control_handler.py) now uses the same path after KB toggles and context-control actions
+- [completed] reduced another concrete class of projection drift after local runtime mutations:
+  - runtime-policy updates no longer depend on sandbox-only projection rewrites
+  - local agent-control flows no longer leave KB / memory / sandbox views split across separate mutation logic
+- [completed] added focused regression coverage for the expanded refresh seam:
+  - updated [test_runtime_session_state_hydrator.py](/d:/file/Mini-Agent/tests/test_runtime_session_state_hydrator.py)
+  - updated [test_runtime_session_agent_runtime_handler.py](/d:/file/Mini-Agent/tests/test_runtime_session_agent_runtime_handler.py)
+  - updated [test_runtime_session_agent_control_handler.py](/d:/file/Mini-Agent/tests/test_runtime_session_agent_control_handler.py)
+- Verification:
+  - `uv run pytest tests/test_runtime_session_payload_codec.py tests/test_runtime_session_agent_support.py tests/test_runtime_session_diagnostics_service.py tests/test_runtime_session_state_hydrator.py tests/test_runtime_session_persistence_record_builder.py tests/test_runtime_session_snapshot_builder.py tests/test_runtime_session_agent_runtime_handler.py tests/test_runtime_session_agent_control_handler.py tests/test_runtime_session_recovery_reset_handler.py tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_cli_submission_loop.py -q`
+  - result: `268 passed`
+  - `uv run ruff check src/mini_agent/runtime/session_runtime_state_hydrator.py src/mini_agent/runtime/session_agent_runtime_handler.py src/mini_agent/runtime/session_agent_control_handler.py src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_runtime_session_state_hydrator.py tests/test_runtime_session_agent_runtime_handler.py tests/test_runtime_session_agent_control_handler.py`
+  - result: all green
+
+## 2026-04-15 P36.2 Projection Refresh Path Consolidation Kickoff
+
+- [completed] converged two high-risk projection refresh paths onto the shared hydrator diagnostics entry:
+  - [session_agent_runtime_handler.py](/d:/file/Mini-Agent/src/mini_agent/runtime/session_agent_runtime_handler.py) now refreshes projection diagnostics after live-agent rebuilds instead of only rewriting sandbox state
+  - [session_recovery_reset_handler.py](/d:/file/Mini-Agent/src/mini_agent/runtime/session_recovery_reset_handler.py) now refreshes projection diagnostics after runtime reset instead of only rebuilding memory diagnostics
+  - [main_agent_runtime_manager.py](/d:/file/Mini-Agent/src/mini_agent/runtime/main_agent_runtime_manager.py) now wires both paths through [session_runtime_state_hydrator.py](/d:/file/Mini-Agent/src/mini_agent/runtime/session_runtime_state_hydrator.py)
+- [completed] removed two concrete drift risks at the runtime/session boundary:
+  - agent rebuilds could previously leave stale `memory_diagnostics` on `session.projection`
+  - runtime resets could previously leave stale `sandbox_diagnostics` on `session.projection`
+- [completed] added focused regression coverage for the new shared refresh path:
+  - added [test_runtime_session_agent_runtime_handler.py](/d:/file/Mini-Agent/tests/test_runtime_session_agent_runtime_handler.py)
+  - updated [test_runtime_session_recovery_reset_handler.py](/d:/file/Mini-Agent/tests/test_runtime_session_recovery_reset_handler.py)
+- Verification:
+  - `uv run pytest tests/test_runtime_session_agent_runtime_handler.py tests/test_runtime_session_recovery_reset_handler.py tests/test_runtime_session_payload_codec.py tests/test_runtime_session_agent_support.py tests/test_runtime_session_diagnostics_service.py tests/test_runtime_session_state_hydrator.py tests/test_runtime_session_persistence_record_builder.py tests/test_runtime_session_snapshot_builder.py tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_cli_submission_loop.py -q`
+  - result: `262 passed`
+  - `uv run ruff check src/mini_agent/runtime/session_agent_runtime_handler.py src/mini_agent/runtime/session_recovery_reset_handler.py src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_runtime_session_agent_runtime_handler.py tests/test_runtime_session_recovery_reset_handler.py`
+  - result: all green
+
+## 2026-04-15 P36.1 Runtime Agent Support Expansion
+
+- [completed] expanded the maintained runtime read seam above the locked `P35` core contracts:
+  - [session_payload_codec.py](/d:/file/Mini-Agent/src/mini_agent/runtime/session_payload_codec.py) now owns live-agent message, token, prepared-context, and memory/runtime-task read helpers
+  - [session_agent_support.py](/d:/file/Mini-Agent/src/mini_agent/runtime/session_agent_support.py) now exposes those reads as the maintained runtime-facing support seam
+- [completed] migrated high-frequency runtime/session readers onto the shared support path:
+  - [session_diagnostics_service.py](/d:/file/Mini-Agent/src/mini_agent/runtime/session_diagnostics_service.py)
+  - [session_runtime_state_hydrator.py](/d:/file/Mini-Agent/src/mini_agent/runtime/session_runtime_state_hydrator.py)
+  - [session_persistence_record_builder.py](/d:/file/Mini-Agent/src/mini_agent/runtime/session_persistence_record_builder.py)
+  - [session_snapshot_builder.py](/d:/file/Mini-Agent/src/mini_agent/runtime/session_snapshot_builder.py)
+  - [session_agent_runtime_handler.py](/d:/file/Mini-Agent/src/mini_agent/runtime/session_agent_runtime_handler.py)
+  - [session_state.py](/d:/file/Mini-Agent/src/mini_agent/runtime/session_state.py)
+  - [main_agent_runtime_manager.py](/d:/file/Mini-Agent/src/mini_agent/runtime/main_agent_runtime_manager.py)
+- [completed] preserved the raw-sequence serializer contract while adding a separate live-agent read path:
+  - `serialize_agent_messages(...)` remains raw-message-sequence based
+  - live-agent extraction now flows through `agent_messages(...)` and `serialize_live_agent_messages(...)`
+- [completed] fixed the follow-up regression in the new codec seam:
+  - [session_payload_codec.py](/d:/file/Mini-Agent/src/mini_agent/runtime/session_payload_codec.py) restored `normalize_context_policy_payload(...)` to a non-bound static helper so read-model and hydration builders can call it safely
+- [completed] added focused runtime/session regression coverage:
+  - [test_runtime_session_payload_codec.py](/d:/file/Mini-Agent/tests/test_runtime_session_payload_codec.py)
+  - [test_runtime_session_agent_support.py](/d:/file/Mini-Agent/tests/test_runtime_session_agent_support.py)
+  - [test_runtime_session_snapshot_builder.py](/d:/file/Mini-Agent/tests/test_runtime_session_snapshot_builder.py)
+  - [test_runtime_session_diagnostics_service.py](/d:/file/Mini-Agent/tests/test_runtime_session_diagnostics_service.py)
+  - [test_runtime_session_state_hydrator.py](/d:/file/Mini-Agent/tests/test_runtime_session_state_hydrator.py)
+  - [test_runtime_session_persistence_record_builder.py](/d:/file/Mini-Agent/tests/test_runtime_session_persistence_record_builder.py)
+- Verification:
+  - `uv run pytest tests/test_runtime_session_payload_codec.py tests/test_runtime_session_agent_support.py tests/test_runtime_session_diagnostics_service.py tests/test_runtime_session_state_hydrator.py tests/test_runtime_session_persistence_record_builder.py tests/test_runtime_session_snapshot_builder.py tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_cli_submission_loop.py -q`
+  - result: `257 passed`
+  - `uv run ruff check src/mini_agent/runtime/session_payload_codec.py src/mini_agent/runtime/session_agent_support.py src/mini_agent/runtime/session_diagnostics_service.py src/mini_agent/runtime/session_runtime_state_hydrator.py src/mini_agent/runtime/session_persistence_record_builder.py src/mini_agent/runtime/session_snapshot_builder.py src/mini_agent/runtime/session_agent_runtime_handler.py src/mini_agent/runtime/session_state.py src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_runtime_session_payload_codec.py tests/test_runtime_session_agent_support.py tests/test_runtime_session_diagnostics_service.py tests/test_runtime_session_state_hydrator.py tests/test_runtime_session_persistence_record_builder.py tests/test_runtime_session_snapshot_builder.py`
+  - result: all green
+
+## 2026-04-15 P35 Agent-Core Runtime Seam Hardening
+
+- [completed] locked the remaining `agent_core` follow-up runtime seams after `P34`:
+  - [runtime_bindings.py](/d:/file/Mini-Agent/src/mini_agent/agent_core/runtime_bindings.py) now owns both:
+    - typed runtime attachment state
+    - typed runtime service state
+  - [engine.py](/d:/file/Mini-Agent/src/mini_agent/agent_core/engine.py) now exposes:
+    - `runtime_bindings`
+    - `runtime_services`
+    as the typed truth instead of loose mutable fields
+- [completed] hardened runtime ownership and semantic correctness across the follow-up seam line:
+  - [kernel.py](/d:/file/Mini-Agent/src/mini_agent/agent_core/kernel.py) now keeps route/runtime truth attached to the selected route
+  - [summarization.py](/d:/file/Mini-Agent/src/mini_agent/agent_core/history/summarization.py) only reports compaction success when token load actually shrinks
+  - [agent_loop.py](/d:/file/Mini-Agent/src/mini_agent/agent_core/execution/agent_loop.py) now fails loudly if approval-handler binding cannot be installed
+- [completed] extracted or tightened the remaining orchestrator-adjacent seams instead of letting them drift back into `Agent`:
+  - [tool_execution_coordinator.py](/d:/file/Mini-Agent/src/mini_agent/agent_core/execution/tool_execution_coordinator.py) now depends on an explicit runtime contract
+  - [turn_context_preparation.py](/d:/file/Mini-Agent/src/mini_agent/agent_core/context/turn_context_preparation.py) now owns prepared turn-context orchestration
+  - [AGENT_CORE_RUNTIME_SEAMS.md](/d:/file/Mini-Agent/docs/AGENT_CORE_RUNTIME_SEAMS.md) now records `runtime_services` as part of the maintained seam contract
+- [completed] extended the typed runtime-services contract into runtime consumers above `agent_core`:
+  - [sandbox_state.py](/d:/file/Mini-Agent/src/mini_agent/runtime/sandbox_state.py) now reads sandbox/runtime-policy dependencies through `get_agent_runtime_services(...)`
+  - [runtime_policy_service.py](/d:/file/Mini-Agent/src/mini_agent/runtime/runtime_policy_service.py) now resolves effective runtime policy through the same contract
+  - surface/session test doubles were aligned so `runtime_services` is the real compatibility carrier rather than ad hoc bare attributes
+- [completed] expanded compatibility and regression coverage for the hardened seam:
+  - added [test_agent_core_runtime_bindings.py](/d:/file/Mini-Agent/tests/test_agent_core_runtime_bindings.py)
+  - added [test_sandbox_state.py](/d:/file/Mini-Agent/tests/test_sandbox_state.py)
+  - updated [test_runtime_policy_service.py](/d:/file/Mini-Agent/tests/test_runtime_policy_service.py)
+  - updated [test_main_agent_surface_service.py](/d:/file/Mini-Agent/tests/test_main_agent_surface_service.py)
+  - updated [test_tui_app.py](/d:/file/Mini-Agent/tests/test_tui_app.py)
+  - updated [test_cli_submission_loop.py](/d:/file/Mini-Agent/tests/test_cli_submission_loop.py)
+- Verification:
+  - `uv run pytest tests/test_agent_core_runtime_bindings.py tests/test_agent_core_turn_context.py tests/test_agent_core_history_summarization.py tests/test_agent_core_presentation.py tests/test_agent_core_post_turn.py tests/test_agent_core_exports.py tests/test_agent_core_kernel.py tests/test_agent_core_execution_policy.py tests/test_agent_core_execution_tools.py tests/test_agent_core_execution_loop.py tests/test_agent_core_streaming.py tests/test_memory_automation.py tests/test_model_routing_runtime.py tests/test_model_failover.py -q`
+  - result: `122 passed`
+  - `uv run pytest tests/test_agent_core_runtime_bindings.py tests/test_runtime_policy_service.py tests/test_sandbox_state.py tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_main_agent_surface_service.py -q`
+  - result: `253 passed`
+  - `uv run ruff check src/mini_agent/agent_core/runtime_bindings.py src/mini_agent/agent_core/engine.py src/mini_agent/agent_core/__init__.py docs/AGENT_CORE_RUNTIME_SEAMS.md tests/test_agent_core_runtime_bindings.py tests/test_agent_core_exports.py`
+  - result: all green
+  - `uv run ruff check src/mini_agent/agent_core/runtime_bindings.py src/mini_agent/runtime/sandbox_state.py src/mini_agent/runtime/runtime_policy_service.py tests/test_agent_core_runtime_bindings.py tests/test_runtime_policy_service.py tests/test_sandbox_state.py`
+  - result: all green
+  - `uv run ruff check tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_runtime_policy_service.py tests/test_sandbox_state.py tests/test_agent_core_runtime_bindings.py`
+  - result: all green
+
+## 2026-04-15 P34.8 Final Agent-Facade Slimming And Architecture Lock
+
+- [completed] removed now-obsolete thin wrappers from [engine.py](/d:/file/Mini-Agent/src/mini_agent/agent_core/engine.py):
+  - dropped coordinator pass-through helpers that no longer owned behavior
+  - clarified history application as `_apply_history_compaction(...)` instead of a vague summary wrapper
+- [completed] locked the maintained `agent_core` seam contract in docs:
+  - added [AGENT_CORE_RUNTIME_SEAMS.md](/d:/file/Mini-Agent/docs/AGENT_CORE_RUNTIME_SEAMS.md)
+  - updated [ARCHITECTURE.md](/d:/file/Mini-Agent/docs/ARCHITECTURE.md)
+  - updated [FRAMEWORK_SKELETON.md](/d:/file/Mini-Agent/docs/FRAMEWORK_SKELETON.md)
+- [completed] aligned the public top-level `mini_agent.agent_core` reference surface with the refactored runtime seams:
+  - updated [__init__.py](/d:/file/Mini-Agent/src/mini_agent/agent_core/__init__.py)
+  - added exports for:
+    - `AgentRuntimeBindings`
+    - `AgentHistoryCompactionService`
+    - `HistoryCompactionResult`
+    - `AgentPostTurnSideEffectService`
+    - `PostTurnSideEffectResult`
+- [completed] added focused compatibility coverage:
+  - added [test_agent_core_exports.py](/d:/file/Mini-Agent/tests/test_agent_core_exports.py)
+  - updated [test_agent_core_history_summarization.py](/d:/file/Mini-Agent/tests/test_agent_core_history_summarization.py)
+  - updated [test_agent_core_presentation.py](/d:/file/Mini-Agent/tests/test_agent_core_presentation.py)
+- Verification:
+  - `uv run ruff check src/mini_agent/agent_core/engine.py src/mini_agent/agent_core/post_turn.py src/mini_agent/agent_core/__init__.py tests/test_agent_core_history_summarization.py tests/test_agent_core_presentation.py tests/test_agent_core_exports.py docs/AGENT_CORE_RUNTIME_SEAMS.md`
+  - result: all green
+  - `uv run pytest tests/test_agent_core_history_summarization.py tests/test_agent_core_presentation.py tests/test_agent_core_post_turn.py tests/test_agent_core_exports.py tests/test_agent_core_kernel.py tests/test_agent_core_execution_policy.py tests/test_agent_core_execution_tools.py tests/test_agent_core_execution_loop.py tests/test_agent_core_streaming.py tests/test_memory_automation.py -q`
+  - result: `65 passed`
+  - `git diff --check -- src/mini_agent/agent_core/engine.py src/mini_agent/agent_core/post_turn.py src/mini_agent/agent_core/__init__.py tests/test_agent_core_history_summarization.py tests/test_agent_core_presentation.py tests/test_agent_core_exports.py tests/test_memory_automation.py docs/AGENT_CORE_RUNTIME_SEAMS.md docs/ARCHITECTURE.md docs/FRAMEWORK_SKELETON.md`
+  - result: passed (only LF/CRLF working-copy warnings, no content issues)
+
+## 2026-04-15 P34.7 Post-Turn Side-Effect Service Extraction
+
+- [completed] extracted post-turn memory/runtime side effects behind one explicit service seam:
+  - added [post_turn.py](/d:/file/Mini-Agent/src/mini_agent/agent_core/post_turn.py)
+  - added `AgentPostTurnSideEffectService`
+  - added `PostTurnSideEffectResult`
+- [completed] rewired [engine.py](/d:/file/Mini-Agent/src/mini_agent/agent_core/engine.py) so turn completion no longer directly owns:
+  - memory automation invocation
+  - runtime task-memory writeback invocation
+  - failure payload construction for those two paths
+  - event logging for those two paths
+- [completed] preserved compatibility at the `Agent` facade boundary:
+  - constructor injection for `turn_memory_automation` and `turn_runtime_task_memory` is unchanged
+  - `agent.last_memory_automation` and `agent.last_runtime_task_memory` remain the observable state surfaces
+  - missing-turn-anchor and failure payload semantics stayed behavior-preserving
+- [completed] added focused regression coverage for both the new service and the retained `run_turn` integration path:
+  - added [test_agent_core_post_turn.py](/d:/file/Mini-Agent/tests/test_agent_core_post_turn.py)
+  - updated [test_memory_automation.py](/d:/file/Mini-Agent/tests/test_memory_automation.py)
+  - added coverage proving:
+    - the new service slices turn messages from the correct anchor
+    - missing anchors return the existing skipped payload shapes
+    - processor failures become the existing warning payload shapes
+    - `Agent.run_turn()` still records runtime task memory after the extraction
+- Verification:
+  - `uv run ruff check src/mini_agent/agent_core/engine.py src/mini_agent/agent_core/post_turn.py tests/test_agent_core_post_turn.py tests/test_memory_automation.py src/mini_agent/agent_core/kernel.py`
+  - result: all green
+  - `uv run pytest tests/test_agent_core_post_turn.py tests/test_memory_automation.py tests/test_memoria_runtime.py tests/test_memory_real_use_flow.py tests/test_agent_core_kernel.py tests/test_agent_core_streaming.py -q`
+  - result: `41 passed`
+
+## 2026-04-15 P34.6 Turn-Context Package Decomposition
+
+- [completed] split the `turn_context` hotspot into responsibility-owned internal modules while preserving the public import seam:
+  - added [turn_context_types.py](/d:/file/Mini-Agent/src/mini_agent/agent_core/context/turn_context_types.py)
+  - added [turn_context_policy.py](/d:/file/Mini-Agent/src/mini_agent/agent_core/context/turn_context_policy.py)
+  - added [turn_context_curation.py](/d:/file/Mini-Agent/src/mini_agent/agent_core/context/turn_context_curation.py)
+  - added [turn_context_diagnostics.py](/d:/file/Mini-Agent/src/mini_agent/agent_core/context/turn_context_diagnostics.py)
+  - added [turn_context_providers.py](/d:/file/Mini-Agent/src/mini_agent/agent_core/context/turn_context_providers.py)
+- [completed] reduced [turn_context.py](/d:/file/Mini-Agent/src/mini_agent/agent_core/context/turn_context.py) to a thin compatibility facade:
+  - existing imports from `mini_agent.agent_core.context.turn_context` continue to work
+  - provider-builder and runtime call sites did not need migration in this slice
+- [completed] preserved current runtime behavior for the turn-context subsystem:
+  - provider readiness and filtering
+  - follow-up query resolution
+  - ranking / dedupe / budget curation
+  - prepared-context diagnostics and formatting
+  - skill and MCP catalog hint preparation
+- Verification:
+  - `uv run ruff check src/mini_agent/agent_core/context/turn_context.py src/mini_agent/agent_core/context/turn_context_types.py src/mini_agent/agent_core/context/turn_context_policy.py src/mini_agent/agent_core/context/turn_context_curation.py src/mini_agent/agent_core/context/turn_context_diagnostics.py src/mini_agent/agent_core/context/turn_context_providers.py src/mini_agent/runtime/turn_context_provider_builder.py tests/test_agent_core_turn_context.py tests/test_agent_core_kernel.py`
+  - result: all green
+  - `uv run pytest tests/test_agent_core_turn_context.py tests/test_agent_core_kernel.py tests/test_memoria_runtime.py tests/test_memory_automation.py tests/test_memory_real_use_flow.py -q`
+  - result: `60 passed`
+
+## 2026-04-15 Follow-up Model Configuration And Supply Defect Patch
+
+- [completed] finished the runtime transport contract so custom provider transport knobs are actually consumed:
+  - updated [protocol_binding.py](/d:/file/Mini-Agent/src/mini_agent/llm/protocol_binding.py)
+  - updated [openai_client.py](/d:/file/Mini-Agent/src/mini_agent/llm/openai_client.py)
+  - updated [anthropic_client.py](/d:/file/Mini-Agent/src/mini_agent/llm/anthropic_client.py)
+  - updated [base.py](/d:/file/Mini-Agent/src/mini_agent/llm/base.py)
+  - updated [runtime.py](/d:/file/Mini-Agent/src/mini_agent/model_manager/runtime.py)
+  - updated [failover.py](/d:/file/Mini-Agent/src/mini_agent/model_manager/failover.py)
+  - routed execution now carries:
+    - custom `headers`
+    - custom `timeout`
+    - SDK constructor timeout
+    - loopback HTTP client timeout
+- [completed] removed runtime preset supply's dependence on fresh discovery and stabilized Ollama runtime fallback:
+  - updated [preset_providers.py](/d:/file/Mini-Agent/src/mini_agent/model_manager/preset_providers.py)
+  - updated [model_registry_service.py](/d:/file/Mini-Agent/src/mini_agent/model_manager/model_registry_service.py)
+  - runtime preset catalog now builds executable providers from:
+    - current env-resolved preset connection info
+    - persisted preset model state
+  - runtime no longer re-triggers preset inventory discovery while building provider supply
+  - enabled Ollama with persisted state no longer disappears from runtime supply on one transient probe/discovery miss
+- [completed] aligned CLI preset/model inspection with config bootstrap env loading:
+  - updated [cli.py](/d:/file/Mini-Agent/src/mini_agent/cli.py)
+  - `mini-agent models` now loads `.env.local` before resolving preset env keys
+- [completed] added focused regression coverage for the exact audited defect line:
+  - updated [test_llm_protocol_binding.py](/d:/file/Mini-Agent/tests/test_llm_protocol_binding.py)
+  - updated [test_preset_providers.py](/d:/file/Mini-Agent/tests/test_preset_providers.py)
+  - updated [test_model_registry_service.py](/d:/file/Mini-Agent/tests/test_model_registry_service.py)
+  - updated [test_model_routing_runtime.py](/d:/file/Mini-Agent/tests/test_model_routing_runtime.py)
+  - updated [test_cli_models_command.py](/d:/file/Mini-Agent/tests/test_cli_models_command.py)
+  - added coverage proving:
+    - protocol profiles preserve custom headers/timeout
+    - protocol SDK clients receive those transport settings
+    - runtime catalog preserves custom provider headers/timeout
+    - runtime Ollama supply can come from persisted state without probe/discovery
+    - CLI preset inspection loads `.env.local`
+- Verification:
+  - `uv run pytest tests/test_llm_protocol_binding.py tests/test_preset_providers.py tests/test_model_registry_service.py tests/test_model_routing_runtime.py tests/test_cli_models_command.py -q`
+  - result: `50 passed`
+  - `uv run pytest tests/test_config_local_env.py tests/test_cli_provider_command.py -q`
+  - result: `17 passed`
+  - `uv run ruff check src/mini_agent/model_manager/preset_providers.py src/mini_agent/model_manager/model_registry_service.py src/mini_agent/cli.py src/mini_agent/llm/base.py src/mini_agent/llm/protocol_binding.py src/mini_agent/llm/openai_client.py src/mini_agent/llm/anthropic_client.py src/mini_agent/model_manager/runtime.py src/mini_agent/model_manager/failover.py tests/test_preset_providers.py tests/test_model_registry_service.py tests/test_llm_protocol_binding.py tests/test_model_routing_runtime.py tests/test_cli_models_command.py`
+  - result: all green
+
+## 2026-04-15 P33b.6 Route Observability And Diagnostics
+
+- [completed] added one lightweight runtime-owned model-route diagnostics seam instead of inventing a second routing/logging subsystem:
+  - updated [runtime.py](/d:/file/Mini-Agent/src/mini_agent/model_manager/runtime.py)
+  - runtime now records latest model-route resolution snapshots plus a resolution counter
+  - both routed and pinned selection paths now emit diagnostics for:
+    - selected provider/model
+    - mapping mode
+    - candidate chain
+    - circuit-breaker gating
+    - capability truth/confidence/source
+    - explicit route failures
+- [completed] preserved bootstrap diagnostics through the bootstrap/config seam so route observability can reuse the actual bootstrap decision:
+  - updated [config.py](/d:/file/Mini-Agent/src/mini_agent/config.py)
+  - updated [bootstrap.py](/d:/file/Mini-Agent/src/mini_agent/model_manager/bootstrap.py)
+  - config bootstrap metadata now survives into runtime route snapshots through:
+    - `bootstrap_selected_provider`
+    - `bootstrap_selection_reason`
+    - `bootstrap_selection_policy`
+    - `bootstrap_preferred_provider`
+    - `bootstrap_preferred_provider_available`
+    - `bootstrap_alternatives`
+- [completed] extended the system/ops contract without changing the meaning of existing agent-routing counters:
+  - updated [system.py](/d:/file/Mini-Agent/src/mini_agent/interfaces/system.py)
+  - updated [agent_route_execution_handler.py](/d:/file/Mini-Agent/src/mini_agent/application/agent_route_execution_handler.py)
+  - `/api/v1/ops/diagnostics/routing` now returns:
+    - existing agent-routing counters
+    - `model_route_resolutions`
+    - `latest_model_route`
+- [completed] enriched kernel diagnostics so the active route can explain more than just the selected model id:
+  - updated [kernel.py](/d:/file/Mini-Agent/src/mini_agent/agent_core/kernel.py)
+  - kernel route diagnostics now include:
+    - route intent
+    - selected reason
+    - fallback reason
+    - bootstrap reason
+    - candidate count / blocked count
+    - candidate list snapshot
+- [completed] added focused regression coverage for the new observability contract:
+  - updated [test_model_routing_runtime.py](/d:/file/Mini-Agent/tests/test_model_routing_runtime.py)
+  - updated [test_agent_core_kernel.py](/d:/file/Mini-Agent/tests/test_agent_core_kernel.py)
+  - updated [test_main_agent_surface_service.py](/d:/file/Mini-Agent/tests/test_main_agent_surface_service.py)
+  - updated [test_agent_studio_gateway_ops_router.py](/d:/file/Mini-Agent/tests/test_agent_studio_gateway_ops_router.py)
+  - updated [test_config_local_env.py](/d:/file/Mini-Agent/tests/test_config_local_env.py)
+  - added coverage proving:
+    - runtime records candidate-chain diagnostics and breaker-driven failover truth
+    - explicit route failures leave an inspectable error snapshot
+    - kernel diagnostics surface route-intent and bootstrap reasoning
+    - surface/ops routing diagnostics include the new model-route payload
+    - bootstrap config metadata survives into `BootstrapLLMSettings`
+- Structural outcome:
+  - agent-routing diagnostics and model/provider-routing diagnostics are now parallel, not conflated
+  - operators can inspect the latest runtime route decision without re-deriving it from registry/bootstrap code
+  - bootstrap governance from `P33b.4` now feeds directly into runtime observability
+- Verification:
+  - `uv run pytest tests/test_model_routing_runtime.py tests/test_agent_core_kernel.py tests/test_config_local_env.py -q`
+  - result: `45 passed`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k routing_diagnostics_tracks_hits_cache_and_fallback -q`
+  - result: `1 passed, 75 deselected`
+  - `uv run pytest tests/test_agent_studio_gateway_ops_router.py -k routing_diagnostics_contract -q`
+  - result: `1 passed, 11 deselected`
+  - `uv run ruff check src/mini_agent/model_manager/runtime.py src/mini_agent/interfaces/system.py src/mini_agent/application/agent_route_execution_handler.py src/mini_agent/agent_core/kernel.py tests/test_model_routing_runtime.py tests/test_agent_core_kernel.py tests/test_main_agent_surface_service.py tests/test_agent_studio_gateway_ops_router.py tests/test_config_local_env.py`
+  - result: all green
+
+## 2026-04-15 P33b.5 Provider Contract Tightening
+
+- [completed] aligned the maintained provider protocol-family contract with the actual runtime families:
+  - updated [provider.py](/d:/file/Mini-Agent/src/mini_agent/model_manager/provider.py)
+  - removed `ProviderAPIType.CUSTOM` from the maintained runtime-family enum
+  - added canonical provider-api-type normalization so the active contract is:
+    - `openai`
+    - `anthropic`
+- [completed] preserved continuity for existing local provider catalogs without keeping the fake runtime family alive:
+  - legacy stored `api_type: custom` now normalizes to `openai`
+  - runtime/provider-catalog loading still works for older local `providers.json` payloads
+  - new public setup/update surfaces no longer accept `custom` as if it were a maintained protocol family
+- [completed] tightened the public ops/provider request contract at the DTO and application layers:
+  - updated [ops.py](/d:/file/Mini-Agent/src/mini_agent/interfaces/ops.py)
+  - updated [operations_provider_use_cases.py](/d:/file/Mini-Agent/src/mini_agent/application/operations_provider_use_cases.py)
+  - provider upsert and setup-model-discovery requests now reject removed fake families such as `custom`
+  - provider-setup discovery now maps only the maintained protocol families to discovery behavior
+- [completed] removed the last route-selector default that still implied `custom` was a maintained runtime family:
+  - updated [model_mapper.py](/d:/file/Mini-Agent/src/mini_agent/model_manager/model_mapper.py)
+- [completed] added focused regression coverage for both the tightened public contract and the legacy compatibility seam:
+  - updated [test_provider_config.py](/d:/file/Mini-Agent/tests/test_provider_config.py)
+  - updated [test_model_routing_runtime.py](/d:/file/Mini-Agent/tests/test_model_routing_runtime.py)
+  - updated [test_operations_provider_use_cases.py](/d:/file/Mini-Agent/tests/test_operations_provider_use_cases.py)
+  - updated [test_agent_studio_gateway_ops_router.py](/d:/file/Mini-Agent/tests/test_agent_studio_gateway_ops_router.py)
+  - added coverage proving:
+    - legacy `api_type: custom` catalogs still route as OpenAI-compatible
+    - public provider setup/update surfaces reject removed `custom` protocol-family requests
+    - removed protocol-family requests now fail at the request-contract boundary instead of drifting deeper into runtime/setup logic
+- Structural outcome:
+  - provider `source` and provider `api_type` now tell different, consistent stories again
+  - `custom` remains a source category, not a fake runtime protocol family
+  - older local catalogs remain usable while the public contract stops teaching the wrong runtime story
+- Verification:
+  - `uv run pytest tests/test_provider_config.py tests/test_model_routing_runtime.py tests/test_operations_provider_use_cases.py tests/test_agent_studio_gateway_ops_router.py -q`
+  - result: `45 passed`
+  - `uv run pytest tests/test_model_registry_service.py tests/test_agent_core_kernel.py tests/test_cli_provider_command.py -q`
+  - result: `18 passed`
+  - `uv run ruff check src/mini_agent/model_manager/provider.py src/mini_agent/model_manager/model_mapper.py src/mini_agent/interfaces/ops.py src/mini_agent/application/operations_provider_use_cases.py tests/test_provider_config.py tests/test_model_routing_runtime.py tests/test_operations_provider_use_cases.py tests/test_agent_studio_gateway_ops_router.py tests/test_model_registry_service.py tests/test_agent_core_kernel.py tests/test_cli_provider_command.py`
+  - result: all green
+  - `git diff --check -- src/mini_agent/model_manager/provider.py src/mini_agent/model_manager/model_mapper.py src/mini_agent/interfaces/ops.py src/mini_agent/application/operations_provider_use_cases.py tests/test_provider_config.py tests/test_model_routing_runtime.py tests/test_operations_provider_use_cases.py tests/test_agent_studio_gateway_ops_router.py`
+  - result: passed (only LF/CRLF working-copy warnings, no content issues)
+
+## 2026-04-15 P33b.4 Bootstrap Provider Governance
+
+- [completed] removed the hidden preset-dictionary-order dependency from bootstrap preset selection:
+  - updated [preset_providers.py](/d:/file/Mini-Agent/src/mini_agent/model_manager/preset_providers.py)
+  - `get_first_available_preset()` now routes through an explicit bootstrap selection policy seam instead of taking the first detected provider
+- [completed] introduced explicit bootstrap governance policy and diagnostics:
+  - added `BootstrapPresetCandidate`
+  - added `BootstrapPresetSelection`
+  - added `resolve_bootstrap_preset_selection(...)`
+  - selection policy is now:
+    - explicit preferred provider
+    - bootstrap priority
+    - stable provider id tie-break
+- [completed] kept the existing cloud-first / local-opt-in behavior, but made it intentional instead of positional:
+  - added explicit `bootstrap_priority` values to preset providers
+  - OpenAI / Anthropic / MiniMax now outrank Ollama by policy rather than dict order
+  - Ollama still requires explicit enablement and does not silently displace configured cloud presets
+- [completed] exposed bootstrap selection diagnostics on the selected preset payload:
+  - selected provider
+  - selection reason
+  - selection policy
+  - preferred provider + availability
+  - alternatives present
+- [completed] added focused regression coverage for bootstrap governance and config bootstrap consumption:
+  - updated [test_preset_providers.py](/d:/file/Mini-Agent/tests/test_preset_providers.py)
+  - updated [test_config_local_env.py](/d:/file/Mini-Agent/tests/test_config_local_env.py)
+  - added coverage proving:
+    - bootstrap no longer depends on preset-provider dict order
+    - explicit preference wins when available
+    - config bootstrap honors the explicit preset preference
+- Structural outcome:
+  - startup preset selection is now policy-driven and explainable
+  - bootstrap preference can be made explicit without touching runtime routing
+  - future surfaces can inspect why one preset won instead of re-deriving the logic from incidental code order
+- Verification:
+  - `uv run pytest tests/test_preset_providers.py tests/test_config_local_env.py -q`
+  - result: passed
+  - `uv run ruff check src/mini_agent/model_manager/preset_providers.py tests/test_preset_providers.py tests/test_config_local_env.py`
+  - result: all green
+  - `uv run pytest tests/test_preset_providers.py tests/test_config_local_env.py tests/test_model_registry_service.py tests/test_model_routing_runtime.py tests/test_agent_core_kernel.py -q`
+  - result: `51 passed`
+
+## 2026-04-15 P33b.3 Discovery Integrity And Cache Scope
+
+- [completed] replaced provider-type-only discovery caching with endpoint-aware cache scope:
+  - updated [model_discovery.py](/d:/file/Mini-Agent/src/mini_agent/model_manager/model_discovery.py)
+  - `ModelDiscoveryCache` now keys cache files by:
+    - provider type
+    - normalized discovery base URL
+    - protocol flavor
+  - normalized equivalents such as `/v1/models` and `/v1/` now hit the same cache scope, while different endpoints no longer collide
+- [completed] hardened custom-provider discovery so refreshes enrich configured inventory instead of destructively replacing it:
+  - updated [model_registry_service.py](/d:/file/Mini-Agent/src/mini_agent/model_manager/model_registry_service.py)
+  - added non-destructive custom inventory merge behavior for:
+    - configured models already in catalog
+    - newly discovered models
+    - existing display names / learned token limits / metadata
+    - discovered context and metadata enrichment
+- [completed] kept the current recommendation/default semantics while removing accidental shrink behavior:
+  - selected discovered recommendation can still move to the front
+  - but configured models not returned by one discovery refresh are preserved instead of being erased
+- [completed] added focused regression coverage for both cache scope and custom discovery integrity:
+  - updated [test_model_discovery.py](/d:/file/Mini-Agent/tests/test_model_discovery.py)
+  - updated [test_model_registry_service.py](/d:/file/Mini-Agent/tests/test_model_registry_service.py)
+  - added coverage for:
+    - cache separation across different normalized endpoints
+    - custom discovery preserving configured-only models while appending discovered models
+- Structural outcome:
+  - discovery cache truth is now endpoint-specific instead of provider-global
+  - custom provider inventory is safer against one-off partial discovery responses
+  - discovery continues to enrich runtime routing truth without becoming an accidental destructive owner of configured inventory
+- Verification:
+  - `uv run pytest tests/test_model_discovery.py tests/test_model_registry_service.py tests/test_model_routing_runtime.py -q`
+  - result: `27 passed`
+  - `uv run ruff check src/mini_agent/model_manager/model_discovery.py src/mini_agent/model_manager/model_registry_service.py tests/test_model_discovery.py tests/test_model_registry_service.py`
+  - result: all green
+  - `uv run pytest tests/test_model_discovery.py tests/test_model_registry_service.py tests/test_model_routing_runtime.py tests/test_preset_providers.py tests/test_llm_protocol_binding.py tests/test_request_rectifier.py tests/test_agent_core_kernel.py -q`
+  - result: `59 passed`
+
+## 2026-04-15 P33b.2 Capability Truth Grading
+
+- [completed] removed the old optimistic capability inference that treated most discovered provider models as confirmed tool/thinking capable without evidence:
+  - updated [model_discovery.py](/d:/file/Mini-Agent/src/mini_agent/model_manager/model_discovery.py)
+  - `infer_model_capabilities(...)` now emits tri-state-style truth through:
+    - explicit bool when evidence exists
+    - `unknown` truth when evidence is missing or ambiguous
+    - capability confidence/source metadata
+- [completed] extended model-metadata normalization/persistence so graded capability evidence survives discovery and registry flows:
+  - updated [model_registry_service.py](/d:/file/Mini-Agent/src/mini_agent/model_manager/model_registry_service.py)
+  - normalized and preserved:
+    - `supports_tools_truth`
+    - `supports_tools_confidence`
+    - `supports_tools_source`
+    - `supports_thinking_truth`
+    - `supports_thinking_confidence`
+    - `supports_thinking_source`
+- [completed] tightened route scoring to treat confirmed capability support as stronger than unknown while keeping unknown usable:
+  - updated [model_mapper.py](/d:/file/Mini-Agent/src/mini_agent/model_manager/model_mapper.py)
+  - required tools now:
+    - hard-filter known unsupported
+    - prefer confirmed supported over unknown
+  - thinking preference now:
+    - prefer supported
+    - down-rank unknown
+    - down-rank known unsupported even further
+- [completed] surfaced chosen-route capability truth in runtime/kernel inspection:
+  - updated [runtime.py](/d:/file/Mini-Agent/src/mini_agent/model_manager/runtime.py)
+  - updated [kernel.py](/d:/file/Mini-Agent/src/mini_agent/agent_core/kernel.py)
+  - routed settings and kernel diagnostics now expose capability truth/confidence for the active route
+- [completed] added focused regression coverage across discovery, mapper, runtime, and kernel seams:
+  - updated [test_model_discovery.py](/d:/file/Mini-Agent/tests/test_model_discovery.py)
+  - updated [test_model_mapper.py](/d:/file/Mini-Agent/tests/test_model_mapper.py)
+  - updated [test_model_routing_runtime.py](/d:/file/Mini-Agent/tests/test_model_routing_runtime.py)
+  - updated [test_agent_core_kernel.py](/d:/file/Mini-Agent/tests/test_agent_core_kernel.py)
+  - added coverage for:
+    - missing capability evidence stays `unknown`
+    - explicit API capability evidence becomes confirmed support
+    - required-tool routing prefers confirmed support over unknown
+    - thinking preference treats unknown above explicit unsupported
+    - runtime/kernel expose route capability truth in diagnostics
+- Structural outcome:
+  - capability truth is now graded instead of guessed-true
+  - routing remains permissive for unknown capability where needed, but no longer mistakes unknown for confirmed support
+  - route diagnostics are more honest about whether the active model is confirmed capable or merely plausible
+- Verification:
+  - `uv run pytest tests/test_model_discovery.py tests/test_model_mapper.py tests/test_model_routing_runtime.py tests/test_agent_core_kernel.py -q`
+  - result: `40 passed`
+  - `uv run ruff check src/mini_agent/model_manager/model_discovery.py src/mini_agent/model_manager/model_registry_service.py src/mini_agent/model_manager/model_mapper.py src/mini_agent/model_manager/runtime.py src/mini_agent/agent_core/kernel.py tests/test_model_discovery.py tests/test_model_mapper.py tests/test_model_routing_runtime.py tests/test_agent_core_kernel.py`
+  - result: all green
+  - `uv run pytest tests/test_model_discovery.py tests/test_model_registry_service.py tests/test_model_routing_runtime.py tests/test_llm_protocol_binding.py tests/test_request_rectifier.py tests/test_agent_core_kernel.py -q`
+  - result: `52 passed`
+
+## 2026-04-15 P33b.1 Route Intent Hardening
+
+- [completed] made routed model selection carry explicit route intent instead of inferring everything from `requested_model` alone:
+  - updated [model_mapper.py](/d:/file/Mini-Agent/src/mini_agent/model_manager/model_mapper.py)
+  - updated [runtime.py](/d:/file/Mini-Agent/src/mini_agent/model_manager/runtime.py)
+  - added `RouteIntent` with explicit-vs-automatic handling
+- [completed] hardened the provider mapper so explicit requested-model routing no longer silently degrades into `fallback_default`:
+  - explicit route intent now rejects unmatched model requests
+  - automatic route intent still keeps the prior provider-default fallback behavior
+- [completed] taught the shared kernel seam to preserve user intent:
+  - updated [kernel.py](/d:/file/Mini-Agent/src/mini_agent/agent_core/kernel.py)
+  - updated [__init__.py](/d:/file/Mini-Agent/src/mini_agent/model_manager/__init__.py)
+  - `AgentKernelBuildOptions` now supports `requested_model_route_intent`
+  - kernel defaults non-pinned explicit `requested_model` requests to explicit route intent
+- [completed] added focused regression coverage for the new contract:
+  - updated [test_model_routing_runtime.py](/d:/file/Mini-Agent/tests/test_model_routing_runtime.py)
+  - updated [test_agent_core_kernel.py](/d:/file/Mini-Agent/tests/test_agent_core_kernel.py)
+  - added coverage for:
+    - explicit missing model rejection
+    - automatic routed fallback-default preservation
+    - wrong provider/model pin rejection
+    - kernel explicit-vs-automatic route-intent forwarding
+- Structural outcome:
+  - routed runtime selection is now honest about whether a model request is explicit
+  - the old silent "asked for X, got provider default Y" behavior is blocked on explicit routed requests
+  - pinned session/provider selection semantics remain strict and unchanged
+- Verification:
+  - `uv run pytest tests/test_model_routing_runtime.py tests/test_agent_core_kernel.py -q`
+  - result: `25 passed`
+  - `uv run ruff check src/mini_agent/model_manager/model_mapper.py src/mini_agent/model_manager/runtime.py src/mini_agent/agent_core/kernel.py src/mini_agent/model_manager/__init__.py tests/test_model_routing_runtime.py tests/test_agent_core_kernel.py`
+  - result: all green
+  - `uv run pytest tests/test_model_routing_runtime.py tests/test_model_discovery.py tests/test_model_registry_service.py tests/test_llm_protocol_binding.py tests/test_request_rectifier.py tests/test_agent_core_kernel.py -q`
+  - result: `48 passed`
+
+## 2026-04-15 P33b Runtime Truth And Provider Governance Planning
+
+- [completed] separated the original `P33` runtime-upgrade baseline from the newer follow-up runtime/config seam work:
+  - original `P33.1` through `P33.8` are now treated as the completed foundation line
+  - the remaining model/provider/runtime-truth issues are reframed as a new `P33b` track
+- [completed] added the dedicated successor plan doc:
+  - added [P33B_RUNTIME_TRUTH_AND_PROVIDER_GOVERNANCE_PLAN_2026-04-15.md](/d:/file/Mini-Agent/docs/P33B_RUNTIME_TRUTH_AND_PROVIDER_GOVERNANCE_PLAN_2026-04-15.md)
+- [completed] locked the `P33b` problem statement around the remaining second-stage runtime issues:
+  - exact-vs-automatic route intent
+  - capability truth grading
+  - discovery cache/inventory integrity
+  - bootstrap preset governance
+  - provider contract tightening
+  - route observability
+- [completed] defined the ordered execution slices:
+  - `P33b.1 Route Intent Hardening`
+  - `P33b.2 Capability Truth Grading`
+  - `P33b.3 Discovery Integrity And Cache Scope`
+  - `P33b.4 Bootstrap Provider Governance`
+  - `P33b.5 Provider Contract Tightening`
+  - `P33b.6 Route Observability And Diagnostics`
+- [completed] synced the living planning logs so later work can continue on the new track instead of extending the old `P33` tail:
+  - updated [task_plan.md](/d:/file/Mini-Agent/task_plan.md)
+  - updated [progress.md](/d:/file/Mini-Agent/progress.md)
+  - updated [findings.md](/d:/file/Mini-Agent/findings.md)
+- Structural outcome:
+  - `P33` remains the completed runtime-foundation upgrade
+  - `P33b` is now the explicit second-stage line for model/runtime truth and provider governance
+  - the next implementation anchor is intentionally narrow:
+    - `P33b.1 Route Intent Hardening`
+- Verification:
+  - documentation/planning sync only
+  - no code or test execution in this slice
+  - follow-up implementation should start with focused routing regression coverage
+
+## 2026-04-15 P33.22 CLI Command Config-Load Helper Consolidation
+
+- [completed] added one tiny CLI-surface owner for repeated command-side config loading:
+  - updated [cli.py](/d:/file/Mini-Agent/src/mini_agent/cli.py)
+  - added `_load_cli_entry_config_or_report(...)`
+- [completed] rewired repeated CLI command branches to the helper instead of inlining the same load + banner logic:
+  - `run_gateway_mode(...)`
+  - `run_security_audit_command(...)`
+  - `run_doctor_command(...)`
+  - `run_prune_logs_command(...)`
+- [completed] preserved the two intentional non-identical behaviors:
+  - headless mode still owns its structured `json / stream-json / text` error output
+  - `run_prune_export_jobs_command(...)` now uses the helper in silent mode and still falls back to `~/.mini-agent/log` when config is unavailable
+- [completed] added focused regression coverage for the CLI seam:
+  - updated [test_cli_submission_loop.py](/d:/file/Mini-Agent/tests/test_cli_submission_loop.py)
+  - added coverage for:
+    - helper failure banner behavior
+    - `security-audit` early return on config load failure
+    - silent fallback behavior for `prune-export-jobs`
+- Structural outcome:
+  - CLI entry code is slightly smaller and more honest
+  - config ownership still lives at the surface
+  - the repeated banner branch no longer needs to be maintained in four separate CLI command handlers
+- Verification:
+  - `uv run pytest tests/test_cli_submission_loop.py -q`
+  - result: `30 passed`
+  - `uv run ruff check src/mini_agent/cli.py tests/test_cli_submission_loop.py`
+  - result: all green
+  - `git diff --check -- src/mini_agent/cli.py tests/test_cli_submission_loop.py`
+  - result: passed (only LF/CRLF working-copy warnings, no content issues)
+
+## 2026-04-15 Worktree Hygiene / Slice Classification Audit
+
+- [completed] verified the ignored-file cleanup frontier after the initial hygiene sweep:
+  - `git clean -ndX` now only proposes intentionally preserved local runtime/config state:
+    - `.env.local`
+    - `.mini-agent/`
+    - `.venv/`
+    - `memory/`
+    - `MEMORY.md`
+    - `USER.md`
+    - `workspace/`
+    - `src/apps/qqbot_channel/.env`
+    - `src/apps/qqbot_channel/node_modules/`
+    - `src/mini_agent/config/config.yaml`
+    - `src/mini_agent/config/mcp.json`
+- [completed] classified the remaining dirty tree as meaningful refactor work rather than leftover garbage:
+  - `git diff --stat` currently reports `279 files changed`
+  - the heaviest remaining areas are:
+    - late `P32` runtime/session/transport realignment
+    - active `P33` llm/runtime/config work
+    - intentional legacy browser/channel deletions
+    - aligned docs/tests
+- [completed] defined the practical next grouping for future commits or handoff:
+  - hygiene-only guardrail
+  - legacy browser/channel retirement
+  - `P32` structure/runtime/session/transport realignment
+  - memory shared-service extraction
+  - `P33` llm/runtime/config upgrade
+  - docs sync last
+- [completed] identified cross-slice hotspot files that should not be split mechanically by directory:
+  - `src/mini_agent/cli.py`
+  - `src/mini_agent/cli_interactive.py`
+  - `src/mini_agent/tui/app.py`
+  - `src/mini_agent/runtime/main_agent_runtime_manager.py`
+  - `src/apps/agent_studio_gateway/main.py`
+  - `src/apps/agent_studio_gateway/composition.py`
+  - `tests/test_main_agent_surface_service.py`
+  - `tests/test_tui_app.py`
+- Hygiene outcome:
+  - no further safe repo-noise deletions are pending inside the tracked tree
+  - the remaining worktree should now be treated as slice-management work, not another round of blind cleanup
+
+## 2026-04-15 P33.21 Entry Config Loader Consolidation
+
+- [completed] added one tiny shared entry/bootstrap owner for maintained config loading:
+  - updated [config_bootstrap.py](/d:/file/Mini-Agent/src/mini_agent/config_bootstrap.py)
+  - added:
+    - `load_entry_config(...)`
+    - `load_noninteractive_config()`
+- [completed] rewired active CLI entry/composition paths to the shared helper:
+  - updated [cli.py](/d:/file/Mini-Agent/src/mini_agent/cli.py)
+  - updated [cli_interactive.py](/d:/file/Mini-Agent/src/mini_agent/cli_interactive.py)
+- [completed] rewired maintained gateway composition and kernel/runtime loader wiring to the shared helper:
+  - updated [composition.py](/d:/file/Mini-Agent/src/apps/agent_studio_gateway/composition.py)
+- [completed] added focused regression coverage for the new helper semantics:
+  - added [test_config_bootstrap.py](/d:/file/Mini-Agent/tests/test_config_bootstrap.py)
+- Structural outcome:
+  - active `src` entry/composition code no longer carries scattered direct `Config.load()` call sites
+  - noninteractive loader intent now has one shared name instead of repeated inline lambdas
+  - surface/composition layers still own the bootstrap decision; runtime/core helpers still only consume injected loaders/config
+- Verification:
+  - `uv run ruff check src/mini_agent/config_bootstrap.py src/mini_agent/cli.py src/mini_agent/cli_interactive.py src/apps/agent_studio_gateway/composition.py tests/test_config_bootstrap.py tests/test_cli_submission_loop.py tests/test_agent_studio_gateway_api_v1.py`
+  - result: all green
+  - `uv run pytest tests/test_config_bootstrap.py tests/test_cli_submission_loop.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - result: `52 passed`
+  - `uv run pytest tests/test_tui_app.py tests/test_agent_core_kernel.py -q`
+  - result: `148 passed`
+
+## 2026-04-15 P33.20 Headless / CLI Helper Config Boundary Closure
+
+- [completed] removed the last surface-local hidden config bootstrap from the CLI helper path:
+  - updated [cli_interactive.py](/d:/file/Mini-Agent/src/mini_agent/cli_interactive.py)
+  - `build_agent(...)` now requires an explicit injected `config`
+- [completed] moved headless config discovery fully to the entry seam:
+  - updated [cli.py](/d:/file/Mini-Agent/src/mini_agent/cli.py)
+  - `run_headless_mode(...)` now loads config explicitly and passes it into `_run_headless_prompt_async(...)`
+- [completed] tightened CLI/headless regression coverage around the new seam:
+  - updated [test_cli_submission_loop.py](/d:/file/Mini-Agent/tests/test_cli_submission_loop.py)
+  - added coverage proving:
+    - headless mode loads config at the entry and forwards it downward
+    - `cli_interactive.build_agent(...)` no longer works without explicit config injection
+- Structural outcome:
+  - active `Config.load()` ownership is now concentrated at real entry/composition seams
+  - the CLI interactive helper is no longer a hidden fallback owner for config discovery
+  - headless and interactive CLI paths now follow the same "entry decides config, shared helpers consume it" rule
+- Verification:
+  - `uv run ruff check src/mini_agent/cli.py src/mini_agent/cli_interactive.py tests/test_cli_submission_loop.py`
+  - result: all green
+  - `uv run pytest tests/test_cli_submission_loop.py tests/test_agent_core_kernel.py tests/test_tui_app.py tests/test_main_agent_surface_service.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - result: `273 passed`
+
+## 2026-04-15 P33.19 CLI Interactive Config Reuse Cleanup
+
+- [completed] removed the duplicate config-load hop inside the interactive CLI bootstrap path:
+  - updated [cli_interactive.py](/d:/file/Mini-Agent/src/mini_agent/cli_interactive.py)
+  - `run_interactive_session(...)` now passes the already loaded config into the initial agent build
+- [completed] updated CLI submission-loop regression doubles to accept the explicit config seam:
+  - updated [test_cli_submission_loop.py](/d:/file/Mini-Agent/tests/test_cli_submission_loop.py)
+- Structural outcome:
+  - the interactive CLI path no longer loads config once for startup checks and then silently loads it again during the first agent bootstrap
+  - remaining `Config.load()` usage is now concentrated in entry/composition seams and one surface-local fallback helper
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/agent_core/kernel.py src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py src/apps/agent_studio_gateway/composition.py tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_p19_runtime_matrix.py tests/test_cli_submission_loop.py tests/test_agent_core_kernel.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py`
+  - result: all green
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_p19_runtime_matrix.py tests/test_cli_submission_loop.py tests/test_agent_core_kernel.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - result: `280 passed`
+
+## 2026-04-15 P33.18 Runtime-Manager Composition-Owned Config Loader
+
+- [completed] removed the default runtime-config fallback from the runtime manager:
+  - updated [main_agent_runtime_manager.py](/d:/file/Mini-Agent/src/mini_agent/runtime/main_agent_runtime_manager.py)
+  - `MainAgentRuntimeManager` now requires explicit `load_runtime_config` injection
+- [completed] kept the production gateway composition as the active owner of runtime-manager config discovery:
+  - verified [composition.py](/d:/file/Mini-Agent/src/apps/agent_studio_gateway/composition.py)
+- [completed] introduced small test helpers so runtime-manager tests also express the new ownership explicitly instead of depending on hidden defaults:
+  - updated [test_main_agent_surface_service.py](/d:/file/Mini-Agent/tests/test_main_agent_surface_service.py)
+  - updated [test_session_service.py](/d:/file/Mini-Agent/tests/test_session_service.py)
+  - updated [test_p19_runtime_matrix.py](/d:/file/Mini-Agent/tests/test_p19_runtime_matrix.py)
+- Structural outcome:
+  - `MainAgentRuntimeManager` is no longer a hidden fallback owner for runtime config
+  - the remaining active `Config.load()` calls are now concentrated in entry/composition seams rather than inside shared runtime/core services
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/apps/agent_studio_gateway/composition.py tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_p19_runtime_matrix.py`
+  - result: all green
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_p19_runtime_matrix.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - result: `106 passed`
+
+## 2026-04-15 P33.17 Agent-Kernel Config Injection Boundary Cleanup
+
+- [completed] removed direct config loading from the shared agent-kernel builder:
+  - updated [kernel.py](/d:/file/Mini-Agent/src/mini_agent/agent_core/kernel.py)
+  - `build_agent_kernel(...)` now requires injected `config` or `config_loader`
+- [completed] rewired CLI interactive kernel entrypoints to provide config from the CLI layer instead of relying on kernel-owned global loading:
+  - updated [cli_interactive.py](/d:/file/Mini-Agent/src/mini_agent/cli_interactive.py)
+- [completed] rewired TUI kernel bootstrap to provide explicit config:
+  - updated [app.py](/d:/file/Mini-Agent/src/mini_agent/tui/app.py)
+- [completed] rewired gateway composition kernel bootstrap to provide explicit config-loader injection:
+  - updated [composition.py](/d:/file/Mini-Agent/src/apps/agent_studio_gateway/composition.py)
+- [completed] added/updated focused regression coverage for the kernel seam:
+  - updated [test_agent_core_kernel.py](/d:/file/Mini-Agent/tests/test_agent_core_kernel.py)
+  - added explicit failure coverage when no config seam is injected
+- Structural outcome:
+  - `agent_core/kernel.py` is no longer a hidden global config-loading owner
+  - the kernel now behaves like a real shared core service rather than a semi-entrypoint
+  - remaining `Config.load()` sites are now concentrated in entry/composition seams and the runtime-manager convenience default
+- Verification:
+  - `uv run ruff check src/mini_agent/agent_core/kernel.py src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py src/apps/agent_studio_gateway/composition.py tests/test_agent_core_kernel.py tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_main_agent_surface_service.py tests/test_agent_studio_gateway_api_v1.py`
+  - result: all green
+  - `uv run pytest tests/test_agent_core_kernel.py tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_main_agent_surface_service.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - result: `272 passed`
+
+## 2026-04-15 P33.16 Runtime / Surface Hidden Config-Load Boundary Cleanup
+
+- [completed] removed hidden runtime-support config loading from the extracted runtime helper seam:
+  - updated [session_agent_support.py](/d:/file/Mini-Agent/src/mini_agent/runtime/session_agent_support.py)
+  - `RuntimeSessionAgentSupport` now requires explicit config-loader injection when runtime policy/config is actually needed
+- [completed] moved runtime config ownership up to the runtime manager seam:
+  - updated [main_agent_runtime_manager.py](/d:/file/Mini-Agent/src/mini_agent/runtime/main_agent_runtime_manager.py)
+  - `MainAgentRuntimeManager` now owns the runtime-config loader injection it passes into runtime sub-services
+- [completed] removed the hidden `Config.load()` fallback from shared workspace-skill helpers:
+  - updated [workspace_support.py](/d:/file/Mini-Agent/src/mini_agent/agent_core/skills/workspace_support.py)
+  - skill catalog helpers now require explicit `config` when the active agent does not already expose a loader
+- [completed] rewired local/runtime skill command flows to pass config from injected seams instead of relying on helper fallbacks:
+  - updated [execution.py](/d:/file/Mini-Agent/src/mini_agent/commands/execution.py)
+  - updated [session_operator_handler.py](/d:/file/Mini-Agent/src/mini_agent/runtime/session_operator_handler.py)
+- [completed] removed class-internal TUI config loading and turned it into an injected surface seam:
+  - updated [app.py](/d:/file/Mini-Agent/src/mini_agent/tui/app.py)
+  - updated [cli.py](/d:/file/Mini-Agent/src/mini_agent/cli.py)
+- [completed] made the gateway production composition pass an explicit runtime-config loader into the runtime manager:
+  - updated [composition.py](/d:/file/Mini-Agent/src/apps/agent_studio_gateway/composition.py)
+- [completed] updated focused regression coverage for the new explicit seams:
+  - updated [test_runtime_session_agent_support.py](/d:/file/Mini-Agent/tests/test_runtime_session_agent_support.py)
+  - updated [test_command_execution_service.py](/d:/file/Mini-Agent/tests/test_command_execution_service.py)
+  - updated [test_tui_app.py](/d:/file/Mini-Agent/tests/test_tui_app.py)
+  - updated [test_main_agent_surface_service.py](/d:/file/Mini-Agent/tests/test_main_agent_surface_service.py)
+- Structural outcome:
+  - runtime hot-path helpers no longer quietly reach back to global config loading
+  - TUI no longer hides config loading inside the app class
+  - workspace skill support now makes its config dependency explicit instead of discovering config behind the caller's back
+- Verification:
+  - `uv run ruff check src/apps/agent_studio_gateway/composition.py src/mini_agent/runtime/session_agent_support.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_operator_handler.py src/mini_agent/agent_core/skills/workspace_support.py src/mini_agent/commands/execution.py src/mini_agent/tui/app.py src/mini_agent/cli.py tests/test_runtime_session_agent_support.py tests/test_command_execution_service.py tests/test_tui_app.py tests/test_main_agent_surface_service.py`
+  - result: all green
+  - `uv run pytest tests/test_agent_studio_gateway_api_v1.py tests/test_runtime_session_agent_support.py tests/test_command_execution_service.py tests/test_tui_app.py tests/test_main_agent_surface_service.py -q`
+  - result: `263 passed`
+
+## 2026-04-15 P33.15 Bootstrap Setup Seam Extraction
+
+- [completed] extracted first-launch preset-key bootstrap and local env loading out of `Config` class into a dedicated bootstrap helper module:
+  - added [config_bootstrap.py](/d:/file/Mini-Agent/src/mini_agent/config_bootstrap.py)
+- [completed] moved these responsibilities out of the `Config` class body:
+  - `.env.local` loading
+  - preset-key presence probing
+  - first-launch prompt/setup flow
+  - `.env.local` key write-back
+- [completed] rewired config loading to delegate to the extracted bootstrap seam:
+  - updated [config.py](/d:/file/Mini-Agent/src/mini_agent/config.py)
+- [completed] rewired the model registry service to use the shared bootstrap seam directly instead of reaching back through `Config`:
+  - updated [model_registry_service.py](/d:/file/Mini-Agent/src/mini_agent/model_manager/model_registry_service.py)
+- [completed] updated focused regression coverage:
+  - updated [test_config_local_env.py](/d:/file/Mini-Agent/tests/test_config_local_env.py)
+- Structural outcome:
+  - `Config` is now more honest about its role:
+    - config discovery/parsing/orchestration
+  - first-launch/operator-interactive bootstrap is now a separate seam instead of a hidden config-class concern
+  - `.env.local` loading is shared through one bootstrap helper rather than owned by the `Config` class itself
+- Verification:
+  - `uv run ruff check src/mini_agent/config.py src/mini_agent/config_bootstrap.py src/mini_agent/model_manager/model_registry_service.py tests/test_config_local_env.py`
+  - result: all green
+  - `uv run pytest tests/test_config_local_env.py tests/test_model_routing_runtime.py tests/test_model_registry_service.py tests/test_agent_core_kernel.py tests/test_llm_protocol_binding.py tests/test_request_rectifier.py tests/test_model_failover.py -q`
+  - result: `56 passed`
+
+## 2026-04-15 P33.14 Config Loader Responsibility Split
+
+- [completed] refactored `Config.from_yaml(...)` so it no longer mixes file IO, env absorption, bootstrap fallback, and every section parser in one large method:
+  - updated [src/mini_agent/config.py](/d:/file/Mini-Agent/src/mini_agent/config.py)
+- [completed] extracted explicit config-loader helpers for:
+  - YAML root loading/validation
+  - legacy-key validation
+  - bootstrap LLM resolution
+  - runtime config resolution
+  - agent/tools/security/observability section resolution
+- [completed] made config parsing stricter at the loader boundary:
+  - config root must now be a mapping
+  - section parsing now uses explicit mapping normalization instead of assuming `.get(...)` is always valid
+- [completed] added focused regression coverage for the loader seam:
+  - updated [tests/test_config_local_env.py](/d:/file/Mini-Agent/tests/test_config_local_env.py)
+  - added coverage for:
+    - non-mapping root rejection
+    - `allow_interactive_setup=False` not triggering first-launch bootstrap
+- Structural outcome:
+  - `Config.from_yaml(...)` is now an orchestrator instead of a giant mixed parser
+  - env/default absorption and section parsing are explicit, testable sub-steps
+  - later `P33` config/runtime boundary work can continue without cutting through one monolithic loader again
+- Verification:
+  - `uv run ruff check src/mini_agent/config.py tests/test_config_local_env.py`
+  - result: all green
+  - `uv run pytest tests/test_config_local_env.py tests/test_agent_core_kernel.py tests/test_llm_protocol_binding.py tests/test_request_rectifier.py tests/test_model_failover.py tests/test_model_routing_runtime.py -q`
+  - result: `53 passed`
+
+## 2026-04-15 P33.13 Protocol-Binding / Rectifier Residual Env Fallback Removal
+
+- [completed] confirmed the active `src` runtime no longer has side-path protocol-profile construction outside the unified kernel/failover path:
+  - `build_protocol_execution_profile(...)` is now only reached through the maintained runtime seam
+- [completed] removed the remaining rectifier env-fallback behavior from the active runtime path:
+  - updated `src/mini_agent/model_manager/rectifier.py`
+  - `rectify_openai_request(...)` and `rectify_anthropic_request(...)` now default to static `RequestRectifierOptions()` instead of `from_env()`
+- [completed] removed the now-obsolete `RequestRectifierOptions.from_env()` helper:
+  - runtime env fallback remains owned by `Config.from_yaml(...)`, not by the rectifier itself
+- [completed] added focused regression coverage proving protocol binding and direct rectifier defaults no longer read env toggles:
+  - updated `tests/test_llm_protocol_binding.py`
+  - updated `tests/test_request_rectifier.py`
+- Structural outcome:
+  - active runtime policy truth is now even more explicit:
+    - config loading may still absorb env defaults
+    - protocol binding and rectifier execution no longer discover policy from env on their own
+  - the maintained runtime no longer has an active `src` bypass around the unified kernel/failover path
+- Verification:
+  - `uv run ruff check src/mini_agent/model_manager/rectifier.py src/mini_agent/llm/protocol_binding.py tests/test_llm_protocol_binding.py tests/test_request_rectifier.py`
+  - result: all green
+  - `uv run pytest tests/test_llm_protocol_binding.py tests/test_request_rectifier.py tests/test_config_local_env.py tests/test_agent_core_kernel.py tests/test_model_failover.py tests/test_model_routing_runtime.py -q`
+  - result: `51 passed`
+
+## 2026-04-15 P33.12 Runtime Request-Policy / Rectifier Ownership Realignment
+
+- [completed] moved active runtime request-policy defaults out of protocol-binding env reads and into runtime config:
+  - updated `src/mini_agent/config.py`
+  - added `runtime.request_policy`
+- [completed] moved active runtime rectifier defaults out of protocol-binding/profile defaults and into runtime config:
+  - updated `src/mini_agent/config.py`
+  - added `runtime.rectifier`
+- [completed] rewired the unified agent kernel to pass runtime-owned policy defaults into failover/profile construction:
+  - updated `src/mini_agent/agent_core/kernel.py`
+  - updated `src/mini_agent/model_manager/failover.py`
+- [completed] narrowed protocol binding/profile defaults so the hot runtime path no longer reads request-policy env vars directly:
+  - updated `src/mini_agent/llm/protocol_binding.py`
+  - provider-aware defaults still live in the binding layer, but runtime-owned overrides now come from `config.runtime`
+- [completed] updated maintained config examples to the new runtime-owned shape:
+  - updated `src/mini_agent/config/config.yaml`
+  - updated `src/mini_agent/config/config-example.yaml`
+- [completed] updated focused regression coverage:
+  - updated `tests/test_config_local_env.py`
+  - updated `tests/test_agent_core_kernel.py`
+  - updated `tests/test_llm_protocol_binding.py`
+- Structural outcome:
+  - active runtime policy/config truth is now clearer:
+    - `config.runtime.retry`
+    - `config.runtime.request_policy`
+    - `config.runtime.rectifier`
+  - protocol binding still owns provider-aware execution defaults
+  - but it no longer owns hidden env-based request-policy truth in the hot path
+- Verification:
+  - `uv run ruff check src/mini_agent/config.py src/mini_agent/agent_core/kernel.py src/mini_agent/model_manager/failover.py src/mini_agent/llm/protocol_binding.py tests/test_config_local_env.py tests/test_agent_core_kernel.py tests/test_llm_protocol_binding.py`
+  - result: all green
+  - `uv run pytest tests/test_config_local_env.py tests/test_agent_core_kernel.py tests/test_llm_protocol_binding.py tests/test_model_routing_runtime.py tests/test_model_failover.py -q`
+  - result: `45 passed`
+
+## 2026-04-15 P33.11 Runtime Retry Config Boundary Realignment
+
+- [completed] moved retry ownership out of `config.llm` and into an explicit runtime config subtree:
+  - updated `src/mini_agent/config.py`
+  - added `RuntimeConfig`
+  - `Config` now exposes `runtime.retry`
+- [completed] hard-removed the legacy top-level YAML retry shape from active config loading:
+  - `Config.from_yaml(...)` now rejects legacy top-level `retry:` and instructs users to move it to `runtime.retry`
+- [completed] rewired kernel retry bootstrap to the runtime policy/config boundary instead of the LLM bootstrap subtree:
+  - updated `src/mini_agent/agent_core/kernel.py`
+- [completed] updated maintained config examples to the new runtime-owned shape:
+  - updated `src/mini_agent/config/config.yaml`
+  - updated `src/mini_agent/config/config-example.yaml`
+- [completed] added focused regression coverage:
+  - updated `tests/test_config_local_env.py`
+  - updated `tests/test_agent_core_kernel.py`
+- Structural outcome:
+  - `config.llm` is now narrower and closer to its intended `P33` role:
+    - bootstrap route input only
+  - retry policy is now owned by runtime config rather than the model bootstrap subtree
+  - the config file shape matches that ownership explicitly through `runtime.retry`
+- Verification:
+  - `uv run ruff check src/mini_agent/config.py src/mini_agent/agent_core/kernel.py tests/test_config_local_env.py tests/test_agent_core_kernel.py`
+  - result: all green
+  - `uv run pytest tests/test_config_local_env.py tests/test_agent_core_kernel.py tests/test_model_routing_runtime.py -q`
+  - result: `29 passed`
+
+## 2026-04-15 P33.10 Bootstrap-Only Route Boundary Narrowing
+
+- [completed] narrowed runtime routing APIs so they no longer consume the full `Config` object as a route owner:
+  - added `src/mini_agent/model_manager/bootstrap.py`
+  - updated `src/mini_agent/model_manager/runtime.py`
+  - updated `src/mini_agent/model_manager/model_registry_service.py`
+- [completed] introduced an explicit minimal bootstrap route input:
+  - `BootstrapLLMSettings`
+  - `bootstrap_llm_settings_from_config(...)`
+- [completed] rewired the kernel to pass bootstrap-only routing input instead of the full config object:
+  - updated `src/mini_agent/agent_core/kernel.py`
+- [completed] removed the remaining config-shaped dependency from session model-selection identity resolution:
+  - updated `src/mini_agent/runtime/main_agent_runtime_manager.py`
+  - `resolve_session_model_selection_identity(...)` no longer needs runtime config just to validate provider/model identity
+- [completed] updated active model-manager exports so the narrowed bootstrap surface is discoverable:
+  - updated `src/mini_agent/model_manager/__init__.py`
+- [completed] updated focused regression coverage:
+  - updated `tests/test_model_routing_runtime.py`
+  - updated `tests/test_agent_core_kernel.py`
+- [completed] corrected active runtime-flow documentation to describe synthetic bootstrap-provider routing instead of direct `config.llm` fallback:
+  - updated `docs/RUNTIME_FLOW.md`
+- Structural outcome:
+  - `config.llm` no longer leaks into routing APIs as a broad truth source
+  - runtime routing now consumes either:
+    - provider registry truth
+    - explicit bootstrap-only route input
+  - `config.llm` remains in active code only where it still belongs:
+    - bootstrap extraction
+    - bootstrap route identity
+- Verification:
+  - `uv run ruff check src/mini_agent/model_manager/bootstrap.py src/mini_agent/model_manager/model_registry_service.py src/mini_agent/model_manager/runtime.py src/mini_agent/model_manager/__init__.py src/mini_agent/agent_core/kernel.py src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_model_routing_runtime.py tests/test_agent_core_kernel.py`
+  - result: all green
+  - `uv run pytest tests/test_model_routing_runtime.py tests/test_agent_core_kernel.py tests/test_model_registry_service.py tests/test_runtime_session_agent_support.py tests/test_runtime_session_agent_control_handler.py -q`
+  - result: `30 passed`
+
+## 2026-04-15 P33.9 Gemini Active Runtime Residual Cleanup
+
+- [completed] hard-removed the remaining Gemini branches from the active runtime/provider hot path:
+  - updated `src/mini_agent/model_manager/provider.py`
+  - updated `src/mini_agent/model_manager/model_mapper.py`
+  - updated `src/mini_agent/model_manager/model_discovery.py`
+  - updated `src/mini_agent/model_manager/model_registry_service.py`
+  - updated `src/mini_agent/application/operations_provider_use_cases.py`
+  - updated `src/mini_agent/model_manager/__init__.py`
+- [completed] narrowed active provider protocol support back to the maintained runtime set:
+  - `ProviderAPIType` no longer advertises `gemini`
+  - default route-selection supported types no longer include `gemini`
+  - active model-manager exports no longer re-export Gemini protocol conversion helpers
+- [completed] removed Gemini from active discovery/runtime inventory logic:
+  - `ProviderType.GEMINI` removed from model discovery
+  - removed Gemini endpoint + fallback manifest + fetch implementation
+  - CLI helper text now reflects maintained providers only
+- [completed] tightened active setup/discovery behavior so stale Gemini inputs no longer drift through the runtime:
+  - provider config validation now rejects `api_type="gemini"`
+  - ops model-discovery setup now returns an explicit unsupported-provider error for `gemini`
+  - custom-provider discovery keeps `custom -> openai-compatible` fallback explicitly
+- [completed] added focused regression coverage:
+  - updated `tests/test_provider_config.py`
+  - updated `tests/test_model_discovery.py`
+  - updated `tests/test_operations_provider_use_cases.py`
+- Structural outcome:
+  - `P33.1`'s “Gemini removed from active runtime scope” decision is now enforced in active code rather than only documented
+  - runtime/provider discovery can no longer silently present Gemini as a maintained route
+  - non-runtime Gemini references were intentionally left alone:
+    - `GEMINI.md` memory-file semantics
+    - MCP profile conversion helpers/tests
+    - archived/reference docs
+- Verification:
+  - `uv run ruff check src/mini_agent/model_manager/provider.py src/mini_agent/model_manager/model_mapper.py src/mini_agent/model_manager/model_discovery.py src/mini_agent/model_manager/model_registry_service.py src/mini_agent/application/operations_provider_use_cases.py src/mini_agent/model_manager/__init__.py tests/test_provider_config.py tests/test_model_discovery.py tests/test_operations_provider_use_cases.py`
+  - result: all green
+  - `uv run pytest tests/test_provider_config.py tests/test_model_discovery.py tests/test_operations_provider_use_cases.py tests/test_model_registry_service.py tests/test_model_mapper.py tests/test_model_routing_runtime.py tests/test_llm_protocol_binding.py tests/test_cli_models_command.py -q`
+  - result: `46 passed`
+  - `uv run pytest tests/test_agent_studio_gateway_ops_router.py tests/test_agent_studio_gateway_api_v1.py tests/test_request_rectifier.py -q`
+  - result: `36 passed`
+
+## 2026-04-15 P33.8 Ollama Local Provider Integration
+
+- [completed] added `Ollama` as a maintained local provider path instead of leaving it as a custom-provider workaround:
+  - updated `src/mini_agent/model_manager/model_discovery.py`
+  - updated `src/mini_agent/model_manager/preset_providers.py`
+  - updated `src/mini_agent/model_manager/model_registry_service.py`
+- [completed] introduced explicit local-provider discovery support:
+  - added `ProviderType.OLLAMA`
+  - implemented Ollama discovery against:
+    - OpenAI-compatible `/v1/models`
+    - native `/api/tags` fallback
+  - preserved model metadata flow for:
+    - `discovered_at`
+    - `discovery_source`
+    - `discovery_confidence`
+    - `supports_tools`
+    - `supports_thinking`
+- [completed] made Ollama enablement explicit and non-surprising:
+  - local preset is only activated when `MINI_AGENT_OLLAMA_ENABLED=1` (or `MINI_AGENT_ENABLE_OLLAMA=1`)
+  - optional host override:
+    - `OLLAMA_HOST`
+    - `MINI_AGENT_OLLAMA_BASE_URL`
+  - optional protocol override:
+    - `MINI_AGENT_OLLAMA_PROTOCOL=openai|anthropic`
+  - default runtime protocol remains `anthropic`
+- [completed] supported no-auth local runtime mode without requiring a real external API key:
+  - internal sentinel key is bound automatically for SDK compatibility
+  - user no longer needs to fake an API key in config or provider JSON just to use Ollama
+- [completed] wired Ollama through the same preset/model registry flow as other maintained providers:
+  - preset listing can now report local Ollama status
+  - registry discovery/select flows now persist Ollama model inventory and selection state
+  - runtime provider catalog can now emit `preset-ollama`
+- [completed] aligned auxiliary surfaces:
+  - updated `src/mini_agent/application/operations_provider_use_cases.py`
+  - updated `src/mini_agent/cli.py`
+  - CLI model discovery now accepts `ollama`
+- [completed] added focused regression coverage:
+  - updated `tests/test_preset_providers.py`
+  - updated `tests/test_model_registry_service.py`
+  - updated `tests/test_model_routing_runtime.py`
+  - updated `tests/test_config_local_env.py`
+- Structural outcome:
+  - Ollama is now a first-class local provider path on top of the corrected `P33` runtime seam
+  - local enablement no longer depends on custom-provider hacks or fake user-supplied keys
+  - explicit enablement avoids silently overriding existing cloud/bootstrap startup behavior
+  - local model inventory participates in the same registry/routing path as other maintained providers
+- Verification:
+  - `uv run ruff check src/mini_agent/model_manager/model_discovery.py src/mini_agent/model_manager/preset_providers.py src/mini_agent/model_manager/model_registry_service.py src/mini_agent/application/operations_provider_use_cases.py src/mini_agent/cli.py tests/test_preset_providers.py tests/test_model_registry_service.py tests/test_model_routing_runtime.py tests/test_config_local_env.py`
+  - result: all green
+  - `uv run pytest tests/test_preset_providers.py tests/test_model_registry_service.py tests/test_model_routing_runtime.py tests/test_config_local_env.py -q`
+  - result: `23 passed`
+  - `uv run pytest tests/test_agent_core_kernel.py tests/test_llm_protocol_binding.py tests/test_request_rectifier.py tests/test_model_routing_runtime.py tests/test_model_registry_service.py -q`
+  - result: `32 passed`
+  - `uv run pytest tests/test_cli_provider_command.py tests/test_preset_providers.py tests/test_config_local_env.py -q`
+  - result: `13 passed`
+  - `uv run python -m compileall src/mini_agent/model_manager src/mini_agent/application/operations_provider_use_cases.py src/mini_agent/cli.py tests/test_preset_providers.py tests/test_model_registry_service.py tests/test_model_routing_runtime.py tests/test_config_local_env.py`
+  - result: all green
+  - `uv run pytest tests/test_model_discovery.py tests/test_preset_providers.py tests/test_llm_protocol_binding.py tests/test_llm_streaming.py tests/test_model_routing_runtime.py tests/test_cli_submission_loop.py tests/test_tui_app.py -q`
+  - result: `194 passed`
+  - `uv run python scripts/ollama_live_smoke.py --workspace d:\\file\\Mini-Agent`
+  - result: `ok=true`, discovery + basic prompt + tool smoke all passed on local `qwen3.5:9b`
+- [in_progress] extending `P33.8` validation across real-use local surfaces:
+  - session-scoped selection identity for `preset-ollama`
+  - CLI interactive `/model use ollama ...`
+  - TUI local switching onto `preset-ollama`
+  - clearer CLI feedback when Ollama is enabled but the daemon is not reachable
+- [completed] closed two live-machine loopback defects exposed during Ollama smoke:
+  - `model_discovery.py` now bypasses proxy env for loopback discovery endpoints
+  - `preset_providers.py` now bypasses proxy env for synchronous Ollama reachability checks
+  - `AnthropicClient` and `OpenAIClient` now use a dedicated SDK `httpx` transport for loopback endpoints so local protocol traffic does not leak through machine proxy env
+- [completed] added reusable live Ollama smoke support:
+  - added `tests/test_model_discovery.py`
+  - added `scripts/ollama_live_smoke.py`
+  - updated `tests/test_llm_protocol_binding.py`
+  - updated `scripts/README.md`
+- [completed] validated the maintained local-provider path on this machine:
+  - discovery source: `api_discovery`
+  - recommended local model: `qwen3.5:9b`
+  - basic live prompt completed via `preset-ollama`
+  - live runtime emitted `thinking_delta` and `text_delta`
+  - tool smoke produced one real `bash` call and completed with `TOOL_OK`
+- [completed] validated the optional Ollama `openai` compatibility override on this machine:
+  - `MINI_AGENT_OLLAMA_PROTOCOL=openai` discovery completed successfully
+  - basic live prompt also completed via `preset-ollama / qwen3.5:9b`
+  - tool smoke routed one real `bash` call successfully
+  - residual quality note: on `qwen3.5:9b`, the tool smoke finished without a final assistant text message, so this path is functional but less reliable for end-turn finalization than the default `anthropic` compatibility route
+
+## 2026-04-15 P33.7 Request Policy / Protocol Parameter Upgrade
+
+- [completed] added one explicit bound request-policy owner:
+  - updated `src/mini_agent/llm/protocol_binding.py`
+  - added `ProtocolRequestPolicy`
+  - `ProtocolExecutionProfile` now carries inspectable `request_policy` instead of scattering defaults across protocol clients
+- [completed] moved effective request defaults into the binding layer:
+  - normalized policy fields now include:
+    - `max_output_tokens`
+    - `reasoning_split_enabled`
+    - `thinking_budget_tokens`
+    - `temperature`
+    - `streaming_enabled`
+    - `tool_choice_policy`
+  - streaming usage inclusion is also now policy-bound instead of OpenAI-client hard-coded
+- [completed] narrowed rectifier ownership back to payload normalization:
+  - updated `src/mini_agent/model_manager/rectifier.py`
+  - removed request-policy ownership for:
+    - thinking budget injection
+    - protocol-level output/token defaults
+  - rectifier now keeps:
+    - message normalization
+    - cache injection
+    - thinking-signature stripping
+- [completed] rewired protocol clients to consume bound request policy instead of client-owned defaults:
+  - updated `src/mini_agent/llm/openai_client.py`
+  - updated `src/mini_agent/llm/anthropic_client.py`
+  - added explicit request-param builders in both clients
+  - removed client-owned hard-coded defaults such as:
+    - OpenAI `reasoning_split` / stream options
+    - Anthropic `max_tokens=16384`
+  - streaming-disabled policy now falls back cleanly to buffered generation + normalized event replay
+- [completed] exported the new policy contract:
+  - updated `src/mini_agent/llm/__init__.py`
+- [completed] added focused regression coverage:
+  - updated `tests/test_llm_protocol_binding.py`
+  - updated `tests/test_request_rectifier.py`
+- Structural outcome:
+  - request defaults are now visible on the bound execution profile instead of hidden inside SDK-call branches
+  - provider compatibility decisions remain in binding, while request-shape normalization remains in rectifier
+  - protocol clients are closer to thin executors over one explicit bound policy
+  - the runtime now has a stable seam for later `P33.8 Ollama` request-policy binding without copying client logic again
+- Verification:
+  - `uv run ruff check src/mini_agent/llm/protocol_binding.py src/mini_agent/llm/openai_client.py src/mini_agent/llm/anthropic_client.py src/mini_agent/llm/__init__.py src/mini_agent/model_manager/rectifier.py tests/test_llm_protocol_binding.py tests/test_request_rectifier.py`
+  - result: all green
+  - `uv run pytest tests/test_llm_protocol_binding.py tests/test_request_rectifier.py tests/test_llm_streaming.py tests/test_model_failover.py -q`
+  - result: `17 passed`
+  - `uv run pytest tests/test_agent_core_kernel.py tests/test_model_routing_runtime.py tests/test_agent_core_streaming.py -q`
+  - result: `19 passed`
+  - `uv run python -m compileall src/mini_agent/llm src/mini_agent/model_manager/rectifier.py tests/test_llm_protocol_binding.py tests/test_request_rectifier.py`
+  - result: all green
+
+## 2026-04-15 P33.6 Capability-Aware Routing Upgrade
+
+- [completed] introduced a minimal runtime route-requirement seam:
+  - updated `src/mini_agent/model_manager/model_mapper.py`
+  - added `RouteRequirementProfile`
+  - route selection can now consume:
+    - `require_tools`
+    - `prefer_thinking`
+    - `min_context_window`
+- [completed] upgraded provider route ranking/filtering to consume capability metadata already persisted in provider registry truth:
+  - known `supports_tools=False` candidates are filtered when tools are required
+  - known undersized `context_window` candidates are filtered when a minimum is requested
+  - `supports_thinking=True` gets an explicit preference bonus instead of depending only on provider priority
+- [completed] extended runtime route resolution to preserve capability data on resolved candidates:
+  - updated `src/mini_agent/model_manager/runtime.py`
+  - `RoutedLLMSettings` now carries:
+    - `supports_tools`
+    - `supports_thinking`
+- [completed] wired the unified agent kernel into capability-aware routing:
+  - updated `src/mini_agent/agent_core/kernel.py`
+  - kernel now derives one minimal automatic route requirement profile:
+    - `require_tools` from active tooling/runtime-policy mode
+    - `prefer_thinking=True` for the main agent runtime
+  - pinned/manual model selection remains exact and does not get silently reinterpreted as a compatibility auto-route
+- [completed] exported the new routing contract:
+  - updated `src/mini_agent/model_manager/__init__.py`
+- [completed] added focused regression coverage:
+  - updated `tests/test_model_mapper.py`
+  - updated `tests/test_model_routing_runtime.py`
+  - updated `tests/test_agent_core_kernel.py`
+- Structural outcome:
+  - automatic routing is no longer purely `requested_model + priority`
+  - capability metadata persisted in `P33.5` is now actually consumed by runtime route selection
+  - the agent kernel now asks for tool-capable, thinking-preferred routes without inventing a second routing subsystem
+  - explicit `min_context_window` support exists as a stable seam for future session/request policy wiring without forcing an arbitrary global threshold today
+- Verification:
+  - `uv run ruff check src/mini_agent/model_manager/model_mapper.py src/mini_agent/model_manager/runtime.py src/mini_agent/model_manager/__init__.py src/mini_agent/agent_core/kernel.py tests/test_model_mapper.py tests/test_model_routing_runtime.py tests/test_agent_core_kernel.py`
+  - result: all green
+  - `uv run pytest tests/test_model_mapper.py tests/test_model_routing_runtime.py tests/test_agent_core_kernel.py -q`
+  - result: `22 passed`
+  - `uv run pytest tests/test_tui_app.py tests/test_main_agent_surface_service.py tests/test_model_failover.py tests/test_agent_core_execution_policy.py -q`
+  - result: `230 passed`
+  - `uv run pytest tests/test_cli_submission_loop.py tests/test_runtime_session_model_identity_codec.py tests/test_session_model_selection_service.py -q`
+  - result: `30 passed`
+
+## 2026-04-15 P33.5 Model Discovery / Latest Selection Upgrade
+
+- [completed] replaced preset default-model selection with an explicit recommendation seam instead of relying only on `latest_base_model`:
+  - updated `src/mini_agent/model_manager/model_discovery.py`
+  - updated `src/mini_agent/model_manager/preset_providers.py`
+- [completed] introduced explicit recommendation metadata:
+  - `curated_latest`
+  - `official_default`
+  - `discovered_latest`
+- [completed] added normalized discovery metadata persistence for model inventory:
+  - `discovered_at`
+  - `discovery_source`
+  - `discovery_confidence`
+  - `supports_tools`
+  - `supports_thinking`
+- [completed] extended provider registry/runtime provider payloads to preserve model metadata for later routing work:
+  - updated `src/mini_agent/model_manager/provider.py`
+  - updated `src/mini_agent/model_manager/model_registry_service.py`
+- [completed] aligned provider setup/model-ops contracts with the new recommendation seam:
+  - updated `src/mini_agent/application/operations_provider_use_cases.py`
+  - updated `src/mini_agent/interfaces/ops.py`
+- [completed] added focused regression coverage:
+  - updated `tests/test_preset_providers.py`
+  - added `tests/test_model_registry_service.py`
+  - updated `tests/test_agent_studio_gateway_ops_router.py`
+- Structural outcome:
+  - preset providers no longer treat "newest by created timestamp" as the only recommendation truth
+  - registry summaries and preset state now persist discovery/capability metadata instead of dropping it
+  - runtime provider catalog now carries model metadata forward for the next `P33.6 Capability-Aware Routing` slice
+- Verification:
+  - `uv run ruff check src/mini_agent/model_manager/model_discovery.py src/mini_agent/model_manager/preset_providers.py src/mini_agent/model_manager/provider.py src/mini_agent/model_manager/model_registry_service.py src/mini_agent/application/operations_provider_use_cases.py src/mini_agent/interfaces/ops.py tests/test_preset_providers.py tests/test_model_registry_service.py tests/test_agent_studio_gateway_ops_router.py tests/test_operations_provider_use_cases.py`
+  - result: all green
+  - `uv run pytest tests/test_preset_providers.py tests/test_model_registry_service.py tests/test_agent_studio_gateway_ops_router.py tests/test_operations_provider_use_cases.py -q`
+  - result: `18 passed`
+  - `uv run pytest tests/test_model_routing_runtime.py tests/test_runtime_session_model_identity_codec.py tests/test_tui_app.py -q`
+  - result: `146 passed`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_cli_submission_loop.py -q`
+  - result: `101 passed`
+
+## 2026-04-15 P33.4 Local Surface Streaming Closure
+
+- [completed] closed the last fake-buffered gap for local terminal surfaces on top of the native runtime streaming seam:
+  - updated `src/mini_agent/cli_interactive.py`
+  - updated `src/mini_agent/tui/app.py`
+- [completed] rewired interactive CLI runtime-event handling to consume live `loop.llm_event` deltas directly:
+  - added a dedicated submission-loop runtime event handler
+  - disabled duplicate buffered console-print fallback in the interactive agent path
+  - rebuilt replacement agents on model switch / skill refresh with the same streaming behavior
+- [completed] rewired local TUI chat turns to consume live submission-bus `loop.llm_event` deltas:
+  - live assistant chunks now append into the active streaming message
+  - final buffered reply is no longer replayed when the same reply already arrived through the live bus
+  - streamed assistant messages now flip cleanly from `streaming=True` to `streaming=False`
+- [completed] added focused regression coverage for the local-surface closure:
+  - updated `tests/test_cli_submission_loop.py`
+  - updated `tests/test_tui_app.py`
+- Structural outcome:
+  - `P33.4` is now closed end-to-end, not only at the protocol/gateway seam
+  - local `CLI / TUI` now consume the same normalized runtime streaming seam as shared surfaces
+  - the project no longer depends on buffered final-text replay to make local terminal interaction feel live
+- Verification:
+  - `uv run ruff check src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py tests/test_cli_submission_loop.py tests/test_tui_app.py`
+  - result: all green
+  - `uv run pytest tests/test_cli_submission_loop.py tests/test_tui_app.py -q`
+  - result: `162 passed`
+  - `uv run pytest tests/test_llm_streaming.py tests/test_agent_core_streaming.py tests/test_main_agent_surface_service.py tests/test_llm_completion_result.py -q`
+  - result: `83 passed`
+  - `uv run pytest tests/test_model_failover.py tests/test_agent_core_execution_loop.py tests/test_agent_core_execution_policy.py -q`
+  - result: `25 passed`
+
+## 2026-04-14 P33.4 Native Streaming Upgrade
+
+- [completed] added a native streaming contract to the protocol client base/facade:
+  - updated `src/mini_agent/llm/base.py`
+  - updated `src/mini_agent/llm/llm_wrapper.py`
+- [completed] implemented provider-native normalized event streaming:
+  - updated `src/mini_agent/llm/openai_client.py`
+  - updated `src/mini_agent/llm/anthropic_client.py`
+- [completed] extended failover to support streamed provider execution:
+  - updated `src/mini_agent/model_manager/failover.py`
+- [completed] upgraded the agent planner to consume streamed LLM events directly and re-aggregate them into the canonical completion model:
+  - updated `src/mini_agent/agent_core/engine.py`
+- [completed] exported streamed LLM events into the submission-loop event bus for future local-surface consumption:
+  - updated `src/mini_agent/agent_core/execution/agent_loop.py`
+- [completed] rewired shared application streaming to forward live LLM deltas and skip fake replay when native deltas already arrived:
+  - updated `src/mini_agent/application/agent_turn_execution_handler.py`
+  - updated `src/mini_agent/application/surface_chat_flow_handler.py`
+- [completed] fixed normalized usage aggregation so incremental provider usage updates produce correct totals:
+  - updated `src/mini_agent/schema/schema.py`
+- [completed] added focused regression coverage:
+  - added `tests/test_llm_streaming.py`
+  - added `tests/test_agent_core_streaming.py`
+  - updated `tests/test_llm_completion_result.py`
+  - updated `tests/test_main_agent_surface_service.py`
+- Structural outcome:
+  - `OpenAI` and `Anthropic` protocol clients now expose native normalized event streams
+  - the agent planner now consumes streamed events directly and still finishes on `LLMCompletionResult`
+  - shared SSE streaming now prefers live `delta` events over final-text chunk replay
+  - submission-loop transports now expose `loop.llm_event` as the future local streaming seam
+- Verification:
+  - `uv run ruff check src/mini_agent/schema/schema.py src/mini_agent/llm/base.py src/mini_agent/llm/llm_wrapper.py src/mini_agent/llm/openai_client.py src/mini_agent/llm/anthropic_client.py src/mini_agent/model_manager/failover.py src/mini_agent/agent_core/engine.py src/mini_agent/agent_core/execution/agent_loop.py src/mini_agent/application/agent_turn_execution_handler.py src/mini_agent/application/surface_chat_flow_handler.py tests/test_llm_completion_result.py tests/test_llm_streaming.py tests/test_agent_core_streaming.py tests/test_main_agent_surface_service.py`
+  - result: all green
+  - `uv run pytest tests/test_llm_completion_result.py tests/test_llm_streaming.py tests/test_agent_core_streaming.py tests/test_main_agent_surface_service.py -q`
+  - result: `83 passed`
+  - `uv run pytest tests/test_model_failover.py tests/test_agent_core_execution_loop.py tests/test_agent_core_execution_policy.py tests/test_tui_app.py tests/test_cli_submission_loop.py -q`
+  - result: `183 passed`
+  - `uv run pytest tests/test_llm_protocol_binding.py tests/test_request_rectifier.py tests/test_model_routing_runtime.py tests/test_preset_providers.py tests/test_runtime_session_model_identity_codec.py -q`
+  - result: `20 passed`
+
+## 2026-04-14 P33.3 Rich Response Model Upgrade
+
+- [completed] introduced the normalized buffered completion and event model:
+  - updated `src/mini_agent/schema/schema.py`
+  - updated `src/mini_agent/schema/__init__.py`
+  - updated `src/mini_agent/__init__.py`
+- [completed] added aggregation/synthesis helpers so buffered results and normalized events share one seam:
+  - `aggregate_completion_events(...)`
+  - `synthesize_completion_events(...)`
+- [completed] upgraded the LLM client contracts to return `LLMCompletionResult`:
+  - updated `src/mini_agent/llm/base.py`
+  - updated `src/mini_agent/llm/llm_wrapper.py`
+  - updated `src/mini_agent/llm/openai_client.py`
+  - updated `src/mini_agent/llm/anthropic_client.py`
+  - updated `src/mini_agent/model_manager/failover.py`
+- [completed] rewired the agent/runtime logging path to consume normalized completions:
+  - updated `src/mini_agent/agent_core/engine.py`
+  - updated `src/mini_agent/logger.py`
+- [completed] aligned affected tests and added dedicated regression coverage for the new model:
+  - added `tests/test_llm_completion_result.py`
+  - updated `tests/test_logger_events.py`
+  - updated:
+    - `tests/test_agent_core_execution_loop.py`
+    - `tests/test_agent_core_execution_policy.py`
+    - `tests/test_agent_core_turn_context.py`
+    - `tests/test_cli_submission_loop.py`
+    - `tests/test_memory_automation.py`
+    - `tests/test_model_failover.py`
+    - `tests/test_session_integration.py`
+    - `tests/test_tui_app.py`
+- [completed] repaired a pre-existing corrupted prompt-literal block that was breaking syntax/lint in one regression file:
+  - updated `tests/test_agent_core_turn_context.py`
+- Structural outcome:
+  - buffered completion now has one canonical model: `LLMCompletionResult`
+  - normalized completion events now have one canonical model: `LLMStreamEvent`
+  - buffered output can be synthesized into events and aggregated back from events
+  - protocol clients, agent execution, and logger now share the same richer response seam
+- Verification:
+  - `uv run python -m py_compile tests/test_agent_core_turn_context.py`
+  - result: all green
+  - `uv run ruff check src/mini_agent/schema src/mini_agent/llm/base.py src/mini_agent/llm/llm_wrapper.py src/mini_agent/llm/openai_client.py src/mini_agent/llm/anthropic_client.py src/mini_agent/model_manager/failover.py src/mini_agent/agent_core/engine.py src/mini_agent/logger.py tests/test_llm_completion_result.py tests/test_logger_events.py tests/test_agent_core_execution_loop.py tests/test_agent_core_execution_policy.py tests/test_agent_core_turn_context.py tests/test_cli_submission_loop.py tests/test_memory_automation.py tests/test_model_failover.py tests/test_session_integration.py tests/test_tui_app.py`
+  - result: all green
+  - `uv run pytest tests/test_llm_completion_result.py tests/test_logger_events.py tests/test_model_failover.py tests/test_agent_core_execution_loop.py tests/test_agent_core_execution_policy.py tests/test_memory_automation.py tests/test_tui_app.py tests/test_agent_core_turn_context.py tests/test_cli_submission_loop.py -q`
+  - result: `219 passed`
+  - `uv run pytest tests/test_llm_protocol_binding.py tests/test_request_rectifier.py tests/test_model_routing_runtime.py tests/test_preset_providers.py tests/test_runtime_session_model_identity_codec.py -q`
+  - result: `20 passed`
+
+## 2026-04-14 P33.2 Protocol Boundary Hardening
+
+- [completed] added an explicit protocol execution-profile owner:
+  - added `src/mini_agent/llm/protocol_binding.py`
+- [completed] turned `LLMClient` into a thin protocol-dispatch facade:
+  - updated `src/mini_agent/llm/llm_wrapper.py`
+- [completed] rewired protocol clients to consume bound execution profiles instead of provider-shaped constructor defaults:
+  - updated `src/mini_agent/llm/openai_client.py`
+  - updated `src/mini_agent/llm/anthropic_client.py`
+  - updated `src/mini_agent/llm/__init__.py`
+- [completed] moved provider compatibility rules out of failover/wrapper inline branching and into explicit binding:
+  - updated `src/mini_agent/model_manager/failover.py`
+- [completed] removed endpoint-driven OpenAI thinking-budget injection from the rectifier seam:
+  - updated `src/mini_agent/model_manager/rectifier.py`
+- [completed] synced focused regression coverage for the new protocol-binding boundary:
+  - added `tests/test_llm_protocol_binding.py`
+  - updated `tests/test_model_failover.py`
+  - updated `tests/test_request_rectifier.py`
+  - updated live/test helpers in:
+    - `tests/test_llm.py`
+    - `tests/test_llm_clients.py`
+    - `tests/test_integration.py`
+    - `tests/test_agent_core_engine_live.py`
+- Structural outcome:
+  - protocol execution now consumes explicit bound profiles instead of re-deriving provider compatibility inline
+  - MiniMax base URL normalization no longer lives in `LLMClient`
+  - OpenAI / Anthropic clients are now narrower protocol executors
+  - rectifier capability toggles are profile-driven rather than endpoint-guessed inside the client path
+- Verification:
+  - `uv run ruff check src/mini_agent/llm src/mini_agent/model_manager/rectifier.py src/mini_agent/model_manager/failover.py tests/test_llm_protocol_binding.py tests/test_model_failover.py tests/test_request_rectifier.py tests/test_llm.py tests/test_llm_clients.py tests/test_integration.py tests/test_agent_core_engine_live.py`
+  - result: all green
+  - `uv run pytest tests/test_llm_protocol_binding.py tests/test_model_failover.py tests/test_request_rectifier.py tests/test_model_routing_runtime.py -q`
+  - result: `19 passed`
+  - `uv run pytest tests/test_agent_core_kernel.py tests/test_model_routing_runtime.py tests/test_preset_providers.py tests/test_runtime_session_model_identity_codec.py -q`
+  - result: `19 passed`
+  - `uv run python -m compileall src/mini_agent/llm src/mini_agent/model_manager/failover.py src/mini_agent/model_manager/rectifier.py tests/test_llm_protocol_binding.py tests/test_model_failover.py tests/test_request_rectifier.py`
+  - result: all green
+
+## 2026-04-14 P33.1 Registry Truth Consolidation
+
+- [completed] removed the direct runtime config-route ownership from the active hot path:
+  - updated `src/mini_agent/model_manager/runtime.py`
+  - routed startup through provider registry resolution only
+- [completed] added bootstrap-provider behavior for empty-registry startup:
+  - updated `src/mini_agent/model_manager/model_registry_service.py`
+  - synthesized `bootstrap-config` provider entries only as a runtime recovery path
+- [completed] stopped implicit config-driven selection defaults in the runtime/kernel path:
+  - updated `src/mini_agent/agent_core/kernel.py`
+  - updated `src/mini_agent/model_manager/runtime.py`
+  - provider default models now back omitted model selection where a provider is already chosen
+- [completed] aligned session/TUI route identity handling with bootstrap-provider semantics:
+  - updated `src/mini_agent/runtime/session_model_identity_codec.py`
+  - updated `src/mini_agent/tui/app.py`
+- [completed] removed `Gemini` from active preset/runtime-facing setup and CLI UX:
+  - updated `src/mini_agent/model_manager/preset_providers.py`
+  - updated `src/mini_agent/config.py`
+  - updated `src/mini_agent/cli.py`
+  - updated `src/apps/agent_studio_gateway/composition.py`
+- [completed] added/updated focused regression coverage:
+  - updated `tests/test_model_routing_runtime.py`
+  - updated `tests/test_preset_providers.py`
+  - updated `tests/test_runtime_session_model_identity_codec.py`
+- Structural outcome:
+  - provider registry is now the only maintained route owner in the runtime hot path
+  - `config.llm` is now bootstrap-only instead of a peer route source
+  - active runtime-facing preset/config/CLI UX no longer presents `Gemini` as a maintained preset path
+  - omitted model selection now resolves from provider defaults rather than from stale global config bias
+- Verification:
+  - `uv run ruff check src/mini_agent/model_manager/runtime.py src/mini_agent/model_manager/model_registry_service.py src/mini_agent/model_manager/preset_providers.py src/mini_agent/config.py src/mini_agent/agent_core/kernel.py src/mini_agent/runtime/session_model_identity_codec.py src/mini_agent/tui/app.py src/mini_agent/cli.py src/apps/agent_studio_gateway/composition.py tests/test_model_routing_runtime.py tests/test_preset_providers.py tests/test_runtime_session_model_identity_codec.py tests/test_agent_core_kernel.py tests/test_config_local_env.py`
+  - result: all green
+  - `uv run python -m compileall src/mini_agent/model_manager/runtime.py src/mini_agent/model_manager/model_registry_service.py src/mini_agent/model_manager/preset_providers.py src/mini_agent/config.py src/mini_agent/agent_core/kernel.py src/mini_agent/runtime/session_model_identity_codec.py src/mini_agent/tui/app.py src/mini_agent/cli.py src/apps/agent_studio_gateway/composition.py tests/test_model_routing_runtime.py tests/test_preset_providers.py tests/test_runtime_session_model_identity_codec.py`
+  - result: all green
+  - `uv run pytest tests/test_model_routing_runtime.py tests/test_preset_providers.py tests/test_runtime_session_model_identity_codec.py tests/test_agent_core_kernel.py tests/test_config_local_env.py -q`
+  - result: `24 passed`
+  - `uv run pytest tests/test_tui_app.py -k model -q`
+  - result: `14 passed, 121 deselected`
+
+## 2026-04-14 P33 LLM Runtime Upgrade Planning
+
+- [completed] audited the current LLM runtime from the bottom up:
+  - config/bootstrap loading
+  - preset/custom provider registry
+  - runtime route resolution
+  - failover execution
+  - protocol clients
+  - current application streaming path
+- [completed] locked the runtime design decisions provided by the user:
+  - no requirement for one native SDK per brand
+  - remove active `Gemini`
+  - keep `MiniMax` in the `anthropic` compatibility family
+  - add native streaming
+  - upgrade discovery/latest selection
+  - keep routing capability additions limited to `tools / thinking / context_window`
+  - consider `Ollama` as a real local-provider path
+- [completed] wrote a dedicated upgrade plan:
+  - added `docs/P33_LLM_RUNTIME_UPGRADE_PLAN_2026-04-14.md`
+- [completed] synced plan + findings:
+  - updated `task_plan.md`
+  - updated `findings.md`
+- Structural outcome:
+  - the correct long-term truth direction is now explicit:
+    - provider registry owns inventory truth
+    - session identity owns active model truth
+    - `config.llm` becomes bootstrap-only
+  - the next implementation slice is narrowed to `P33.1 Registry Truth Consolidation`
+
+## 2026-04-14 P32.61 Shared Remote Recovery Feedback Semantics
+
+- [completed] moved shared-session recovery/status wording out of the `QQ` adapter and into a shared session owner:
+  - added `src/mini_agent/session/recovery_feedback_service.py`
+- [completed] carried shared remote recovery text through the shared session transport/read-model contracts:
+  - updated `src/mini_agent/interfaces/agent.py`
+  - updated `src/mini_agent/session/projection.py`
+  - updated `src/mini_agent/runtime/session_read_model_builder.py`
+- [completed] rewired `QQ` to prefer the shared recovery/status text and keep recent-message formatting as an adapter concern:
+  - updated `src/apps/qqbot_channel/bot.mjs`
+- [completed] added focused regression coverage for the new owner and projection round-trip:
+  - added `tests/test_session_recovery_feedback_service.py`
+  - updated `tests/test_session_projection.py`
+  - updated `tests/test_interface_dto_contracts.py`
+  - updated `tests/test_session_package_exports.py`
+- Structural outcome:
+  - shared-session recovery/status semantics now have one owner in the shared `session` package
+  - `QQ` no longer defines the primary recovery text for `/status` and `/continue`
+  - future Remote Interaction adapters can reuse the same shared recovery payload instead of cloning QQ wording
+- Verification:
+  - `uv run ruff check src/mini_agent/session/recovery_feedback_service.py src/mini_agent/session/__init__.py src/mini_agent/interfaces/agent.py src/mini_agent/session/projection.py src/mini_agent/runtime/session_read_model_builder.py tests/test_session_package_exports.py tests/test_interface_dto_contracts.py tests/test_session_projection.py tests/test_session_recovery_feedback_service.py`
+  - result: all green
+  - `node --check src/apps/qqbot_channel/bot.mjs`
+  - result: all green
+  - `uv run pytest tests/test_session_recovery_feedback_service.py tests/test_session_projection.py tests/test_interface_dto_contracts.py tests/test_transport_remote_session_client.py tests/test_agent_studio_gateway_api_v1.py tests/test_channel_ingress_use_cases.py -q`
+  - result: `42 passed`
+  - `uv run pytest tests/test_session_package_exports.py tests/test_main_agent_surface_service.py -k "persisted_interrupted_session_exposes_recovery_snapshot_after_restart or restarted_shared_session_keeps_recovery_until_next_turn_consumes_it" -q`
+  - result: `2 passed`
+
+## 2026-04-14 P32.60 Remote Interaction / QQ Architecture Lock
+
+- [completed] locked the active interaction normalization to one maintained remote adapter:
+  - updated `src/mini_agent/interaction/surface.py`
+  - updated `src/mini_agent/interaction/__init__.py`
+- [completed] aligned active remote-facing wording and command metadata with the corrected entrance model:
+  - updated `src/mini_agent/interfaces/channel.py`
+  - updated `src/mini_agent/dev/runtime_stack_manager.py`
+  - updated `src/mini_agent/cli.py`
+  - updated `src/mini_agent/commands/catalog.json`
+- [completed] hard-removed legacy non-QQ channel trees and obsolete combined smoke/test paths:
+  - removed `src/channels/`
+  - removed `src/mini_agent/channels/`
+  - removed `src/gateway/channels/`
+  - removed `scripts/qq_wechat_smoke.py`
+  - removed `tests/test_channels.py`
+- [completed] rewired focused tests away from the old fake multi-channel active model:
+  - updated `tests/test_interaction_surface.py`
+  - updated `tests/test_agent_studio_gateway_api_v1.py`
+  - updated `tests/test_agent_studio_gateway_integration_flows.py`
+  - updated `tests/test_channel_novel_action_handler.py`
+  - updated `tests/test_agent_core_security_pairing.py`
+  - updated `tests/test_agent_core_session.py`
+- [completed] synced the active architecture / plan docs and added a permanent lock record:
+  - updated `README.md`
+  - updated `README_CN.md`
+  - updated `docs/ARCHITECTURE.md`
+  - updated `docs/FRAMEWORK_SKELETON.md`
+  - updated `docs/DEVELOPMENT_INDEX.md`
+  - updated `docs/RUNTIME_FLOW.md`
+  - updated `docs/REFACTOR_TASKS.md`
+  - updated `docs/P30_SURFACE_SESSION_ARCHITECTURE_CORRECTION_2026-04-12.md`
+  - updated `docs/P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md`
+  - updated `docs/P29_SESSION_BOUNDARY_AUDIT_2026-04-12.md`
+  - updated `docs/P29_SESSION_HARD_REFACTOR_PLAN.md`
+  - updated `docs/P30_SESSION_TRUTH_BOUNDARY_MAP_2026-04-13.md`
+  - added `docs/P32_REMOTE_INTERACTION_ARCHITECTURE_LOCK_2026-04-14.md`
+- Structural outcome:
+  - the product entrances remain `CLI / TUI / DesktopUI / Remote Interaction`
+  - `QQ` is now physically locked to the only maintained remote adapter path in the repo
+  - dormant `WeChat / Feishu` implementation trees no longer stay alive as active-looking codepaths
+  - future remote expansion now has one forced path: new app-path adapter work after an explicit architecture decision
+- Verification:
+  - `uv run ruff check src/mini_agent/interaction/surface.py src/mini_agent/interaction/__init__.py src/mini_agent/interfaces/channel.py src/mini_agent/dev/runtime_stack_manager.py src/mini_agent/cli.py tests/test_interaction_surface.py tests/test_agent_studio_gateway_api_v1.py tests/test_agent_studio_gateway_integration_flows.py tests/test_channel_novel_action_handler.py tests/test_agent_core_security_pairing.py tests/test_agent_core_session.py`
+  - result: all green
+  - `node --check src/apps/qqbot_channel/bot.mjs`
+  - result: all green
+  - `uv run pytest tests/test_interaction_surface.py tests/test_transport_gateway_client.py tests/test_agent_studio_gateway_api_v1.py tests/test_agent_studio_gateway_integration_flows.py tests/test_channel_novel_action_handler.py tests/test_runtime_stack_manager.py tests/test_agent_core_security_pairing.py tests/test_agent_core_session.py -q`
+  - result: `62 passed`
+
+## 2026-04-14 P32.59 Shared Runtime-Policy Feedback / Response Semantics
+
+- [completed] extended the existing runtime-policy owner with shared feedback semantics:
+  - updated `src/mini_agent/runtime/runtime_policy_service.py`
+- [completed] carried shared runtime-policy feedback through the shared response contract:
+  - updated `src/mini_agent/interfaces/agent.py`
+  - updated `src/mini_agent/runtime/session_operator_handler.py`
+- [completed] rewired `TUI` runtime-policy command feedback to the shared service while preserving local status-bar title ownership:
+  - updated `src/mini_agent/tui/app.py`
+- [completed] thinned the active `QQ` adapter by preferring shared response details for runtime-policy replies:
+  - updated `src/apps/qqbot_channel/bot.mjs`
+- [completed] added focused regression coverage:
+  - `tests/test_runtime_policy_service.py`
+  - updated `tests/test_tui_app.py`
+  - updated `tests/test_main_agent_surface_service.py`
+- Structural outcome:
+  - runtime-policy plan/execution and runtime-policy feedback now share one honest owner
+  - shared runtime-policy responses now export `summary / details / status_text`
+  - `QQ` no longer needs to invent its own primary runtime-policy success wording when shared details are present
+  - `TUI` correctly keeps local status-bar labeling as a surface concern instead of trusting remote transport naming
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/runtime_policy_service.py src/mini_agent/runtime/session_operator_handler.py src/mini_agent/interfaces/agent.py src/mini_agent/tui/app.py tests/test_runtime_policy_service.py tests/test_tui_app.py tests/test_main_agent_surface_service.py`
+  - result: all green
+  - `uv run pytest tests/test_runtime_policy_service.py tests/test_tui_app.py tests/test_main_agent_surface_service.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - result: `234 passed`
+
+## 2026-04-14 P32.58 Shared MCP Local Reload Feedback Semantics
+
+- [completed] extracted the remaining local `mcp reload` feedback semantics into the MCP command owner:
+  - updated `src/mini_agent/tools/mcp/command_service.py`
+- [completed] rewired `CLI` local MCP reload success messaging to the shared helper:
+  - `src/mini_agent/cli_interactive.py`
+- [completed] rewired `TUI` local MCP warm-reload prefix to the shared helper:
+  - `src/mini_agent/tui/app.py`
+- [completed] added focused regression coverage:
+  - `tests/test_mcp_command_service_feedback.py`
+- Structural outcome:
+  - `McpCommandService` continues to own MCP operator semantics
+  - the last remaining local reload feedback fragments are now owned with the MCP command layer instead of by `CLI` / `TUI`
+  - this stayed a thin correction rather than introducing another large abstraction
+- Verification:
+  - `uv run ruff check src/mini_agent/tools/mcp/command_service.py src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py tests/test_mcp_command_service_feedback.py`
+  - result: all green
+  - `uv run pytest tests/test_mcp_command_service_feedback.py tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_command_execution_service.py -q`
+  - result: `183 passed`
+
+## 2026-04-14 P32.57 Shared Skill Runtime-Reload Feedback Semantics
+
+- [completed] extracted the remaining local-surface `skill` runtime-reload feedback semantics into one shared owner:
+  - added `src/mini_agent/agent_core/skills/runtime_feedback.py`
+- [completed] rewired `CLI` local skill reload messaging to the shared owner:
+  - `src/mini_agent/cli_interactive.py`
+- [completed] rewired `TUI` local skill busy/warm/status descriptor mapping to the shared owner:
+  - `src/mini_agent/tui/app.py`
+- [completed] added focused regression coverage for the new shared skill runtime-reload feedback:
+  - `tests/test_agent_core_skills_runtime_feedback.py`
+- Structural outcome:
+  - local skill mutation result semantics still belong to `commands/execution.py`
+  - the follow-up runtime-reload feedback semantics now also have one honest owner under `agent_core.skills`
+  - `CLI` and `TUI` keep only their execution mechanics instead of re-teaching mutation -> reload descriptor mappings
+- Verification:
+  - `uv run ruff check src/mini_agent/agent_core/skills/runtime_feedback.py src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py tests/test_agent_core_skills_runtime_feedback.py`
+  - result: all green
+  - `uv run pytest tests/test_agent_core_skills_runtime_feedback.py tests/test_cli_submission_loop.py tests/test_tui_app.py -q`
+  - result: `161 passed`
+
+## 2026-04-14
+
+- Completed a residual `P30.5` hotspot audit instead of forcing more command-plan extraction:
+  - audited the remaining inline command hotspots in [cli_interactive.py](d:\file\Mini-Agent\src\mini_agent\cli_interactive.py) and [app.py](d:\file\Mini-Agent\src\mini_agent\tui\app.py)
+  - recorded keep decisions for:
+    - `CLI` `workflow`
+    - `TUI` `SessionCommandPlan`
+    - `TUI` `KbCommandPlan`
+    - `TUI` `McpCommandPlan`
+    - `TUI` `SkillCommandPlan`
+    - `TUI` `RemoteSkillCommandPlan`
+- Structural conclusion:
+  - the remaining `TUI` plan objects are now mostly surface orchestration or transport-mapping structures rather than shared command-semantics owners
+  - the remaining `CLI` branch is entrance-specific workflow orchestration, not a duplicated terminal command seam
+  - `P30.5` should now be treated as effectively near-closed unless a fresh shared-entrance drift appears
+- Verification:
+  - `uv run pytest tests/test_command_execution_service.py tests/test_cli_submission_loop.py tests/test_tui_app.py -q`
+  - result: `180 passed`
+
+- Continued `P30.5` with a shared `CLI` + `TUI` `/context` command-plan convergence cut:
+  - added shared `ContextCommandPlan` parsing in [execution.py](d:\file\Mini-Agent\src\mini_agent\commands\execution.py)
+  - rewired [cli_interactive.py](d:\file\Mini-Agent\src\mini_agent\cli_interactive.py) so local `/context` no longer normalizes aliases inline before dispatch
+  - rewired [app.py](d:\file\Mini-Agent\src\mini_agent\tui\app.py) so `TUI` `/context` now wraps the same shared planning seam for action normalization and mutation/refresh flags
+- Structural outcome:
+  - `/context` alias normalization and side-effect classification now converge through the shared command layer instead of living partly in `TUI`
+  - `CLI` keeps only local execution plus policy-state update responsibilities
+  - `TUI` keeps only snapshot refresh, remote mutation transport, and rendering responsibilities
+- Verification:
+  - `uv run pytest tests/test_command_execution_service.py -q`
+  - result: `22 passed`
+  - `uv run pytest tests/test_cli_submission_loop.py -q`
+  - result: `23 passed`
+  - `uv run pytest tests/test_tui_app.py -q`
+  - result: `135 passed`
+  - `uv run ruff check src/mini_agent/commands/execution.py src/mini_agent/commands/__init__.py src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py tests/test_command_execution_service.py`
+  - result: all green
+
+- Continued `P30.5` with a shared `CLI` + `TUI` `/model` command-plan convergence cut:
+  - added shared `ModelCommandPlan` parsing in [execution.py](d:\file\Mini-Agent\src\mini_agent\commands\execution.py)
+  - rewired [cli_interactive.py](d:\file\Mini-Agent\src\mini_agent\cli_interactive.py) so local `/model` no longer keeps a handwritten `show/list/use` branch
+  - rewired [app.py](d:\file\Mini-Agent\src\mini_agent\tui\app.py) so `TUI` `/model` now wraps the same shared planning seam for its shared actions
+- Structural outcome:
+  - `/model` action normalization now converges one level higher than the earlier shared `/model use` validation helper
+  - `CLI` keeps only surface rendering plus model-switch execution
+  - `TUI` keeps only local view/runtime orchestration for model cursor/apply/filter/limit behavior
+- Verification:
+  - `uv run pytest tests/test_command_execution_service.py -q`
+  - result: `21 passed`
+  - `uv run pytest tests/test_cli_submission_loop.py -q`
+  - result: `23 passed`
+  - `uv run pytest tests/test_tui_app.py -q`
+  - result: `135 passed`
+  - `uv run ruff check src/mini_agent/commands/execution.py src/mini_agent/commands/__init__.py src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py tests/test_command_execution_service.py`
+  - result: all green
+
+- Continued `P30.5` with a shared `CLI` + `TUI` `/memory` command-plan convergence cut:
+  - added shared `MemoryCommandPlan` parsing in [execution.py](d:\file\Mini-Agent\src\mini_agent\commands\execution.py)
+  - rewired [cli_interactive.py](d:\file\Mini-Agent\src\mini_agent\cli_interactive.py) so local `/memory` commands no longer keep a long action-by-action branch
+  - rewired [app.py](d:\file\Mini-Agent\src\mini_agent\tui\app.py) so `TUI` `/memory` now wraps the same shared planning seam instead of owning a second parser shell
+- Structural outcome:
+  - `/memory` usage validation, action normalization, mutation classification, and request-shaping now converge through one shared entrance seam
+  - `CLI` keeps only local execution + terminal rendering responsibilities for `/memory`
+  - `TUI` keeps only view/runtime orchestration responsibilities for `/memory`
+- Verification:
+  - `uv run pytest tests/test_command_execution_service.py -q`
+  - result: `19 passed`
+  - `uv run pytest tests/test_cli_submission_loop.py -q`
+  - result: `23 passed`
+  - `uv run pytest tests/test_tui_app.py -q`
+  - result: `135 passed`
+
+- Completed the global default-session hard-refactor slice for `P30`:
+  - added a real runtime-owned default-session identity under:
+    - `src/mini_agent/session/default_session.py`
+  - carried `is_default` through runtime/session/interface projections and persistence
+  - added `ensure_default_session(...)` through:
+    - runtime manager
+    - application session service
+    - main-agent surface service
+    - gateway route `POST /api/v1/agent/sessions/default`
+    - transport clients
+  - removed the old entrance-local "no sessions -> create Session 1" fallback behavior from:
+    - `src/mini_agent/tui/app.py`
+    - `src/mini_agent/desktop/window.py`
+  - updated workspace-filtered session listing so the global default session remains visible even when surfaces request a narrower workspace view
+  - fixed capacity semantics so the default session does not consume normal active-session capacity
+- Structural outcome:
+  - sessions are now resolved by shared runtime truth instead of by entrance-local fallback heuristics
+  - no-session chat no longer restores "latest active/latest persisted" by accident
+  - the default session is stable, explicit, and recreated through one shared path
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_access_handler.py src/mini_agent/runtime/session_registry_handler.py src/mini_agent/runtime/session_catalog_handler.py src/mini_agent/application/session_runtime_port.py src/mini_agent/application/session_service.py src/mini_agent/application/main_agent_surface_service.py src/apps/agent_studio_gateway/main_agent_router.py src/mini_agent/transport/session_transport_port.py src/mini_agent/transport/gateway_client.py src/mini_agent/transport/remote_session_client.py src/mini_agent/tui/app.py src/mini_agent/desktop/window.py tests/test_transport_gateway_client.py tests/test_transport_remote_session_client.py tests/test_agent_studio_gateway_api_v1.py tests/test_tui_app.py`
+  - result: all green
+  - `uv run pytest tests/test_transport_gateway_client.py tests/test_transport_remote_session_client.py tests/test_agent_studio_gateway_api_v1.py tests/test_tui_app.py tests/test_main_agent_surface_service.py tests/test_p19_runtime_matrix.py tests/test_desktop_app.py tests/test_desktop_window_helpers.py tests/test_session_service.py -q`
+  - result: `256 passed`
+
+- Completed `P32.46` by consolidating `/memory` command ownership into the `memory` package:
+  - added [command_service.py](d:\file\Mini-Agent\src\mini_agent\memory\command_service.py)
+  - added [runtime_backend.py](d:\file\Mini-Agent\src\mini_agent\memory\runtime_backend.py)
+  - slimmed [session_memory_command_handler.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_memory_command_handler.py) into a runtime/HTTP wrapper
+  - rewired [execution.py](d:\file\Mini-Agent\src\mini_agent\commands\execution.py) to consume the shared memory command core
+  - rewired [session_operator_handler.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_operator_handler.py) and [main_agent_runtime_manager.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_manager.py)
+  - removed the old runtime-local adapter file:
+    - `src/mini_agent/runtime/session_runtime_memory_backend_adapter.py`
+- Structural outcome:
+  - `/memory` action semantics now have one honest owner under `mini_agent.memory`
+  - runtime and local surfaces only differ in response wrapping:
+    - runtime maps shared errors/results into HTTP/session response payloads
+    - local commands map shared results into `CommandExecutionResult`
+  - the previous `P32.32` keep decision is now superseded by a cross-surface ownership fix, not contradicted by a runtime-only split
+- Verification:
+  - `uv run ruff check src/mini_agent/memory/command_service.py src/mini_agent/memory/runtime_backend.py src/mini_agent/commands/execution.py src/mini_agent/runtime/session_memory_command_handler.py src/mini_agent/runtime/session_operator_handler.py src/mini_agent/runtime/main_agent_runtime_manager.py`
+  - result: all green
+  - `uv run pytest tests/test_command_execution_service.py tests/test_main_agent_surface_service.py -q`
+  - result: `90 passed`
+  - `uv run pytest tests/test_agent_studio_gateway_api_v1.py tests/test_tui_app.py -q`
+  - result: `136 passed`
+  - `uv run pytest tests/test_session_service.py tests/test_runtime_managed_session_store_handler.py tests/test_session_lifecycle_runtime.py -q`
+  - result: `13 passed`
+  - `uv run pytest tests/test_cli_submission_loop.py -q`
+  - result: `23 passed`
+
+## 2026-04-14
+
+- Completed `P32.45` as an audit-first slice for [main_agent_runtime_manager.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_manager.py)
+- Audit outcome:
+  - keep `MainAgentRuntimeManager` intact for now
+  - it still reads as the maintained runtime port façade that implements [session_runtime_port.py](d:\file\Mini-Agent\src\mini_agent\application\session_runtime_port.py)
+  - its `_initialize_*` methods are internal one-time service graph assembly, not escaped shared owners reused elsewhere
+  - its public methods are mostly lock-consistent façade methods over already-split runtime domains such as registry, admin, operator, turn-scope, and agent-runtime handlers
+- Low-risk cleanup landed during the audit:
+  - removed the unused private helper from [main_agent_runtime_manager.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_manager.py)
+- Structural conclusion:
+  - splitting the manager further right now would mostly move private assembly into a second file without clarifying a new business boundary
+  - this is a keep decision similar in spirit to earlier façade/lifecycle keep decisions
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_session_service.py tests/test_main_agent_surface_service.py`
+  - result: all green
+  - `uv run pytest tests/test_session_service.py tests/test_main_agent_surface_service.py -q`
+  - result: `81 passed`
+
+## 2026-04-14
+
+- Completed `P32.44` by splitting turn-context assembly and skill path resolution out of [tooling.py](d:\file\Mini-Agent\src\mini_agent\runtime\tooling.py):
+  - added [skill_path_resolver.py](d:\file\Mini-Agent\src\mini_agent\runtime\skill_path_resolver.py)
+  - added [turn_context_provider_builder.py](d:\file\Mini-Agent\src\mini_agent\runtime\turn_context_provider_builder.py)
+  - slimmed [tooling.py](d:\file\Mini-Agent\src\mini_agent\runtime\tooling.py) back to tool bootstrap + runtime-policy helpers
+  - updated [kernel.py](d:\file\Mini-Agent\src\mini_agent\agent_core\kernel.py)
+  - updated [skill_support.py](d:\file\Mini-Agent\src\mini_agent\commands\skill_support.py)
+  - updated [test_agent_core_turn_context.py](d:\file\Mini-Agent\tests\test_agent_core_turn_context.py)
+- Audit outcome:
+  - keep `transport/gateway_client.py` and `transport/remote_session_client.py` intact for now
+  - they still read as an honest transport pair rather than a mixed-owner cluster
+- Structural outcome:
+  - `tooling.py` no longer teaches three unrelated runtime seams as one owner
+  - skill path resolution now has one explicit home
+  - turn-context provider assembly now has one explicit home
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/skill_path_resolver.py src/mini_agent/runtime/turn_context_provider_builder.py src/mini_agent/runtime/tooling.py src/mini_agent/agent_core/kernel.py src/mini_agent/commands/skill_support.py tests/test_agent_core_turn_context.py`
+  - result: all green
+  - `uv run pytest tests/test_agent_core_turn_context.py tests/test_agent_core_kernel.py tests/test_security_policy.py tests/test_docling_parse_tool.py tests/test_knowledge_base_tool.py -q`
+  - result: `62 passed`
+
+## 2026-04-14
+
+- Completed `P32.43` by auditing interaction-binding ownership and extracting shared gateway ops auth:
+  - added [ops_auth.py](d:\file\Mini-Agent\src\apps\agent_studio_gateway\ops_auth.py)
+  - slimmed [ops_router.py](d:\file\Mini-Agent\src\apps\agent_studio_gateway\ops_router.py) so it now owns only ops HTTP transport routes + router dependency wiring
+  - updated [main.py](d:\file\Mini-Agent\src\apps\agent_studio_gateway\main.py) to import the shared ops auth policy from the new module
+  - added [test_agent_studio_gateway_ops_auth.py](d:\file\Mini-Agent\tests\test_agent_studio_gateway_ops_auth.py)
+- Audit outcome for [interaction_request_adapter.py](d:\file\Mini-Agent\src\mini_agent\application\interaction_request_adapter.py):
+  - keep it intact for now
+  - it still reads as one truthful application adapter:
+    - normalize interaction binding from request-shaped inputs
+    - expose binding kwargs for downstream services
+    - project the normalized binding into main-chat and surface-chat request contracts
+  - it is not hiding a second business domain; it is an application seam over `mini_agent.interaction`
+- Structural outcome:
+  - gateway ops auth is now a shared gateway policy owner instead of a hidden router-side utility
+  - `ops_router.py` no longer exports composition-level auth behavior
+  - `interaction_request_adapter.py` is explicitly recorded as a keep decision, not a pending split target
+- Verification:
+  - `uv run ruff check src/apps/agent_studio_gateway/ops_auth.py src/apps/agent_studio_gateway/ops_router.py src/apps/agent_studio_gateway/main.py tests/test_agent_studio_gateway_ops_auth.py tests/test_agent_studio_gateway_ops_router.py tests/test_agent_studio_gateway_api_v1.py`
+  - result: all green
+  - `uv run pytest tests/test_agent_studio_gateway_ops_auth.py tests/test_agent_studio_gateway_ops_router.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - result: `35 passed`
+
+## 2026-04-14
+
+- Completed P32.42 by removing the misleading SessionSurfaceBinding alias:
+  - updated [session_service.py](d:\file\Mini-Agent\src\mini_agent\application\session_service.py)
+  - updated [application/__init__.py](d:\file\Mini-Agent\src\mini_agent\application\__init__.py)
+  - updated [test_session_service.py](d:\file\Mini-Agent\tests\test_session_service.py)
+- Structural outcome:
+  - ApplicationInteractionBinding is now the single maintained binding abstraction at the application layer
+  - SessionSurfaceBinding no longer exists as a second fake name for the same type
+- Verification:
+  - uv run ruff check src/mini_agent/application/session_service.py src/mini_agent/application/__init__.py src/mini_agent/application/interaction_request_adapter.py tests/test_session_service.py
+  - result: all green
+  - uv run pytest tests/test_session_service.py tests/test_main_agent_surface_service.py tests/test_agent_studio_gateway_api_v1.py -q
+  - result: 102 passed
+- Completed `P32.41` as an audit-only slice for:
+  - [session_service.py](d:\file\Mini-Agent\src\mini_agent\application\session_service.py)
+  - selected runtime/application naming-debt candidates
+- Audit outcome for [session_service.py](d:\file\Mini-Agent\src\mini_agent\application\session_service.py):
+  - keep it intact for now
+  - it still reads as one cohesive application owner:
+    - session CRUD/mutation wrappers over the runtime port
+    - request-to-binding normalization for session-scoped commands
+    - managed turn preparation for chat and derived chat
+  - the breadth is real, but it stays inside one session-application seam rather than mixing unrelated business domains
+- Naming-debt outcome:
+  - keep as-is for now:
+    - [session_lifecycle.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_lifecycle.py)
+    - [session_runtime_lifecycle_handler.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_runtime_lifecycle_handler.py)
+    - [session_runtime_port.py](d:\file\Mini-Agent\src\mini_agent\application\session_runtime_port.py)
+    - [surface_service_types.py](d:\file\Mini-Agent\src\mini_agent\application\surface_service_types.py)
+    - [main_agent_runtime_policy_loader.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_policy_loader.py)
+  - next low-risk naming cleanup candidate:
+    - `SessionSurfaceBinding` alias in [session_service.py](d:\file\Mini-Agent\src\mini_agent\application\session_service.py)
+    - because it is only an alias of `ApplicationInteractionBinding`, not a real separate owner
+- Structural conclusion:
+  - `SessionApplicationService` is a keep decision, not the next split target
+  - the next naming cleanup should prefer tiny misleading aliases over renaming active multi-caller modules
+- Completed `P32.40` as a boundary audit only for:
+  - [surface_chat_flow_handler.py](d:\file\Mini-Agent\src\mini_agent\application\surface_chat_flow_handler.py)
+  - [main_agent_surface_service.py](d:\file\Mini-Agent\src\mini_agent\application\main_agent_surface_service.py)
+- Audit outcome:
+  - do not split either module right now
+  - [surface_chat_flow_handler.py](d:\file\Mini-Agent\src\mini_agent\application\surface_chat_flow_handler.py) still reads as one cohesive chat-flow owner:
+    - prepare turn
+    - run/stream one chat turn
+    - dry-run variants of the same flow
+    - finalize turn and stream reply chunks
+  - [main_agent_surface_service.py](d:\file\Mini-Agent\src\mini_agent\application\main_agent_surface_service.py) still reads as an intentional public surface façade:
+    - owns request binding + workspace resolution at the application entry seam
+    - composes chat/route/delegation/session owners
+    - exposes the maintained public method set used by gateway and clients
+- Structural conclusion:
+  - splitting `SurfaceChatFlowHandler` now would likely create mode-specific shells around one chat-turn lifecycle
+  - splitting `MainAgentSurfaceService` now would likely fracture the maintained application façade into transport-shaped fragments
+  - the next `P32` cuts should keep targeting real mixed owners rather than façade breadth
+
+- Completed `P32.39` by splitting route resolution from delegated execution:
+  - added [agent_delegation_execution_handler.py](d:\file\Mini-Agent\src\mini_agent\application\agent_delegation_execution_handler.py)
+  - slimmed [agent_route_execution_handler.py](d:\file\Mini-Agent\src\mini_agent\application\agent_route_execution_handler.py) so it now owns only route resolution, route diagnostics, and route-to-executor dispatch
+  - rewired [main_agent_surface_service.py](d:\file\Mini-Agent\src\mini_agent\application\main_agent_surface_service.py) to compose the new delegation owner explicitly
+- Application structure outcome:
+  - delegated child-turn execution + fallback now live under:
+    - [agent_delegation_execution_handler.py](d:\file\Mini-Agent\src\mini_agent\application\agent_delegation_execution_handler.py)
+  - route parsing/resolution + diagnostics remain under:
+    - [agent_route_execution_handler.py](d:\file\Mini-Agent\src\mini_agent\application\agent_route_execution_handler.py)
+- Added focused regression coverage:
+  - [test_agent_delegation_execution_handler.py](d:\file\Mini-Agent\tests\test_agent_delegation_execution_handler.py)
+- Verification:
+  - `uv run ruff check src/mini_agent/application/agent_delegation_execution_handler.py src/mini_agent/application/agent_route_execution_handler.py src/mini_agent/application/main_agent_surface_service.py src/mini_agent/application/__init__.py tests/test_agent_delegation_execution_handler.py`
+  - result: all green
+  - `uv run pytest tests/test_agent_delegation_execution_handler.py tests/test_main_agent_surface_service.py -q`
+  - result: `77 passed`
+  - `uv run pytest tests/test_agent_studio_gateway_api_v1.py tests/test_agent_studio_gateway_integration_flows.py -q`
+  - result: `23 passed`
+
+- Completed `P32.38` by splitting remote channel ingress from novel feature-command handling:
+  - added [channel_novel_action_handler.py](d:\file\Mini-Agent\src\mini_agent\application\channel_novel_action_handler.py)
+  - slimmed [channel_ingress_use_cases.py](d:\file\Mini-Agent\src\mini_agent\application\channel_ingress_use_cases.py) so it now owns only remote ingress + conversation binding + main chat forwarding
+  - rewired [composition.py](d:\file\Mini-Agent\src\apps\agent_studio_gateway\composition.py) to compose the new channel novel-action owner explicitly
+- Application structure outcome:
+  - remote channel ingress remains under:
+    - [channel_ingress_use_cases.py](d:\file\Mini-Agent\src\mini_agent\application\channel_ingress_use_cases.py)
+  - channel-facing `/novel ...` parsing and dispatch now live under:
+    - [channel_novel_action_handler.py](d:\file\Mini-Agent\src\mini_agent\application\channel_novel_action_handler.py)
+- Added focused regression coverage:
+  - [test_channel_novel_action_handler.py](d:\file\Mini-Agent\tests\test_channel_novel_action_handler.py)
+- Verification:
+  - `uv run ruff check src/mini_agent/application/channel_novel_action_handler.py src/mini_agent/application/channel_ingress_use_cases.py src/mini_agent/application/__init__.py src/apps/agent_studio_gateway/composition.py tests/test_channel_novel_action_handler.py tests/test_channel_ingress_use_cases.py tests/test_agent_studio_gateway_api_v1.py`
+  - result: all green
+  - `uv run pytest tests/test_channel_novel_action_handler.py tests/test_channel_ingress_use_cases.py tests/test_agent_studio_gateway_api_v1.py tests/test_agent_studio_gateway_integration_flows.py -q`
+  - result: `31 passed`
+
+- Completed `P32.37` by splitting the old mixed session control owner:
+  - added [session_control_models.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_control_models.py)
+  - added [session_agent_control_handler.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_agent_control_handler.py)
+  - added [session_mcp_control_handler.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_mcp_control_handler.py)
+  - removed [session_control_handler.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_control_handler.py)
+  - rewired [session_operator_handler.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_operator_handler.py) and [main_agent_runtime_manager.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_manager.py)
+- Runtime structure outcome:
+  - `RuntimeSessionOperatorHandler` remains the session operator-command facade
+  - agent context + KB controls now live together under:
+    - [session_agent_control_handler.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_agent_control_handler.py)
+  - MCP inspect/reload controls now live under:
+    - [session_mcp_control_handler.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_mcp_control_handler.py)
+- Added focused regression coverage:
+  - [test_runtime_session_agent_control_handler.py](d:\file\Mini-Agent\tests\test_runtime_session_agent_control_handler.py)
+  - [test_runtime_session_mcp_control_handler.py](d:\file\Mini-Agent\tests\test_runtime_session_mcp_control_handler.py)
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/session_control_models.py src/mini_agent/runtime/session_agent_control_handler.py src/mini_agent/runtime/session_mcp_control_handler.py src/mini_agent/runtime/session_operator_handler.py src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_runtime_session_agent_control_handler.py tests/test_runtime_session_mcp_control_handler.py`
+  - result: all green
+  - `uv run pytest tests/test_runtime_session_agent_control_handler.py tests/test_runtime_session_mcp_control_handler.py tests/test_main_agent_surface_service.py -q`
+  - result: `81 passed`
+  - `uv run pytest tests/test_session_service.py tests/test_p19_runtime_matrix.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - result: `29 passed`
+
+- Completed `P32.36` by finishing the recovery-state ownership cleanup:
+  - moved stored recovery apply mutation out of [session_hydration_builder.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_hydration_builder.py)
+  - added `apply_stored_recovery(...)` to [session_recovery_reset_handler.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_recovery_reset_handler.py)
+  - rewired [main_agent_runtime_manager.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_manager.py) so restore assembly now uses the recovery owner directly
+- Runtime structure outcome:
+  - recovery projection state apply / clear / build / reset now lives under one owner:
+    - [session_recovery_reset_handler.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_recovery_reset_handler.py)
+  - [session_hydration_builder.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_hydration_builder.py) is closer to a true payload/session-state builder again
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/session_recovery_reset_handler.py src/mini_agent/runtime/session_hydration_builder.py src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_runtime_session_recovery_reset_handler.py`
+  - result: all green
+  - `uv run pytest tests/test_runtime_session_recovery_reset_handler.py tests/test_runtime_session_hydration_coordinator.py tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_p19_runtime_matrix.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - result: `110 passed`
+
+- Completed `P32.35` by extracting two real runtime owners out of [session_live_state_handler.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_live_state_handler.py):
+  - added [session_pending_approval_state_handler.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_pending_approval_state_handler.py)
+  - added [session_recovery_reset_handler.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_recovery_reset_handler.py)
+- Runtime structure outcome:
+  - [session_live_state_handler.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_live_state_handler.py) now focuses on:
+    - surface binding
+    - transcript/activity mutation
+    - turn running-state flags
+  - pending approval state is now owned by:
+    - [session_pending_approval_state_handler.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_pending_approval_state_handler.py)
+  - recovery-context + runtime-reset cleanup are now owned by:
+    - [session_recovery_reset_handler.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_recovery_reset_handler.py)
+- Rewired [main_agent_runtime_manager.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_manager.py) to consume the new seams for:
+  - read-model approval normalization
+  - interrupt approval normalization
+  - turn-scope approval mutation
+  - recovery turn-context building
+  - runtime reset cleanup
+- Added focused regression coverage:
+  - [test_runtime_session_pending_approval_state_handler.py](d:\file\Mini-Agent\tests\test_runtime_session_pending_approval_state_handler.py)
+  - [test_runtime_session_recovery_reset_handler.py](d:\file\Mini-Agent\tests\test_runtime_session_recovery_reset_handler.py)
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/session_live_state_handler.py src/mini_agent/runtime/session_pending_approval_state_handler.py src/mini_agent/runtime/session_recovery_reset_handler.py src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_runtime_session_pending_approval_state_handler.py tests/test_runtime_session_recovery_reset_handler.py`
+  - result: all green
+  - `uv run pytest tests/test_runtime_session_pending_approval_state_handler.py tests/test_runtime_session_recovery_reset_handler.py tests/test_runtime_session_admin_handler.py tests/test_runtime_session_lifecycle_handler.py tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_p19_runtime_matrix.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - result: `114 passed`
+
+- Completed `P32.34` by hard-correcting the `mini_agent.session` package surface:
+  - removed legacy exports from [session/__init__.py](d:\file\Mini-Agent\src\mini_agent\session\__init__.py)
+  - deleted [session/store.py](d:\file\Mini-Agent\src\mini_agent\session\store.py)
+  - removed [test_session_store_persistence.py](d:\file\Mini-Agent\tests\test_session_store_persistence.py)
+  - added [test_session_package_exports.py](d:\file\Mini-Agent\tests\test_session_package_exports.py)
+  - added [test_session_persistence_contract.py](d:\file\Mini-Agent\tests\test_session_persistence_contract.py)
+- Architectural outcome:
+  - `mini_agent.session` now exposes only live owners:
+    - `SessionPersistence`
+    - session projections
+    - conversation binding
+  - live runtime session truth remains in:
+    - [session_state.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_state.py)
+    - [session_runtime_persistence.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_runtime_persistence.py)
+- Verification:
+  - `uv run ruff check src/mini_agent/session/__init__.py src/mini_agent/session/persistence.py tests/test_session_package_exports.py tests/test_session_persistence_contract.py`
+  - result: all green
+  - `uv run pytest tests/test_session_package_exports.py tests/test_session_persistence_contract.py tests/test_memory_relevance.py tests/test_memory_service.py tests/test_memory_consolidation.py -q`
+  - result: `17 passed`
+  - `uv run pytest tests/test_runtime_managed_session_store_handler.py tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_p19_runtime_matrix.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - result: `107 passed`
+- Completed `P32.33` as a package-boundary audit for:
+  - [session/__init__.py](d:\file\Mini-Agent\src\mini_agent\session\__init__.py)
+  - [session/store.py](d:\file\Mini-Agent\src\mini_agent\session\store.py)
+- Audit outcome:
+  - `SessionStore` is no longer the live runtime session truth
+  - the active session aggregate is [MainAgentSessionState](d:\file\Mini-Agent\src\mini_agent\runtime\session_state.py)
+  - the active persisted runtime path is:
+    - [session_runtime_persistence.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_runtime_persistence.py)
+    - [session_managed_store_handler.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_managed_store_handler.py)
+    - [main_agent_runtime_manager.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_manager.py)
+- Key evidence from the audit:
+  - live `src/mini_agent` code does not meaningfully import `SessionStore` / `SessionState`
+  - maintained runtime, application, TUI, memory, and gateway paths rely on:
+    - `MainAgentSessionState`
+    - `SessionPersistence`
+    - session projections
+    - conversation binding services
+  - `SessionStore` is currently exercised mostly by its own legacy persistence tests rather than by live runtime composition
+  - `session/__init__.py` and `session/store.py` still describe themselves as canonical, which now teaches the wrong ownership model
+- Architectural outcome:
+  - the next real `P32` target is not another large runtime file by default
+  - it is the hard cleanup of the `mini_agent.session` public story so the package stops presenting a second fake session core
+  - likely next cut:
+    - demote or remove `SessionStore` from the canonical session package surface
+    - keep `mini_agent.session` focused on persistence primitives, projections, and conversation binding
+- Completed `P32.32` as a boundary audit only for [session_memory_command_handler.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_memory_command_handler.py)
+- Audit outcome:
+  - do not split the module right now
+  - although the file is large, it still reads as one cohesive runtime owner: session-scoped memory command handling
+  - the current branches are command families inside one surface, not separate business domains:
+    - runtime/session/shared memory reads
+    - durable workspace/global/consolidated memory reads
+    - memory mutations such as refresh, promote, save, and shared clear
+  - gateway/TUI/CLI tests already exercise these branches through one stable command contract rather than through unrelated seams
+- Recorded future-safe cleanup guidance instead of forcing a hard refactor:
+  - if the durable read family grows materially beyond overview/export/profile/notes/daily/consolidated, extract a `durable_read` helper module under the same runtime memory command domain
+  - if mutation flows gain distinct persistence/retry/policy semantics, extract mutation executors under the same command domain
+  - until then, keep one command handler to avoid thin pass-through shells
+
+- Completed `P32.31` by removing the mixed application ops owner:
+  - added [operations_path_policy.py](d:\file\Mini-Agent\src\mini_agent\application\operations_path_policy.py) as the shared path/policy seam for gateway operations
+  - added [operations_provider_use_cases.py](d:\file\Mini-Agent\src\mini_agent\application\operations_provider_use_cases.py) for provider/model CRUD, discovery, selection, and health flows
+  - added [operations_memory_use_cases.py](d:\file\Mini-Agent\src\mini_agent\application\operations_memory_use_cases.py) for memory summary/search/daily flows
+  - removed the old mixed [operations_use_cases.py](d:\file\Mini-Agent\src\mini_agent\application\operations_use_cases.py) module instead of leaving a compatibility shell
+  - rewired gateway ops composition and transport to inject separate provider and memory dependencies:
+    - [main.py](d:\file\Mini-Agent\src\apps\agent_studio_gateway\main.py)
+    - [ops_router.py](d:\file\Mini-Agent\src\apps\agent_studio_gateway\ops_router.py)
+  - split focused unit coverage into:
+    - [test_operations_provider_use_cases.py](d:\file\Mini-Agent\tests\test_operations_provider_use_cases.py)
+    - [test_operations_memory_use_cases.py](d:\file\Mini-Agent\tests\test_operations_memory_use_cases.py)
+- Verification:
+  - `uv run ruff check src/mini_agent/application/operations_path_policy.py src/mini_agent/application/operations_provider_use_cases.py src/mini_agent/application/operations_memory_use_cases.py src/mini_agent/application/__init__.py src/apps/agent_studio_gateway/main.py src/apps/agent_studio_gateway/ops_router.py tests/test_operations_provider_use_cases.py tests/test_operations_memory_use_cases.py tests/test_agent_studio_gateway_ops_router.py tests/test_agent_studio_gateway_api_v1.py`
+  - result: all green
+  - `uv run pytest tests/test_operations_provider_use_cases.py tests/test_operations_memory_use_cases.py tests/test_agent_studio_gateway_ops_router.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - result: `35 passed`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_p19_runtime_matrix.py tests/test_agent_studio_gateway_api_v1.py tests/test_agent_studio_gateway_ops_router.py tests/test_operations_provider_use_cases.py tests/test_operations_memory_use_cases.py -q`
+  - result: `118 passed`
+- Architectural outcome:
+  - gateway ops transport no longer depends on a single application module that mixes unrelated admin domains
+  - provider/model operations and memory operations now have explicit owners
+  - shared path-policy logic is centralized without drifting into runtime ownership
+
+
+- Continued `P32` with one more runtime path-ownership cleanup:
+  - updated [session_catalog_handler.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_catalog_handler.py) to stop owning its own workspace path-key helper
+  - rewired session-summary dedupe/conversation keys to consume [workspace_path_utils.py](d:\file\Mini-Agent\src\mini_agent\runtime\workspace_path_utils.py)
+  - removed duplicated path-key logic from the catalog handler
+- Verification:
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_agent_studio_gateway_api_v1.py tests/test_p19_runtime_matrix.py -q`
+  - result: `104 passed`
+  - `uv run ruff check src/mini_agent/runtime/session_catalog_handler.py src/mini_agent/runtime/workspace_path_utils.py tests/test_main_agent_surface_service.py`
+  - result: all green
+
+- Completed a boundary-health audit for two larger remaining modules:
+  - [operations_use_cases.py](d:\file\Mini-Agent\src\mini_agent\application\operations_use_cases.py)
+  - [session_memory_command_handler.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_memory_command_handler.py)
+- Audit outcome:
+  - `OperationsUseCases` is the more meaningful next refactor target because it still mixes:
+    - provider/model operations
+    - memory operations
+    - path/policy resolution helpers
+  - `RuntimeSessionMemoryCommandHandler` is large, but its responsibilities still read as one command-domain owner:
+    - session runtime memory reads
+    - durable memory reads
+    - memory mutations/promotions/saves
+  - current recommendation:
+    - next slice should split `OperationsUseCases`
+    - do not hard-split `RuntimeSessionMemoryCommandHandler` yet unless behavior starts diverging
+
+- Continued `P32` with an application turn-lease ownership cleanup:
+  - added [managed_session_turn.py](d:\file\Mini-Agent\src\mini_agent\application\managed_session_turn.py)
+  - moved `ManagedSessionTurn` out of [session_service.py](d:\file\Mini-Agent\src\mini_agent\application\session_service.py)
+  - updated application orchestrators to import the turn lease from its dedicated module:
+    - [main_agent_surface_service.py](d:\file\Mini-Agent\src\mini_agent\application\main_agent_surface_service.py)
+    - [surface_chat_flow_handler.py](d:\file\Mini-Agent\src\mini_agent\application\surface_chat_flow_handler.py)
+    - [agent_turn_execution_handler.py](d:\file\Mini-Agent\src\mini_agent\application\agent_turn_execution_handler.py)
+    - [agent_route_execution_handler.py](d:\file\Mini-Agent\src\mini_agent\application\agent_route_execution_handler.py)
+    - [application/__init__.py](d:\file\Mini-Agent\src\mini_agent\application\__init__.py)
+  - `SessionApplicationService` now stays focused on session-facing application operations instead of co-owning the turn lease type
+- Verification:
+  - `uv run pytest tests/test_runtime_session_snapshot_builder.py tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_agent_studio_gateway_api_v1.py tests/test_p19_runtime_matrix.py -q`
+  - result: `106 passed`
+  - `uv run ruff check src/mini_agent/application/managed_session_turn.py src/mini_agent/application/session_service.py src/mini_agent/application/main_agent_surface_service.py src/mini_agent/application/surface_chat_flow_handler.py src/mini_agent/application/agent_turn_execution_handler.py src/mini_agent/application/agent_route_execution_handler.py src/mini_agent/application/__init__.py src/mini_agent/runtime/session_snapshot_builder.py src/mini_agent/runtime/session_read_model_builder.py src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_runtime_session_snapshot_builder.py tests/test_main_agent_surface_service.py`
+  - result: all green
+
+- Continued `P32` with a runtime snapshot-builder extraction:
+  - added [session_snapshot_builder.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_snapshot_builder.py)
+  - moved snapshot export construction out of [session_read_model_builder.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_read_model_builder.py):
+    - `build_session_snapshot(...)`
+    - `build_session_snapshot_from_record(...)`
+  - rewired [main_agent_runtime_manager.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_manager.py) and [session_snapshot_handler.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_snapshot_handler.py) to consume `RuntimeSessionSnapshotBuilder`
+  - added [test_runtime_session_snapshot_builder.py](d:\file\Mini-Agent\tests\test_runtime_session_snapshot_builder.py)
+- Verification:
+  - `uv run pytest tests/test_runtime_session_snapshot_builder.py tests/test_runtime_session_hydration_coordinator.py tests/test_runtime_workspace_path_utils.py tests/test_session_lifecycle_runtime.py tests/test_runtime_session_lifecycle_handler.py tests/test_runtime_session_agent_support.py tests/test_runtime_session_model_identity_codec.py tests/test_runtime_session_payload_codec.py tests/test_runtime_managed_session_store_handler.py tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_p19_runtime_matrix.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - result: `126 passed`
+  - `uv run ruff check src/mini_agent/runtime/session_snapshot_builder.py src/mini_agent/runtime/session_read_model_builder.py src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_runtime_session_snapshot_builder.py tests/test_main_agent_surface_service.py`
+  - result: all green
+
+- Continued `P32` with a runtime workspace-path utility consolidation after a manager-boundary audit:
+  - added [workspace_path_utils.py](d:\file\Mini-Agent\src\mini_agent\runtime\workspace_path_utils.py)
+  - moved canonical workspace-path normalization into shared runtime ownership:
+    - `workspace_path_key(...)`
+    - `same_workspace_path(...)`
+  - updated [session_runtime_lifecycle_handler.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_runtime_lifecycle_handler.py), [session_lifecycle.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_lifecycle.py), and [main_agent_runtime_manager.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_manager.py) to consume the shared path seam
+  - removed manager-local helper shells for:
+    - workspace path keying
+    - same-workspace comparison
+    - surface normalization pass-through
+    - main-workspace policy pass-through
+  - added [test_runtime_workspace_path_utils.py](d:\file\Mini-Agent\tests\test_runtime_workspace_path_utils.py)
+  - updated [test_session_lifecycle_runtime.py](d:\file\Mini-Agent\tests\test_session_lifecycle_runtime.py) to assert against the canonical workspace-path helper
+- Verification:
+  - `uv run pytest tests/test_runtime_session_hydration_coordinator.py tests/test_runtime_workspace_path_utils.py tests/test_session_lifecycle_runtime.py tests/test_runtime_session_lifecycle_handler.py tests/test_runtime_session_agent_support.py tests/test_runtime_session_model_identity_codec.py tests/test_runtime_session_payload_codec.py tests/test_runtime_managed_session_store_handler.py tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_p19_runtime_matrix.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - result: `124 passed`
+  - `uv run ruff check src/mini_agent/runtime/workspace_path_utils.py src/mini_agent/runtime/session_runtime_lifecycle_handler.py src/mini_agent/runtime/session_lifecycle.py src/mini_agent/runtime/session_hydration_coordinator.py src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_runtime_workspace_path_utils.py tests/test_session_lifecycle_runtime.py tests/test_runtime_session_hydration_coordinator.py tests/test_main_agent_surface_service.py`
+  - result: all green
+
+- Continued `P32` with a runtime session hydration/restore coordination extraction:
+  - added [session_hydration_coordinator.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_hydration_coordinator.py)
+  - moved persisted restore / hydration glue out of [main_agent_runtime_manager.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_manager.py):
+    - record -> restore payload routing
+    - hydration execution against the managed session map
+    - lineage registration for newly hydrated sessions
+    - optional persist-after-hydration behavior
+  - rewired managed-session-store and session-registry callbacks to consume `RuntimeSessionHydrationCoordinator`
+  - added [test_runtime_session_hydration_coordinator.py](d:\file\Mini-Agent\tests\test_runtime_session_hydration_coordinator.py)
+- Verification:
+  - `uv run pytest tests/test_runtime_session_hydration_coordinator.py tests/test_runtime_session_agent_support.py tests/test_runtime_session_model_identity_codec.py tests/test_runtime_session_payload_codec.py tests/test_runtime_managed_session_store_handler.py tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_p19_runtime_matrix.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - result: `116 passed`
+  - `uv run ruff check src/mini_agent/runtime/session_hydration_coordinator.py src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_runtime_session_hydration_coordinator.py tests/test_runtime_session_agent_support.py tests/test_main_agent_surface_service.py`
+  - result: all green
+
+- Continued `P32` with a runtime session agent-support seam extraction:
+  - added [session_agent_support.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_agent_support.py)
+  - moved runtime-local support behavior out of [main_agent_runtime_manager.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_manager.py):
+    - default / selected-identity agent build routing
+    - knowledge-base enable/apply helpers
+    - sandbox diagnostics -> runtime policy override extraction
+    - runtime config loading
+  - rewired creation, hydration, model-selection, control, restore, and agent-runtime assembly to consume `RuntimeSessionAgentSupport`
+  - added [test_runtime_session_agent_support.py](d:\file\Mini-Agent\tests\test_runtime_session_agent_support.py)
+  - updated [test_main_agent_surface_service.py](d:\file\Mini-Agent\tests\test_main_agent_surface_service.py) to patch runtime-config loading through the new support seam instead of the manager module
+- Verification:
+  - `uv run pytest tests/test_runtime_session_agent_support.py tests/test_runtime_session_model_identity_codec.py tests/test_runtime_session_payload_codec.py tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_p19_runtime_matrix.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - result: `111 passed`
+  - `uv run ruff check src/mini_agent/runtime/session_agent_support.py src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_runtime_session_agent_support.py tests/test_runtime_session_model_identity_codec.py tests/test_runtime_session_payload_codec.py tests/test_main_agent_surface_service.py`
+  - result: all green
+
+- Continued `P32` with a runtime session model-identity codec extraction:
+  - added [session_model_identity_codec.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_model_identity_codec.py)
+  - moved selected/pending model identity helpers out of [main_agent_runtime_manager.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_manager.py)
+  - rewired hydration, read-model, model-selection, restore, operator, and agent-runtime assembly to consume `RuntimeSessionModelIdentityCodec`
+  - added [test_runtime_session_model_identity_codec.py](d:\file\Mini-Agent\tests\test_runtime_session_model_identity_codec.py)
+- Verification:
+  - `uv run pytest tests/test_runtime_session_model_identity_codec.py tests/test_runtime_session_payload_codec.py tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_p19_runtime_matrix.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - result: `108 passed`
+  - `uv run ruff check src/mini_agent/runtime/session_model_identity_codec.py src/mini_agent/runtime/session_payload_codec.py src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_runtime_session_model_identity_codec.py tests/test_runtime_session_payload_codec.py tests/test_main_agent_surface_service.py`
+  - result: all green
+
+- Continued `P32` with a runtime payload/message/token codec extraction:
+  - added [session_payload_codec.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_payload_codec.py)
+  - moved runtime session payload helpers out of [main_agent_runtime_manager.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_manager.py):
+    - context / prepared-context / diagnostics normalization
+    - agent message serialization / restoration
+    - token usage / token limit / raw-message token estimation
+    - token-state restoration
+  - rewired runtime diagnostics, hydration, read-model, restore, and agent-runtime assembly in `MainAgentRuntimeManager` to consume `RuntimeSessionPayloadCodec`
+  - added [test_runtime_session_payload_codec.py](d:\file\Mini-Agent\tests\test_runtime_session_payload_codec.py)
+- Verification:
+  - `uv run pytest tests/test_runtime_session_payload_codec.py tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_p19_runtime_matrix.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - result: `106 passed`
+  - `uv run ruff check src/mini_agent/runtime/session_payload_codec.py src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_runtime_session_payload_codec.py tests/test_main_agent_surface_service.py`
+  - result: all green
+
+- Continued `P32` with a runtime-contract ownership extraction:
+  - added [main_agent_runtime_contracts.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_contracts.py)
+  - moved `MainAgentRuntimeMode / MainAgentRuntimePolicy / MainAgentRuntimeDiagnostics` out of [main_agent_runtime_manager.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_manager.py)
+  - updated [main_agent_runtime_policy_loader.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_policy_loader.py) to import runtime contracts from the new canonical module instead of the runtime manager
+  - updated [runtime/__init__.py](d:\file\Mini-Agent\src\mini_agent\runtime\__init__.py) lazy exports to expose runtime contracts from their new owner
+  - updated active runtime/surface tests to import runtime contracts from the new module
+- Verification:
+  - `uv run pytest tests/test_main_agent_runtime_policy_loader.py tests/test_p19_runtime_matrix.py tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - result: `106 passed`
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_contracts.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/main_agent_runtime_policy_loader.py src/mini_agent/runtime/__init__.py tests/test_main_agent_runtime_policy_loader.py tests/test_p19_runtime_matrix.py tests/test_main_agent_surface_service.py`
+  - result: all green
+
+- Continued `P32` with one more surface-boundary cleanup after the session-service extraction:
+  - updated [main_agent_surface_service.py](d:\file\Mini-Agent\src\mini_agent\application\main_agent_surface_service.py) to remove the unused direct `runtime_manager` dependency
+  - updated [composition.py](d:\file\Mini-Agent\src\apps\agent_studio_gateway\composition.py) so surface-service assembly now depends only on the shared `SessionApplicationService`
+  - updated [test_main_agent_surface_service.py](d:\file\Mini-Agent\tests\test_main_agent_surface_service.py) so runtime-touching helpers reach through the injected session service instead of the surface object exposing a stale runtime field
+- Verification:
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_channel_ingress_use_cases.py tests/test_agent_studio_gateway_api_v1.py tests/test_agent_studio_gateway_integration_flows.py tests/test_p19_runtime_matrix.py -q`
+  - result: `110 passed`
+  - `uv run ruff check src/mini_agent/application/main_agent_surface_service.py src/apps/agent_studio_gateway/composition.py tests/test_main_agent_surface_service.py`
+  - result: all green
+
+- Continued `P32` with a session-owned binding seam extraction for remote/channel ingress:
+  - added [conversation_binding_port.py](d:\file\Mini-Agent\src\mini_agent\session\conversation_binding_port.py)
+  - updated [channel_ingress_use_cases.py](d:\file\Mini-Agent\src\mini_agent\application\channel_ingress_use_cases.py) so `ChannelIngressUseCases` now depends on `ConversationBindingPort` instead of the concrete `ConversationBindingService`
+  - updated [composition.py](d:\file\Mini-Agent\src\apps\agent_studio_gateway\composition.py) to inject the concrete binding service through the new port seam
+  - updated [test_channel_ingress_use_cases.py](d:\file\Mini-Agent\tests\test_channel_ingress_use_cases.py) with a focused structural-fake seam test
+- Verification:
+  - `uv run pytest tests/test_channel_ingress_use_cases.py tests/test_agent_studio_gateway_api_v1.py tests/test_agent_studio_gateway_integration_flows.py tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - result: `110 passed`
+  - `uv run ruff check src/mini_agent/application/channel_ingress_use_cases.py src/mini_agent/session/conversation_binding_port.py src/mini_agent/session/__init__.py src/apps/agent_studio_gateway/composition.py tests/test_channel_ingress_use_cases.py tests/test_agent_studio_gateway_api_v1.py`
+  - result: all green
+
+- Continued `P32` with one more real application/session ownership correction:
+  - updated [main_agent_surface_service.py](d:\file\Mini-Agent\src\mini_agent\application\main_agent_surface_service.py) so `MainAgentSurfaceService` now consumes an injected `SessionApplicationService` instead of constructing one internally
+  - updated [composition.py](d:\file\Mini-Agent\src\apps\agent_studio_gateway\composition.py) so gateway composition now owns:
+    - runtime-manager assembly
+    - session-service assembly
+    - surface-service assembly
+  - updated [test_main_agent_surface_service.py](d:\file\Mini-Agent\tests\test_main_agent_surface_service.py) to follow the explicit seam and added a focused test that proves session listing uses the injected service
+- Verification:
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_channel_ingress_use_cases.py tests/test_agent_studio_gateway_api_v1.py tests/test_agent_studio_gateway_integration_flows.py tests/test_p19_runtime_matrix.py -q`
+  - result: `109 passed`
+  - `uv run ruff check src/mini_agent/application/main_agent_surface_service.py src/apps/agent_studio_gateway/composition.py tests/test_main_agent_surface_service.py`
+  - result: all green
+
 ## 2026-04-13
 
+- Continued `P32` with the last remaining browser-host concern extraction from the gateway entrypoint:
+  - added [static_host.py](d:\file\Mini-Agent\src\apps\agent_studio_gateway\static_host.py)
+  - moved Studio/browser hosting concerns out of [main.py](d:\file\Mini-Agent\src\apps\agent_studio_gateway\main.py):
+    - Studio dist resolution
+    - `/api/files` static mount
+    - `/assets` static mount
+    - root index serving
+    - SPA fallback
+    - dist-missing fallback response
+  - rewired [main.py](d:\file\Mini-Agent\src\apps\agent_studio_gateway\main.py) to call `configure_gateway_static_host(...)`
+  - added [test_agent_studio_gateway_static_host.py](d:\file\Mini-Agent\tests\test_agent_studio_gateway_static_host.py) to lock in:
+    - configured dist resolution
+    - dist-missing fallback behavior
+    - SPA fallback and asset serving
+- Verification:
+  - `uv run pytest tests/test_agent_studio_gateway_static_host.py tests/test_agent_studio_gateway_api_v1.py tests/test_agent_studio_gateway_integration_flows.py tests/test_p19_runtime_matrix.py -q`
+  - result: `28 passed`
+  - `uv run ruff check src/apps/agent_studio_gateway/main.py src/apps/agent_studio_gateway/static_host.py tests/test_agent_studio_gateway_static_host.py`
+  - result: all green
+
+- Continued `P32` with an explicit runtime/service composition extraction for the gateway host:
+  - added [composition.py](d:\file\Mini-Agent\src\apps\agent_studio_gateway\composition.py)
+  - moved gateway-owned runtime/service/lifecycle wiring into `GatewayComposition`:
+    - runtime-manager construction
+    - surface-service construction
+    - channel-ingress construction
+    - health/runtime diagnostics building
+    - startup/shutdown cleanup and instance-lock handling
+  - rewrote [main.py](d:\file\Mini-Agent\src\apps\agent_studio_gateway\main.py) into a thinner host entrypoint:
+    - settings creation
+    - composition creation
+    - router mounting
+    - static asset mounting
+    - SPA fallback
+  - updated [main_agent_router.py](d:\file\Mini-Agent\src\apps\agent_studio_gateway\main_agent_router.py) to consume composition-provided health/runtime diagnostics instead of rebuilding them locally
+  - updated gateway API and runtime-matrix tests to patch `GATEWAY_COMPOSITION` instead of module-level caches
+- Verification:
+  - `uv run pytest tests/test_agent_studio_gateway_api_v1.py tests/test_agent_studio_gateway_integration_flows.py tests/test_channel_ingress_use_cases.py tests/test_novel_service_use_cases.py tests/test_p19_runtime_matrix.py -q`
+  - result: `32 passed`
+  - `uv run ruff check src/apps/agent_studio_gateway/main.py src/apps/agent_studio_gateway/composition.py src/apps/agent_studio_gateway/main_agent_router.py tests/test_agent_studio_gateway_api_v1.py tests/test_p19_runtime_matrix.py`
+  - result: all green
+
+- Continued `P32` with main-agent transport extraction out of the gateway composition root:
+  - added [main_agent_router.py](d:\file\Mini-Agent\src\apps\agent_studio_gateway\main_agent_router.py)
+  - moved the maintained HTTP/SSE contract for:
+    - `/api/v1/system/health`
+    - `/api/v1/ops/diagnostics/*`
+    - `/api/v1/agent/*`
+    - `/api/v1/channel/message`
+    out of [main.py](d:\file\Mini-Agent\src\apps\agent_studio_gateway\main.py) and into the dedicated transport router
+  - rewired [main.py](d:\file\Mini-Agent\src\apps\agent_studio_gateway\main.py) to mount `create_main_agent_router(...)` with injected runtime/service getters
+  - kept `main.py` focused on:
+    - runtime/service construction
+    - gateway lifecycle / instance lock
+    - static file mounting
+    - router composition
+- Verification:
+  - `uv run pytest tests/test_agent_studio_gateway_api_v1.py tests/test_agent_studio_gateway_integration_flows.py tests/test_channel_ingress_use_cases.py tests/test_novel_service_use_cases.py -q`
+  - result: `30 passed`
+  - `uv run ruff check src/apps/agent_studio_gateway/main.py src/apps/agent_studio_gateway/main_agent_router.py src/mini_agent/novel src/subprograms/novel_generator/gateway/router.py`
+  - result: all green
+
+- Continued `P32` with a real transport/runtime ownership correction for novel flows:
+  - added [runtime.py](d:\file\Mini-Agent\src\mini_agent\novel\runtime.py) as the canonical novel runtime wiring home
+  - upgraded [router.py](d:\file\Mini-Agent\src\subprograms\novel_generator\gateway\router.py) into the maintained novel HTTP transport
+  - rewired [main.py](d:\file\Mini-Agent\src\apps\agent_studio_gateway\main.py) to:
+    - mount `novel_router` under `/api/v1/novel`
+    - consume `get_novel_use_cases(...)` for channel-ingress novel actions
+    - stop owning novel-specific env parsing, path helpers, history helpers, and route handlers
+  - updated [__init__.py](d:\file\Mini-Agent\src\mini_agent\novel\__init__.py) exports and [manifest.json](d:\file\Mini-Agent\src\subprograms\novel_generator\manifest.json) mount metadata to the current API v1 path
+- Verification:
+  - `uv run pytest tests/test_agent_studio_gateway_api_v1.py tests/test_agent_studio_gateway_integration_flows.py tests/test_channel_ingress_use_cases.py tests/test_novel_service_use_cases.py -q`
+  - result: `30 passed`
+  - `uv run ruff check src/apps/agent_studio_gateway/main.py src/mini_agent/novel src/subprograms/novel_generator/gateway/router.py`
+  - result: all green
+
+- Continued `P32` with one more gateway transport naming correction:
+  - renamed [studio_router.py](d:\file\Mini-Agent\src\apps\agent_studio_gateway\ops_router.py) -> [ops_router.py](d:\file\Mini-Agent\src\apps\agent_studio_gateway\ops_router.py)
+  - renamed gateway-side auth/route symbols to neutral ops language:
+    - `_load_ops_api_keys`
+    - `_require_ops_auth`
+    - `list_ops_models`, `create_ops_provider`, `ops_memory_search`, and related handlers
+  - rewired [main.py](d:\file\Mini-Agent\src\apps\agent_studio_gateway\main.py) to import `ops_router`
+  - renamed the router-focused test file to [test_agent_studio_gateway_ops_router.py](d:\file\Mini-Agent\tests\test_agent_studio_gateway_ops_router.py)
+  - synchronized active docs that point at the maintained gateway ops route file:
+    - [RUNTIME_FLOW.md](d:\file\Mini-Agent\docs\RUNTIME_FLOW.md)
+    - [DEVELOPMENT_INDEX.md](d:\file\Mini-Agent\docs\DEVELOPMENT_INDEX.md)
+    - [P32_PROJECT_STRUCTURE_REALIGNMENT_PLAN_2026-04-13.md](d:\file\Mini-Agent\docs\P32_PROJECT_STRUCTURE_REALIGNMENT_PLAN_2026-04-13.md)
+- Verification:
+  - `uv run pytest tests/test_operations_use_cases.py tests/test_agent_studio_gateway_ops_router.py tests/test_agent_studio_gateway_api_v1.py tests/test_channel_ingress_use_cases.py tests/test_novel_service_use_cases.py -q`
+  - result: `42 passed`
+  - `uv run ruff check src/mini_agent/application src/mini_agent/session src/mini_agent/novel src/apps/agent_studio_gateway tests/test_operations_use_cases.py tests/test_agent_studio_gateway_ops_router.py tests/test_agent_studio_gateway_api_v1.py tests/test_channel_ingress_use_cases.py tests/test_novel_service_use_cases.py`
+  - result: all green
+
+## 2026-04-13
+- Continued `P32` with shared-ownership cleanup after the transport realignment:
+  - moved remote conversation binding ownership into [conversation_binding_service.py](d:\file\Mini-Agent\src\mini_agent\session\conversation_binding_service.py)
+  - removed the old application-owned binding service module and rewired [channel_ingress_use_cases.py](d:\file\Mini-Agent\src\mini_agent\application\channel_ingress_use_cases.py), [main.py](d:\file\Mini-Agent\src\apps\agent_studio_gateway\main.py), and the walkthrough/test callers to consume `mini_agent.session.ConversationBindingService`
+  - extracted novel-specific ownership into [mini_agent/novel](d:\file\Mini-Agent\src\mini_agent\novel):
+    - [profile.py](d:\file\Mini-Agent\src\mini_agent\novel\profile.py)
+    - [service.py](d:\file\Mini-Agent\src\mini_agent\novel\service.py)
+  - removed the old application-owned novel modules
+- Continued `P32` with one more shared naming correction inside `application/`:
+  - renamed `studio_ops_use_cases.py` to [operations_use_cases.py](d:\file\Mini-Agent\src\mini_agent\application\operations_use_cases.py)
+  - renamed `StudioOpsUseCases` to `OperationsUseCases`
+  - rewired [ops_router.py](d:\file\Mini-Agent\src\apps\agent_studio_gateway\ops_router.py), [main.py](d:\file\Mini-Agent\src\apps\agent_studio_gateway\main.py), [test_operations_use_cases.py](d:\file\Mini-Agent\tests\test_operations_use_cases.py), and gateway router/API tests to the neutral name
+- Verification:
+  - `uv run pytest tests/test_operations_use_cases.py tests/test_agent_studio_gateway_ops_router.py tests/test_agent_studio_gateway_api_v1.py tests/test_channel_ingress_use_cases.py tests/test_novel_service_use_cases.py -q`
+  - result: `42 passed`
+  - `uv run ruff check src/mini_agent/application src/mini_agent/session src/mini_agent/novel src/apps/agent_studio_gateway tests/test_operations_use_cases.py tests/test_agent_studio_gateway_ops_router.py tests/test_agent_studio_gateway_api_v1.py tests/test_channel_ingress_use_cases.py tests/test_novel_service_use_cases.py`
+  - result: all green
+
+## 2026-04-13
+
+- Continued Application Service Seam Hardening Return with application binding unification for control/model/approval and remote-binding normalization:
+  - [ApplicationInteractionBinding](d:\file\Mini-Agent\src\mini_agent\application\interaction_request_adapter.py) now carries `entrance` and `remote_channel`
+  - it now also provides one shared `from_request(...)`, `as_kwargs()`, and `remote_binding_key`
+  - [SessionApplicationService](d:\file\Mini-Agent\src\mini_agent\application\session_service.py) now routes `cancel / control / approval` by passing request objects into one normalized binding path instead of manually unpacking surface fields in multiple layers
+  - [MainAgentSurfaceService](d:\file\Mini-Agent\src\mini_agent\application\main_agent_surface_service.py) no longer manually fans request fields back out for those operations
+  - [RemoteConversationBindingService](d:\file\Mini-Agent\src\mini_agent\application\remote_conversation_binding_service.py) now consumes the normalized application binding directly for remote session lookup/persistence
+  - [ChannelIngressUseCases](d:\file\Mini-Agent\src\mini_agent\application\channel_ingress_use_cases.py) no longer asks the remote binding service to normalize remote context a second time
+  - [RemoteSessionService](d:\file\Mini-Agent\src\mini_agent\application\session_remote_service.py) now reuses the same application binding object instead of a second session-specific binding type
+- Verification:
+  - `uv run pytest tests/test_interaction_request_adapter.py tests/test_session_service.py tests/test_session_remote_service.py tests/test_channel_ingress_use_cases.py tests/test_main_agent_surface_service.py tests/test_agent_studio_gateway_api_v1.py`
+  - result: `108 passed`
+  - `uv run ruff check src/mini_agent/application/interaction_request_adapter.py src/mini_agent/application/remote_conversation_binding_service.py src/mini_agent/application/channel_ingress_use_cases.py src/mini_agent/application/session_service.py src/mini_agent/application/session_remote_service.py src/mini_agent/application/main_agent_surface_service.py tests/test_interaction_request_adapter.py`
+  - result: all green
+- Continued Application Service Seam Hardening Return with a runtime-policy boundary cleanup:
+  - added [main_agent_runtime_policy_loader.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_policy_loader.py)
+  - moved main-agent runtime mode/workspace/capacity policy loading out of [main.py](d:\file\Mini-Agent\src\apps\agent_studio_gateway\main.py)
+  - gateway composition now consumes `load_main_agent_runtime_policy(REPO_ROOT)` instead of parsing runtime/session lifecycle env itself
+  - updated [test_p19_runtime_matrix.py](d:\file\Mini-Agent\tests\test_p19_runtime_matrix.py) to validate the new shared loader seam
+  - added [test_main_agent_runtime_policy_loader.py](d:\file\Mini-Agent\tests\test_main_agent_runtime_policy_loader.py)
+- Verification:
+  - `uv run pytest tests/test_main_agent_runtime_policy_loader.py tests/test_session_lifecycle_runtime.py tests/test_p19_runtime_matrix.py tests/test_agent_studio_gateway_api_v1.py`
+  - result: `29 passed`
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_policy_loader.py src/apps/agent_studio_gateway/main.py tests/test_main_agent_runtime_policy_loader.py tests/test_p19_runtime_matrix.py`
+  - result: all green
 - Continued Application Service Seam Hardening Return with a focused service-boundary cleanup:
   - added the canonical shared service module:
     - [main_agent_surface_service.py](d:\file\Mini-Agent\src\mini_agent\application\main_agent_surface_service.py)
@@ -18,9 +3017,10 @@
     - [main.py](d:\file\Mini-Agent\src\apps\agent_studio_gateway\main.py) now keeps only _MAIN_AGENT_SURFACE_SERVICE
   - synchronized gateway API tests to the corrected surface-service cache seam
 - Verification:
-  - uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py
-  - result: 95 passed
-- Recorded the development-direction decision after DesktopUI真人联调:
+  - uv run pytest tests/test_main_agent_surface_service.py tests/test_agent_studio_gateway_api_v1.py
+  - result: 95 passed
+
+- Recorded the development-direction decision after DesktopUI閻喍姹夐懕鏃囩殶:
   - DesktopUI has reached a first usable shell threshold
   - further DesktopUI visual/interaction polishing is paused for now
   - active implementation focus returns to core/service-layer refactor
@@ -54,7 +3054,7 @@
   - `uv run ruff check src/mini_agent/tui/gateway_client.py src/mini_agent/desktop/window.py tests/test_tui_gateway_client.py tests/test_desktop_window_helpers.py`
   - result: all green
 
-- Closed the first真人联调问题收口 for DesktopUI:
+- Closed the first閻喍姹夐懕鏃囩殶闂傤噣顣介弨璺哄經 for DesktopUI:
   - `New Session` no longer collides with `max_active_sessions=1` in the common case
   - when a session is already selected, DesktopUI now creates a blank derived session instead of trying to allocate a second root runtime session
   - desktop gateway client timeout was raised from `5s` to `15s` to reduce false local timeout failures during operator actions such as model switching
@@ -181,11 +3181,11 @@
   - [test_main_agent_gateway_use_cases.py](d:\file\Mini-Agent\tests\test_main_agent_gateway_use_cases.py)
     - verifies `MainAgentSurfaceService` is the canonical service behind the older alias
 - Verification:
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py tests/test_tui_gateway_client.py tests/test_channel_ingress_use_cases.py tests/test_session_remote_service.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_agent_studio_gateway_api_v1.py tests/test_tui_gateway_client.py tests/test_channel_ingress_use_cases.py tests/test_session_remote_service.py -q`
   - result: `103 passed`
   - `uv run pytest tests/test_interaction_request_adapter.py tests/test_session_service.py -q`
   - result: `7 passed`
-  - `uv run ruff check src/mini_agent/application/__init__.py src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/application/gateway_chat_flow_handler.py src/mini_agent/application/gateway_agent_execution_handler.py src/mini_agent/application/gateway_route_execution_handler.py src/mini_agent/application/interaction_request_adapter.py src/apps/agent_studio_gateway/main.py tests/test_main_agent_gateway_use_cases.py`
+  - `uv run ruff check src/mini_agent/application/__init__.py src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/application/gateway_chat_flow_handler.py src/mini_agent/application/gateway_agent_execution_handler.py src/mini_agent/application/gateway_route_execution_handler.py src/mini_agent/application/interaction_request_adapter.py src/apps/agent_studio_gateway/main.py tests/test_main_agent_surface_service.py`
   - result: all green
 
 - Froze the next graphical-mainline direction as `DesktopUI(PySide6)` instead of browser-first `WebUI`.
@@ -234,7 +3234,7 @@
 - Verification:
   - `uv run pytest tests/test_interaction_surface.py tests/test_session_service.py tests/test_channel_ingress_use_cases.py tests/test_session_remote_service.py -q`
   - result: `17 passed`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_agent_studio_gateway_api_v1.py -q`
   - result: `94 passed`
   - `uv run ruff check src/mini_agent/runtime/interaction_surface.py tests/test_interaction_surface.py src/mini_agent/runtime/session_live_state_handler.py src/mini_agent/application/gateway_agent_execution_handler.py src/mini_agent/application/remote_conversation_binding_service.py`
   - result: all green
@@ -260,7 +3260,7 @@
 - Verification:
   - `uv run pytest tests/test_session_service.py tests/test_channel_ingress_use_cases.py tests/test_session_remote_service.py -q`
   - result: `10 passed`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_agent_studio_gateway_api_v1.py -q`
   - result: `94 passed`
   - `uv run ruff check src/mini_agent/runtime/session_live_state_handler.py src/mini_agent/application/gateway_agent_execution_handler.py src/mini_agent/application/remote_conversation_binding_service.py tests/test_session_service.py tests/test_channel_ingress_use_cases.py`
   - result: all green
@@ -282,7 +3282,7 @@
 - Verification:
   - `uv run pytest tests/test_session_service.py tests/test_session_remote_service.py -q`
   - result: `6 passed`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py tests/test_tui_gateway_client.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_agent_studio_gateway_api_v1.py tests/test_tui_gateway_client.py -q`
   - result: `97 passed`
   - `uv run ruff check src/mini_agent/application/session_service.py tests/test_session_service.py tests/test_session_remote_service.py`
   - result: all green
@@ -313,7 +3313,7 @@
   - result: `16 passed`
   - `uv run ruff check src/mini_agent/runtime/interaction_surface.py src/mini_agent/application/interaction_request_adapter.py src/mini_agent/application/session_service.py src/mini_agent/tui/gateway_client.py tests/test_interaction_surface.py tests/test_session_service.py tests/test_tui_gateway_client.py`
   - result: all green
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_session_service.py tests/test_tui_app.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_tui_app.py -q`
   - result: `191 passed`
   - `uv run pytest tests/test_agent_studio_gateway_api_v1.py tests/test_session_remote_service.py -q`
   - result: `22 passed`
@@ -335,7 +3335,7 @@
   - any future runtime-manager work should come from new behavior pressure, not from the urge to keep shaving structure
 - Verification:
   - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_session_service.py tests/test_tui_app.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_tui_app.py -q`
   - result: all green
 
 - Continued `P30.7` with the second post-audit cut: derived-session creation extraction.
@@ -370,9 +3370,9 @@
   - `P30.7` has moved beyond file-top cleanup and cleared the first real post-audit hotspot queue
 - Verification:
   - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_model_selection_handler.py src/mini_agent/runtime/session_operator_handler.py src/mini_agent/runtime/session_registry_handler.py src/mini_agent/runtime/session_hydration_builder.py src/mini_agent/runtime/session_lineage_registry.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "model_selection or inferred_source" -q`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "derived_session or delegation or lineage" -q`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_session_service.py tests/test_tui_app.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "model_selection or inferred_source" -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "derived_session or delegation or lineage" -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_tui_app.py -q`
   - `uv run python scripts/shared_session_gateway_walkthrough.py`
   - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_model_selection_handler.py src/mini_agent/runtime/session_operator_handler.py src/mini_agent/runtime/session_registry_handler.py src/mini_agent/runtime/session_hydration_builder.py src/mini_agent/runtime/session_lineage_registry.py`
   - result: all green
@@ -393,8 +3393,8 @@
   - the next recommended `P30.7` implementation slice remains `create_derived_session(...)`
 - Verification:
   - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_model_selection_handler.py src/mini_agent/runtime/session_operator_handler.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "model_selection or inferred_source" -q`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_session_service.py tests/test_tui_app.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "model_selection or inferred_source" -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_tui_app.py -q`
   - `uv run python scripts/shared_session_gateway_walkthrough.py`
   - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_model_selection_handler.py src/mini_agent/runtime/session_operator_handler.py`
   - result: all green
@@ -447,7 +3447,7 @@
 - Verification:
   - `uv run ruff check src/mini_agent/runtime src/mini_agent/application/session_service.py`
   - `uv run python -m compileall src/mini_agent/runtime src/mini_agent/application/session_service.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py tests/test_tui_app.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py tests/test_tui_app.py -q`
   - `uv run python scripts/shared_session_gateway_walkthrough.py`
   - result: all green
 
@@ -469,7 +3469,7 @@
   - the next likely `P30.7` cut is now the session-state dataclass cluster, not persistence
 - Verification:
   - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_runtime_persistence.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py -q`
   - `uv run pytest tests/test_tui_app.py -q`
   - `uv run python scripts/shared_session_gateway_walkthrough.py`
   - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_runtime_persistence.py tests/test_tui_app.py`
@@ -748,7 +3748,7 @@
   - the remaining QQ logic is now mainly binding/display/protocol behavior, so `P30.4` is ready to close
 - Verification:
   - `npm --prefix src/apps/qqbot_channel run check`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "cancel_session" -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "cancel_session" -q`
   - result: all green
 
 - Continued `P30.4` with a QQ runtime-policy + MCP command thinning slice.
@@ -767,7 +3767,7 @@
   - shared runtime/control handlers stay more authoritative for busy/error behavior
 - Verification:
   - `npm --prefix src/apps/qqbot_channel run check`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "runtime_policy or control_session_mcp" -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "runtime_policy or control_session_mcp" -q`
   - `uv run pytest tests/test_agent_studio_gateway_api_v1.py::test_v1_main_agent_control_route_accepts_mcp_actions -q`
   - result: all green
 
@@ -787,7 +3787,7 @@
   - the remote adapter boundary is thinner again without changing approval behavior
 - Verification:
   - `npm --prefix src/apps/qqbot_channel run check`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "approval" -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "approval" -q`
   - `uv run pytest tests/test_tui_app.py -k "remote_approve or approve_after_restart_loss" -q`
   - result: all green
 
@@ -844,9 +3844,9 @@
     - request contract now requires only `provider_id` and `model_id`
 - Verification:
   - `uv run pytest tests/test_model_routing_runtime.py -q`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "model_selection" -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "model_selection" -q`
   - `uv run pytest tests/test_interface_dto_contracts.py tests/test_session_remote_service.py -q`
-  - `uv run ruff check src/mini_agent/model_manager/runtime.py src/mini_agent/interfaces/agent.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/tui/gateway_client.py tests/test_model_routing_runtime.py tests/test_main_agent_gateway_use_cases.py tests/test_interface_dto_contracts.py tests/test_session_remote_service.py`
+  - `uv run ruff check src/mini_agent/model_manager/runtime.py src/mini_agent/interfaces/agent.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/tui/gateway_client.py tests/test_model_routing_runtime.py tests/test_main_agent_surface_service.py tests/test_interface_dto_contracts.py tests/test_session_remote_service.py`
   - `npm --prefix src/apps/qqbot_channel run check`
   - `node --check src/apps/qqbot_channel/bot.mjs`
   - result: all green
@@ -1071,10 +4071,10 @@
   - [test_main_agent_gateway_use_cases.py](d:\file\Mini-Agent\tests\test_main_agent_gateway_use_cases.py) now verifies explicit derived-session creation preserves lineage and inherited model selection
   - [test_tui_app.py](d:\file\Mini-Agent\tests\test_tui_app.py) now verifies `/fork` and `/task new`
 - Verification:
-  - `uv run ruff check src/mini_agent/interfaces/agent.py src/mini_agent/interfaces/__init__.py src/mini_agent/application/session_service.py src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/application/session_remote_service.py src/mini_agent/tui/gateway_client.py src/apps/agent_studio_gateway/main.py src/mini_agent/tui/app.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "explicit_derived_session or delegation" -q`
+  - `uv run ruff check src/mini_agent/interfaces/agent.py src/mini_agent/interfaces/__init__.py src/mini_agent/application/session_service.py src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/application/session_remote_service.py src/mini_agent/tui/gateway_client.py src/apps/agent_studio_gateway/main.py src/mini_agent/tui/app.py tests/test_main_agent_surface_service.py tests/test_tui_app.py`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "explicit_derived_session or delegation" -q`
   - `uv run pytest tests/test_tui_app.py -k "fork_command or task_new_command" -q`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py -q`
   - `uv run python -m compileall src/mini_agent/interfaces/agent.py src/mini_agent/interfaces/__init__.py src/mini_agent/application/session_service.py src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/application/session_remote_service.py src/mini_agent/tui/gateway_client.py src/apps/agent_studio_gateway/main.py src/mini_agent/tui/app.py`
   - result: targeted gateway `5 passed`, targeted TUI `2 passed`, broader regression `181 passed`, lint clean, compileall clean
 - Result:
@@ -1104,11 +4104,11 @@
   - successful delegation creates a child session with lineage and transcript
   - failed delegation still creates a child session, preserves the failure record, and falls back to the parent session reply
 - Verification:
-  - `uv run ruff check src/mini_agent/agent_core/delegation.py src/mini_agent/application/gateway_route_execution_handler.py src/mini_agent/application/session_service.py src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_main_agent_gateway_use_cases.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "delegation" -q`
-  - `uv run pytest tests/test_agent_core_delegation.py tests/test_main_agent_gateway_use_cases.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py tests/test_tui_app.py -q`
+  - `uv run ruff check src/mini_agent/agent_core/delegation.py src/mini_agent/application/gateway_route_execution_handler.py src/mini_agent/application/session_service.py src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_main_agent_surface_service.py`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "delegation" -q`
+  - `uv run pytest tests/test_agent_core_delegation.py tests/test_main_agent_surface_service.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py tests/test_tui_app.py -q`
   - `uv run python scripts/shared_session_gateway_walkthrough.py`
-  - `uv run python -m compileall src/mini_agent/agent_core/delegation.py src/mini_agent/application/gateway_route_execution_handler.py src/mini_agent/application/session_service.py src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_main_agent_gateway_use_cases.py`
+  - `uv run python -m compileall src/mini_agent/agent_core/delegation.py src/mini_agent/application/gateway_route_execution_handler.py src/mini_agent/application/session_service.py src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_main_agent_surface_service.py`
   - result: delegation-focused `4 passed`, broader `186 passed`, walkthrough `PASS`, `ruff clean`, `compileall clean`
 - Result:
   - delegation now produces a durable child task session instead of only a reply string
@@ -1134,11 +4134,11 @@
   - [test_agent_core_session.py](d:\file\Mini-Agent\tests\test_agent_core_session.py) now covers placeholder-parent upgrade and node removal
   - [test_main_agent_gateway_use_cases.py](d:\file\Mini-Agent\tests\test_main_agent_gateway_use_cases.py) now covers runtime child-import lineage and persisted restore lineage
 - Verification:
-  - `uv run ruff check src/mini_agent/agent_core/session/lineage.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_creation_handler.py src/mini_agent/runtime/session_hydration_builder.py src/mini_agent/runtime/session_persistence_record_builder.py src/mini_agent/runtime/session_read_model_builder.py src/mini_agent/runtime/session_registry_handler.py src/mini_agent/runtime/session_snapshot.py src/mini_agent/runtime/session_snapshot_handler.py tests/test_agent_core_session.py tests/test_main_agent_gateway_use_cases.py`
-  - `uv run pytest tests/test_agent_core_session.py tests/test_main_agent_gateway_use_cases.py -k "lineage or import_session_snapshot or export_snapshot or persisted_export" -q`
-  - `uv run pytest tests/test_agent_core_session.py tests/test_main_agent_gateway_use_cases.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py tests/test_tui_app.py -q`
+  - `uv run ruff check src/mini_agent/agent_core/session/lineage.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_creation_handler.py src/mini_agent/runtime/session_hydration_builder.py src/mini_agent/runtime/session_persistence_record_builder.py src/mini_agent/runtime/session_read_model_builder.py src/mini_agent/runtime/session_registry_handler.py src/mini_agent/runtime/session_snapshot.py src/mini_agent/runtime/session_snapshot_handler.py tests/test_agent_core_session.py tests/test_main_agent_surface_service.py`
+  - `uv run pytest tests/test_agent_core_session.py tests/test_main_agent_surface_service.py -k "lineage or import_session_snapshot or export_snapshot or persisted_export" -q`
+  - `uv run pytest tests/test_agent_core_session.py tests/test_main_agent_surface_service.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py tests/test_tui_app.py -q`
   - `uv run python scripts/shared_session_gateway_walkthrough.py`
-  - `uv run python -m compileall src/mini_agent/agent_core/session/lineage.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_creation_handler.py src/mini_agent/runtime/session_hydration_builder.py src/mini_agent/runtime/session_persistence_record_builder.py src/mini_agent/runtime/session_read_model_builder.py src/mini_agent/runtime/session_registry_handler.py src/mini_agent/runtime/session_snapshot.py src/mini_agent/runtime/session_snapshot_handler.py tests/test_agent_core_session.py tests/test_main_agent_gateway_use_cases.py`
+  - `uv run python -m compileall src/mini_agent/agent_core/session/lineage.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_creation_handler.py src/mini_agent/runtime/session_hydration_builder.py src/mini_agent/runtime/session_persistence_record_builder.py src/mini_agent/runtime/session_read_model_builder.py src/mini_agent/runtime/session_registry_handler.py src/mini_agent/runtime/session_snapshot.py src/mini_agent/runtime/session_snapshot_handler.py tests/test_agent_core_session.py tests/test_main_agent_surface_service.py`
   - result: focused `7 passed`, broader `189 passed`, walkthrough `PASS`, `ruff clean`, `compileall clean`
 - Result:
   - session lineage is no longer a disconnected primitive
@@ -1167,7 +4167,7 @@
 - Verification:
   - `uv run ruff check src/mini_agent/agent_core/kernel.py src/mini_agent/runtime/tooling.py tests/test_agent_core_kernel.py`
   - `uv run pytest tests/test_agent_core_kernel.py -q`
-  - `uv run pytest tests/test_agent_core_kernel.py tests/test_code_agent_loop.py tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py -q`
+  - `uv run pytest tests/test_agent_core_kernel.py tests/test_code_agent_loop.py tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_main_agent_surface_service.py -q`
   - `uv run python -m compileall src/mini_agent/agent_core/kernel.py src/mini_agent/runtime/tooling.py tests/test_agent_core_kernel.py`
   - result: `ruff clean`, focused `7 passed`, broader `214 passed`, `compileall clean`
 - Result:
@@ -1176,7 +4176,7 @@
   - optional capability startup failures are now observable without making the runtime brittle
 
 - Started `P30.7ai Managed Session Require-Helper Cleanup`.
-- Added a small private helper in [main_agent_runtime_manager.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_manager.py) to centralize the repeated “load or restore managed session, otherwise 404�?boundary pattern:
+- Added a small private helper in [main_agent_runtime_manager.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_manager.py) to centralize the repeated 閳ユ笓oad or restore managed session, otherwise 404閳?boundary pattern:
   - `_require_managed_session_unlocked(...)`
 - Reused that helper across the identical facade entrypoints instead of repeating:
   - `rename_session(...)`
@@ -1195,7 +4195,7 @@
   - `resolve_pending_approval(...)`
 - Verification:
   - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py tests/test_tui_app.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py tests/test_tui_app.py -q`
   - `uv run python scripts/shared_session_gateway_walkthrough.py`
   - result: `ruff clean`, runtime bundle `180 passed`, walkthrough `PASS`
 - Result:
@@ -1217,7 +4217,7 @@
 - Verification:
   - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py`
   - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py tests/test_tui_app.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py tests/test_tui_app.py -q`
   - `uv run python scripts/shared_session_gateway_walkthrough.py`
   - result: `ruff clean`, `compileall clean`, runtime bundle `180 passed`, walkthrough `PASS`
 - Result:
@@ -1234,10 +4234,10 @@
   - the walkthrough helper `_import_runtime_session(...)` still used the old signature
   - it now constructs `RuntimeSessionSnapshotImportCommand(...)` directly
 - Verification:
-  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_main_agent_gateway_use_cases.py scripts/shared_session_gateway_walkthrough.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "import_session_snapshot or export_snapshot or persisted_shared_session or duplicate_session_id" -q`
-  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_main_agent_gateway_use_cases.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py tests/test_tui_app.py -q`
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_main_agent_surface_service.py scripts/shared_session_gateway_walkthrough.py`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "import_session_snapshot or export_snapshot or persisted_shared_session or duplicate_session_id" -q`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_main_agent_surface_service.py`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py tests/test_tui_app.py -q`
   - `uv run python scripts/shared_session_gateway_walkthrough.py`
   - result: `ruff clean`, targeted `3 passed`, `compileall clean`, runtime bundle `180 passed`, walkthrough `PASS`
 - Result:
@@ -1256,10 +4256,10 @@
   - `record_activity(...)` and `record_pending_approval(...)` no longer keep redundant temporary return variables
 - Added focused regression coverage in [test_main_agent_gateway_use_cases.py](d:\file\Mini-Agent\tests\test_main_agent_gateway_use_cases.py) for direct runtime `record_turn(...)` persistence.
 - Verification:
-  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_turn_scope_handler.py tests/test_main_agent_gateway_use_cases.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "record_turn or recovery or activity_transcript" -q`
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_turn_scope_handler.py tests/test_main_agent_surface_service.py`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "record_turn or recovery or activity_transcript" -q`
   - `uv run pytest tests/test_session_service.py tests/test_tui_app.py -q`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py tests/test_tui_app.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py tests/test_tui_app.py -q`
   - `uv run python scripts/shared_session_gateway_walkthrough.py`
   - result: `ruff clean`, targeted `4 passed`, broader `110 passed`, runtime bundle `180 passed`, walkthrough `PASS`
 - Result:
@@ -1284,9 +4284,9 @@
   - approval waiter finalization still happens only after the approval transcript entry is recorded
 - Verification:
   - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_operator_handler.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "cancel_session or approval or pending_approval" -q`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py tests/test_tui_app.py -q`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "cancel_session or approval or pending_approval" -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py tests/test_tui_app.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - `uv run python scripts/shared_session_gateway_walkthrough.py`
   - result: `ruff clean`, targeted `3 passed`, `179 passed`, `208 passed`, walkthrough `PASS`
 - Result:
@@ -1320,9 +4320,9 @@
   - from `2009` lines to `1653` lines in the current worktree
 - Verification:
   - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_operator_handler.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "control_session_can_toggle_knowledge_base or control_session_mcp_reload_rebuilds_session_agent" -q`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py tests/test_tui_app.py -q`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "control_session_can_toggle_knowledge_base or control_session_mcp_reload_rebuilds_session_agent" -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py tests/test_tui_app.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - `uv run python scripts/shared_session_gateway_walkthrough.py`
   - result: `ruff clean`, targeted `2 passed`, `179 passed`, `208 passed`, walkthrough `PASS`
 - Result:
@@ -1352,8 +4352,8 @@
 - Verification:
   - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_registry_handler.py`
   - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_registry_handler.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py tests/test_tui_app.py -q`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_shared_session_gateway_walkthrough.py tests/test_session_service.py tests/test_tui_app.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - `uv run python scripts/shared_session_gateway_walkthrough.py`
   - result: `ruff clean`, `compileall clean`, `179 passed`, `208 passed`, walkthrough `PASS`
 - Result:
@@ -1379,8 +4379,8 @@
 - Verification:
   - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_read_model_builder.py src/mini_agent/runtime/session_live_state_handler.py src/mini_agent/runtime/session_agent_runtime_handler.py`
   - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py tests/test_tui_app.py -q`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py tests/test_tui_app.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - `uv run python scripts/shared_session_gateway_walkthrough.py`
   - result: `ruff clean`, `compileall clean`, `179 passed`, `208 passed`, walkthrough `PASS`
 - Result:
@@ -1404,7 +4404,7 @@
   - `uv run python -m compileall src/mini_agent/tui/gateway_client.py tests/test_tui_gateway_client.py`
   - `uv run pytest tests/test_tui_gateway_client.py -q`
   - `uv run pytest tests/test_tui_app.py tests/test_session_remote_service.py tests/test_tui_gateway_client.py tests/test_shared_session_gateway_walkthrough.py -q`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py -q`
   - result: `ruff clean`, `compileall clean`, `3 passed`, `112 passed`, `96 passed`
 - Result:
   - the TUI gateway client now has one local home for shared payload shaping
@@ -1427,7 +4427,7 @@
   - `uv run ruff check src/mini_agent/application/session_service.py src/mini_agent/application/session_remote_service.py tests/test_session_service.py tests/test_session_remote_service.py`
   - `uv run python -m compileall src/mini_agent/application/session_service.py src/mini_agent/application/session_remote_service.py tests/test_session_service.py tests/test_session_remote_service.py`
   - `uv run pytest tests/test_session_service.py tests/test_session_remote_service.py -q`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_session_service.py tests/test_session_remote_service.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_session_service.py tests/test_session_remote_service.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py -q`
   - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_shared_session_gateway_walkthrough.py -q`
   - result: `ruff clean`, `compileall clean`, `4 passed`, `207 passed`, `8 passed`
 - Result:
@@ -1445,7 +4445,7 @@
 - Verification:
   - `uv run ruff check src/mini_agent/application/interaction_request_adapter.py src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/application/channel_ingress_use_cases.py tests/test_interaction_request_adapter.py`
   - `uv run python -m compileall src/mini_agent/application/interaction_request_adapter.py src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/application/channel_ingress_use_cases.py tests/test_interaction_request_adapter.py`
-  - `uv run pytest tests/test_interaction_request_adapter.py tests/test_main_agent_gateway_use_cases.py -k "interaction_request_adapter or run_chat or stream_chat or routing" -q`
+  - `uv run pytest tests/test_interaction_request_adapter.py tests/test_main_agent_surface_service.py -k "interaction_request_adapter or run_chat or stream_chat or routing" -q`
   - result: `ruff clean`, `compileall clean`, `3 passed`
 - Followed with real-use smoke validation:
   - `uv run pytest tests/test_agent_studio_gateway_api_v1.py tests/test_agent_studio_gateway_integration_flows.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_shared_session_gateway_walkthrough.py -q`
@@ -1480,9 +4480,9 @@
 - Verification:
   - `uv run ruff check src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/application/gateway_route_execution_handler.py`
   - `uv run python -m compileall src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/application/gateway_route_execution_handler.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "run_chat or stream_chat or delegate or approval or activity or routing" -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "run_chat or stream_chat or delegate or approval or activity or routing" -q`
   - `uv run pytest tests/test_session_service.py tests/test_tui_app.py -k "prepare_chat_turn_scopes_runtime_lifecycle or remote_approval or runtime_policy_commands or stream" -q`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
   - result: `ruff clean`, `compileall clean`, `5 passed`, `7 passed`, `207 passed`, `11 passed`
 - Result:
@@ -1505,9 +4505,9 @@
 - Verification:
   - `uv run ruff check src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/application/gateway_agent_execution_handler.py`
   - `uv run python -m compileall src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/application/gateway_agent_execution_handler.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "run_chat or stream_chat or delegate or approval or activity or routing" -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "run_chat or stream_chat or delegate or approval or activity or routing" -q`
   - `uv run pytest tests/test_session_service.py tests/test_tui_app.py -k "prepare_chat_turn_scopes_runtime_lifecycle or remote_approval or runtime_policy_commands or stream" -q`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
   - result: `ruff clean`, `compileall clean`, `5 passed`, `7 passed`, `207 passed`, `11 passed`
 - Result:
@@ -1531,9 +4531,9 @@
 - Verification:
   - `uv run ruff check src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/application/gateway_chat_flow_handler.py`
   - `uv run python -m compileall src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/application/gateway_chat_flow_handler.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "run_chat or stream_chat or delegate or approval or activity or routing" -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "run_chat or stream_chat or delegate or approval or activity or routing" -q`
   - `uv run pytest tests/test_session_service.py tests/test_tui_app.py -k "prepare_chat_turn_scopes_runtime_lifecycle or remote_approval or runtime_policy_commands or stream" -q`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
   - result: `ruff clean`, `compileall clean`, `5 passed`, `7 passed`, `207 passed`, `11 passed`
 - Result:
@@ -1556,8 +4556,8 @@
   - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_turn_scope_handler.py src/mini_agent/application/session_service.py`
   - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_turn_scope_handler.py src/mini_agent/application/session_service.py`
   - `uv run pytest tests/test_session_service.py -q`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "run_chat or stream_chat or recovery or approval or activity or prepare_chat_turn or survives_runtime_restart or restarted_shared_session or persisted_interrupted_session" -q`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "run_chat or stream_chat or recovery or approval or activity or prepare_chat_turn or survives_runtime_restart or restarted_shared_session or persisted_interrupted_session" -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
   - result: `ruff clean`, `compileall clean`, `2 passed`, `7 passed`, `207 passed`, `11 passed`
 - Result:
@@ -1578,9 +4578,9 @@
 - Verification:
   - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_command_coordinator.py`
   - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_command_coordinator.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "manage_session_skills or skill or update_session_model_selection or queued_shared_session_model or can_update_shared_session_model_selection" -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "manage_session_skills or skill or update_session_model_selection or queued_shared_session_model or can_update_shared_session_model_selection" -q`
   - `uv run pytest tests/test_tui_app.py -k "runtime_policy_commands or remote_skill or skill_refresh or model" -q`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
   - result: `ruff clean`, `compileall clean`, `11 passed`, `21 passed`, `207 passed`, `11 passed`
 - Result:
@@ -1609,9 +4609,9 @@
 - Verification:
   - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_command_coordinator.py`
   - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_command_coordinator.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "runtime_policy or context_policy or memory or manage_session_skills or control_session or cancel_session or approval" -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "runtime_policy or context_policy or memory or manage_session_skills or control_session or cancel_session or approval" -q`
   - `uv run pytest tests/test_session_service.py tests/test_tui_app.py -k "prepare_chat_turn_scopes_runtime_lifecycle or update_session_runtime_policy" -q`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
   - result: `ruff clean`, `compileall clean`, `21 passed`, `1 passed`, `207 passed`, `11 passed`
 - Result:
@@ -1636,11 +4636,11 @@
   - remove the old inline rebuild/reconfigure helper cluster from the manager
 - Updated the focused runtime-policy test seam to monkeypatch the new handler method rather than the removed manager helper.
 - Verification:
-  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_agent_runtime_handler.py tests/test_main_agent_gateway_use_cases.py`
-  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_agent_runtime_handler.py tests/test_main_agent_gateway_use_cases.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "runtime_policy or model_selection or pending_session_skill_reload or manage_session_skills or control_session" -q`
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_agent_runtime_handler.py tests/test_main_agent_surface_service.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_agent_runtime_handler.py tests/test_main_agent_surface_service.py`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "runtime_policy or model_selection or pending_session_skill_reload or manage_session_skills or control_session" -q`
   - `uv run pytest tests/test_session_service.py tests/test_tui_app.py -k "prepare_chat_turn_scopes_runtime_lifecycle or update_session_runtime_policy" -q`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
   - result: `ruff clean`, `compileall clean`, `9 passed`, `1 passed`, `207 passed`, `11 passed`
 - Result:
@@ -1666,11 +4666,11 @@
   - remove the old inline catalog helper cluster from the manager
 - Updated focused regression to call the new public dedupe seam instead of the removed manager helper.
 - Verification:
-  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_catalog_handler.py tests/test_main_agent_gateway_use_cases.py`
-  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_catalog_handler.py tests/test_main_agent_gateway_use_cases.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "assigns_human_readable_session_title_hints or list_sessions_dedupes_exact_remote_channel_duplicates or hides_untitled_channel_stub_when_shared_tui_session_exists or team_mode or get_or_create_session or chat_applies_session_title_hint_on_new_shared_session" -q`
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_catalog_handler.py tests/test_main_agent_surface_service.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_catalog_handler.py tests/test_main_agent_surface_service.py`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "assigns_human_readable_session_title_hints or list_sessions_dedupes_exact_remote_channel_duplicates or hides_untitled_channel_stub_when_shared_tui_session_exists or team_mode or get_or_create_session or chat_applies_session_title_hint_on_new_shared_session" -q`
   - `uv run pytest tests/test_session_service.py -q`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
   - result: `ruff clean`, `compileall clean`, `8 passed`, `2 passed`, `207 passed`, `11 passed`
 - Result:
@@ -1697,9 +4697,9 @@
 - Verification:
   - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_live_state_handler.py`
   - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_live_state_handler.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "recovery or reset or active_surface or pending_approval or cancel_session or approval" -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "recovery or reset or active_surface or pending_approval or cancel_session or approval" -q`
   - `uv run pytest tests/test_session_service.py tests/test_tui_app.py -k "prepare_chat_turn_scopes_runtime_lifecycle or mutation_wrappers_shape_session_responses" -q`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
   - result: `ruff clean`, `compileall clean`, `8 passed`, `2 passed`, `207 passed`, `11 passed`
 - Result:
@@ -1726,9 +4726,9 @@
 - Verification:
   - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_creation_handler.py`
   - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_creation_handler.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "assigns_human_readable_session_title_hints or chat_applies_session_title_hint_on_new_shared_session or survives_runtime_restart or team_mode or single_main_workspace_only or max_active_sessions or get_or_create_session" -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "assigns_human_readable_session_title_hints or chat_applies_session_title_hint_on_new_shared_session or survives_runtime_restart or team_mode or single_main_workspace_only or max_active_sessions or get_or_create_session" -q`
   - `uv run pytest tests/test_session_service.py -q`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
   - result: `ruff clean`, `compileall clean`, `8 passed`, `2 passed`, `207 passed`, `11 passed`
 - Result:
@@ -1755,7 +4755,7 @@
 - Verification:
   - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_model_selection_handler.py`
   - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_model_selection_handler.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
   - `uv run python -m compileall scripts/shared_session_gateway_walkthrough.py`
   - result: `ruff clean`, `compileall clean`, `201 passed`, `11 passed`
@@ -1783,9 +4783,9 @@
   - but the action whitelist did not include them, so they were unreachable through the runtime entrypoint
   - the new handler now accepts both actions and regression tests cover them directly
 - Verification:
-  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_skill_command_handler.py tests/test_main_agent_gateway_use_cases.py`
-  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_skill_command_handler.py tests/test_main_agent_gateway_use_cases.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_session_service.py tests/test_p19_runtime_matrix.py tests/test_command_catalog.py -q`
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_skill_command_handler.py tests/test_main_agent_surface_service.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_skill_command_handler.py tests/test_main_agent_surface_service.py`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_session_service.py tests/test_p19_runtime_matrix.py tests/test_command_catalog.py -q`
   - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_projection.py -q`
   - result: `ruff clean`, `compileall clean`, `178 passed`, `38 passed`
 - Result:
@@ -1810,7 +4810,7 @@
 - Verification:
   - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_memory_command_handler.py`
   - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_memory_command_handler.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_projection.py -q`
   - result: `ruff clean`, `compileall clean`, `172 passed`, `38 passed`
 - Result:
@@ -1835,7 +4835,7 @@
   - delegate lifecycle refresh and expired-session selection wrappers
 - Verification:
   - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_runtime_policy_coordinator.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_p19_runtime_matrix.py tests/test_session_service.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_p19_runtime_matrix.py tests/test_session_service.py -q`
   - result: `ruff clean`, `65 passed`
 - Result:
   - manager no longer owns policy counters directly
@@ -1856,8 +4856,8 @@
   - delegate metadata/transcript file mechanics instead of implementing them inline
 - Verification:
   - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_persistence_metadata_registry.py src/mini_agent/runtime/session_shared_transcript_store.py src/mini_agent/runtime/session_persistence_loader.py src/mini_agent/runtime/session_persistence_record_builder.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
-  - `uv run pytest tests/test_interaction_surface.py tests/test_main_agent_gateway_use_cases.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_projection.py tests/test_tui_app.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_main_agent_surface_service.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_projection.py tests/test_tui_app.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - result: `ruff clean`, `65 passed`, `210 passed`
 - Result:
   - persistence wrapper internals are now composition-based instead of carrying JSON/file details inline
@@ -1883,8 +4883,8 @@
   - runtime-memory backend access is now consistent across snapshot/hydration/cleanup/command paths
 - Verification:
   - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_runtime_memory_backend_adapter.py src/mini_agent/runtime/session_diagnostics_service.py src/mini_agent/runtime/session_hydration_builder.py src/mini_agent/runtime/session_runtime_state_hydrator.py src/mini_agent/runtime/session_persistence_loader.py src/mini_agent/runtime/session_read_model_builder.py src/mini_agent/runtime/session_persistence_record_builder.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
-  - `uv run pytest tests/test_interaction_surface.py tests/test_main_agent_gateway_use_cases.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_projection.py tests/test_tui_app.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_main_agent_surface_service.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_projection.py tests/test_tui_app.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - result: `ruff clean`, `65 passed`, `210 passed`
 
 - Started `P30.7h Session Diagnostics Service Extraction`.
@@ -1902,8 +4902,8 @@
 - Reduced manager diagnostics methods to delegation wrappers instead of carrying the implementations inline.
 - Verification:
   - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_diagnostics_service.py src/mini_agent/runtime/session_hydration_builder.py src/mini_agent/runtime/session_runtime_state_hydrator.py src/mini_agent/runtime/session_persistence_loader.py src/mini_agent/runtime/session_read_model_builder.py src/mini_agent/runtime/session_persistence_record_builder.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
-  - `uv run pytest tests/test_interaction_surface.py tests/test_main_agent_gateway_use_cases.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_projection.py tests/test_tui_app.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_main_agent_surface_service.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_projection.py tests/test_tui_app.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - result: `ruff clean`, `65 passed`, `210 passed`
 - Result:
   - diagnostics are no longer manager-owned implementation detail shared indirectly by multiple seams
@@ -1925,7 +4925,7 @@
   - delegate prepared-context restore/capture wrappers to the hydrator while keeping manager boundary methods intact
 - Verification:
   - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_hydration_builder.py src/mini_agent/runtime/session_runtime_state_hydrator.py src/mini_agent/runtime/session_persistence_loader.py src/mini_agent/runtime/session_read_model_builder.py src/mini_agent/runtime/session_persistence_record_builder.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - result: `ruff clean`, `65 passed`
 - Result:
   - the shared hydration helper is narrower and no longer mixes session assembly with live runtime-state synchronization
@@ -1958,8 +4958,8 @@
   - optional persistence after import hydration
 - Verification:
   - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_hydration_builder.py src/mini_agent/runtime/session_persistence_loader.py src/mini_agent/runtime/session_read_model_builder.py src/mini_agent/runtime/session_persistence_record_builder.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
-  - `uv run pytest tests/test_interaction_surface.py tests/test_main_agent_gateway_use_cases.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_projection.py tests/test_tui_app.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_main_agent_surface_service.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_projection.py tests/test_tui_app.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - result: `ruff clean`, `65 passed`, `210 passed`
 - Result:
   - import and restore now share one runtime hydration path instead of duplicating session assembly logic
@@ -1986,8 +4986,8 @@
   - remove now-obsolete inline restore helpers
 - Verification:
   - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_restore_builder.py src/mini_agent/runtime/session_persistence_loader.py src/mini_agent/runtime/session_read_model_builder.py src/mini_agent/runtime/session_persistence_record_builder.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
-  - `uv run pytest tests/test_interaction_surface.py tests/test_main_agent_gateway_use_cases.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_projection.py tests/test_tui_app.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_main_agent_surface_service.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_projection.py tests/test_tui_app.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - result: `ruff clean`, `65 passed`, `210 passed`
 - Result:
   - persisted-session restore/load now has dedicated builder/loader seams instead of living inline in the runtime manager and persistence wrapper
@@ -2010,9 +5010,9 @@
   - refresh sandbox diagnostics inside `_persist_session_unlocked(...)`
   - pass normalized sandbox diagnostics into persistence explicitly
 - Verification:
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_persistence_record_builder.py src/mini_agent/runtime/session_read_model_builder.py`
-  - `uv run pytest tests/test_interaction_surface.py tests/test_main_agent_gateway_use_cases.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_projection.py tests/test_tui_app.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_main_agent_surface_service.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_projection.py tests/test_tui_app.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - result: `65 passed`, `ruff clean`, `210 passed`
 - Result:
   - runtime persistence save is now closer to a pure storage boundary
@@ -2035,10 +5035,10 @@
   - runtime task-memory snapshotting
 - Reduced runtime-manager read-model methods to delegation shells instead of carrying the full builder bodies inline.
 - Verification:
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -q`
-  - `uv run pytest tests/test_interaction_surface.py tests/test_main_agent_gateway_use_cases.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_projection.py tests/test_tui_app.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py -q`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_main_agent_surface_service.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_projection.py tests/test_tui_app.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_read_model_builder.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - result: `61 passed`, `210 passed`, `ruff clean`, `65 passed`
 - Result:
   - `MainAgentRuntimeManager` is now less of a presenter/read-model assembler and more of a runtime coordinator
@@ -2062,14 +5062,14 @@
 - Migrated `ManagedSessionTurn` in `src/mini_agent/application/session_service.py` to the grouped session state model.
 - Updated focused runtime/gateway tests that intentionally inspect internal runtime session state.
 - Verification:
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -q`
-  - `uv run pytest tests/test_interaction_surface.py tests/test_main_agent_gateway_use_cases.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_projection.py tests/test_tui_app.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py -q`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_main_agent_surface_service.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_projection.py tests/test_tui_app.py -q`
   - `uv run pytest tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - result: `61 passed`, `206 passed`, `4 passed`
 - Result:
   - runtime session state now has explicit ownership buckets instead of one flat mixed bag
   - session-service/runtime-manager call paths now encode the intended boundary in data shape
-  - this reduces the next extraction cut to “move builders/services out�?rather than first rediscovering field ownership
+  - this reduces the next extraction cut to 閳ユ笗ove builders/services out閳?rather than first rediscovering field ownership
 
 - Started `P30.7a Session Projection Boundary Cleanup`.
 - Separated terminal presentation from shared session read models:
@@ -2081,7 +5081,7 @@
   - updated runtime manager detail builders to call `SessionDetailProjection.from_summary(...)`
 - Synced imports/exports so shared session projections no longer publicly expose the terminal-only presentation model.
 - Verification:
-  - `uv run pytest tests/test_interaction_surface.py tests/test_main_agent_gateway_use_cases.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_projection.py tests/test_tui_app.py -q`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_main_agent_surface_service.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_projection.py tests/test_tui_app.py -q`
   - result: `206 passed`
 - Result:
   - the shared session projection module is closer to a real transport/application boundary
@@ -2147,11 +5147,11 @@
   - `session/projection.py` still mixes transport read models with terminal-facing `TerminalSessionProjection`
   - both runtime manager and `session/projection.py` still use `summary.__dict__` to widen summary -> detail payloads
 - Conclusion from the scan:
-  - the TUI-style alias seam is gone, but the runtime layer still has a “wide state + duplicated projection builders + presentation mixing�?problem
+  - the TUI-style alias seam is gone, but the runtime layer still has a 閳ユ辅ide state + duplicated projection builders + presentation mixing閳?problem
   - the cleanest next cut is not another surface tweak; it is splitting runtime session state and extracting projection/persistence builders out of `MainAgentRuntimeManager`
 - Verification:
   - `uv run pytest tests/test_tui_app.py -q`
-  - `uv run pytest tests/test_interaction_surface.py tests/test_main_agent_gateway_use_cases.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py -q`
+  - `uv run pytest tests/test_interaction_surface.py tests/test_main_agent_surface_service.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py -q`
   - result: `107 passed`, `96 passed`
 
 - Started `P30.1 Code Guardrails - Four-Entrance Interaction Surface Contract`.
@@ -2174,7 +5174,7 @@
   - `tests/test_interaction_surface.py`
 - Verification:
   - `uv run pytest tests/test_interaction_surface.py -q`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py -q`
   - `uv run pytest tests/test_channel_ingress_gateway_walkthrough.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py -q`
   - result: `6 passed`, `61 passed`, `29 passed`
 
@@ -2284,7 +5284,7 @@
   - `uv run mini-agent --help`
   - `uv run pytest tests/test_markdown_links.py -q`
   - `uv run pytest tests/test_config_local_env.py tests/test_preset_providers.py -q`
-  - `uv run pytest tests/test_agent.py tests/test_llm.py tests/test_llm_clients.py tests/test_integration.py tests/test_mcp.py -q`
+  - `uv run pytest tests/test_agent_core_engine_live.py tests/test_llm.py tests/test_llm_clients.py tests/test_integration.py tests/test_mcp.py -q`
   - `uv run pytest tests/test_agent_core_kernel.py tests/test_security_policy.py tests/test_security_audit.py -q`
   - `uv run python scripts/test_stable.py`
   - result: help OK, `1 passed`, `8 passed`, `29 passed, 15 skipped`, `21 passed`, `819 passed, 32 deselected`
@@ -2528,7 +5528,7 @@
 - Verification:
   - `uv run pytest tests/test_session_remote_service.py tests/test_tui_app.py tests/test_session_service.py tests/test_interface_dto_contracts.py -q`
   - result: `117 passed`
-  - `uv run pytest tests/test_session_projection.py tests/test_session_remote_service.py tests/test_session_service.py tests/test_tui_app.py tests/test_tui_readiness_walkthroughs.py tests/test_command_catalog.py tests/test_command_router.py tests/test_shared_session_gateway_walkthrough.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_p19_runtime_matrix.py tests/test_interface_dto_contracts.py tests/test_main_agent_gateway_use_cases.py -q`
+  - `uv run pytest tests/test_session_projection.py tests/test_session_remote_service.py tests/test_session_service.py tests/test_tui_app.py tests/test_tui_readiness_walkthroughs.py tests/test_command_catalog.py tests/test_command_router.py tests/test_shared_session_gateway_walkthrough.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_p19_runtime_matrix.py tests/test_interface_dto_contracts.py tests/test_main_agent_surface_service.py -q`
   - result: `194 passed`
 - Boundary status after this cut:
   - `app.py` no longer directly mutates remote session state through raw gateway mutation calls
@@ -2554,9 +5554,9 @@
 - Added focused service regression coverage:
   - `tests/test_session_service.py`
 - Verification:
-  - `uv run pytest tests/test_session_service.py tests/test_main_agent_gateway_use_cases.py tests/test_interface_dto_contracts.py tests/test_tui_app.py tests/test_shared_session_gateway_walkthrough.py tests/test_channel_ingress_gateway_walkthrough.py -q`
+  - `uv run pytest tests/test_session_service.py tests/test_main_agent_surface_service.py tests/test_interface_dto_contracts.py tests/test_tui_app.py tests/test_shared_session_gateway_walkthrough.py tests/test_channel_ingress_gateway_walkthrough.py -q`
   - result: `179 passed`
-  - `uv run pytest tests/test_session_projection.py tests/test_session_service.py tests/test_tui_app.py tests/test_tui_readiness_walkthroughs.py tests/test_command_catalog.py tests/test_command_router.py tests/test_shared_session_gateway_walkthrough.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_p19_runtime_matrix.py tests/test_interface_dto_contracts.py tests/test_main_agent_gateway_use_cases.py -q`
+  - `uv run pytest tests/test_session_projection.py tests/test_session_service.py tests/test_tui_app.py tests/test_tui_readiness_walkthroughs.py tests/test_command_catalog.py tests/test_command_router.py tests/test_shared_session_gateway_walkthrough.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_p19_runtime_matrix.py tests/test_interface_dto_contracts.py tests/test_main_agent_surface_service.py -q`
   - result: `193 passed`
 
 - Landed the first P29 implementation slice: `P29.1a Shared Session Projection Seam`.
@@ -2572,9 +5572,9 @@
 - Added focused regression coverage:
   - `tests/test_session_projection.py`
 - Verification:
-  - `uv run pytest tests/test_session_projection.py tests/test_tui_app.py tests/test_interface_dto_contracts.py tests/test_main_agent_gateway_use_cases.py -q`
+  - `uv run pytest tests/test_session_projection.py tests/test_tui_app.py tests/test_interface_dto_contracts.py tests/test_main_agent_surface_service.py -q`
   - result: `178 passed`
-  - `uv run pytest tests/test_session_projection.py tests/test_tui_app.py tests/test_tui_readiness_walkthroughs.py tests/test_command_catalog.py tests/test_command_router.py tests/test_shared_session_gateway_walkthrough.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_p19_runtime_matrix.py tests/test_interface_dto_contracts.py tests/test_main_agent_gateway_use_cases.py -q`
+  - `uv run pytest tests/test_session_projection.py tests/test_tui_app.py tests/test_tui_readiness_walkthroughs.py tests/test_command_catalog.py tests/test_command_router.py tests/test_shared_session_gateway_walkthrough.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_p19_runtime_matrix.py tests/test_interface_dto_contracts.py tests/test_main_agent_surface_service.py -q`
   - result: `191 passed`
 - One projection-boundary regression surfaced during implementation:
   - persisted-record recovery assembly briefly mixed projection objects back into raw-approval recovery computation
@@ -2622,7 +5622,7 @@
   - fixed test isolation in `tests/conftest.py` by defaulting:
     - `MINI_AGENT_STUDIO_ENABLE_INSTANCE_LOCK=0`
   - re-verified:
-    - `uv run pytest tests/test_agent_studio_gateway_api_v1.py tests/test_agent_studio_gateway_integration_flows.py tests/test_agent_studio_gateway_studio_router.py -q`
+    - `uv run pytest tests/test_agent_studio_gateway_api_v1.py tests/test_agent_studio_gateway_integration_flows.py tests/test_agent_studio_gateway_ops_router.py -q`
     - result: `31 passed`
     - `uv run pytest -q`
     - result: `855 passed, 16 skipped`
@@ -2684,13 +5684,13 @@
 - Verification:
   - `uv run pytest tests/test_code_agent_sandbox.py tests/test_security_policy.py -q`
   - result: `20 passed`
-  - `uv run pytest tests/test_bash_tool.py tests/test_agent_execution_policy.py tests/test_code_agent_permissions.py tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_gateway_use_cases.py -q -k "sandbox or approval or bash or security or session or snapshot"`
+  - `uv run pytest tests/test_bash_tool.py tests/test_agent_core_execution_policy.py tests/test_code_agent_permissions.py tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_surface_service.py -q -k "sandbox or approval or bash or security or session or snapshot"`
   - result: `119 passed, 150 deselected`
   - `uv run pytest tests/test_command_catalog.py tests/test_interface_dto_contracts.py tests/test_cli_submission_loop.py -q`
   - result: `36 passed`
   - `uv run pytest tests/test_tui_app.py -q -k "sandbox or status_panel or prompt_input_slash_completer_suggests_command_candidates"`
   - result: `10 passed, 147 deselected`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -q -k "session or snapshot or model or mcp"`
+  - `uv run pytest tests/test_main_agent_surface_service.py -q -k "session or snapshot or model or mcp"`
   - result: `45 passed, 11 deselected`
 
 - Finalized the next Windows sandbox tightening step so the native restricted launch now also carries a low-integrity label:
@@ -2705,9 +5705,9 @@
 - Verification:
   - `uv run pytest tests/test_code_agent_sandbox.py tests/test_bash_tool.py -q`
   - result: `25 passed`
-  - `uv run pytest tests/test_security_policy.py tests/test_agent_execution_policy.py tests/test_code_agent_permissions.py -q`
+  - `uv run pytest tests/test_security_policy.py tests/test_agent_core_execution_policy.py tests/test_code_agent_permissions.py -q`
   - result: `26 passed`
-  - `uv run pytest tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_gateway_use_cases.py -q -k "approval or bash or security"`
+  - `uv run pytest tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_surface_service.py -q -k "approval or bash or security"`
   - result: `3 passed, 230 deselected`
 
 - Tightened the Windows restricted backend further on top of the native-launch baseline:
@@ -2724,9 +5724,9 @@
 - Verification:
   - `uv run pytest tests/test_code_agent_sandbox.py tests/test_bash_tool.py -q`
   - result: `25 passed`
-  - `uv run pytest tests/test_security_policy.py tests/test_agent_execution_policy.py tests/test_code_agent_permissions.py -q`
+  - `uv run pytest tests/test_security_policy.py tests/test_agent_core_execution_policy.py tests/test_code_agent_permissions.py -q`
   - result: `26 passed`
-  - `uv run pytest tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_gateway_use_cases.py -q -k "approval or bash or security"`
+  - `uv run pytest tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_surface_service.py -q -k "approval or bash or security"`
   - result: `3 passed, 230 deselected`
 
 - Closed the Windows native sandbox-launch slice so `windows_restricted_token` now maps to a real restricted child process instead of only transform metadata:
@@ -2745,9 +5745,9 @@
 - Verification:
   - `uv run pytest tests/test_code_agent_sandbox.py tests/test_bash_tool.py -q`
   - result: `24 passed`
-  - `uv run pytest tests/test_security_policy.py tests/test_agent_execution_policy.py tests/test_code_agent_permissions.py -q`
+  - `uv run pytest tests/test_security_policy.py tests/test_agent_core_execution_policy.py tests/test_code_agent_permissions.py -q`
   - result: `26 passed`
-  - `uv run pytest tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_gateway_use_cases.py -q -k "approval or bash or security"`
+  - `uv run pytest tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_surface_service.py -q -k "approval or bash or security"`
   - result: `3 passed, 230 deselected`
 
 - Closed the next sandbox approval slice so `auto-edit` is now tiered instead of uniformly strict:
@@ -2767,9 +5767,9 @@
   - `tool_exclude` precedence
   - unchanged `full-auto` behavior
 - Verification:
-  - `uv run pytest tests/test_security_policy.py tests/test_code_agent_permissions.py tests/test_agent_execution_policy.py tests/test_code_agent_tools.py -q`
+  - `uv run pytest tests/test_security_policy.py tests/test_code_agent_permissions.py tests/test_agent_core_execution_policy.py tests/test_code_agent_tools.py -q`
   - result: `36 passed`
-  - `uv run pytest tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_gateway_use_cases.py -q -k approval`
+  - `uv run pytest tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_surface_service.py -q -k approval`
   - result: `3 passed, 230 deselected`
   - `uv run pytest tests/test_security_audit.py tests/test_bash_tool.py tests/test_code_agent_sandbox.py -q`
   - result: `24 passed`
@@ -2785,9 +5785,9 @@
   - `full-auto` still allows mutations without confirmation
   - security-audit output now reports the live approval flow correctly
 - Verification:
-  - `uv run pytest tests/test_security_policy.py tests/test_security_audit.py tests/test_code_agent_permissions.py tests/test_agent_execution_policy.py -q`
+  - `uv run pytest tests/test_security_policy.py tests/test_security_audit.py tests/test_code_agent_permissions.py tests/test_agent_core_execution_policy.py -q`
   - result: `28 passed`
-  - `uv run pytest tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_gateway_use_cases.py -q -k approval`
+  - `uv run pytest tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_surface_service.py -q -k approval`
   - result: `3 passed, 230 deselected`
   - `uv run pytest tests/test_bash_tool.py tests/test_code_agent_sandbox.py -q`
   - result: `21 passed`
@@ -2798,13 +5798,13 @@
   - runtime sandbox wiring now accepts configured network policy (`network_mode`, `network_allow_domains`, `network_block_domains`) and passes it into the active sandbox manager
   - kernel-built agents now receive the runtime policy engine directly so approval and shell policy stay coordinated instead of drifting apart
 - Verification:
-  - `uv run pytest tests/test_file_tools_workspace_boundary.py tests/test_security_policy.py tests/test_agent_execution_policy.py tests/test_bash_tool.py tests/test_code_agent_sandbox.py tests/test_code_agent_permissions.py -q`
+  - `uv run pytest tests/test_file_tools_workspace_boundary.py tests/test_security_policy.py tests/test_agent_core_execution_policy.py tests/test_bash_tool.py tests/test_code_agent_sandbox.py tests/test_code_agent_permissions.py -q`
   - result: `47 passed`
-  - `uv run pytest tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_gateway_use_cases.py -q -k "approval or security or bash"`
+  - `uv run pytest tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_surface_service.py -q -k "approval or security or bash"`
   - result: `3 passed, 230 deselected`
   - `uv run pytest tests/test_config_local_env.py tests/test_single_instance.py tests/test_cli_stack_command.py tests/test_provider_config.py -q`
   - result: `23 passed`
-  - `uv run pytest tests/test_agent_core_kernel.py tests/test_agent.py tests/test_security_audit.py -q`
+  - `uv run pytest tests/test_agent_core_kernel.py tests/test_agent_core_engine_live.py tests/test_security_audit.py -q`
   - result: `8 passed, 2 skipped`
 
 - Closed the next skill lifecycle slice so workspace skills now support a full operator/agent loop instead of install-only:
@@ -2826,7 +5826,7 @@
 - Verification:
   - `uv run pytest tests/test_skill_tool.py tests/test_agent_core_skills.py tests/test_code_agent_tools.py tests/test_command_catalog.py -q`
   - result: `40 passed`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py -q -k "skill or rollback or uninstall or ledger"`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py -q -k "skill or rollback or uninstall or ledger"`
   - result: `31 passed, 199 deselected`
 
 - Landed the next skill-installation slice so agent-side skill installation is no longer limited to inline-authored `SKILL.md` content:
@@ -2839,7 +5839,7 @@
 - Verification:
   - `uv run pytest tests/test_skill_tool.py tests/test_agent_core_skills.py tests/test_code_agent_tools.py -q`
   - result: `28 passed`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py -q -k "skill or ledger"`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py -q -k "skill or ledger"`
   - result: `31 passed, 199 deselected`
 
 - Closed the P28 real-use skill-trigger validation slice instead of stopping at static matching:
@@ -2858,7 +5858,7 @@
     - `minimax-music-playlist`: `get_skill(minimax-music-playlist)` called
     - summary: `4/4` expected skills loaded in real model turns
 - Verification:
-  - `uv run pytest tests/test_agent_core_skills.py tests/test_skill_tool.py tests/test_agent_turn_context.py -q`
+  - `uv run pytest tests/test_agent_core_skills.py tests/test_skill_tool.py tests/test_agent_core_turn_context.py -q`
   - result: `44 passed`
   - `uv run python scripts/skill_live_probe.py`
   - result: `4/4` live expected-skill matches
@@ -2959,7 +5959,7 @@
     are both discoverable
 - Added a real trigger-audit seam for bundled skills instead of relying on subjective prompt reading:
   - added `scripts/skill_trigger_audit.py` to audit builtin skill matching against representative prompts
-  - added repo-level trigger coverage in `tests/test_agent_turn_context.py` for key Chinese prompts
+  - added repo-level trigger coverage in `tests/test_agent_core_turn_context.py` for key Chinese prompts
 - Tightened skill triggering for real Chinese operator usage:
   - `SkillTier1Metadata` now preserves skill frontmatter metadata into tier-1 discovery
   - skill ranking now considers curated metadata fields such as `trigger_keywords`, `trigger_phrases`, `aliases`, `keywords`, and `tags`
@@ -2969,7 +5969,7 @@
 - Verification:
   - `uv run python scripts/skill_trigger_audit.py`
   - result: `TOTAL_MISS=0`
-  - `uv run pytest tests/test_agent_turn_context.py tests/test_agent_core_skills.py tests/test_skill_loader.py tests/test_skill_tool.py -q`
+  - `uv run pytest tests/test_agent_core_turn_context.py tests/test_agent_core_skills.py tests/test_skill_loader.py tests/test_skill_tool.py -q`
   - result: `51 passed`
 
 - Refined the active MCP boundary again to match the current real-use target:
@@ -3032,10 +6032,10 @@
   - `runtime.tooling` now lazily imports `WorkspaceSkillPolicyStore` inside `build_turn_context_providers(...)`
   - this removes a circular import path that surfaced during isolated runtime/turn-context test collection
 - Verification:
-  - `uv run python -m compileall src/mini_agent/tools/mcp/naming.py src/mini_agent/tools/mcp/executor.py src/mini_agent/tools/mcp/registry.py src/mini_agent/code_agent/mcp_tools.py src/mini_agent/commands/mcp_support.py src/mini_agent/turn_context.py src/mini_agent/runtime/tooling.py tests/test_mcp_policy.py tests/test_mcp_support.py tests/test_agent_turn_context.py tests/test_mcp.py`
-  - `uv run pytest tests/test_mcp_policy.py tests/test_mcp_support.py tests/test_agent_turn_context.py tests/test_code_agent_mcp_client.py tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_command_catalog.py tests/test_mcp.py -q -m "not integration"`
+  - `uv run python -m compileall src/mini_agent/tools/mcp/naming.py src/mini_agent/tools/mcp/executor.py src/mini_agent/tools/mcp/registry.py src/mini_agent/code_agent/mcp_tools.py src/mini_agent/commands/mcp_support.py src/mini_agent/agent_core/context/turn_context.py src/mini_agent/runtime/tooling.py tests/test_mcp_policy.py tests/test_mcp_support.py tests/test_agent_core_turn_context.py tests/test_mcp.py`
+  - `uv run pytest tests/test_mcp_policy.py tests/test_mcp_support.py tests/test_agent_core_turn_context.py tests/test_code_agent_mcp_client.py tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_command_catalog.py tests/test_mcp.py -q -m "not integration"`
   - result: `238 passed, 6 deselected`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -q -k "mcp or control_session"`
+  - `uv run pytest tests/test_main_agent_surface_service.py -q -k "mcp or control_session"`
   - result: `6 passed, 50 deselected`
   - `uv run pytest tests/test_agent_studio_gateway_api_v1.py -q -k "mcp or control"`
   - result: `1 passed, 18 deselected`
@@ -3053,7 +6053,7 @@
   - installed skills now auto-activate in workspace policy and trigger the existing skill-runtime reload path
   - Windows-style absolute path handling for `/skill install ...` now preserves raw command tails instead of mangling backslashes through command tokenization
 - Verification:
-  - `uv run pytest tests/test_skill_tool.py tests/test_agent_core_skills.py tests/test_command_catalog.py tests/test_interface_dto_contracts.py tests/test_code_agent_tools.py tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py tests/test_tui_app.py -q`
+  - `uv run pytest tests/test_skill_tool.py tests/test_agent_core_skills.py tests/test_command_catalog.py tests/test_interface_dto_contracts.py tests/test_code_agent_tools.py tests/test_main_agent_surface_service.py tests/test_agent_studio_gateway_api_v1.py tests/test_tui_app.py -q`
   - result: `259 passed`
 - Moved the active top-level target into a demo-baseline stage:
   - the immediate goal is now one coherent "basic capabilities" demo path instead of opening another broad subsystem track
@@ -3075,13 +6075,13 @@
   - Mini-Agent does not yet provide a finished "agent installs a skill by itself" workflow
   - current remote-skill support is transient loader registration, not a persisted install pipeline
 - Verification:
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_interface_dto_contracts.py tests/test_tui_app.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_interface_dto_contracts.py tests/test_tui_app.py -q`
   - result: `209 passed`
-  - `uv run pytest tests/test_command_catalog.py tests/test_cli_submission_loop.py tests/test_agent_studio_gateway_api_v1.py tests/test_agent_turn_context.py tests/test_agent_core_kernel.py tests/test_skill_tool.py tests/test_agent_core_skills.py -q`
+  - `uv run pytest tests/test_command_catalog.py tests/test_cli_submission_loop.py tests/test_agent_studio_gateway_api_v1.py tests/test_agent_core_turn_context.py tests/test_agent_core_kernel.py tests/test_skill_tool.py tests/test_agent_core_skills.py -q`
   - result: `81 passed`
   - `uv run pytest tests/test_tui_app.py -q`
   - result: `150 passed`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_interface_dto_contracts.py tests/test_command_catalog.py tests/test_cli_submission_loop.py tests/test_agent_studio_gateway_api_v1.py tests/test_agent_turn_context.py tests/test_agent_core_kernel.py tests/test_skill_tool.py tests/test_agent_core_skills.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_interface_dto_contracts.py tests/test_command_catalog.py tests/test_cli_submission_loop.py tests/test_agent_studio_gateway_api_v1.py tests/test_agent_core_turn_context.py tests/test_agent_core_kernel.py tests/test_skill_tool.py tests/test_agent_core_skills.py -q`
   - result: `142 passed`
   - `node --check src/apps/qqbot_channel/bot.mjs`
 
@@ -3109,8 +6109,8 @@
   - TUI clear/delete not preserving stale local resume/runtime state
   - CLI `/clear` clearing runtime task memory
 - Verification:
-  - `uv run python -m compileall src/mini_agent/memory/memoria_runtime.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/tui/app.py src/mini_agent/cli_interactive.py tests/test_memoria_runtime.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_cli_submission_loop.py`
-  - `uv run pytest tests/test_memoria_runtime.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_cli_submission_loop.py -q`
+  - `uv run python -m compileall src/mini_agent/memory/memoria_runtime.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/tui/app.py src/mini_agent/cli_interactive.py tests/test_memoria_runtime.py tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_cli_submission_loop.py`
+  - `uv run pytest tests/test_memoria_runtime.py tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_cli_submission_loop.py -q`
   - result: `171 passed`
 - Completed the P26.8 snapshot/import/export runtime-memory parity slice:
   - session snapshot/import DTOs now carry a dedicated `runtime_task_memory_payload`
@@ -3128,8 +6128,8 @@
   - TUI unshare restoring runtime task memory locally
   - API/DTO contract exposure of the new snapshot field
 - Verification:
-  - `uv run python -m compileall src/mini_agent/interfaces/agent.py src/mini_agent/memory/memoria_runtime.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/tui/app.py tests/test_memoria_runtime.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py`
-  - `uv run pytest tests/test_memoria_runtime.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py -q`
+  - `uv run python -m compileall src/mini_agent/interfaces/agent.py src/mini_agent/memory/memoria_runtime.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/tui/app.py tests/test_memoria_runtime.py tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py`
+  - `uv run pytest tests/test_memoria_runtime.py tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py -q`
   - result: `181 passed`
 - Completed the P26.9 workspace-shared runtime-memory portability slice:
   - session snapshot/import DTOs now also carry `workspace_shared_runtime_memory_payload`
@@ -3145,8 +6145,8 @@
   - TUI unshare restoring workspace-shared runtime memory locally
   - API/DTO contract exposure of the new workspace-shared snapshot field
 - Verification:
-  - `uv run python -m compileall src/mini_agent/interfaces/agent.py src/mini_agent/memory/memoria_runtime.py src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/tui/app.py tests/test_memoria_runtime.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py`
-  - `uv run pytest tests/test_memoria_runtime.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py -q`
+  - `uv run python -m compileall src/mini_agent/interfaces/agent.py src/mini_agent/memory/memoria_runtime.py src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/tui/app.py tests/test_memoria_runtime.py tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py`
+  - `uv run pytest tests/test_memoria_runtime.py tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py -q`
   - result: `186 passed`
 - Completed the P26.10 workspace-shared boundary / promotion-policy slice:
   - runtime writeback still defaults to `session:<id>` and no longer risks accidental silent shared writes
@@ -3161,8 +6161,8 @@
   - TUI local `/memory promote shared latest`
   - CLI interactive `/memory promote shared 1`
 - Verification:
-  - `uv run python -m compileall src/mini_agent/memory/promotion.py src/mini_agent/memory/runtime_task_memory.py src/mini_agent/memory/memoria_runtime.py src/mini_agent/memory/diagnostics.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py tests/test_memoria_runtime.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_cli_submission_loop.py`
-  - `uv run pytest tests/test_memoria_runtime.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py -q`
+  - `uv run python -m compileall src/mini_agent/memory/promotion.py src/mini_agent/memory/runtime_task_memory.py src/mini_agent/memory/memoria_runtime.py src/mini_agent/memory/diagnostics.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py tests/test_memoria_runtime.py tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_cli_submission_loop.py`
+  - `uv run pytest tests/test_memoria_runtime.py tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py -q`
   - `node --check src/apps/qqbot_channel/bot.mjs`
   - result: `206 passed`
 - Completed the P26.11 workspace-shared retrieval-boundary slice:
@@ -3174,8 +6174,8 @@
   - suppressing shared hits when session-local hits are already sufficient
   - including shared hits as fallback when session-local hits are insufficient
 - Verification:
-  - `uv run python -m compileall src/mini_agent/memory/promotion.py src/mini_agent/turn_context.py tests/test_memoria_runtime.py`
-  - `uv run pytest tests/test_memoria_runtime.py tests/test_agent_turn_context.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_cli_submission_loop.py -q`
+  - `uv run python -m compileall src/mini_agent/memory/promotion.py src/mini_agent/agent_core/context/turn_context.py tests/test_memoria_runtime.py`
+  - `uv run pytest tests/test_memoria_runtime.py tests/test_agent_core_turn_context.py tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_cli_submission_loop.py -q`
   - result: `204 passed`
 
 - Completed the next memory operator-ergonomics slice:
@@ -3200,7 +6200,7 @@
   - CLI interactive promote/save commands
   - DTO contract updates for shared-session memory requests
 - Verification:
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_interface_dto_contracts.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_interface_dto_contracts.py tests/test_agent_studio_gateway_api_v1.py -q`
   - inline `compileall` verification for the touched memory/runtime/TUI/CLI modules
 
 ## 2026-04-08
@@ -3292,7 +6292,7 @@
   - prevents `Down` from getting stuck because of stale viewport state while preserving normal live-mode behavior
 - Updated QQ shared-session list labels so shared TUI titles can show up when available.
 - Added verification coverage:
-  - `pytest tests/test_main_agent_gateway_use_cases.py -q`
+  - `pytest tests/test_main_agent_surface_service.py -q`
   - `pytest tests/test_tui_app.py -q`
   - `pytest tests/test_agent_studio_gateway_api_v1.py -q`
   - `python -m compileall ...` for touched Python modules
@@ -3319,7 +6319,7 @@
   - headless mode auto-denies approval-gated calls instead of hanging forever
   - TUI now tracks pending approvals, shows approval state in status/activity, and supports `/approve [token]` and `/deny [token]`
 - Added verification coverage for the new approval chain:
-  - `pytest tests/test_agent_execution_policy.py tests/test_code_agent_loop.py tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_agent_core_kernel.py -q`
+  - `pytest tests/test_agent_core_execution_policy.py tests/test_code_agent_loop.py tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_agent_core_kernel.py -q`
   - `pytest tests/test_code_agent_permissions.py tests/test_security_policy.py -q`
 - Landed the next `agent-core` hardening slice:
   - `BashTool` now applies real `SandboxManager.transform()` output before execution
@@ -3332,8 +6332,8 @@
   - compact/drop failures are reported as loop events instead of crashing the worker
 - Added verification coverage for the sandbox + compaction slice:
   - `pytest tests/test_bash_tool.py tests/test_security_policy.py tests/test_code_agent_loop.py tests/test_agent_core_kernel.py -q`
-  - `pytest tests/test_agent_execution_policy.py tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_code_agent_context_compaction.py tests/test_code_agent_sandbox.py tests/test_code_agent_loop.py tests/test_agent_core_kernel.py tests/test_bash_tool.py tests/test_security_policy.py -q`
-  - `python -m compileall src/mini_agent/agent.py src/mini_agent/tools/bash_tool.py src/mini_agent/runtime/tooling.py src/mini_agent/code_agent/agent_loop.py src/mini_agent/agent_core/kernel.py`
+  - `pytest tests/test_agent_core_execution_policy.py tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_code_agent_context_compaction.py tests/test_code_agent_sandbox.py tests/test_code_agent_loop.py tests/test_agent_core_kernel.py tests/test_bash_tool.py tests/test_security_policy.py -q`
+  - `python -m compileall src/mini_agent/agent_core/engine.py src/mini_agent/tools/bash_tool.py src/mini_agent/runtime/tooling.py src/mini_agent/code_agent/agent_loop.py src/mini_agent/agent_core/kernel.py`
 - Exposed the new core context controls to user-facing surfaces:
   - CLI interactive now supports `/compact [reason]` and `/drop_memories [reason]`
   - TUI command palette now supports `compact` / `drop_memories` and `drop-memories`
@@ -3349,7 +6349,7 @@
   - `pytest tests/test_code_agent_loop.py tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_bash_tool.py tests/test_security_policy.py tests/test_agent_core_kernel.py -q`
   - `python -m compileall src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py src/mini_agent/code_agent/agent_loop.py src/mini_agent/code_agent/__init__.py`
 - Added verification coverage for the shared-session control slice:
-  - `pytest tests/test_interface_dto_contracts.py tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py tests/test_tui_app.py -q`
+  - `pytest tests/test_interface_dto_contracts.py tests/test_main_agent_surface_service.py tests/test_agent_studio_gateway_api_v1.py tests/test_tui_app.py -q`
   - `python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/application/main_agent_gateway_use_cases.py src/apps/agent_studio_gateway/main.py src/mini_agent/tui/gateway_client.py src/mini_agent/tui/app.py`
   - `npm run check` in `src/apps/qqbot_channel`
 - Hardened terminal real-use gate semantics:
@@ -3379,7 +6379,7 @@
   - `python scripts/tui_manual_checklist.py`
   - `python scripts/tui_interaction_walkthrough.py`
   - `python scripts/terminal_readiness_gate.py --run-live-headless --skip-full-tests --skip-baseline`
-  - `python -m pytest tests/test_agent_core_kernel.py tests/test_code_agent_minimal_workflow.py tests/test_cli_unified_mode.py tests/test_cli_submission_loop.py tests/test_terminal_readiness_gate.py tests/test_tui_readiness_walkthroughs.py tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py -q`
+  - `python -m pytest tests/test_agent_core_kernel.py tests/test_code_agent_minimal_workflow.py tests/test_cli_unified_mode.py tests/test_cli_submission_loop.py tests/test_terminal_readiness_gate.py tests/test_tui_readiness_walkthroughs.py tests/test_tui_app.py tests/test_main_agent_surface_service.py -q`
 - Completed the next `agent-core` shared-session readiness slice:
   - added `scripts/shared_session_gateway_walkthrough.py` to validate gateway-managed shared sessions without requiring a live QQ login
   - scripted shared-session walkthrough now covers qq-origin metadata, remote activity transcript visibility, TUI takeover, shared context controls, remote cancel, TUI import/export roundtrip, and restart persistence
@@ -3389,7 +6389,7 @@
 - Added verification coverage for the shared-session readiness slice:
   - `pytest tests/test_shared_session_gateway_walkthrough.py tests/test_terminal_readiness_gate.py -q`
   - `python scripts/shared_session_gateway_walkthrough.py`
-  - `python -m pytest tests/test_agent_core_kernel.py tests/test_code_agent_minimal_workflow.py tests/test_cli_unified_mode.py tests/test_cli_submission_loop.py tests/test_shared_session_gateway_walkthrough.py tests/test_terminal_readiness_gate.py tests/test_tui_readiness_walkthroughs.py tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py -q`
+  - `python -m pytest tests/test_agent_core_kernel.py tests/test_code_agent_minimal_workflow.py tests/test_cli_unified_mode.py tests/test_cli_submission_loop.py tests/test_shared_session_gateway_walkthrough.py tests/test_terminal_readiness_gate.py tests/test_tui_readiness_walkthroughs.py tests/test_tui_app.py tests/test_main_agent_surface_service.py -q`
   - `python scripts/terminal_readiness_gate.py --run-live-headless --skip-full-tests --skip-baseline`
 - Completed the next `agent-core` channel-ingress readiness slice:
   - added `scripts/channel_ingress_gateway_walkthrough.py` to exercise the real `ChannelIngressUseCases -> MainAgentGatewayUseCases -> MainAgentRuntimeManager` chain without a live QQ login
@@ -3407,7 +6407,7 @@
   - QQ bot `/status` and `/continue` now consume the shared-session recovery snapshot instead of dumping only raw recent messages
   - `scripts/shared_session_gateway_walkthrough.py` now covers restart-time interrupted recovery snapshots in addition to normal restart persistence
 - Added verification coverage for the remote-recovery slice:
-  - `pytest tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py tests/test_shared_session_gateway_walkthrough.py tests/test_interface_dto_contracts.py -q`
+  - `pytest tests/test_tui_app.py tests/test_main_agent_surface_service.py tests/test_shared_session_gateway_walkthrough.py tests/test_interface_dto_contracts.py -q`
   - `python scripts/shared_session_gateway_walkthrough.py`
   - `python scripts/terminal_readiness_gate.py --skip-full-tests --skip-baseline`
   - `node --check src/apps/qqbot_channel/bot.mjs`
@@ -3439,10 +6439,10 @@
   - fresh consolidated memory correctly no-ops
   - raw `knowledge_base_query` payloads are not copied into `MEMORY.md`
 - Verification:
-  - `uv run pytest tests/test_memory_consolidation.py tests/test_memory_service.py tests/test_agent_turn_context.py -q`
-  - `uv run pytest tests/test_memory_relevance.py tests/test_memory_automation.py tests/test_agent_core_kernel.py tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - `uv run pytest tests/test_memory_consolidation.py tests/test_memory_service.py tests/test_agent_core_turn_context.py -q`
+  - `uv run pytest tests/test_memory_relevance.py tests/test_memory_automation.py tests/test_agent_core_kernel.py tests/test_main_agent_surface_service.py tests/test_agent_studio_gateway_api_v1.py -q`
   - `uv run pytest tests/test_session_search.py tests/test_memory_relevance.py tests/test_session_store_persistence.py -q`
-  - `uv run python -m compileall src/mini_agent/memory/consolidation.py src/mini_agent/memory/consolidation_scheduler.py src/mini_agent/memory/consolidation_phase1.py src/mini_agent/memory/promotion.py src/mini_agent/memory/service.py src/mini_agent/turn_context.py src/mini_agent/runtime/tooling.py src/mini_agent/session/persistence.py`
+  - `uv run python -m compileall src/mini_agent/memory/consolidation.py src/mini_agent/memory/consolidation_scheduler.py src/mini_agent/memory/consolidation_phase1.py src/mini_agent/memory/promotion.py src/mini_agent/memory/service.py src/mini_agent/agent_core/context/turn_context.py src/mini_agent/runtime/tooling.py src/mini_agent/session/persistence.py`
 - Completed the P26 persisted runtime task-memory slice:
   - `MemoriaEngine` now has a persisted workspace runtime wrapper instead of remaining process-local only
   - runtime task memory is stored per workspace anchor under `~/.mini-agent/state/workspaces/<hash>/memoria/...`
@@ -3457,9 +6457,9 @@
   - per-turn writeback
   - promotion into workspace durable notes and global profile memory
 - Verification:
-  - `uv run pytest tests/test_memoria_runtime.py tests/test_memory_core_baseline.py tests/test_agent_turn_context.py tests/test_agent_core_kernel.py -q`
-  - `uv run pytest tests/test_memory_service.py tests/test_memory_consolidation.py tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py -q`
-  - `pytest tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - `uv run pytest tests/test_memoria_runtime.py tests/test_memory_core_baseline.py tests/test_agent_core_turn_context.py tests/test_agent_core_kernel.py -q`
+  - `uv run pytest tests/test_memory_service.py tests/test_memory_consolidation.py tests/test_main_agent_surface_service.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - `pytest tests/test_main_agent_surface_service.py tests/test_agent_studio_gateway_api_v1.py -q`
   - `pytest tests/test_tui_app.py -q`
 - Completed the P26 operator-facing memory diagnostics/control slice:
   - runtime/gateway session summaries/details/snapshots now include shared `memory_diagnostics`
@@ -3472,8 +6472,8 @@
   - TUI local and remote `/memory` commands
   - CLI `/memory show`
 - Verification:
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py tests/test_tui_app.py tests/test_cli_submission_loop.py -q`
-  - `uv run pytest tests/test_memoria_runtime.py tests/test_memory_service.py tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_interface_dto_contracts.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_agent_studio_gateway_api_v1.py tests/test_tui_app.py tests/test_cli_submission_loop.py -q`
+  - `uv run pytest tests/test_memoria_runtime.py tests/test_memory_service.py tests/test_main_agent_surface_service.py tests/test_agent_studio_gateway_api_v1.py tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_interface_dto_contracts.py -q`
   - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/application/main_agent_gateway_use_cases.py src/apps/agent_studio_gateway/main.py src/mini_agent/tui/gateway_client.py src/mini_agent/tui/app.py src/mini_agent/cli_interactive.py`
   - `node --check src/apps/qqbot_channel/bot.mjs`
 - Completed the next `agent-core` recovery/tool-state slice:
@@ -3495,17 +6495,17 @@
   - gateway direct-turn execution now passes the same turn context shape as the local scheduler path
   - kernel wiring now has a first concrete provider: workspace memory retrieval via note/memory files
 - Added focused verification coverage for the turn-context slice:
-  - `pytest tests/test_agent_turn_context.py tests/test_agent_execution_policy.py tests/test_code_agent_loop.py tests/test_cli_submission_loop.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_core_kernel.py -q`
-  - `python -m compileall src/mini_agent/agent.py src/mini_agent/turn_context.py src/mini_agent/runtime/tooling.py src/mini_agent/agent_core/kernel.py src/mini_agent/code_agent/scheduler.py src/mini_agent/code_agent/agent_loop.py src/mini_agent/application/main_agent_gateway_use_cases.py`
+  - `pytest tests/test_agent_core_turn_context.py tests/test_agent_core_execution_policy.py tests/test_code_agent_loop.py tests/test_cli_submission_loop.py tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_core_kernel.py -q`
+  - `python -m compileall src/mini_agent/agent_core/engine.py src/mini_agent/agent_core/context/turn_context.py src/mini_agent/runtime/tooling.py src/mini_agent/agent_core/kernel.py src/mini_agent/code_agent/scheduler.py src/mini_agent/code_agent/agent_loop.py src/mini_agent/application/main_agent_gateway_use_cases.py`
 - Completed the next `agent-core` knowledge-base provider slice on top of the same turn-context seam:
   - added `KnowledgeBaseTurnContextProvider` to reuse the existing `HybridSearchStore` and `rewrite_query(...)` path instead of building a parallel retriever
   - runtime turn-context wiring now includes both workspace memory and knowledge-base retrieval providers
   - knowledge-base turn context supports metadata-driven `knowledge_base_id`, follow-up query rewrite from recent conversation lines, and router-compatible store path fallback
   - provider remains safely no-op when no knowledge-base store exists, so the seam can stay always attached without breaking local runtimes
 - Added focused verification coverage for the knowledge-base turn-context slice:
-  - `pytest tests/test_agent_turn_context.py -q`
-  - `pytest tests/test_code_agent_loop.py tests/test_agent_execution_policy.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_core_kernel.py tests/test_cli_submission_loop.py -q`
-  - `python -m compileall src/mini_agent/turn_context.py src/mini_agent/runtime/tooling.py src/mini_agent/agent_core/__init__.py tests/test_agent_turn_context.py`
+  - `pytest tests/test_agent_core_turn_context.py -q`
+  - `pytest tests/test_code_agent_loop.py tests/test_agent_core_execution_policy.py tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_core_kernel.py tests/test_cli_submission_loop.py -q`
+  - `python -m compileall src/mini_agent/agent_core/context/turn_context.py src/mini_agent/runtime/tooling.py src/mini_agent/agent_core/__init__.py tests/test_agent_core_turn_context.py`
 - Completed the next `agent-core` operator-facing prepared-context slice:
   - added shared prepared-context display helpers on top of the existing turn-context summary payload
   - CLI now prints compact prepared-context summaries and item previews from `loop.turn.completed`
@@ -3513,8 +6513,8 @@
   - prepared-context transcript entries stay hidden from `Threads`, so operator visibility improved without polluting thread previews
   - TUI session persistence now keeps the latest prepared-context summary across restart
 - Added focused verification coverage for the operator-facing prepared-context slice:
-  - `pytest tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_agent_turn_context.py tests/test_code_agent_loop.py -q`
-  - `python -m compileall src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py src/mini_agent/turn_context.py tests/test_cli_submission_loop.py tests/test_tui_app.py`
+  - `pytest tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_agent_core_turn_context.py tests/test_code_agent_loop.py -q`
+  - `python -m compileall src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py src/mini_agent/agent_core/context/turn_context.py tests/test_cli_submission_loop.py tests/test_tui_app.py`
 - Completed the next `agent-core` additional-provider slice on top of the same turn-context seam:
   - added `ConsolidatedMemoryTurnContextProvider` by reusing `ConsolidatedMemoryRelevanceRetriever` instead of building a second memory-retrieval path
   - added `SkillCatalogTurnContextProvider` by reusing `AgentSkillLoader` and surfacing lightweight relevant-skill hints per turn
@@ -3522,10 +6522,10 @@
   - runtime turn-context wiring now includes workspace memory, consolidated memory, knowledge-base retrieval, skill hints, and MCP capability hints behind the same `prepared_context` summary path
   - unified builtin-skills directory resolution so shared tools and turn-context skills discovery cannot silently drift onto different skill roots
 - Added focused verification coverage for the additional-provider slice:
-  - `pytest tests/test_agent_turn_context.py -q`
+  - `pytest tests/test_agent_core_turn_context.py -q`
   - `pytest tests/test_code_agent_loop.py tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_agent_core_kernel.py -q`
   - `pytest tests/test_agent_core_skills.py tests/test_mcp_policy.py -q`
-  - `python -m compileall src/mini_agent/turn_context.py src/mini_agent/runtime/tooling.py src/mini_agent/agent_core/__init__.py tests/test_agent_turn_context.py`
+  - `python -m compileall src/mini_agent/agent_core/context/turn_context.py src/mini_agent/runtime/tooling.py src/mini_agent/agent_core/__init__.py tests/test_agent_core_turn_context.py`
 - Completed the next `agent-core` provider-quality slice:
   - added centralized prepared-context curation before prompt injection
   - cross-provider duplicates now collapse to the higher-priority source instead of blindly stacking the same context twice
@@ -3533,9 +6533,9 @@
   - curation statistics (`raw_item_count`, duplicate drops, budget drops) now ride on the existing `prepared_context` summary payload instead of creating a second reporting path
   - operator-facing summary/detail rendering now reports when context was curated or trimmed
 - Added focused verification coverage for the provider-quality slice:
-  - `pytest tests/test_agent_turn_context.py tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_code_agent_loop.py -q`
-  - `pytest tests/test_agent_core_kernel.py tests/test_agent_execution_policy.py tests/test_agent_core_skills.py tests/test_mcp_policy.py -q`
-  - `python -m compileall src/mini_agent/turn_context.py src/mini_agent/agent.py tests/test_agent_turn_context.py`
+  - `pytest tests/test_agent_core_turn_context.py tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_code_agent_loop.py -q`
+  - `pytest tests/test_agent_core_kernel.py tests/test_agent_core_execution_policy.py tests/test_agent_core_skills.py tests/test_mcp_policy.py -q`
+  - `python -m compileall src/mini_agent/agent_core/context/turn_context.py src/mini_agent/agent_core/engine.py tests/test_agent_core_turn_context.py`
 - Completed the next `agent-core` provider-readiness and operator-policy slice:
   - providers can now expose readiness state before turn preparation instead of silently no-oping
   - prepared-context summaries now carry provider statuses such as `used / no_match / filtered / unavailable / failed`
@@ -3544,9 +6544,9 @@
   - CLI interactive mode now exposes the same `/context ...` policy controls and applies them to subsequent turns/workflows
   - TUI status panel now shows the active context-policy summary alongside the last prepared-context summary
 - Added focused verification coverage for the provider-readiness/operator-policy slice:
-  - `pytest tests/test_agent_turn_context.py tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_code_agent_loop.py -q`
-  - `pytest tests/test_agent_core_kernel.py tests/test_agent_execution_policy.py tests/test_agent_core_skills.py tests/test_mcp_policy.py -q`
-  - `python -m compileall src/mini_agent/turn_context.py src/mini_agent/agent.py src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py tests/test_agent_turn_context.py tests/test_cli_submission_loop.py tests/test_tui_app.py`
+  - `pytest tests/test_agent_core_turn_context.py tests/test_cli_submission_loop.py tests/test_tui_app.py tests/test_code_agent_loop.py -q`
+  - `pytest tests/test_agent_core_kernel.py tests/test_agent_core_execution_policy.py tests/test_agent_core_skills.py tests/test_mcp_policy.py -q`
+  - `python -m compileall src/mini_agent/agent_core/context/turn_context.py src/mini_agent/agent_core/engine.py src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py tests/test_agent_core_turn_context.py tests/test_cli_submission_loop.py tests/test_tui_app.py`
 - Completed the next `agent-core` provider-tuning and runtime-diagnostics slice:
   - prepared-context curation now uses both source weight and provider-local relevance metadata instead of relying on fixed source priority alone
   - CLI/TUI prepared-context detail rendering now explains why an item won with `item-relevance`, `provider-weight`, `priority`, and `final-selection`
@@ -3556,10 +6556,10 @@
   - CLI and TUI now expose `/context stats`, and TUI persists diagnostics per session across restart
   - lifecycle/reset paths now clear prepared-context diagnostics along with transient prepared-context state so fresh sessions do not inherit stale operator stats
 - Added focused verification coverage for the provider-tuning/runtime-diagnostics slice:
-  - `pytest tests/test_agent_turn_context.py tests/test_code_agent_loop.py tests/test_cli_submission_loop.py tests/test_tui_app.py -q`
-  - `pytest tests/test_agent_core_kernel.py tests/test_agent_execution_policy.py tests/test_agent_core_skills.py tests/test_mcp_policy.py -q`
-  - `pytest tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py -q`
-  - `python -m compileall src/mini_agent/turn_context.py src/mini_agent/agent.py src/mini_agent/code_agent/agent_loop.py src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py tests/test_agent_turn_context.py tests/test_code_agent_loop.py tests/test_cli_submission_loop.py tests/test_tui_app.py`
+  - `pytest tests/test_agent_core_turn_context.py tests/test_code_agent_loop.py tests/test_cli_submission_loop.py tests/test_tui_app.py -q`
+  - `pytest tests/test_agent_core_kernel.py tests/test_agent_core_execution_policy.py tests/test_agent_core_skills.py tests/test_mcp_policy.py -q`
+  - `pytest tests/test_main_agent_surface_service.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - `python -m compileall src/mini_agent/agent_core/context/turn_context.py src/mini_agent/agent_core/engine.py src/mini_agent/code_agent/agent_loop.py src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py tests/test_agent_core_turn_context.py tests/test_code_agent_loop.py tests/test_cli_submission_loop.py tests/test_tui_app.py`
 - Completed the next `agent-core` remote-operator control slice on top of the existing shared-session runtime:
   - gateway-managed shared sessions now attach a real `tool_approval_handler` instead of bypassing live approval waits
   - shared-session summaries/details now expose live `pending_approvals`, and recovery snapshots preserve interrupted approvals after restart
@@ -3568,7 +6568,7 @@
   - QQ bot now supports `/approve [token]` and `/deny [token]`, and `/status` / `/continue` surface live-or-lost approval state
   - remote `/cancel` now also resolves pending approval waiters so approval-time turns do not hang forever
 - Added focused verification coverage for the remote-approval slice:
-  - `pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py -q`
+  - `pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py -q`
   - `pytest tests/test_shared_session_gateway_walkthrough.py -q`
   - `python scripts/shared_session_gateway_walkthrough.py`
   - `python scripts/terminal_readiness_gate.py --skip-full-tests --skip-baseline`
@@ -3580,8 +6580,8 @@
   - runtime turn-context wiring now includes `RuntimeRecoveryTurnContextProvider`, so restart/lost-approval hints are visible to the model without polluting persistent transcript history
   - TUI `/approve` on lost-after-restart approvals and QQ `/status` + `/continue` now guide the operator to continue with a new message
 - Added focused verification coverage for the post-restart continuation slice:
-  - `pytest tests/test_agent_turn_context.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_shared_session_gateway_walkthrough.py -q`
-  - `pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_agent_turn_context.py tests/test_shared_session_gateway_walkthrough.py -q`
+  - `pytest tests/test_agent_core_turn_context.py tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_shared_session_gateway_walkthrough.py -q`
+  - `pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_agent_core_turn_context.py tests/test_shared_session_gateway_walkthrough.py -q`
   - `python scripts/shared_session_gateway_walkthrough.py`
   - `python scripts/terminal_readiness_gate.py --skip-full-tests --skip-baseline`
   - `node --check src/apps/qqbot_channel/bot.mjs`
@@ -3592,7 +6592,7 @@
   - QQ bot now supports `/context show|stats|include|exclude|budget|reset` for bound shared sessions
   - main-agent gateway runtime now reapplies shared-session context policy on future turns through `turn_context.metadata["prepared_context_policy"]`
 - Added focused verification coverage for the shared-session remote-context parity slice:
-  - `pytest tests/test_interface_dto_contracts.py tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py tests/test_tui_app.py -q`
+  - `pytest tests/test_interface_dto_contracts.py tests/test_main_agent_surface_service.py tests/test_agent_studio_gateway_api_v1.py tests/test_tui_app.py -q`
   - `pytest tests/test_shared_session_gateway_walkthrough.py tests/test_terminal_readiness_gate.py tests/test_tui_readiness_walkthroughs.py -q`
   - `python scripts/terminal_readiness_gate.py --skip-full-tests --skip-baseline`
   - `node --check src/apps/qqbot_channel/bot.mjs`
@@ -3604,7 +6604,7 @@
   - remote TUI shared sessions now show the real selected/queued model instead of `gateway-managed`
   - QQ bot now supports `/model show|list|use` for bound shared sessions
 - Added focused verification coverage for the shared-session remote-model parity slice:
-  - `uv run pytest tests/test_interface_dto_contracts.py tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py tests/test_tui_app.py tests/test_shared_session_gateway_walkthrough.py tests/test_tui_readiness_walkthroughs.py -q`
+  - `uv run pytest tests/test_interface_dto_contracts.py tests/test_main_agent_surface_service.py tests/test_agent_studio_gateway_api_v1.py tests/test_tui_app.py tests/test_shared_session_gateway_walkthrough.py tests/test_tui_readiness_walkthroughs.py -q`
   - `uv run python scripts/shared_session_gateway_walkthrough.py`
   - `uv run python scripts/terminal_readiness_gate.py --skip-full-tests --skip-baseline`
   - `node --check src/apps/qqbot_channel/bot.mjs`
@@ -3618,7 +6618,7 @@
   - header now shows compact context usage telemetry, and status now shows token count plus a context-window usage bar
   - local TUI state/share-unshare flows now preserve token telemetry across persistence and gateway handoff
 - Added focused verification coverage for the TUI telemetry slice:
-  - `uv run pytest tests/test_interface_dto_contracts.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - `uv run pytest tests/test_interface_dto_contracts.py tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py -q`
 - Started and completed the P25.9 `MemoriaEngine` role-evaluation slice:
   - audited `mini_agent/memory/memoria_engine.py`, `engram.py`, baseline tests, and historical transformation docs
   - compared `MemoriaEngine` against the now-live memory stack built around `MemoryService`, turn-context providers, note/profile tools, session search, and consolidated retrieval
@@ -3648,10 +6648,10 @@
   - `tests/test_memory_service.py`
   - `tests/test_user_modeling.py`
   - `tests/test_memory_automation.py`
-  - `tests/test_agent_turn_context.py`
+  - `tests/test_agent_core_turn_context.py`
 - Verified the wider runtime-facing surface after the refactor:
   - `tests/test_agent_core_kernel.py`
-  - `tests/test_main_agent_gateway_use_cases.py`
+  - `tests/test_main_agent_surface_service.py`
   - `tests/test_memory_manager_router.py`
   - `tests/test_agent_studio_gateway_api_v1.py`
 - Landed the second P26 implementation slice around workspace/session integration:
@@ -3666,11 +6666,11 @@
 - Added focused regression coverage for the workspace-aware session-history slice:
   - `tests/test_session_search.py`
   - `tests/test_memory_service.py`
-  - `tests/test_agent_turn_context.py`
+  - `tests/test_agent_core_turn_context.py`
   - `tests/test_session_store_persistence.py`
 - Re-ran the broader runtime-facing regression set after the new wiring:
   - `tests/test_agent_core_kernel.py`
-  - `tests/test_main_agent_gateway_use_cases.py`
+  - `tests/test_main_agent_surface_service.py`
   - `tests/test_agent_studio_gateway_api_v1.py`
 
 - Completed the next `workspace:shared` operator-surface slice:
@@ -3678,7 +6678,7 @@
   - workspace-shared runtime memory is now directly inspectable/clearable instead of diagnostics-only
   - command catalog/help/examples now document the shared-memory sub-surface explicitly
 - Verification:
-  - `uv run pytest tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py tests/test_cli_submission_loop.py tests/test_command_catalog.py -q`
+  - `uv run pytest tests/test_tui_app.py tests/test_main_agent_surface_service.py tests/test_cli_submission_loop.py tests/test_command_catalog.py -q`
   - result: `181 passed`
 
 - Completed the first explicit memory/RAG grounding-boundary slice:
@@ -3688,7 +6688,7 @@
   - manual save/promote flows now surface KB grounding details in TUI/CLI/gateway responses
 - Verification:
   - `uv run python -m compileall src/mini_agent/memory/knowledge_base_grounding.py src/mini_agent/memory/runtime_task_memory.py src/mini_agent/memory/operator_actions.py src/mini_agent/memory/memoria_runtime.py src/mini_agent/memory/automation.py src/mini_agent/memory/diagnostics.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/tui/app.py src/mini_agent/cli_interactive.py`
-  - `uv run pytest tests/test_memoria_runtime.py tests/test_memory_automation.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_command_catalog.py -q`
+  - `uv run pytest tests/test_memoria_runtime.py tests/test_memory_automation.py tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_command_catalog.py -q`
   - `node --check src/apps/qqbot_channel/bot.mjs`
   - result: `201 passed`
 
@@ -3698,8 +6698,8 @@
   - shared-entry detail rendering now reuses the same grounding formatter, so `shared show` exposes `Knowledge Base: grounded` consistently across surfaces
   - regression coverage now locks the new operator-facing KB display in TUI, CLI, and gateway session-memory flows
 - Verification:
-  - `uv run python -m compileall src/mini_agent/memory/diagnostics.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py tests/test_cli_submission_loop.py`
-  - `uv run pytest tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py tests/test_cli_submission_loop.py tests/test_command_catalog.py tests/test_memoria_runtime.py tests/test_memory_automation.py -q`
+  - `uv run python -m compileall src/mini_agent/memory/diagnostics.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py tests/test_tui_app.py tests/test_main_agent_surface_service.py tests/test_cli_submission_loop.py`
+  - `uv run pytest tests/test_tui_app.py tests/test_main_agent_surface_service.py tests/test_cli_submission_loop.py tests/test_command_catalog.py tests/test_memoria_runtime.py tests/test_memory_automation.py -q`
   - result: `201 passed`
 
 - Completed the session-runtime entry inspection follow-up slice:
@@ -3708,8 +6708,8 @@
   - the new session-entry detail path is aligned across gateway, TUI, CLI, and QQ
   - command catalog/examples now document `memory show latest`
 - Verification:
-  - `uv run python -m compileall src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py tests/test_cli_submission_loop.py tests/test_command_catalog.py`
-  - `uv run pytest tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py tests/test_cli_submission_loop.py tests/test_command_catalog.py tests/test_memoria_runtime.py tests/test_memory_automation.py -q`
+  - `uv run python -m compileall src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_tui_app.py tests/test_main_agent_surface_service.py tests/test_cli_submission_loop.py tests/test_command_catalog.py`
+  - `uv run pytest tests/test_tui_app.py tests/test_main_agent_surface_service.py tests/test_cli_submission_loop.py tests/test_command_catalog.py tests/test_memoria_runtime.py tests/test_memory_automation.py -q`
   - `node --check src/apps/qqbot_channel/bot.mjs`
   - result: `203 passed`
 
@@ -3721,8 +6721,8 @@
   - the new durable-memory read actions are aligned across gateway, TUI, CLI, and QQ through the same session-memory API seam
   - request contracts now carry explicit `query` and `day` fields instead of overloading `content`
 - Verification:
-  - `uv run python -m compileall src/mini_agent/memory/diagnostics.py src/mini_agent/interfaces/agent.py src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/cli_interactive.py src/mini_agent/tui/gateway_client.py src/mini_agent/tui/app.py tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py tests/test_cli_submission_loop.py tests/test_command_catalog.py`
-  - `uv run pytest tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py tests/test_cli_submission_loop.py tests/test_command_catalog.py tests/test_memoria_runtime.py tests/test_memory_automation.py tests/test_interface_dto_contracts.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - `uv run python -m compileall src/mini_agent/memory/diagnostics.py src/mini_agent/interfaces/agent.py src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/cli_interactive.py src/mini_agent/tui/gateway_client.py src/mini_agent/tui/app.py tests/test_tui_app.py tests/test_main_agent_surface_service.py tests/test_cli_submission_loop.py tests/test_command_catalog.py`
+  - `uv run pytest tests/test_tui_app.py tests/test_main_agent_surface_service.py tests/test_cli_submission_loop.py tests/test_command_catalog.py tests/test_memoria_runtime.py tests/test_memory_automation.py tests/test_interface_dto_contracts.py tests/test_agent_studio_gateway_api_v1.py -q`
   - `node --check src/apps/qqbot_channel/bot.mjs`
   - result: `230 passed`
 
@@ -3732,8 +6732,8 @@
   - consolidated-memory rendering now uses one shared formatting seam across gateway, TUI, CLI, and QQ
   - `/memory refresh` remains the explicit consolidated refresh path; the new commands are read-only inspection/search surfaces
 - Verification:
-  - `uv run python -m compileall src/mini_agent/memory/diagnostics.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py tests/test_cli_submission_loop.py tests/test_command_catalog.py`
-  - `uv run pytest tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py tests/test_cli_submission_loop.py tests/test_command_catalog.py tests/test_memoria_runtime.py tests/test_memory_automation.py tests/test_interface_dto_contracts.py tests/test_agent_studio_gateway_api_v1.py tests/test_memory_service.py tests/test_memory_relevance.py -q`
+  - `uv run python -m compileall src/mini_agent/memory/diagnostics.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py tests/test_tui_app.py tests/test_main_agent_surface_service.py tests/test_cli_submission_loop.py tests/test_command_catalog.py`
+  - `uv run pytest tests/test_tui_app.py tests/test_main_agent_surface_service.py tests/test_cli_submission_loop.py tests/test_command_catalog.py tests/test_memoria_runtime.py tests/test_memory_automation.py tests/test_interface_dto_contracts.py tests/test_agent_studio_gateway_api_v1.py tests/test_memory_service.py tests/test_memory_relevance.py -q`
   - `node --check src/apps/qqbot_channel/bot.mjs`
   - result: `242 passed`
 
@@ -3747,10 +6747,10 @@
   - overview now shows `session id`, `workspace anchor`, and the effective runtime namespaces
   - prepared-context sources now live under that session/workspace block instead of floating separately
 - Verification:
-  - `uv run pytest tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py tests/test_cli_submission_loop.py tests/test_command_catalog.py tests/test_interface_dto_contracts.py -q`
+  - `uv run pytest tests/test_tui_app.py tests/test_main_agent_surface_service.py tests/test_cli_submission_loop.py tests/test_command_catalog.py tests/test_interface_dto_contracts.py -q`
   - `node --check src/apps/qqbot_channel/bot.mjs`
   - result: `203 passed`
-  - `uv run pytest tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py tests/test_cli_submission_loop.py -q`
+  - `uv run pytest tests/test_tui_app.py tests/test_main_agent_surface_service.py tests/test_cli_submission_loop.py -q`
   - result: `190 passed`
 
 - Completed the KB call-decision / memory-quality strengthening slice:
@@ -3769,7 +6769,7 @@
   - `uv run python -m compileall src/mini_agent/memory/quality.py src/mini_agent/memory/automation.py src/mini_agent/memory/runtime_task_memory.py src/mini_agent/tools/knowledge_base.py`
   - `uv run pytest tests/test_memory_automation.py tests/test_memoria_runtime.py tests/test_knowledge_base_tool.py tests/test_memory_real_use_flow.py -q`
   - result: `31 passed`
-  - `uv run pytest tests/test_memory_service.py tests/test_memoria_runtime.py tests/test_agent_turn_context.py tests/test_memory_automation.py tests/test_session_search.py tests/test_knowledge_base_tool.py tests/test_main_agent_gateway_use_cases.py tests/test_memory_real_use_flow.py -q`
+  - `uv run pytest tests/test_memory_service.py tests/test_memoria_runtime.py tests/test_agent_core_turn_context.py tests/test_memory_automation.py tests/test_session_search.py tests/test_knowledge_base_tool.py tests/test_main_agent_surface_service.py tests/test_memory_real_use_flow.py -q`
   - result: `103 passed`
 
 - Added a real-use command acceptance checklist for terminal-first daily use:
@@ -3805,7 +6805,7 @@
 - Completed repo hygiene pass 4 for phase-doc archiving and script layering:
   - moved completed `P18/P19` phase docs from `docs/` root into `docs/archive/`
   - updated `docs/DOCS_INDEX.md`, `docs/DEVELOPMENT_INDEX.md`, and `docs/REFACTOR_TASKS.md` so active navigation now centers on current `P30` execution docs while preserving archive links
-  - updated `docs/MINIAGENT_DEV_HABIT_LEDGER.md` and `TASKS.md` so “active phase doc�?references now point to `docs/P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md`
+  - updated `docs/MINIAGENT_DEV_HABIT_LEDGER.md` and `TASKS.md` so 閳ユ竵ctive phase doc閳?references now point to `docs/P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md`
   - created `scripts/ci/` for release-gate / promotion / rollout-reporting scripts
   - moved into `scripts/ci/`:
     - `release_gate.py`
@@ -3851,11 +6851,11 @@
   - control handler dependencies are injected via manager-owned lambdas
   - existing monkeypatches against `mini_agent.runtime.main_agent_runtime_manager` MCP symbols still work
 - Verification:
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "runtime_policy or control_session" -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "runtime_policy or control_session" -q`
   - result: `8 passed`
-  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_runtime_policy_handler.py src/mini_agent/runtime/session_control_handler.py tests/test_main_agent_gateway_use_cases.py`
-  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_runtime_policy_handler.py src/mini_agent/runtime/session_control_handler.py tests/test_main_agent_gateway_use_cases.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_runtime_policy_handler.py src/mini_agent/runtime/session_control_handler.py tests/test_main_agent_surface_service.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_runtime_policy_handler.py src/mini_agent/runtime/session_control_handler.py tests/test_main_agent_surface_service.py`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - result: `203 passed`
   - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
   - result: `11 passed`
@@ -3878,11 +6878,11 @@
   - `reset` returns the policy to normalized defaults
   - busy shared sessions reject context-policy changes with `409`
 - Verification:
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "context_policy or update_session_context or context_update" -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "context_policy or update_session_context or context_update" -q`
   - result: `3 passed`
-  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_context_policy_handler.py tests/test_main_agent_gateway_use_cases.py`
-  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_context_policy_handler.py tests/test_main_agent_gateway_use_cases.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_context_policy_handler.py tests/test_main_agent_surface_service.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_context_policy_handler.py tests/test_main_agent_surface_service.py`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - result: `205 passed`
   - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
   - result: `11 passed`
@@ -3900,11 +6900,11 @@
   - transcript append ordering
   - persistence after mutation
 - Verification:
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "cancel_session or approval or pending_approval" -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "cancel_session or approval or pending_approval" -q`
   - result: `3 passed`
-  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_interrupt_handler.py tests/test_main_agent_gateway_use_cases.py`
-  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_interrupt_handler.py tests/test_main_agent_gateway_use_cases.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_interrupt_handler.py tests/test_main_agent_surface_service.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_interrupt_handler.py tests/test_main_agent_surface_service.py`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - result: `205 passed`
   - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
   - result: `11 passed`
@@ -3920,11 +6920,11 @@
   - persisted-record export now has dedicated direct coverage
   - existing live export tests for runtime task memory and workspace-shared runtime task memory remain green
 - Verification:
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "import_session_snapshot or export_session or persisted_export" -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "import_session_snapshot or export_session or persisted_export" -q`
   - result: `3 passed`
-  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_snapshot_handler.py tests/test_main_agent_gateway_use_cases.py`
-  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_snapshot_handler.py tests/test_main_agent_gateway_use_cases.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_snapshot_handler.py tests/test_main_agent_surface_service.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_snapshot_handler.py tests/test_main_agent_surface_service.py`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - result: `207 passed`
   - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
   - result: `11 passed`
@@ -3947,11 +6947,11 @@
   - chat without session id restores latest persisted shared session
   - snapshot import/export focused tests remain green
 - Verification:
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "persisted_interrupted_session or restarted_shared_session or survives_runtime_restart or restores_latest_persisted_shared_session or import_session_snapshot or export_session or persisted_export" -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "persisted_interrupted_session or restarted_shared_session or survives_runtime_restart or restores_latest_persisted_shared_session or import_session_snapshot or export_session or persisted_export" -q`
   - result: `7 passed`
-  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_restore_handler.py tests/test_main_agent_gateway_use_cases.py`
-  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_restore_handler.py tests/test_main_agent_gateway_use_cases.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_restore_handler.py tests/test_main_agent_surface_service.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_restore_handler.py tests/test_main_agent_surface_service.py`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - result: `207 passed`
   - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
   - result: `11 passed`
@@ -3977,12 +6977,731 @@
 - Also cleaned one test hygiene issue uncovered while widening lint coverage:
   - removed unused `asyncio` import from `tests/test_p19_runtime_matrix.py`
 - Verification:
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "assigns_human_readable_session_title_hints or chat_applies_session_title_hint_on_new_shared_session or restores_latest_persisted_shared_session or team_mode or single_main_workspace_only or max_active_sessions or survives_runtime_restart or get_or_create_session" -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "assigns_human_readable_session_title_hints or chat_applies_session_title_hint_on_new_shared_session or restores_latest_persisted_shared_session or team_mode or single_main_workspace_only or max_active_sessions or survives_runtime_restart or get_or_create_session" -q`
   - result: `9 passed`
-  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_access_handler.py tests/test_main_agent_gateway_use_cases.py tests/test_p19_runtime_matrix.py`
-  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_access_handler.py tests/test_main_agent_gateway_use_cases.py tests/test_p19_runtime_matrix.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_access_handler.py tests/test_main_agent_surface_service.py tests/test_p19_runtime_matrix.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_access_handler.py tests/test_main_agent_surface_service.py tests/test_p19_runtime_matrix.py`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - result: `207 passed`
   - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
   - result: `11 passed`
 
+
+
+
+## Latest Sync: 2026-04-13 Application Binding Cleanup + Runtime Lifecycle Wiring
+
+- [completed] gateway/TUI residual interaction binding duplication is now collapsed onto the shared application binding model:
+  - `src/mini_agent/application/session_remote_service.py` now accepts `MainAgentSessionCancelRequest` just like the other session operator flows
+  - `src/mini_agent/tui/app.py` now uses one `_remote_request_binding_kwargs(...)` helper for model/policy/context/memory/skill/control/approval/cancel requests
+  - `src/mini_agent/tui/gateway_client.py` now normalizes payload bindings through `ApplicationInteractionBinding` instead of maintaining a second local binding struct
+- [completed] runtime lifecycle bootstrap/refresh wiring is no longer split across multiple ad-hoc callbacks inside `MainAgentRuntimeManager`:
+  - added `src/mini_agent/runtime/session_runtime_lifecycle_handler.py`
+  - `RuntimeSessionCreationHandler` and `RuntimeSessionRestoreHandler` now consume a unified `bootstrap_session_lifecycle(...)` seam
+  - session-registry lifecycle refresh now delegates through the extracted lifecycle handler instead of manager-local helper methods
+- [completed] manager shrink result for this slice:
+  - removed manager-local `_build_session_key(...)`
+  - removed manager-local `_refresh_session_lifecycle_unlocked(...)`
+  - kept manager ownership only where it still matters: store lock, service wiring, and live-session reset closure injection
+- Verification:
+  - `uv run pytest tests/test_session_remote_service.py tests/test_tui_gateway_client.py tests/test_tui_app.py -k "remote_session_service or tui_gateway_client or remote_cancel_command_routes_through_gateway or remote_kb_command_routes_through_gateway_and_syncs_state or remote_mcp_status_routes_through_gateway or remote_mcp_reload_routes_through_gateway or remote_mcp_reload_busy_relies_on_gateway_conflict or remote_compact or remote_context"`
+  - result: `23 passed`
+  - `uv run pytest tests/test_runtime_session_lifecycle_handler.py tests/test_session_lifecycle_runtime.py tests/test_p19_runtime_matrix.py tests/test_main_agent_surface_service.py -k "runtime_manager_restore_persisted_session_preserves_lineage or runtime_manager_session_lifecycle_idle_reset_applied_on_reuse or test_runtime_session_lifecycle_handler or test_surface_session_lifecycle_runtime_idle_reset_and_force_reset or test_single_main_profile_contract or test_team_profile_contract"`
+  - result: `7 passed`
+  - `uv run pytest tests/test_interaction_request_adapter.py tests/test_session_service.py tests/test_session_remote_service.py tests/test_channel_ingress_use_cases.py tests/test_main_agent_surface_service.py tests/test_agent_studio_gateway_api_v1.py tests/test_main_agent_runtime_policy_loader.py tests/test_runtime_session_lifecycle_handler.py tests/test_session_lifecycle_runtime.py tests/test_p19_runtime_matrix.py tests/test_tui_gateway_client.py tests/test_tui_app.py`
+  - result: `245 passed`
+  - `uv run ruff check src/mini_agent/application/interaction_request_adapter.py src/mini_agent/application/remote_conversation_binding_service.py src/mini_agent/application/channel_ingress_use_cases.py src/mini_agent/application/session_service.py src/mini_agent/application/session_remote_service.py src/mini_agent/application/main_agent_surface_service.py src/mini_agent/runtime/main_agent_runtime_policy_loader.py src/mini_agent/runtime/session_runtime_lifecycle_handler.py src/mini_agent/runtime/session_creation_handler.py src/mini_agent/runtime/session_restore_handler.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/tui/gateway_client.py src/mini_agent/tui/app.py tests/test_interaction_request_adapter.py tests/test_session_service.py tests/test_session_remote_service.py tests/test_channel_ingress_use_cases.py tests/test_main_agent_surface_service.py tests/test_agent_studio_gateway_api_v1.py tests/test_main_agent_runtime_policy_loader.py tests/test_runtime_session_lifecycle_handler.py tests/test_session_lifecycle_runtime.py tests/test_p19_runtime_matrix.py tests/test_tui_gateway_client.py tests/test_tui_app.py`
+  - result: all green
+
+## Latest Sync: 2026-04-13 Managed Session Store Extraction
+
+- [completed] `MainAgentRuntimeManager` no longer owns the active-vs-persisted session store plumbing inline:
+  - added `src/mini_agent/runtime/session_managed_store_handler.py`
+  - extracted responsibilities now include:
+    - active managed-session lookup
+    - persisted-session restore handoff
+    - `404` resolution for missing managed sessions
+    - session id allocation across live + persisted records
+    - session persistence with sandbox diagnostics capture
+    - delete-time cleanup across active map / persisted record / runtime task memory / lineage store
+    - expired-session removal from the live map
+- [completed] manager/runtime wiring now routes store semantics through the extracted handler:
+  - session-registry callbacks now use the managed store for `drop_expired_sessions`, `allocate_session_id`, and `persist_session`
+  - public runtime methods now request sessions through the managed store instead of calling manager-local lookup helpers
+  - manager-local `_drop_expired_sessions_unlocked(...)`, `_persist_session_unlocked(...)`, `_allocate_new_session_id_unlocked(...)`, `_load_managed_session_unlocked(...)`, and `_require_managed_session_unlocked(...)` were removed
+- [completed] this cut keeps the remaining manager role narrower:
+  - manager still owns lock scope and high-level service wiring
+  - restore handler still owns `record -> payload -> live session` hydration semantics
+  - managed store now owns the live/persisted store boundary itself
+- Verification:
+  - `uv run pytest tests/test_runtime_managed_session_store_handler.py tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_agent_studio_gateway_api_v1.py -k "managed_session_store or delete_session or reset_session or set_active_surface or rename_session or set_session_shared or restore_persisted_session_preserves_lineage or session_lifecycle_idle_reset_applied_on_reuse or use_case_chat_session_lifecycle"`
+  - result: `8 passed`
+  - `uv run pytest tests/test_runtime_managed_session_store_handler.py tests/test_runtime_session_lifecycle_handler.py tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_agent_studio_gateway_api_v1.py tests/test_tui_app.py tests/test_p19_runtime_matrix.py`
+  - result: `222 passed`
+  - `uv run ruff check src/mini_agent/runtime/session_managed_store_handler.py src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_runtime_managed_session_store_handler.py tests/test_runtime_session_lifecycle_handler.py tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_agent_studio_gateway_api_v1.py tests/test_tui_app.py tests/test_p19_runtime_matrix.py`
+  - result: all green
+
+## Latest Sync: 2026-04-13 Session Admin Mutation Extraction
+
+- [completed] extracted the remaining session admin/live-state mutation cluster out of `MainAgentRuntimeManager`:
+  - added `src/mini_agent/runtime/session_admin_handler.py`
+  - extracted responsibilities now include:
+    - rename session title
+    - toggle shared state
+    - reset session runtime/transcript/lifecycle state
+    - switch active surface while disabling remote reply mode
+- [completed] lifecycle reset now routes through the shared lifecycle seam:
+  - extended `src/mini_agent/runtime/session_runtime_lifecycle_handler.py` with `reset_session(...)`
+  - session reset no longer reassembles lifecycle reset/touch inline in the manager
+- [completed] manager shrink result for this slice:
+  - `rename_session(...)`, `set_session_shared(...)`, `reset_session(...)`, and `set_active_surface(...)` now only:
+    - resolve the managed session through the store seam
+    - delegate the mutation to the extracted admin handler
+  - the live-state mutation details and persist behavior no longer live inline in those manager methods
+- [completed] added direct regression coverage for the new seam:
+  - `tests/test_runtime_session_admin_handler.py`
+  - validates rename/share persistence, reset transcript+lifecycle semantics, and active-surface mutation behavior
+- Verification:
+  - `uv run pytest tests/test_runtime_session_admin_handler.py tests/test_runtime_session_lifecycle_handler.py tests/test_runtime_managed_session_store_handler.py tests/test_main_agent_surface_service.py -k "runtime_session_admin_handler or runtime_session_lifecycle_handler or managed_session_store or rename_session or set_session_shared or reset_session or set_active_surface"`
+  - result: `9 passed`
+  - `uv run pytest tests/test_runtime_session_admin_handler.py tests/test_runtime_managed_session_store_handler.py tests/test_runtime_session_lifecycle_handler.py tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_agent_studio_gateway_api_v1.py tests/test_tui_app.py tests/test_p19_runtime_matrix.py`
+  - result: `225 passed`
+  - `uv run ruff check src/mini_agent/runtime/session_admin_handler.py src/mini_agent/runtime/session_managed_store_handler.py src/mini_agent/runtime/session_runtime_lifecycle_handler.py src/mini_agent/runtime/main_agent_runtime_manager.py tests/test_runtime_session_admin_handler.py tests/test_runtime_managed_session_store_handler.py tests/test_runtime_session_lifecycle_handler.py tests/test_main_agent_surface_service.py tests/test_session_service.py tests/test_agent_studio_gateway_api_v1.py tests/test_tui_app.py tests/test_p19_runtime_matrix.py`
+  - result: all green
+
+## Latest Sync: 2026-04-13 Runtime Manager Reassessment
+
+- [completed] reviewed the remaining `MainAgentRuntimeManager` surface after the binding/lifecycle/store/admin extractions.
+- Current conclusion: there is no strong next semantic seam worth extracting right now.
+- The remaining method groups are now mostly appropriate manager/facade responsibilities:
+  - registry/creation/import/export entrypoints: lock-scoped orchestration over existing handlers
+  - operator entrypoints: session resolution + delegation into the operator handler
+  - turn-scope facade methods: intentionally exposed runtime API used by application execution flows and tests
+  - restore/hydrate glue: registration into `_sessions` and lineage store after restore handler execution
+  - normalization/token helper methods: shared utility glue still consumed by multiple extracted handlers
+- The only visibly mixed mini-cluster left is interrupt lookup for:
+  - `cancel_session_turn(...)`
+  - `resolve_pending_approval(...)`
+- But that cluster is not yet a good extraction target because the remaining manager work there is only:
+  - probe `active_session`
+  - probe `persisted_exists`
+  - delegate to the interrupt/operator handler
+- Pulling that out now would mostly create a thin pass-through shell instead of removing a real semantic boundary.
+- Decision for this phase:
+  - stop shrinking `MainAgentRuntimeManager` further for now
+  - treat the current shape as the temporary stable service-layer backbone
+  - return focus to agent-core feature work unless a future feature reintroduces a real mixed concern
+
+- Started `P32.1 Agent-Core Tree Realignment`:
+  - audited the current physical tree against the frozen architecture docs
+  - confirmed that the main structural mismatch is the split between:
+    - `src/mini_agent/agent_core/`
+    - `src/mini_agent/code_agent/`
+    - root-level `src/mini_agent/agent_core/engine.py`
+    - root-level `src/mini_agent/agent_core/context/turn_context.py`
+  - recorded the hard-realignment plan in:
+    - [P32_PROJECT_STRUCTURE_REALIGNMENT_PLAN_2026-04-13.md](d:\file\Mini-Agent\docs\P32_PROJECT_STRUCTURE_REALIGNMENT_PLAN_2026-04-13.md)
+  - locked the current execution slice in:
+    - [task_plan.md](d:\file\Mini-Agent\task_plan.md)
+  - logged the reasoning in:
+    - [findings.md](d:\file\Mini-Agent\findings.md)
+
+- Completed `P32.1 Agent-Core Tree Realignment`:
+  - moved the root `Agent` implementation into [engine.py](d:\file\Mini-Agent\src\mini_agent\agent_core\engine.py)
+  - moved turn-context ownership into [agent_core/context](d:\file\Mini-Agent\src\mini_agent\agent_core\context)
+  - moved former `code_agent` runtime primitives into [agent_core/execution](d:\file\Mini-Agent\src\mini_agent\agent_core\execution)
+  - removed the old active `src/mini_agent/code_agent` source tree from the physical structure
+  - synchronized imports across CLI / TUI / runtime / application / scripts / tests
+  - updated architecture docs to reflect the unified `agent_core` ownership
+- Additional cleanup needed during the move:
+  - corrected several historical garbled literals that became syntax errors once files were rewritten
+  - updated TUI walkthrough scripts to the current `TuiSession` slice layout (`projection / runtime / view`)
+- Verification:
+  - `uv run pytest -q`
+  - result: `918 passed, 15 skipped`
+  - targeted `uv run ruff check ...` on the realignment slice
+  - result: all green
+
+## 2026-04-13 P32.2 Session Packaging Realignment
+
+- [completed] moved `src/mini_agent/core/session.py` to `src/mini_agent/session/store.py`
+- [completed] removed `src/mini_agent/core/`
+- [completed] exported `SessionState`, `SessionStore`, and `session_store` from `mini_agent.session`
+- [completed] updated `tests/test_session_store_persistence.py` to the canonical import path
+
+## 2026-04-13 P32.3 Shared Application Naming Realignment
+
+- [completed] renamed shared application handlers to surface-neutral ownership:
+  - `gateway_agent_execution_handler.py` -> `agent_turn_execution_handler.py`
+  - `gateway_route_execution_handler.py` -> `agent_route_execution_handler.py`
+  - `gateway_chat_flow_handler.py` -> `surface_chat_flow_handler.py`
+- [completed] removed the legacy `main_agent_gateway_use_cases.py` compatibility module
+- [completed] removed the `MainAgentGatewayUseCases` export; canonical shared orchestration is now `MainAgentSurfaceService`
+- [completed] removed `ApplicationInteractionBinding.to_gateway_chat_execution_request(...)`
+- [completed] rewired scripts/tests to the canonical shared service export
+- Verification:
+  - `uv run pytest tests/test_interaction_request_adapter.py tests/test_main_agent_surface_service.py tests/test_shared_session_gateway_walkthrough.py tests/test_channel_ingress_gateway_walkthrough.py -q`
+  - result: `79 passed`
+  - targeted `ruff check` on the application realignment slice
+  - result: all green
+
+
+## 2026-04-13 P32.3.1 Test Surface Rename Update
+
+- [completed] renamed `tests/test_main_agent_gateway_use_cases.py` to `tests/test_main_agent_surface_service.py`
+- [completed] updated `scripts/terminal_readiness_gate.py` to the canonical test path
+- Verification:
+  - `uv run pytest tests/test_main_agent_surface_service.py -q`
+  - result: `74 passed`
+  - `uv run pytest tests/test_terminal_readiness_gate.py -q`
+  - result: `8 passed`
+  - `uv run pytest -q`
+  - result: `918 passed, 15 skipped`
+
+## 2026-04-13 P32.4 Boundary Audit Notes
+
+- Remaining high-value seams after the naming cleanup:
+  - `application` still imports interaction normalization from `runtime.interaction_surface`
+  - `SessionApplicationService` still depends on concrete runtime manager/session types
+  - `RemoteSessionService` is still explicitly transport-shaped through `gateway_client`
+- Recommended next order:
+  1. extract interaction normalization out of `runtime`
+  2. define a slimmer runtime port for `SessionApplicationService`
+  3. decide the final ownership of `RemoteSessionService`
+
+## 2026-04-13 P32.5 Interaction Surface Extraction
+
+- [completed] moved `runtime/interaction_surface.py` into the shared `interaction/` package
+- [completed] added canonical shared export at `mini_agent.interaction`
+- [completed] rewired application/runtime/tests imports to the new shared module
+- [completed] removed the old runtime-local file with no compatibility shell
+- Verification:
+  - `uv run pytest tests/test_interaction_surface.py tests/test_interaction_request_adapter.py tests/test_main_agent_surface_service.py tests/test_p19_runtime_matrix.py -q`
+  - result: `86 passed`
+  - `uv run pytest -q`
+  - result: `918 passed, 15 skipped`
+  - targeted `ruff check` on the interaction extraction slice
+  - result: all green
+
+## 2026-04-13 P32.6 Session Runtime Port Realignment
+
+- introduced application-owned runtime seam definitions in [session_runtime_port.py](d:\file\Mini-Agent\src\mini_agent\application\session_runtime_port.py)
+- removed direct application imports of concrete runtime types from:
+  - [session_service.py](d:\file\Mini-Agent\src\mini_agent\application\session_service.py)
+  - [main_agent_surface_service.py](d:\file\Mini-Agent\src\mini_agent\application\main_agent_surface_service.py)
+- expanded [session_state.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_state.py) with projection-friendly properties so application code no longer reaches into nested `runtime` / `projection` internals
+- added a seam regression in [test_session_service.py](d:\file\Mini-Agent\tests\test_session_service.py) proving the application layer can run against a structural fake runtime port
+- Verification:
+  - `uv run pytest tests/test_session_service.py tests/test_main_agent_surface_service.py tests/test_interaction_surface.py tests/test_interaction_request_adapter.py -q`
+  - result: `90 passed`
+  - `uv run pytest -q`
+  - result: `919 passed, 15 skipped`
+  - `uv run ruff check src/mini_agent/application src/mini_agent/interaction src/mini_agent/runtime/session_state.py tests/test_session_service.py tests/test_main_agent_surface_service.py`
+  - result: all green
+
+## 2026-04-13 P32.7 Remote Session Transport Port Realignment
+
+- introduced application-owned transport seam definitions in [remote_session_transport_port.py](d:\file\Mini-Agent\src\mini_agent\application\remote_session_transport_port.py)
+- rewired [session_remote_service.py](d:\file\Mini-Agent\src\mini_agent\application\session_remote_service.py) to depend on a `RemoteSessionTransportPort` instead of a `gateway_client`-named object
+- updated [app.py](d:\file\Mini-Agent\src\mini_agent\tui\app.py) to inject `session_transport=self.gateway_client`
+- updated [test_session_remote_service.py](d:\file\Mini-Agent\tests\test_session_remote_service.py) to the new seam naming
+- Verification:
+  - `uv run pytest tests/test_session_remote_service.py tests/test_tui_app.py tests/test_tui_gateway_client.py -q`
+  - result: `129 passed`
+  - `uv run pytest -q`
+  - result: `919 passed, 15 skipped`
+  - `uv run ruff check src/mini_agent/application src/mini_agent/tui/app.py tests/test_session_remote_service.py tests/test_session_service.py tests/test_main_agent_surface_service.py`
+  - result: all green
+
+## 2026-04-13 P32.8 Transport Client Packaging Realignment
+
+- moved client-side gateway/session clients out of misleading ownership paths and into [transport](d:\file\Mini-Agent\src\mini_agent\transport)
+- created canonical transport exports in [__init__.py](d:\file\Mini-Agent\src\mini_agent\transport\__init__.py)
+- moved and renamed:
+  - [remote_session_client.py](d:\file\Mini-Agent\src\mini_agent\transport\remote_session_client.py)
+  - [session_transport_port.py](d:\file\Mini-Agent\src\mini_agent\transport\session_transport_port.py)
+  - [gateway_client.py](d:\file\Mini-Agent\src\mini_agent\transport\gateway_client.py)
+- rewired:
+  - [tui/app.py](d:\file\Mini-Agent\src\mini_agent\tui\app.py)
+  - [desktop/app.py](d:\file\Mini-Agent\src\mini_agent\desktop\app.py)
+  - [desktop/window.py](d:\file\Mini-Agent\src\mini_agent\desktop\window.py)
+- renamed tests:
+  - [test_transport_remote_session_client.py](d:\file\Mini-Agent\tests\test_transport_remote_session_client.py)
+  - [test_transport_gateway_client.py](d:\file\Mini-Agent\tests\test_transport_gateway_client.py)
+- Verification:
+  - `uv run pytest tests/test_transport_remote_session_client.py tests/test_transport_gateway_client.py tests/test_tui_app.py tests/test_desktop_app.py -q`
+  - result: `131 passed`
+  - `uv run pytest -q`
+  - result: `919 passed, 15 skipped`
+  - `uv run ruff check src/mini_agent/transport src/mini_agent/tui/app.py src/mini_agent/desktop/app.py src/mini_agent/desktop/window.py src/mini_agent/application/__init__.py tests/test_transport_remote_session_client.py tests/test_transport_gateway_client.py tests/test_desktop_app.py`
+  - result: all green
+
+## 2026-04-14 P32.16 Gateway Ops Transport Dependency Pattern Unification
+
+- [completed] converted the gateway ops transport to the same dependency-injected router-factory pattern already used by `main_agent_router`:
+  - added `OpsRouterDependencies`
+  - added `create_ops_router(...)`
+  - removed transport-level singleton ownership of router assembly
+- [completed] moved host-owned operations service assembly explicitly into `src/apps/agent_studio_gateway/main.py`:
+  - added `GATEWAY_OPERATIONS_USE_CASES = OperationsUseCases(...)`
+  - `main.py` now mounts `create_ops_router(...)` with injected dependencies
+- [completed] rewired maintained gateway tests to patch the host-owned assembly instead of hidden transport-module globals:
+  - `tests/test_agent_studio_gateway_ops_router.py`
+  - `tests/test_agent_studio_gateway_api_v1.py`
+- [completed] gateway transport result for this slice:
+  - `main_agent_router.py` and `ops_router.py` now advertise one consistent ownership model
+  - `main.py` reads more clearly as host entry + composition mount point, not a second transport/business owner
+- Verification:
+  - `uv run pytest tests/test_agent_studio_gateway_ops_router.py tests/test_agent_studio_gateway_api_v1.py tests/test_agent_studio_gateway_integration_flows.py tests/test_p19_runtime_matrix.py -q`
+  - result: `35 passed`
+  - `uv run ruff check src/apps/agent_studio_gateway/main.py src/apps/agent_studio_gateway/ops_router.py tests/test_agent_studio_gateway_ops_router.py tests/test_agent_studio_gateway_api_v1.py`
+  - result: all green
+  - `git diff --check -- src/apps/agent_studio_gateway/main.py src/apps/agent_studio_gateway/ops_router.py tests/test_agent_studio_gateway_ops_router.py tests/test_agent_studio_gateway_api_v1.py`
+  - result: passed
+
+## 2026-04-14 P32.17 Agent-Core Naming Consistency And Test Surface Realignment
+
+- [completed] moved the self-improvement skill engine into its correct agent-core subdomain:
+  - `src/mini_agent/agent_core/self_improve.py` -> `src/mini_agent/agent_core/skills/self_improve.py`
+  - updated `agent_core.skills` and top-level `agent_core` exports accordingly
+- [completed] removed the last live execution-class old-core naming leak:
+  - `CodeAgentMCPClient` -> `ExecutionMCPClient`
+- [completed] renamed execution-focused tests to match current ownership:
+  - `tests/test_code_agent_loop.py` -> `tests/test_agent_core_execution_loop.py`
+  - `tests/test_code_agent_sandbox.py` -> `tests/test_agent_core_execution_sandbox.py`
+  - `tests/test_code_agent_tools.py` -> `tests/test_agent_core_execution_tools.py`
+  - `tests/test_code_agent_coordinator.py` -> `tests/test_agent_core_execution_coordinator.py`
+  - `tests/test_code_agent_context_compaction.py` -> `tests/test_agent_core_context_compaction.py`
+  - `tests/test_code_agent_mcp_client.py` -> `tests/test_agent_core_execution_mcp_client.py`
+  - `tests/test_code_agent_minimal_workflow.py` -> `tests/test_agent_core_execution_minimal_workflow.py`
+  - `tests/test_code_agent_permissions.py` -> `tests/test_agent_core_execution_permissions.py`
+  - `tests/test_self_improve.py` -> `tests/test_agent_core_skills_self_improve.py`
+- [completed] updated active documentation and readiness tooling to current physical ownership:
+  - `docs/DEVELOPMENT_INDEX.md`
+  - `docs/RUNTIME_FLOW.md`
+  - `docs/OSS_REFERENCE_INDEX.md`
+  - `docs/REFACTOR_TASKS.md`
+  - `docs/TRANSFORMATION_PLAN.md`
+  - `docs/FRAMEWORK_SKELETON.md`
+  - `scripts/terminal_readiness_gate.py`
+- [completed] also cleaned a few low-risk agent-core unused imports discovered during the sweep
+- Verification:
+  - `uv run pytest tests/test_agent_core_execution_loop.py tests/test_agent_core_execution_sandbox.py tests/test_agent_core_execution_tools.py tests/test_agent_core_execution_coordinator.py tests/test_agent_core_context_compaction.py tests/test_agent_core_execution_mcp_client.py tests/test_agent_core_execution_minimal_workflow.py tests/test_agent_core_execution_permissions.py tests/test_agent_core_skills_self_improve.py tests/test_agent_core_kernel.py tests/test_terminal_readiness_gate.py -q`
+  - result: `73 passed`
+  - `uv run ruff check src/mini_agent/agent_core src/mini_agent/__init__.py scripts/terminal_readiness_gate.py tests/test_agent_core_execution_loop.py tests/test_agent_core_execution_sandbox.py tests/test_agent_core_execution_tools.py tests/test_agent_core_execution_coordinator.py tests/test_agent_core_context_compaction.py tests/test_agent_core_execution_mcp_client.py tests/test_agent_core_execution_minimal_workflow.py tests/test_agent_core_execution_permissions.py tests/test_agent_core_skills_self_improve.py tests/test_agent_core_kernel.py`
+  - result: all green
+  - `git diff --check -- docs/DEVELOPMENT_INDEX.md docs/FRAMEWORK_SKELETON.md docs/OSS_REFERENCE_INDEX.md docs/REFACTOR_TASKS.md docs/RUNTIME_FLOW.md docs/TRANSFORMATION_PLAN.md scripts/terminal_readiness_gate.py src/mini_agent/agent_core/__init__.py src/mini_agent/agent_core/context/context_compaction.py src/mini_agent/agent_core/cron/scheduler.py src/mini_agent/agent_core/execution/__init__.py src/mini_agent/agent_core/execution/agent_loop.py src/mini_agent/agent_core/execution/coordinator.py src/mini_agent/agent_core/execution/mcp_client.py src/mini_agent/agent_core/execution/permissions/policy.py src/mini_agent/agent_core/execution/sandbox/__init__.py src/mini_agent/agent_core/execution/sandbox/network.py src/mini_agent/agent_core/execution/sandbox/windows.py src/mini_agent/agent_core/execution/scheduler.py src/mini_agent/agent_core/execution/tools/__init__.py src/mini_agent/agent_core/execution/tools/attributes.py src/mini_agent/agent_core/session/lifecycle.py src/mini_agent/agent_core/skills/__init__.py src/mini_agent/agent_core/skills/eligibility.py src/mini_agent/agent_core/skills/self_improve.py tests/test_agent_core_context_compaction.py tests/test_agent_core_execution_coordinator.py tests/test_agent_core_execution_loop.py tests/test_agent_core_execution_mcp_client.py tests/test_agent_core_execution_minimal_workflow.py tests/test_agent_core_execution_permissions.py tests/test_agent_core_execution_sandbox.py tests/test_agent_core_execution_tools.py tests/test_agent_core_skills_self_improve.py`
+  - result: passed (only LF/CRLF warnings, no content issues)
+
+## 2026-04-14 P32.18 Agent-Core Engine / Turn-Context / Policy Test Naming Realignment
+
+- [completed] renamed the remaining highly visible engine-facing tests to match current `agent_core` ownership:
+  - `tests/test_agent.py` -> `tests/test_agent_core_engine_live.py`
+  - `tests/test_agent_turn_context.py` -> `tests/test_agent_core_turn_context.py`
+  - `tests/test_agent_execution_policy.py` -> `tests/test_agent_core_execution_policy.py`
+- [completed] updated current docs and validation references to the renamed test surfaces:
+  - `docs/DEVELOPMENT_INDEX.md`
+  - `docs/P23_AGENT_CORE_TASK_PLAN.md`
+  - `docs/P23_TERMINAL_REAL_USE_READINESS.md`
+  - `docs/P26_MEMORY_RUNTIME_TASK_PLAN.md`
+  - `docs/REFACTOR_TASKS.md`
+  - `task_plan.md`
+  - `progress.md`
+  - `findings.md`
+- [completed] synchronized source-path references in current docs with the canonical engine/context locations:
+  - `src/mini_agent/agent_core/engine.py`
+  - `src/mini_agent/agent_core/context/turn_context.py`
+- Verification:
+  - `uv run pytest tests/test_agent_core_turn_context.py tests/test_agent_core_execution_policy.py tests/test_agent_core_engine_live.py tests/test_agent_core_kernel.py -q`
+  - result: `45 passed, 2 skipped`
+  - `uv run ruff check tests/test_agent_core_turn_context.py tests/test_agent_core_execution_policy.py tests/test_agent_core_engine_live.py tests/test_agent_core_kernel.py`
+  - result: all green
+  - `git diff --check -- docs/P23_AGENT_CORE_DETAILED_PLAN.md docs/P23_AGENT_CORE_TASK_PLAN.md docs/P23_TERMINAL_REAL_USE_READINESS.md docs/P26_MEMORY_RUNTIME_TASK_PLAN.md docs/DEVELOPMENT_INDEX.md docs/REFACTOR_TASKS.md findings.md progress.md task_plan.md scripts tests/test_agent_core_turn_context.py tests/test_agent_core_execution_policy.py tests/test_agent_core_engine_live.py`
+  - result: passed (only LF/CRLF warnings, no content issues)
+
+## 2026-04-14 P32.47 Shared Runtime-Policy Service Extraction
+
+- [completed] replaced the runtime-only policy owner with a shared runtime-policy service:
+  - added `src/mini_agent/runtime/runtime_policy_service.py`
+  - removed `src/mini_agent/runtime/session_runtime_policy_handler.py`
+- [completed] rewired runtime orchestration to the shared service:
+  - `src/mini_agent/runtime/main_agent_runtime_manager.py`
+  - `src/mini_agent/runtime/session_operator_handler.py`
+  - `src/mini_agent/runtime/session_agent_runtime_handler.py`
+- [completed] rewired TUI local runtime-policy handling to the same shared semantics:
+  - `src/mini_agent/tui/app.py`
+- [completed] removed the duplicated local logic for:
+  - busy-without-approval rejection
+  - effective policy resolution
+  - local sandbox diagnostics synthesis
+- [completed] added a regression proving live-agent policy wins over stale cached diagnostics:
+  - `tests/test_tui_app.py::test_tui_runtime_policy_prefers_attached_agent_effective_policy`
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/runtime_policy_service.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_operator_handler.py src/mini_agent/runtime/session_agent_runtime_handler.py src/mini_agent/tui/app.py tests/test_tui_app.py tests/test_main_agent_surface_service.py`
+  - result: all green
+  - `uv run pytest tests/test_tui_app.py tests/test_main_agent_surface_service.py -q`
+  - result: `193 passed`
+
+## 2026-04-14 P32.48 Shared KB Control Service Extraction
+
+- [completed] replaced duplicated KB control semantics with a shared owner:
+  - added `src/mini_agent/tools/knowledge_base_control_service.py`
+- [completed] rewired local command execution and runtime session control to the shared KB service:
+  - `src/mini_agent/commands/execution.py`
+  - `src/mini_agent/runtime/session_agent_control_handler.py`
+- [completed] added focused regression checks for already-disabled semantics:
+  - `tests/test_runtime_session_agent_control_handler.py::test_agent_control_handler_reports_knowledge_base_already_disabled`
+  - `tests/test_command_execution_service.py::test_local_operator_command_service_reports_kb_already_disabled`
+- Verification:
+  - `uv run ruff check src/mini_agent/tools/knowledge_base_control_service.py src/mini_agent/commands/execution.py src/mini_agent/runtime/session_agent_control_handler.py tests/test_command_execution_service.py tests/test_runtime_session_agent_control_handler.py tests/test_tui_app.py tests/test_main_agent_surface_service.py tests/test_cli_submission_loop.py`
+  - result: all green
+  - `uv run pytest tests/test_command_execution_service.py tests/test_runtime_session_agent_control_handler.py tests/test_tui_app.py tests/test_main_agent_surface_service.py tests/test_cli_submission_loop.py -q`
+  - result: `236 passed`
+
+## 2026-04-14 P32.49 Shared Pending-Approval Resolution Extraction
+
+- [completed] replaced duplicated pending-approval token resolution with a shared owner:
+  - added `src/mini_agent/runtime/session_pending_approval_service.py`
+- [completed] rewired runtime interrupt handling and local TUI approval flow to the shared service:
+  - `src/mini_agent/runtime/session_interrupt_handler.py`
+  - `src/mini_agent/tui/app.py`
+- [completed] added focused regression coverage for local multi-token approval selection:
+  - `tests/test_tui_app.py::test_tui_local_approve_multiple_pending_requires_token`
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/session_pending_approval_service.py src/mini_agent/runtime/session_interrupt_handler.py src/mini_agent/tui/app.py tests/test_tui_app.py tests/test_main_agent_surface_service.py`
+  - result: all green
+  - `uv run pytest tests/test_tui_app.py tests/test_main_agent_surface_service.py -q`
+  - result: `194 passed`
+
+## 2026-04-14 P32.50 Shared Cancel Semantics Extraction
+
+- [completed] kept local-vs-managed interrupt mechanisms separate, but extracted their shared cancel semantics:
+  - added `src/mini_agent/runtime/session_cancel_service.py`
+- [completed] rewired:
+  - `src/mini_agent/runtime/session_interrupt_handler.py`
+  - `src/mini_agent/tui/app.py`
+- [completed] unified:
+  - `cancellation requested` state/summary labels
+  - cancel transcript detail formatting
+  - canonical `no running turn` / `not cancellable` details
+  - local idle cancel message text source
+- Verification:
+  - `uv run ruff check src/mini_agent/runtime/session_cancel_service.py src/mini_agent/runtime/session_interrupt_handler.py src/mini_agent/tui/app.py tests/test_tui_app.py tests/test_main_agent_surface_service.py tests/test_agent_studio_gateway_api_v1.py`
+  - result: all green
+  - `uv run pytest tests/test_tui_app.py tests/test_main_agent_surface_service.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - result: `215 passed`
+
+## 2026-04-14 P32.51 Shared Context-Control Result Extraction
+
+- [completed] extracted `compact/drop_memories` result normalization and formatting into one shared owner:
+  - added `src/mini_agent/agent_core/context/control_result_service.py`
+- [completed] rewired:
+  - `src/mini_agent/runtime/session_agent_control_handler.py`
+  - `src/mini_agent/tui/app.py`
+  - `src/mini_agent/cli_interactive.py`
+- [completed] removed duplicated per-surface logic for:
+  - control summary generation
+  - detail text generation
+  - message/token/stats normalization
+  - local CLI/TUI success labeling from the same normalized result
+- Verification:
+  - `uv run ruff check src/mini_agent/agent_core/context/control_result_service.py src/mini_agent/runtime/session_agent_control_handler.py src/mini_agent/tui/app.py src/mini_agent/cli_interactive.py tests/test_runtime_session_agent_control_handler.py tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_surface_service.py`
+  - result: all green
+  - `uv run pytest tests/test_runtime_session_agent_control_handler.py tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_surface_service.py -q`
+  - result: `221 passed`
+
+## 2026-04-14 P32.52 Shared Remote Error Mapping / Session-Control Error Semantics
+
+- [completed] replaced TUI-local gateway regex parsing with a shared transport owner:
+  - added `src/mini_agent/transport/gateway_error.py`
+  - rewired `src/mini_agent/transport/gateway_client.py`
+  - exported the helper from `src/mini_agent/transport/__init__.py`
+- [completed] extracted shared session-control busy/error wording:
+  - added `src/mini_agent/runtime/session_control_error_service.py`
+  - rewired:
+    - `src/mini_agent/runtime/session_agent_control_handler.py`
+    - `src/mini_agent/runtime/session_operator_handler.py`
+    - `src/mini_agent/tools/mcp/command_service.py`
+- [completed] extended existing semantic owners so remote TUI flows reuse them too:
+  - `src/mini_agent/runtime/session_pending_approval_service.py`
+  - `src/mini_agent/runtime/session_cancel_service.py`
+  - `src/mini_agent/tui/app.py`
+- [completed] removed the remaining TUI-local remote failure translation helpers for:
+  - gateway detail extraction
+  - approval summary/status mapping
+  - control summary/status mapping
+  - idle remote cancel detection
+- [completed] added focused regression coverage:
+  - `tests/test_transport_gateway_error.py`
+  - `tests/test_runtime_session_error_services.py`
+  - `tests/test_tui_app.py::test_tui_remote_cancel_when_idle_uses_shared_cancel_detail`
+- Verification:
+  - `uv run ruff check src/mini_agent/transport/gateway_error.py src/mini_agent/transport/gateway_client.py src/mini_agent/transport/__init__.py src/mini_agent/runtime/session_control_error_service.py src/mini_agent/runtime/session_agent_control_handler.py src/mini_agent/runtime/session_operator_handler.py src/mini_agent/runtime/session_pending_approval_service.py src/mini_agent/runtime/session_cancel_service.py src/mini_agent/tools/mcp/command_service.py src/mini_agent/tui/app.py tests/test_transport_gateway_error.py tests/test_runtime_session_error_services.py tests/test_tui_app.py`
+  - result: all green
+  - `uv run pytest tests/test_transport_gateway_error.py tests/test_runtime_session_error_services.py tests/test_tui_app.py tests/test_transport_gateway_client.py tests/test_main_agent_surface_service.py tests/test_runtime_session_agent_control_handler.py tests/test_runtime_session_mcp_control_handler.py -q`
+  - result: `220 passed`
+
+## 2026-04-14 P32.53 Shared Remote Stream Failure / Desktop Remote Error Normalization
+
+- [completed] added shared remote stream failure normalization:
+  - `src/mini_agent/transport/remote_stream_error_service.py`
+- [completed] rewired TUI and desktop stream consumers to the same stream-error owner:
+  - `src/mini_agent/tui/app.py`
+  - `src/mini_agent/desktop/window.py`
+- [completed] aligned desktop approval failure wording with shared pending-approval + gateway error semantics:
+  - `src/mini_agent/desktop/window.py`
+- [completed] normalized remaining desktop remote operation failures and remaining TUI remote command failures to extracted gateway detail:
+  - `src/mini_agent/desktop/window.py`
+  - `src/mini_agent/tui/app.py`
+- [completed] added focused regression coverage:
+  - `tests/test_transport_remote_stream_error_service.py`
+  - `tests/test_desktop_window_helpers.py::test_desktop_error_detail_uses_gateway_detail_without_http_prefix`
+  - `tests/test_desktop_window_helpers.py::test_format_desktop_approval_failure_uses_shared_pending_approval_semantics`
+  - `tests/test_tui_app.py::test_tui_remote_stream_exception_uses_normalized_detail`
+- Verification:
+  - `uv run ruff check src/mini_agent/transport/remote_stream_error_service.py src/mini_agent/transport/__init__.py src/mini_agent/desktop/window.py src/mini_agent/tui/app.py tests/test_transport_remote_stream_error_service.py tests/test_desktop_window_helpers.py tests/test_tui_app.py`
+  - result: all green
+  - `uv run pytest tests/test_transport_remote_stream_error_service.py tests/test_desktop_window_helpers.py tests/test_tui_app.py tests/test_transport_gateway_error.py tests/test_runtime_session_error_services.py -q`
+  - result: `139 passed`
+
+## 2026-04-14 P32.54 Shared Session Mutation Feedback Semantics
+
+- [completed] added a shared user-facing session mutation feedback owner:
+  - `src/mini_agent/session/feedback_service.py`
+- [completed] exported the service from the session package:
+  - `src/mini_agent/session/__init__.py`
+- [completed] rewired TUI session mutation success flows to shared feedback:
+  - `src/mini_agent/tui/app.py`
+  - covered `share/unshare/rename/delete/reset`
+- [completed] rewired desktop session mutation success flows to shared feedback:
+  - `src/mini_agent/desktop/window.py`
+  - covered `share/unshare/rename`
+- [completed] added focused regression coverage:
+  - `tests/test_session_feedback_service.py`
+- Verification:
+  - `uv run ruff check src/mini_agent/session/feedback_service.py src/mini_agent/session/__init__.py src/mini_agent/tui/app.py src/mini_agent/desktop/window.py tests/test_session_feedback_service.py tests/test_tui_app.py tests/test_desktop_window_helpers.py`
+  - result: all green
+  - `uv run pytest tests/test_session_feedback_service.py tests/test_tui_app.py tests/test_desktop_window_helpers.py -q`
+  - result: `134 passed`
+
+## 2026-04-14 P32.55 Shared Model-Selection Feedback Semantics
+
+- [completed] extended the existing model-selection owner with shared feedback semantics:
+  - `src/mini_agent/model_manager/session_selection_service.py`
+- [completed] rewired TUI model selection success text to the shared feedback:
+  - `src/mini_agent/tui/app.py`
+- [completed] rewired desktop model selection success text to the shared feedback:
+  - `src/mini_agent/desktop/window.py`
+- [completed] added focused regression coverage:
+  - `tests/test_session_model_selection_service.py`
+- Verification:
+  - `uv run ruff check src/mini_agent/model_manager/session_selection_service.py src/mini_agent/tui/app.py src/mini_agent/desktop/window.py tests/test_session_model_selection_service.py tests/test_tui_app.py tests/test_desktop_window_helpers.py`
+  - result: all green
+  - `uv run pytest tests/test_session_model_selection_service.py tests/test_tui_app.py tests/test_desktop_window_helpers.py -q`
+  - result: `134 passed`
+
+## 2026-04-14 P32.56 Shared Session Create/Fork Feedback Semantics
+
+- [completed] broadened the shared session feedback owner from mutation-only semantics to general session feedback:
+  - `src/mini_agent/session/feedback_service.py`
+- [completed] updated the session package public exports to reflect the generalized feedback surface:
+  - `src/mini_agent/session/__init__.py`
+- [completed] rewired TUI session create/fork success text to the shared feedback owner:
+  - `src/mini_agent/tui/app.py`
+- [completed] normalized the remaining TUI session command failure branches to extracted gateway detail:
+  - `src/mini_agent/tui/app.py`
+  - covered `new/fork/share/unshare/rename/delete`
+- [completed] rewired desktop session create/fork success text to the shared feedback owner:
+  - `src/mini_agent/desktop/window.py`
+- [completed] added focused regression coverage:
+  - `tests/test_session_feedback_service.py`
+  - `tests/test_tui_app.py::test_tui_session_new_uses_shared_creation_feedback`
+  - `tests/test_tui_app.py::test_tui_session_new_failure_uses_normalized_gateway_detail`
+  - `tests/test_tui_app.py::test_tui_fork_failure_uses_normalized_gateway_detail`
+- Verification:
+  - `uv run ruff check src/mini_agent/session/feedback_service.py src/mini_agent/session/__init__.py src/mini_agent/tui/app.py src/mini_agent/desktop/window.py tests/test_session_feedback_service.py tests/test_tui_app.py`
+  - result: all green
+  - `uv run pytest tests/test_session_feedback_service.py tests/test_tui_app.py tests/test_desktop_window_helpers.py -q`
+  - result: `139 passed`
+- 2026-04-14: hard-removed browser `WebUI / OpenWebUI` from the active architecture path; current entrance model is now only `CLI / TUI / Desktop / Remote`.
+
+## 2026-04-15 Agent-Core Core Analysis Session
+
+- reviewed current `agent_core` runtime implementation for architecture quality and refactor readiness
+- inspected kernel/bootstrap, execution loop, scheduler, turn-context, tooling, permissions, sandbox, skills, session lifecycle, delegation, and adjacent runtime wiring
+- cross-checked intended behavior using:
+  - `tests/test_agent_core_kernel.py`
+  - `tests/test_agent_core_execution_loop.py`
+  - `tests/test_agent_core_turn_context.py`
+- result:
+  - no code changes to runtime behavior in this slice
+  - produced a comprehensive architecture assessment of strengths, debt, and next refactor order
+
+## 2026-04-15 P34 Agent-Core Refactor Planning Session
+
+- produced the active `P34` planning document:
+  - `docs/P34_AGENT_CORE_REFACTOR_PLAN_2026-04-15.md`
+- aligned `P34` with:
+  - `P32` physical ownership cleanup
+  - `P33/P33b` runtime/model governance work
+  - current framework skeleton and architecture lock
+- locked the recommended first implementation cut as:
+  - `P34.1` runtime binding contract hardening
+  - `P34.2` turn-scoped policy contract hardening
+- result:
+  - no runtime behavior changes in the planning slice
+  - the project now has an explicit agent-core refactor roadmap ready for execution
+
+## 2026-04-15 P34.1 P34.2 Implementation Session
+
+- added `src/mini_agent/agent_core/runtime_bindings.py`
+- updated `src/mini_agent/agent_core/engine.py` to own:
+  - typed runtime bindings
+  - explicit runtime service mutation helper
+  - explicit tool approval handler override
+  - typed execution policy override
+- updated `src/mini_agent/agent_core/kernel.py` to bind runtime metadata through the runtime-binding helper instead of direct `setattr(...)`
+- updated `src/mini_agent/agent_core/execution/agent_loop.py` to bind the approval bridge through the explicit helper
+- updated `src/mini_agent/application/agent_turn_execution_handler.py` to use approval-handler override context rather than manual setter/reset logic
+- updated `src/mini_agent/agent_core/execution/scheduler.py` so turn policy override no longer rewrites execution policy into a plain dict
+- added focused regression coverage in:
+  - `tests/test_agent_core_kernel.py`
+  - `tests/test_agent_core_execution_loop.py`
+  - `tests/test_agent_core_execution_policy.py`
+- verification:
+  - targeted `ruff check` on modified runtime and test files: green
+  - targeted core/runtime tests: `37 passed`
+  - adjacent surface/runtime tests: `106 passed`
+  - full suite: `1069 passed, 15 skipped, 6 failed`
+- residual note:
+  - the remaining full-suite failures are outside this slice and point to walkthrough/TUI/runtime-snapshot expectations already drifting elsewhere in the worktree
+
+## 2026-04-15 P34.3 Tool Execution Coordinator Extraction Session
+
+- added `src/mini_agent/agent_core/execution/tool_approval.py`
+- added `src/mini_agent/agent_core/execution/tool_execution_coordinator.py`
+- updated `src/mini_agent/agent_core/execution/__init__.py` to export the new tool-execution seam
+- updated `src/mini_agent/agent_core/engine.py` so the old inline tool-execution cluster now delegates through the coordinator:
+  - `_best_effort_cancel_tool(...)`
+  - `_execute_tool_with_interrupt_support(...)`
+  - `_build_tool_invocation(...)`
+  - `_request_tool_approval(...)`
+  - `_authorize_tool_invocation(...)`
+  - `_execute_tool_calls(...)`
+- kept `StepOutcome` ownership in `Agent` by mapping coordinator batch states back into:
+  - `COMPLETE`
+  - `CANCELLED`
+  - `CONTINUE`
+- verification:
+  - `uv run ruff check src/mini_agent/agent_core/engine.py src/mini_agent/agent_core/execution/tool_approval.py src/mini_agent/agent_core/execution/tool_execution_coordinator.py src/mini_agent/agent_core/execution/__init__.py tests/test_agent_core_execution_policy.py tests/test_agent_core_execution_loop.py tests/test_agent_core_execution_tools.py tests/test_agent_core_execution_permissions.py`
+  - result: all green
+  - `uv run pytest tests/test_agent_core_execution_policy.py tests/test_agent_core_execution_loop.py tests/test_agent_core_execution_tools.py tests/test_agent_core_execution_permissions.py tests/test_main_agent_surface_service.py -q`
+  - result: `114 passed`
+- next:
+  - move to `P34.4` history and summarization semantics correction
+
+## 2026-04-15 P34.4 History And Summarization Semantics Correction Session
+
+- added `src/mini_agent/agent_core/history/summarization.py`
+- added `src/mini_agent/agent_core/history/__init__.py`
+- updated `src/mini_agent/agent_core/engine.py` so `_summarize_messages(...)` now delegates history mutation and summary generation to the extracted history service
+- replaced the old fake-user summary writeback with an explicit internal summary message contract:
+  - role `assistant`
+  - name `__mini_agent_history_summary__`
+  - content prefix `[Internal Assistant Summary]`
+- added compatibility normalization for older fake-user summaries so compaction can repair them in-place during the next summarize pass
+- added preservation logic so already compacted internal summary messages are not redundantly re-summarized as raw execution history
+- added focused regression coverage in:
+  - `tests/test_agent_core_history_summarization.py`
+- verification:
+  - `uv run ruff check src/mini_agent/agent_core/engine.py src/mini_agent/agent_core/history/__init__.py src/mini_agent/agent_core/history/summarization.py tests/test_agent_core_history_summarization.py`
+  - result: all green
+  - `uv run pytest tests/test_agent_core_history_summarization.py tests/test_agent_core_execution_policy.py tests/test_agent_core_execution_loop.py tests/test_agent_core_execution_tools.py tests/test_agent_core_execution_permissions.py tests/test_main_agent_surface_service.py -q`
+  - result: `117 passed`
+- next:
+  - move to `P34.5` headless core presentation boundary
+
+## 2026-04-15 P34.5 Headless Core Presentation Boundary Session
+
+- added `src/mini_agent/agent_core/presentation.py`
+- updated `src/mini_agent/agent_core/engine.py` so core runtime feedback now routes through a semantic presenter instead of direct ANSI/console formatting
+- updated `src/mini_agent/agent_core/execution/tool_execution_coordinator.py` so tool-call rendering now belongs to the presenter seam
+- updated `src/mini_agent/agent_core/history/summarization.py` so history-compaction feedback also routes through the presenter seam
+- preserved current compatibility by making `console_output` choose between:
+  - `AnsiConsoleAgentRuntimePresenter`
+  - `NullAgentRuntimePresenter`
+- added focused regression coverage in:
+  - `tests/test_agent_core_presentation.py`
+- added validation that:
+  - headless agent execution does not directly call `print()`
+  - custom presenters receive tool and history feedback events
+- verification:
+  - `uv run ruff check src/mini_agent/agent_core/engine.py src/mini_agent/agent_core/presentation.py src/mini_agent/agent_core/execution/tool_execution_coordinator.py src/mini_agent/agent_core/history/summarization.py tests/test_agent_core_history_summarization.py tests/test_agent_core_presentation.py`
+  - result: all green
+  - `uv run pytest tests/test_agent_core_presentation.py tests/test_agent_core_history_summarization.py tests/test_agent_core_execution_policy.py tests/test_agent_core_execution_loop.py tests/test_agent_core_execution_tools.py tests/test_agent_core_execution_permissions.py tests/test_main_agent_surface_service.py -q`
+  - result: `119 passed`
+- next:
+  - move to `P34.6` turn-context package decomposition
+
+## 2026-04-16 P32b OpenWebUI Legacy Release Surface Session
+
+- staged and landed a narrow hygiene commit for the removed OpenWebUI surface instead of mixing it into the larger dirty worktree
+- removed active OpenWebUI adapter/runtime assets:
+  - `src/apps/open_webui/.env.example`
+  - `src/apps/open_webui/README_zh-CN.md`
+  - `src/apps/open_webui/__init__.py`
+  - `src/apps/open_webui/adapter.py`
+  - `src/apps/open_webui/docker-compose.yml`
+  - `src/apps/open_webui/main.py`
+  - `src/apps/open_webui/requirements.txt`
+- removed obsolete release helpers and tests:
+  - `scripts/ci/open_webui_smoke.py`
+  - `scripts/ci/open_webui_verify.py`
+  - `tests/test_open_webui_adapter.py`
+  - `tests/test_open_webui_main.py`
+  - `tests/test_open_webui_positioning.py`
+- updated active release-path ownership:
+  - simplified `.github/workflows/ci.yml` release handoff workflow
+  - updated `scripts/ci/release_gate.py`
+  - updated `scripts/ci/release_promotion_checklist.py`
+  - updated `src/mini_agent/dev/release_promotion_checklist.py`
+  - updated `tests/test_release_promotion_checklist.py`
+  - updated `scripts/README.md`
+  - updated `scripts/ci/README.md`
+  - updated `scripts/archive/README.md`
+- verification:
+  - `uv run pytest tests/test_release_promotion_checklist.py -q`
+  - result: `3 passed`
+  - `uv run python scripts/ci/release_gate.py --help`
+  - result: exit `0`
+  - `uv run python scripts/ci/release_promotion_checklist.py --help`
+  - result: exit `0`
+  - `git diff --cached --check`
+  - result: clean
+- commit:
+  - `127bc9c`
+  - `p32b: remove openwebui legacy release surface`
+
+## 2026-04-16 P32b Legacy Channel Tree Removal Session
+
+- staged and landed a pure-deletion hygiene commit for the removed legacy remote-channel trees
+- removed:
+  - `scripts/qq_wechat_smoke.py`
+  - `src/channels/types/*`
+  - `src/channels/wechat/*`
+  - `src/gateway/channels/*`
+  - `src/mini_agent/channels/*`
+  - `tests/test_channels.py`
+- confirmed the current active doc map already records these paths as historical removals rather than maintained ownership:
+  - `docs/DEVELOPMENT_INDEX.md`
+  - `docs/REFACTOR_TASKS.md`
+- verification:
+  - `rg -n "mini_agent\\.channels|src/channels/wechat|src/gateway/channels|qq_wechat_smoke|test_channels\\.py|channels/types" src tests scripts -g '!scripts/archive/**'`
+  - result: no active matches
+  - `uv run pytest tests/test_markdown_links.py -q`
+  - result: `1 passed`
+  - `git diff --cached --check`
+  - result: clean
+- commit:
+  - `c6ca8bb`
+  - `p32b: drop legacy channel trees`

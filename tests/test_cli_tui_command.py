@@ -27,11 +27,13 @@ def test_run_tui_mode_invokes_tui_runner(monkeypatch, tmp_path: Path) -> None:
         approval_profile: str | None,
         access_level: str | None,
         initial_prompt: str | None,
+        config_loader,
     ) -> None:
         called["workspace"] = workspace
         called["approval_profile"] = approval_profile
         called["access_level"] = access_level
         called["initial_prompt"] = initial_prompt
+        called["config_loader"] = config_loader
 
     monkeypatch.setattr("mini_agent.tui.run_tui", _fake_run_tui)
 
@@ -47,6 +49,7 @@ def test_run_tui_mode_invokes_tui_runner(monkeypatch, tmp_path: Path) -> None:
     assert called["approval_profile"] == "plan"
     assert called["access_level"] == "default"
     assert called["initial_prompt"] == "seed prompt"
+    assert called["config_loader"] is cli.load_noninteractive_config
 
 
 def test_supports_unicode_box_art_requires_utf8_on_windows(monkeypatch) -> None:

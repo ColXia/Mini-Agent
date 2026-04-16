@@ -1,5 +1,3521 @@
 # Task Plan
 
+## Latest Sync: 2026-04-16 P38 Round-1 Narrow Commit Finalization
+
+## Current Execution Slice: P38 Round-1 Narrow Commit Finalization (2026-04-16)
+
+### Why This Slice Is Next
+
+- the round-1 closure report is already complete
+- the maintained active baseline is already restored and re-verified
+- leaving the round-1 slice uncommitted would keep closure state ambiguous inside the larger dirty tree
+- the safest next move is therefore the explicit narrow `P38` commit, not automatic widening into round-2 work
+
+### Scope
+
+- commit only the round-1 closure slice
+- keep mixed `P33b / P34 / P36 / P37` dirty-tree work out of this boundary
+- preserve the restored active baseline as one honest checkpoint
+
+### Acceptance
+
+- the round-1 closure files are committed as one narrow slice
+- the commit boundary excludes mixed `kernel / model-runtime` and wider repo-hygiene work
+- the next work can reopen from an explicit new line instead of an implicit carry-over backlog
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- re-verified before finalizing the slice:
+  - `uv run pytest -q`
+  - result: `1161 passed, 15 skipped`
+  - maintained active-path `ruff` perimeter: `All checks passed!`
+- locked round-1 commit contents to:
+  - `tests/test_cli_tui_command.py`
+  - `findings.md`
+  - `progress.md`
+  - `task_plan.md`
+  - `docs/P38_FIRST_CLOSURE_PLAN_2026-04-16.md`
+  - `docs/P38_FIRST_CLOSURE_ROUND1_REPORT_2026-04-16.md`
+  - `docs/PROJECT_COMPLETENESS_EVALUATION_2026-04-16.md`
+
+### Next Likely Seam
+
+- choose the next explicit line after the round-1 checkpoint:
+  - wider round-2 closure
+  - honest mixed `kernel / model-runtime` slice
+  - or a targeted product-polish line such as `DesktopUI`
+
+## Latest Sync: 2026-04-16 P38 Round-1 Closure Report
+
+## Current Execution Slice: P38 Round-1 Closure Report (2026-04-16)
+
+### Why This Slice Is Next
+
+- the project-level evaluation showed that the architecture is mostly landed
+- the current repo problem is now closure quality rather than missing structure
+- the user requested the first concrete closure plan before execution
+- the current baseline still has:
+  - one full-suite failure
+  - active entrance contract drift
+  - red lint baseline
+  - mixed dirty-tree slice risk
+
+### Scope
+
+- finalize the round-1 closure result
+- decide whether to stop at the restored narrow baseline or widen the perimeter
+- record the closure outcome and deferred backlog explicitly
+
+### Acceptance
+
+- a formal round-1 closeout report exists
+- the closure stopping point is explicit
+- deferred work is named instead of silently folding back into the same slice
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- formal plan added:
+  - `docs/P38_FIRST_CLOSURE_PLAN_2026-04-16.md`
+- `P38.1` result:
+  - updated `tests/test_cli_tui_command.py` for the current `run_tui(...)` contract
+  - targeted regression: `155 passed`
+  - full suite: `1161 passed, 15 skipped`
+- `P38.2` result:
+  - the maintained active-path perimeter `ruff` command is already green
+  - current repo-wide lint debt is therefore mostly outside the round-1 active baseline
+- `P38.4` result:
+  - round 1 is now explicitly closed at the narrow restored baseline
+  - closeout report added:
+    - `docs/P38_FIRST_CLOSURE_ROUND1_REPORT_2026-04-16.md`
+  - wider repo hygiene and mixed `kernel / model-runtime` work remain deferred on purpose
+
+### Next Likely Seam
+
+- choose the next explicit post-round-1 path:
+  - commit the narrow `P38` closure slice
+  - or reopen a wider closure/mixed-boundary line deliberately rather than by drift
+
+## Latest Sync: 2026-04-16 Overall Project Completeness Evaluation
+
+## Current Execution Slice: Overall Project Completeness Evaluation (2026-04-16)
+
+### Why This Slice Is Next
+
+- the user requested a whole-project judgment rather than another local refactor decision
+- phase docs now claim multiple major lines are materially complete
+- before reopening more development, the repo needed one explicit answer to:
+  - what is already implemented
+  - what is still only partially complete
+  - how far the current codebase is from a truly closed baseline
+
+### Scope
+
+- compare expected product/architecture shape against the current codebase
+- inspect:
+  - active architecture docs
+  - current entrance and subsystem implementation
+  - project-wide automated validation state
+- produce one explicit evaluation covering:
+  - overall completion
+  - maturity by subsystem
+  - expected-vs-actual gaps
+
+### Acceptance
+
+- a formal whole-project evaluation report exists
+- current maturity is grounded in code and validation, not just phase-doc claims
+- the next work can be prioritized from real remaining gaps rather than intuition
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- evaluation report added:
+  - `docs/PROJECT_COMPLETENESS_EVALUATION_2026-04-16.md`
+- key full-worktree validation result:
+  - `uv run pytest -q` -> `1160 passed, 15 skipped, 1 failed`
+  - `uv run ruff check src tests` -> `57` findings
+- main conclusion:
+  - architecture is mostly landed
+  - product baseline is usable
+  - release/polish closure is not yet complete
+
+### Next Likely Seam
+
+- prioritize closure work over new large architecture lines:
+  - fix the remaining contract drift surfaced by the failing suite
+  - reduce repo hygiene and lint debt
+  - close mixed `kernel / model-runtime` boundary work honestly
+  - improve `DesktopUI / Remote` parity only after core closure stays stable
+
+## Latest Sync: 2026-04-16 Strict Kernel Boundary Evaluation
+
+## Current Execution Slice: Strict Kernel Boundary Evaluation (2026-04-16)
+
+### Why This Slice Is Next
+
+- `P34.1` and `P34.2` are already landed
+- the next tempting move in the dirty tree is direct `kernel` adoption of the new `agent_core`
+- that move looked superficially like the next `P34` step, but the dependency closure needed a stricter audit before any commit choice
+- the main risk is a phase-fake commit:
+  - labeling a mixed `kernel + runtime-governance + protocol-binding` bundle as core-only refactor work
+
+### Scope
+
+- inspect the current `kernel` diff and its real dependency closure
+- classify the implicated files into:
+  - pure `P34`
+  - `P33b` runtime/provider-governance
+  - mixed / not cheaply separable
+- decide whether the current `kernel` is:
+  - cuttable now
+  - reducible to a phase-pure subset
+  - or should be deferred until a combined bundle is ready
+
+### Acceptance
+
+- the current `kernel` adoption status is explicitly classified
+- the minimum honest dependency bundle is understood
+- the next implementation move can be chosen without hiding provider/bootstrap/protocol work under a misleading `P34` label
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- inspected current `kernel` and closure:
+  - `src/mini_agent/agent_core/kernel.py`
+  - `src/mini_agent/model_manager/runtime.py`
+  - `src/mini_agent/model_manager/failover.py`
+  - `src/mini_agent/model_manager/bootstrap.py`
+  - `src/mini_agent/llm/protocol_binding.py`
+  - `src/mini_agent/runtime/tooling.py`
+  - `src/mini_agent/runtime/turn_context_provider_builder.py`
+- strict conclusion:
+  - current `kernel` is not phase-honest as a pure `P34` slice
+  - it now embeds `P33b` route-intent, bootstrap-provider, capability-truth, request-policy, and rectifier/runtime-governance behavior
+  - the minimum honest adoption is therefore a combined `P34 + P33b` bundle
+  - a pure `P34` next step would require reducing the kernel diff first
+
+### Next Likely Seam
+
+- decide between:
+  - combined `P34 + P33b` kernel adoption when the remaining runtime-governance slice is ready
+  - or a reduced pure-`P34` kernel cut that keeps only typed binding / engine adoption without changing routing and failover semantics
+
+## Latest Sync: 2026-04-16 P34.2 Turn-Scoped Policy Contract Hardening
+
+## Current Execution Slice: P34.2 Turn-Scoped Policy Contract Hardening (2026-04-16)
+
+### Why This Slice Is Next
+
+- `P34.1` already landed the new `agent_core` package and compatibility shims
+- the next honest `P34` cut had to stay inside core-runtime maintenance rather than reopen `P33b` model/provider work
+- current dirty-tree `kernel` adoption is still entangled with provider bootstrap, protocol binding, and streaming/runtime-truth changes
+- the cleaner next seam was therefore `P34.2`:
+  - harden turn-scoped execution policy application inside the scheduler
+  - stop mutating `execution_policy` shape as part of scheduler fallback behavior
+  - keep turn budget overrides working without dragging `kernel` or provider surfaces into the same commit
+
+### Scope
+
+- tighten `src/mini_agent/agent_core/execution/scheduler.py`
+- make the typed policy-override path explicit through `override_execution_policy(...)`
+- remove the legacy scheduler behavior that rewrote `agent.execution_policy`
+- update focused scheduler/loop tests to validate:
+  - typed policy shape is preserved for override-capable agents
+  - fallback agents still receive temporary `max_steps / max_tool_calls_per_step` overrides
+
+### Acceptance
+
+- `TurnScheduler` no longer rewrites `agent.execution_policy` into a plain dict
+- turn-scoped max-step and max-tool-call overrides still work
+- focused scheduler/policy regression tests pass
+- the slice lands as one narrow `P34` commit without bundling `kernel`, provider, or session-surface changes
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- landed commit slice:
+  - `972bbf6`
+  - `p34: harden typed turn policy override path`
+- core change:
+  - `src/mini_agent/agent_core/execution/scheduler.py`
+  - added an explicit `TurnPolicyOverridable` contract
+  - fallback scheduler policy application now only touches `max_steps` and `max_tool_calls_per_step`
+  - scheduler no longer mutates `execution_policy` on agents that do not own a typed override contract
+- focused test updates:
+  - `tests/test_agent_core_execution_loop.py`
+  - override-capable observed agents now keep `AgentExecutionPolicy` shape during one turn
+  - fallback agents keep their legacy `execution_policy` object untouched while still honoring temporary run limits
+- focused verification stayed green before commit:
+  - `uv run pytest tests/test_agent_core_execution_loop.py tests/test_agent_core_execution_policy.py -q`
+  - result: `25 passed`
+  - `git diff --cached --check`
+  - result: clean
+
+### Next Likely Seam
+
+- `P34.2` is now materially complete
+- the next honest `P34` seam is still likely one of:
+  - a later `kernel` adoption cut once the required `P33b` provider/bootstrap pieces can be bundled honestly
+  - another core-only cleanup that does not reopen provider/runtime-surface coupling
+
+## Latest Sync: 2026-04-16 P34.1 Agent-Core Runtime Package Landing
+
+## Current Execution Slice: P34.1 Agent-Core Runtime Package + Legacy Compatibility Shims (2026-04-16)
+
+### Why This Slice Is Next
+
+- `P32b` was materially complete, so the next honest cut had to come from a real feature/refactor bucket
+- the biggest remaining coherent bucket was `P34 agent_core`
+- the direct-import rewrite already living in the dirty tree was too coupled to `P33b / P36 / P37`
+- the safer first `P34` landing was:
+  - introduce the new `agent_core` runtime package as the real implementation
+  - keep legacy `mini_agent.agent / turn_context / code_agent` entrypoints alive as compatibility shims
+  - avoid dragging `kernel`, provider bootstrap, or session-surface migration into the same commit
+
+### Scope
+
+- land the new `agent_core` execution/context/history/runtime-binding implementation package
+- add compatibility shims for:
+  - `src/mini_agent/agent.py`
+  - `src/mini_agent/turn_context.py`
+  - key `src/mini_agent/code_agent/*` package surfaces
+- add backward-compatible schema support so legacy buffered `LLMResponse` callers can still feed the new core
+- land focused `agent_core` tests without reopening the broader `kernel / provider / session / TUI` migration lines
+
+### Acceptance
+
+- the repo contains a maintained `agent_core` runtime implementation instead of keeping the new core only in the dirty tree
+- legacy import surfaces still resolve and point at the new core contracts where needed
+- the new core can accept legacy buffered completion payload shapes
+- focused `agent_core` execution/context/history/runtime-binding tests pass
+- the slice lands as one narrow `P34` commit without bundling later runtime/session or TUI convergence work
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- landed commit slice:
+  - `d48f3c0`
+  - `p34: land agent_core runtime with compatibility shims`
+- core implementation landed:
+  - `src/mini_agent/agent_core/engine.py`
+  - `src/mini_agent/agent_core/runtime_bindings.py`
+  - `src/mini_agent/agent_core/presentation.py`
+  - `src/mini_agent/agent_core/post_turn.py`
+  - `src/mini_agent/agent_core/history/**`
+  - `src/mini_agent/agent_core/context/**`
+  - `src/mini_agent/agent_core/execution/**`
+- compatibility bridge landed:
+  - `src/mini_agent/agent.py`
+  - `src/mini_agent/turn_context.py`
+  - `src/mini_agent/code_agent/__init__.py`
+  - `src/mini_agent/code_agent/context_compression.py`
+  - `src/mini_agent/code_agent/permissions/__init__.py`
+  - `src/mini_agent/code_agent/sandbox/__init__.py`
+  - `src/mini_agent/code_agent/tools/__init__.py`
+- schema/runtime compatibility landed:
+  - `src/mini_agent/schema/schema.py`
+  - `src/mini_agent/schema/__init__.py`
+  - legacy `LLMResponse` now remains available on top of the new completion event model
+- focused verification stayed green before commit:
+  - `uv run pytest tests/test_agent_core_compatibility_shims.py tests/test_agent_core_runtime_bindings.py tests/test_agent_core_context_compaction.py tests/test_agent_core_execution_loop.py tests/test_agent_core_execution_policy.py tests/test_agent_core_execution_permissions.py tests/test_agent_core_execution_tools.py tests/test_agent_core_execution_sandbox.py tests/test_agent_core_execution_mcp_client.py tests/test_agent_core_execution_minimal_workflow.py tests/test_agent_core_turn_context.py tests/test_agent_core_history_summarization.py tests/test_agent_core_presentation.py tests/test_agent_core_post_turn.py tests/test_agent_core_exports.py -q`
+  - result: `105 passed`
+  - `git diff --cached --check`
+  - result: clean
+
+### Next Likely Seam
+
+- `P34.1` is now materially landed as the runtime-package introduction cut
+- the next honest `P34` seam is likely one of:
+  - direct `kernel` adoption of the new typed runtime-binding surface
+  - replacing remaining legacy import sites once the dependent `P33b` bootstrap/runtime-truth pieces are explicitly bundled
+  - a narrower `P34` command/context support cut if it can stay separate from `P36` session-service convergence
+
+## Latest Sync: 2026-04-16 P32b Final Doc And History Boundary Closure
+
+## Current Execution Slice: P32b Final Active-vs-Historical Doc Sync (2026-04-16)
+
+### Why This Slice Is Next
+
+- the dirty-tree classification after `2b3bae2` showed that residual `P32b` had become a minority slice
+- the only honest remaining hygiene work was one last docs/history boundary closeout
+- the main risk was no longer missing documentation updates
+- it was accidentally bundling later `P33b / P34 / P36 / P37` structure stories into a hygiene commit
+
+### Scope
+
+- sync active architecture/contributor docs to the already-landed `QQ-only remote adapter + browser removed` reality
+- add one explicit remote-interaction architecture lock doc for the `P32` result
+- mark historical/session-boundary docs so old channel/browser references stay as evidence, not as live implementation guidance
+- keep future-structure docs and garbled mixed docs out of the commit boundary
+
+### Acceptance
+
+- active docs no longer present browser `WebUI / OpenWebUI` as paused-but-active surfaces
+- active docs describe `Remote Interaction` with `QQ` as the only current adapter path
+- historical `P29 / P30 / P31` docs make their historical status explicit where old channel/browser references remain
+- the slice lands as one narrow docs-only closeout commit
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- landed commit slice:
+  - `d6343bc`
+  - `docs: close p32b remote and browser boundary sync`
+- updated active/current docs:
+  - `docs/ARCHITECTURE.md`
+  - `docs/FRAMEWORK_SKELETON.md`
+  - `docs/CONTRIBUTING.md`
+  - `docs/CONTRIBUTING_CN.md`
+- updated historical-boundary docs:
+  - `docs/P29_SESSION_BOUNDARY_AUDIT_2026-04-12.md`
+  - `docs/P29_SESSION_HARD_REFACTOR_PLAN.md`
+  - `docs/P30_SESSION_TRUTH_BOUNDARY_MAP_2026-04-13.md`
+  - `docs/P30_SURFACE_SESSION_ARCHITECTURE_CORRECTION_2026-04-12.md`
+  - `docs/P31_DESKTOPUI_PYSIDE6_TASK_PLAN_2026-04-13.md`
+- added explicit lock doc:
+  - `docs/P32_REMOTE_INTERACTION_ARCHITECTURE_LOCK_2026-04-14.md`
+- commit-boundary decision:
+  - kept mixed future-structure docs and encoding-damaged historical docs out of this hygiene slice
+
+### Next Likely Seam
+
+- treat `P32b` as materially complete
+- reopen the next commit from its real feature bucket rather than from repo-hygiene surface area
+- highest remaining buckets are still:
+  - `P34` agent-core physical realignment
+  - `P36` runtime/session contract work
+  - `P33b` model/provider governance
+  - `P37` residual TUI surface work
+
+## Latest Sync: 2026-04-16 Post-2b3bae2 Dirty Worktree Classification
+
+## Current Execution Slice: P32b Remaining Dirty Tree Classification (2026-04-16)
+
+### Why This Slice Is Next
+
+- the second focused `P32b` closure slice is now committed as `2b3bae2`
+- the repo is still heavily dirty outside that commit boundary
+- the immediate risk is no longer missing one more quick cleanup
+- it is accidentally mixing later `P33b / P34 / P36 / P37` feature work back into a hygiene commit
+
+### Scope
+
+- classify the remaining dirty worktree by likely phase ownership
+- identify what can still honestly count as residual `P32b`
+- define the safest next commit boundary after `2b3bae2`
+
+### Acceptance
+
+- the remaining dirty files are grouped into clear commit buckets
+- residual `P32b` scope is narrower than the total dirty tree
+- the next recommended slice can be chosen without reopening already-landed hygiene commits
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- coarse remaining-worktree bucket counts:
+  - `p32b_hygiene_docs`: `14`
+  - `p33b_model_provider`: `37`
+  - `p34_agent_core`: `128`
+  - `p36_runtime_session`: `109`
+  - `p37_tui_surface`: `30`
+  - `cross_cutting_misc`: `42`
+- safe residual `P32b` candidates are now mostly:
+  - active/historical doc-boundary sync
+  - repo-metadata hygiene such as `.gitignore` only if it supports the hygiene story directly
+- the large remaining code buckets should not be swept into another hygiene commit:
+  - `agent_core` / `code_agent` collapse and transport realignment belong to `P34`
+  - `llm` / `model_manager` / provider-governance work belongs to `P33b`
+  - `runtime` / `memory` / session contract work belongs to `P36`
+  - TUI command/projector/orchestration work belongs to `P37`
+
+### Next Likely Seam
+
+- if continuing `P32b`, cut one last narrow docs/history/repo-metadata slice only
+- otherwise stop the hygiene line here and reopen the next commit from its real feature bucket rather than from the dirty-tree surface area
+
+## Latest Sync: 2026-04-16 P32b Physical Structure Closure
+
+## Current Execution Slice: P32b Gateway Host Alignment And Browser Surface Removal (2026-04-16)
+
+### Why This Slice Is Next
+
+- the first `P32b` docs/index hygiene slice already landed as `4064fe6`
+- the next highest-value repo-hygiene drift was no longer in active docs
+- it was in the physical tree still carrying an unmaintained browser `agent_studio` surface while the maintained host story had already moved to `agent_studio_gateway`
+- the gateway host itself also still mixed composition, main-agent routes, and ops concerns too tightly in one file
+
+### Scope
+
+- remove the obsolete browser `src/apps/agent_studio/` tree
+- realign `src/apps/agent_studio_gateway/` so `main.py` is the maintained host/composition root
+- split gateway route/auth ownership into maintained support files
+- update the directly affected app/session/novel owners plus active walkthrough/test harnesses that still reflected older signatures
+- keep this slice separate from unrelated later feature lines already present elsewhere in the dirty worktree
+
+### Acceptance
+
+- the repo no longer presents the removed browser studio as a maintained active surface
+- gateway host bootstrapping and route ownership are separated into maintained files under `agent_studio_gateway`
+- active walkthroughs and focused tests pass against the current service/runtime contracts
+- the slice lands as one narrow `P32b` physical-structure closure commit
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- landed commit slice:
+  - `2b3bae2`
+  - `p32b: align gateway host with browser surface removal`
+- structural closeout:
+  - deleted `src/apps/agent_studio/**`
+  - added `composition.py`, `main_agent_router.py`, `ops_auth.py`, and `ops_router.py`
+  - reduced `agent_studio_gateway/main.py` to the maintained transport/composition entry
+- active harness alignment:
+  - walkthrough and readiness scripts now target `MainAgentSurfaceService` + `SessionApplicationService`
+  - current `ChannelIngressUseCases` constructor expectations were aligned
+  - TUI walkthroughs now tolerate the current app signature variants and use `DummyOutput()` safely on Windows
+- focused verification stayed green before commit:
+  - `uv run pytest tests/test_agent_studio_gateway_api_v1.py tests/test_agent_studio_gateway_ops_router.py tests/test_agent_studio_gateway_ops_auth.py tests/test_agent_studio_gateway_integration_flows.py tests/test_channel_novel_action_handler.py tests/test_operations_memory_use_cases.py tests/test_operations_provider_use_cases.py tests/test_config_bootstrap.py tests/test_main_agent_runtime_policy_loader.py tests/test_main_agent_surface_service.py tests/test_novel_service_use_cases.py tests/test_p19_runtime_matrix.py tests/test_channel_ingress_use_cases.py tests/test_session_feedback_service.py tests/test_session_recovery_feedback_service.py tests/test_session_package_exports.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_shared_session_gateway_walkthrough.py tests/test_terminal_readiness_gate.py tests/test_tui_readiness_walkthroughs.py -q`
+  - result: `163 passed`
+  - `git diff --cached --check`
+  - result: clean
+
+### Next Likely Seam
+
+- classify the remaining dirty worktree into:
+  - residual active-doc / historical-boundary `P32b` cleanup
+  - later feature-oriented lines already living outside this commit boundary
+- do not reopen the just-landed gateway/browser hygiene slice by bundling unrelated `P33b-P37` work into one catch-all commit
+
+## Latest Sync: 2026-04-16 P32b Repo Hygiene And Structure Alignment
+
+## Current Execution Slice: P32b Active Doc/Index Sync + Commit Slicing (2026-04-16)
+
+### Why This Slice Is Next
+
+- `P37` is now materially complete
+- the repo already carries large physical-structure churn from `P32` through `P37`
+- active guidance docs still point to earlier anchors such as `P30` and stale active status such as `P33`
+- current code no longer shows active old-path references, which means the highest-value next work is repo hygiene rather than another feature extraction
+
+### Scope
+
+- create one explicit `P32b` repo-hygiene plan
+- sync active indexes, README, and guides to the current execution reality
+- keep historical phase logs traceable without mass-rewriting them into fake current docs
+- define commit slices for the still-dirty worktree
+
+### Acceptance
+
+- active docs no longer teach `P30` or `P33` as the current execution anchor
+- maintained docs stop pointing to deleted current module/test names
+- the repo has an explicit `P32b` hygiene and commit-slicing anchor
+- focused link/doc validation remains green after the sync
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- audit baseline:
+  - no active source/test/script refs remain for `main_agent_gateway_use_cases`, `session_remote_service`, `tui.gateway_client`, or `mini_agent.code_agent`
+  - remaining drift is concentrated in doc/index surfaces and current guidance docs
+- planned first closeout slice:
+  - `README*`
+  - `DEVELOPMENT_INDEX`
+  - `DOCS_INDEX`
+  - `DEVELOPMENT_GUIDE*`
+  - `REFACTOR_TASKS`
+  - `MINIAGENT_DEV_HABIT_LEDGER`
+  - `P32b` plan + planning files
+- first landed commit slice:
+  - `4064fe6`
+  - `docs: sync p32b repo hygiene execution anchors`
+- second landed commit slice:
+  - `2b3bae2`
+  - `p32b: align gateway host with browser surface removal`
+- third landed commit slice:
+  - `d6343bc`
+  - `docs: close p32b remote and browser boundary sync`
+
+## Latest Sync: 2026-04-16 Post-P37 TUI Surface Evaluation
+
+## Current Execution Slice: Post-P37 Evaluation (2026-04-16)
+
+### Why This Slice Is Next
+
+- `P37.1` and `P37.2` are complete
+- `P37.3` has now extracted the main heavy TUI operator-command families:
+  - approval
+  - runtime policy
+  - context
+  - memory
+  - KB
+  - MCP
+  - skill
+  - model
+- before forcing another tail cleanup, the right next step is to evaluate whether the remaining TUI weight still belongs to the same `P37` problem statement
+
+### Scope
+
+- inspect the remaining post-`P37.3` TUI command/surface tails
+- separate true remaining `P37` hotspots from harmless residual surface glue
+- end with one clear recommendation:
+  - continue `P37`
+  - or treat `P37` as materially complete
+
+### Acceptance
+
+- the repo has an explicit post-`P37` assessment grounded in current code
+- the next step is chosen from current reality instead of continuing extraction inertia
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- post-`P37` evaluation report landed in:
+  - `docs/POST_P37_TUI_SURFACE_EVALUATION_2026-04-16.md`
+- main conclusion:
+  - `P37` should now be treated as materially complete
+  - the remaining larger TUI tail is mostly `session` lifecycle/surface orchestration, not another clean `P37.3` command-family seam
+  - `sandbox` is already too small to justify another extraction
+
+### Next Likely Seam
+
+- do not continue `P37.3` by default
+- if another TUI architecture line is needed, scope it from a fresh problem statement such as:
+  - session-surface lifecycle/mutation orchestration
+  - prompt/recovery/resume surface flow cleanup
+  - broader TUI composition-root slimming
+
+## Latest Sync: 2026-04-16 P37.3 Model Command Coordinator
+
+## Current Execution Slice: P37.3 TUI Operator Command Orchestration Split (2026-04-16)
+
+### Why This Slice Is Next
+
+- `P37.2` is now materially complete:
+  - shared local/remote turn state transitions were extracted
+  - shared local/remote turn outcome semantics were extracted
+  - remote stream/event consumption was extracted
+- the next remaining structural pressure in `tui/app.py` is no longer turn execution
+- it is operator-command orchestration, especially where local runtime flow and remote gateway flow still mix inside the same command handlers
+- the safest kickoff cut is approval command orchestration because:
+  - the local and remote command paths already share real semantics
+  - the branch is cohesive and testable
+  - it does not require moving the whole command dispatcher in one step
+
+### Scope
+
+- continue extracting narrow maintained TUI command coordinators
+- move mixed local-vs-remote operator-command orchestration out of `tui/app.py`
+- preserve current:
+  - command text
+  - feedback wording
+  - local/gateway routing behavior
+  - existing runtime/session helper ownership
+
+### Acceptance
+
+- extracted command families no longer live as one mixed local-vs-remote branch inside `tui/app.py`
+- focused unit coverage exists for each extracted command owner
+- existing `tests/test_tui_app.py` command paths remain green after each narrow cut
+
+### Status
+
+- in_progress
+
+### Implementation Notes
+
+- `P37.3` kickoff cut landed as:
+  - added `src/mini_agent/tui/session_approval_command_coordinator.py`
+  - `MiniAgentTuiApp` now delegates local-vs-remote approval command orchestration through that maintained coordinator
+  - modal rendering and remote stream approval event handling remain in `tui/app.py`
+  - added focused unit coverage in `tests/test_tui_approval_command_coordinator.py`
+- `P37.3` second cut landed as:
+  - added `src/mini_agent/tui/session_runtime_policy_command_coordinator.py`
+  - `MiniAgentTuiApp` now delegates local-vs-remote runtime-policy command orchestration through that maintained coordinator
+  - runtime-policy apply helpers remain in `tui/app.py`
+  - added focused unit coverage in `tests/test_tui_runtime_policy_command_coordinator.py`
+- `P37.3` third cut landed as:
+  - added `src/mini_agent/tui/session_context_command_coordinator.py`
+  - `MiniAgentTuiApp` now delegates context command orchestration through that maintained coordinator
+  - context planner, local command execution, and remote update helpers remain in `tui/app.py`
+  - added focused unit coverage in `tests/test_tui_context_command_coordinator.py`
+- `P37.3` fourth cut landed as:
+  - added `src/mini_agent/tui/session_memory_command_coordinator.py`
+  - `MiniAgentTuiApp` now delegates memory command orchestration through that maintained coordinator
+  - memory command planning and execution helpers remain in `tui/app.py`
+  - added focused unit coverage in `tests/test_tui_memory_command_coordinator.py`
+- `P37.3` fifth cut landed as:
+  - added `src/mini_agent/tui/session_kb_command_coordinator.py`
+  - `MiniAgentTuiApp` now delegates KB command orchestration through that maintained coordinator
+  - remote KB execution helper and local KB toggle details remain in `tui/app.py`
+  - added focused unit coverage in `tests/test_tui_kb_command_coordinator.py`
+- `P37.3` sixth cut landed as:
+  - added `src/mini_agent/tui/session_mcp_command_coordinator.py`
+  - `MiniAgentTuiApp` now delegates MCP command orchestration through that maintained coordinator
+  - remote control helper and local MCP reload runtime-rebuild details remain in `tui/app.py`
+  - added focused unit coverage in `tests/test_tui_mcp_command_coordinator.py`
+- `P37.3` seventh cut landed as:
+  - added `src/mini_agent/tui/session_skill_command_coordinator.py`
+  - `MiniAgentTuiApp` now delegates skill command orchestration through that maintained coordinator
+  - remote skill request/response helpers and local skill-result application remain in `tui/app.py`
+  - added focused unit coverage in `tests/test_tui_skill_command_coordinator.py`
+- `P37.3` eighth cut landed as:
+  - added `src/mini_agent/tui/session_model_command_coordinator.py`
+  - `MiniAgentTuiApp` now delegates model command orchestration through that maintained coordinator
+  - model-selection, discovery, filter, and limit helpers remain in `tui/app.py`
+  - added focused unit coverage in `tests/test_tui_model_command_coordinator.py`
+
+### Next Likely Seam
+
+- continue `P37.3` with the next narrow command-family owner
+- best remaining candidates:
+  - command-dispatcher tail cleanup only if another real hotspot remains after model
+  - otherwise a short post-`P37.3` evaluation to decide whether `P37` is materially complete
+- keep the next cut narrow and behavior-preserving; do not reopen turn-flow ownership
+
+## Latest Sync: 2026-04-16 P37.2 Remote Turn Stream Coordinator
+
+## Current Execution Slice: P37.2 Local Vs Remote Turn Execution Split (2026-04-16)
+
+### Why This Slice Is Next
+
+- `P37.1` already removed one concentrated remote projection mutation block from `tui/app.py`
+- the next remaining TUI hotspot is the parallel local/remote turn execution flow:
+  - `_run_chat_turn(...)`
+  - `_run_remote_chat_turn(...)`
+- the safest first `P37.2` cut is not to rewrite both flows
+- it is to extract the shared session/task state transitions they both still own inline
+
+### Scope
+
+- extract narrow maintained owners around local vs remote turn execution
+- move shared state and outcome semantics out of `tui/app.py`
+- move remote stream/event consumption out of the main remote turn method
+- keep local live reply behavior and recovery semantics unchanged
+
+### Acceptance
+
+- local and remote turn execution no longer each own their shared busy/task/running-state transition block inline
+- local and remote turn execution no longer each own their shared completion/failure classification inline
+- remote stream/event consumption no longer lives as one large direct loop inside `_run_remote_chat_turn(...)`
+- focused unit coverage exists for the extracted TUI turn owners
+- `tests/test_tui_app.py` remains green after the extraction
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- `P37.2` first cut landed as:
+  - added `src/mini_agent/tui/session_turn_state_coordinator.py`
+  - `MiniAgentTuiApp` now delegates shared local/remote turn session-task state transitions through that maintained coordinator
+  - added focused unit coverage in `tests/test_tui_turn_state_coordinator.py`
+- `P37.2` second cut landed as:
+  - added `src/mini_agent/tui/session_turn_outcome_coordinator.py`
+  - `MiniAgentTuiApp` now delegates shared local/remote turn completion and failure classification through that maintained coordinator
+  - success-path stream finalization remains in `tui/app.py`, so the extraction stays above outcome semantics and below stream mechanics
+  - added focused unit coverage in `tests/test_tui_turn_outcome_coordinator.py`
+- `P37.2` third cut landed as:
+  - added `src/mini_agent/tui/session_remote_turn_stream_coordinator.py`
+  - `MiniAgentTuiApp` now delegates remote stream consumption and event dispatch through that maintained coordinator
+  - final reply flush/sync and outcome application remain in `tui/app.py`, so the extraction stays below turn orchestration and above raw gateway iteration
+  - added focused unit coverage in `tests/test_tui_remote_turn_stream_coordinator.py`
+
+### Next Likely Seam
+
+- `P37.2` is now materially complete
+- the next architecture slice should move to `P37.3` operator-command orchestration split
+- likely first `P37.3` targets:
+  - approval command orchestration
+  - runtime-policy and context command flow
+  - remote/local command success/error normalization still mixed into `tui/app.py`
+
+## Latest Sync: 2026-04-15 P37.1 Remote Session Projection Service Kickoff
+
+## Current Execution Slice: P37.1 Remote Session Projection Service (2026-04-15)
+
+### Why This Slice Is Next
+
+- post-`P36` evaluation showed the next main structural pressure is in `tui/app.py`, not in runtime/session support seams
+- one especially concentrated hotspot is remote session sync:
+  - remote summary/detail payloads are still applied directly inside the main TUI app class
+  - transport-payload-to-projection mapping still shares ownership with UI orchestration
+- the safest first `P37` cut is therefore narrow:
+  - extract a maintained remote session projector
+  - keep current behavior
+  - add focused unit coverage for the extracted owner
+
+### Scope
+
+- start `P37` by extracting remote `summary/detail/messages` projection application from `tui/app.py`
+- keep network calls and TUI session selection flow where they are for now
+- avoid mixing this kickoff with local/remote turn execution surgery
+
+### Acceptance
+
+- remote session projection mapping has one maintained TUI-facing owner
+- `tui/app.py` no longer directly owns the main remote `summary/detail/messages` mutation block
+- focused regression coverage exists for the extracted projector
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- formal `P37` line is defined in:
+  - `docs/P37_TUI_SURFACE_ORCHESTRATION_CONVERGENCE_PLAN_2026-04-15.md`
+- `P37.1` kickoff landed as:
+  - added `src/mini_agent/tui/session_remote_projector.py`
+  - `MiniAgentTuiApp` now delegates remote session `summary/detail/messages` projection application through that maintained TUI projector
+  - added focused projector unit coverage in `tests/test_tui_remote_projector.py`
+
+### Next Likely Seam
+
+- continue with `P37.2` local-vs-remote turn execution split
+- keep the next cut narrow:
+  - identify the shared lifecycle between `_run_chat_turn(...)` and `_run_remote_chat_turn(...)`
+  - avoid mixing that work with command-family extraction in the same slice
+
+## Latest Sync: 2026-04-15 Post-P36 Runtime/Surface Evaluation Kickoff
+
+## Current Execution Slice: Post-P36 Evaluation (2026-04-15)
+
+### Why This Slice Is Next
+
+- `P36` is now materially complete:
+  - common runtime/session reads sit behind maintained support seams
+  - projection refresh/writeback paths are more consolidated
+  - runtime-facing tests now share maintained contract carriers
+- the next step should not be another blind cleanup slice
+- it should be a fresh evaluation of current reality:
+  - what structural pressure still exists after `P36`
+  - whether the next work belongs in runtime/session behavior, surface/operator ergonomics, or some other line
+
+### Scope
+
+- audit the current post-`P36` runtime/session/surface shape from code, not only from the completed plan
+- identify the remaining hotspots that still matter operationally or architecturally
+- separate real maintained-contract debt from harmless local complexity
+- end with a concrete recommendation:
+  - no immediate follow-up
+  - a narrow `P36x` / `P37` runtime-session line
+  - or a different next milestone outside `P36`
+
+### Acceptance
+
+- the project has an explicit post-`P36` assessment grounded in current code paths
+- any next milestone recommendation is driven by real remaining pressure, not refactor inertia
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- post-`P36` evaluation report landed in:
+  - `docs/POST_P36_RUNTIME_SURFACE_EVALUATION_2026-04-15.md`
+- main conclusion:
+  - `P36` should be treated as complete
+  - the next meaningful architectural pressure is concentrated in `src/mini_agent/tui/app.py`, not in the maintained runtime/session support seams
+  - `MainAgentRuntimeManager` remains large but currently behaves more like a composition root than a hidden behavior hotspot
+
+### Next Likely Seam
+
+- if the next milestone is architecture-oriented, it should likely be a new TUI/surface orchestration line rather than a `P36` continuation
+- likely next focus:
+  - remote session projection syncing
+  - local/remote turn execution convergence
+  - TUI command/runtime interaction split
+
+## Latest Sync: 2026-04-15 P36.3 Runtime Session Tail Fixture Adoption Extension
+
+## Current Execution Slice: P36.3 Surface/Test Contract Cleanup (2026-04-15)
+
+### Why This Slice Is Next
+
+- `P36.1` is now landed:
+  - common runtime-facing agent reads moved behind maintained payload/support seams
+  - read-model, diagnostics, snapshot, persistence, and hydration consumers no longer repeat as much raw `getattr(...)` logic
+  - the immediate codec binding regression has been fixed and the focused runtime/surface bundle is green
+- `P36.2` is now materially cleaned up:
+  - runtime/session and TUI refresh/writeback paths have been converged onto maintained runtime owners
+  - the local prepared-context turn-result split path has been removed
+- the next remaining friction is now primarily in tests:
+  - `CLI / TUI / Surface` verification still carried separate ad hoc runtime-agent doubles
+  - runtime-facing tests still pay repeated setup cost for the same contract shape
+  - the maintained runtime/session contract should now have a matching maintained test carrier
+
+### Scope
+
+- continue `P36` by aligning runtime-facing tests around one maintained contract carrier
+- prefer a small shared test double over scattered per-file wrappers
+- start with the highest-frequency surface files:
+  - `tests/test_cli_submission_loop.py`
+  - `tests/test_tui_app.py`
+  - `tests/test_main_agent_surface_service.py`
+- keep the carrier narrow and contract-oriented; do not build a giant fake runtime framework
+
+### Acceptance
+
+- the main `CLI / TUI / Surface` verification line reuses one maintained runtime-facing test carrier
+- tests need less ad hoc runtime-services / route / prepared-context / KB plumbing
+- the next `P36.3` cuts can extend the same shared carrier or adjacent shared fixtures into runtime/session handler tests
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- the formal `P36` line is defined in:
+  - `docs/P36_SESSION_RUNTIME_CONTRACT_CONSOLIDATION_PLAN_2026-04-15.md`
+- `P36.1` completed:
+  - `RuntimeSessionPayloadCodec` now owns live-agent read helpers for messages, tokens, prepared context, and memory/runtime-task payloads
+  - `RuntimeSessionAgentSupport` is now the maintained runtime-facing read seam above those helpers
+  - read-model, snapshot, diagnostics, persistence, hydrator, and runtime-manager consumers were migrated to that seam
+- first `P36.2` cut now landed:
+  - `session_agent_runtime_handler.py` rebuild flow refreshes projection diagnostics through `RuntimeSessionStateHydrator.refresh_session_diagnostics(...)`
+  - `session_recovery_reset_handler.py` reset flow uses the same shared refresh entry
+  - focused regression coverage now exists for rebuild-triggered and reset-triggered projection refresh behavior
+- second `P36.2` cut now landed:
+  - `RuntimeSessionStateHydrator` now owns `refresh_runtime_projection(...)` for synchronized live-runtime projection refresh
+  - runtime-policy reconfigure and local agent-control flows now use that shared live refresh path instead of mutating projection fields piecemeal
+- third `P36.2` cut now landed:
+  - `RuntimeSessionOperatorHandler` now normalizes operator-side `context_policy` writeback through the maintained payload seam
+  - detached runtime-policy fallback now normalizes and stores local sandbox diagnostics through the same maintained payload seam
+- fourth `P36.2` cut now landed:
+  - `RuntimeSessionModelIdentityCodec` now owns selected/pending identity reads and writes for projection-shaped objects, not only full runtime sessions
+  - TUI local identity helpers and remote model-identity payload normalization now reuse that maintained codec instead of maintaining a parallel surface-local contract
+- fifth `P36.2` cut now landed:
+  - `src/mini_agent/tui/app.py` now owns a narrow local `refresh/capture` projection seam mirroring the runtime hydrator split
+  - TUI local KB helpers and payload normalization now reuse the maintained runtime owners instead of parallel surface-local contracts
+  - local context snapshot refresh, local context writeback, local KB toggles, and local runtime-policy reconfigure now converge on that shared local refresh path
+- sixth `P36.2` cut now landed:
+  - local scheduler/chat turn-result prepared-context writeback now flows through one maintained local helper instead of separate payload/diagnostics setters
+  - local prepared-context feedback now reads the final synchronized projection instead of the raw completion payload
+  - omission of prepared-context diagnostics from a local completion payload no longer drops the TUI projection if the live agent already has current diagnostics
+- `P36.3` kickoff now landed:
+  - added `tests/runtime_contract_fixtures.py` with one shared runtime-facing agent carrier
+  - `tests/test_cli_submission_loop.py`, `tests/test_tui_app.py`, and `tests/test_main_agent_surface_service.py` now reuse that carrier in their main runtime-facing test paths
+- `P36.3` second cut now landed:
+  - `tests/runtime_contract_fixtures.py` now also owns shared session/runtime fixture helpers for policy, sandbox, projection, runtime, and session state carriers
+  - runtime/session handler tests now reuse those shared carrier helpers instead of rebuilding the same `SimpleNamespace(...)` shapes inline
+- `P36.3` third cut now landed:
+  - `tests/runtime_contract_fixtures.py` now also owns narrow lineage/transcript carrier helpers for record/snapshot tests
+  - snapshot/persistence/payload/diagnostics/control tests now reuse the maintained fixture line instead of rebuilding session/projection/runtime shells inline
+- `P36.3` fourth cut now landed:
+  - `tests/test_runtime_session_model_identity_codec.py` now reuses the shared runtime-facing agent/session/projection helpers
+  - `tests/test_runtime_session_operator_handler.py` now reuses the maintained session/projection helpers instead of rebuilding its runtime-facing session shell inline
+- `P36.3` fifth cut now landed:
+  - `tests/test_runtime_session_admin_handler.py`, `tests/test_runtime_session_mcp_control_handler.py`, and `tests/test_runtime_session_pending_approval_state_handler.py` now reuse the maintained session/projection/runtime/transcript helpers
+  - the extraction stayed narrow:
+    - handler dependency stubs remain local to each test file
+    - only repeated session/runtime carrier shells moved behind the shared fixture line
+- `P36.3` sixth cut now landed:
+  - `tests/test_runtime_session_recovery_reset_handler.py`, `tests/test_runtime_session_lifecycle_handler.py`, and `tests/test_runtime_session_hydration_coordinator.py` now also reuse the maintained session/transcript shell helpers where that contract shape is the real subject under test
+  - the remaining inline `SimpleNamespace(...)` usage in `tests/test_runtime_session_*` is now mostly:
+    - domain-local payload rows
+    - handler dependency/service stubs
+    - tiny one-off lifecycle/policy wrappers
+- `P36.3` acceptance is now materially met:
+  - the runtime-facing test line has one maintained fixture carrier for the repeated session/runtime contract shapes
+  - further extraction would mostly chase local test payloads rather than real maintained runtime contracts
+
+### Next Likely Seam
+
+- `P36.3` no longer has meaningful shared-carrier debt
+- the next step should be a fresh post-`P36` evaluation or a new scoped follow-up only if a concrete runtime/session contract problem appears
+
+## Latest Sync: 2026-04-15 P34.8 Final Agent-Facade Slimming And Architecture Lock
+
+## Current Execution Slice: Post-P34 Agent-Core Follow-up Evaluation (2026-04-15)
+
+### Why This Slice Is Next
+
+- `P34.8` is now complete:
+  - obsolete engine wrappers have been removed
+  - the `agent_core` seam contract is now documented explicitly
+  - top-level seam exports are now part of the public reference surface
+- `P34` as a whole is now complete:
+  - runtime bindings hardened
+  - turn-scoped policy hardened
+  - tool execution extracted
+  - history summarization extracted
+  - presentation boundary extracted
+  - turn-context hotspot decomposed
+  - post-turn side effects extracted
+  - final facade/doc lock landed
+- the next step should not be more blind agent-core surgery
+- it should be a fresh follow-up evaluation:
+  - what real remaining pain points still exist in `agent_core`
+  - whether the next line belongs to runtime behavior, operator ergonomics, or a new architecture slice outside `P34`
+
+### Scope
+
+- audit the now-completed `P34` result against real next development needs
+- avoid reopening the completed `P34` slices without a new problem statement
+- identify whether the next work belongs in:
+  - runtime behavior
+  - surface/operator experience
+  - model/runtime/provider follow-up
+  - or a new `agent_core` line with a fresh scoped plan
+
+### Acceptance
+
+- the next task starts from explicit current-state understanding instead of continuing refactor inertia
+- any new architecture line is scoped from current reality, not from outdated pre-`P34` assumptions
+
+### Status
+
+- in_progress
+
+### Implementation Notes
+
+- `P34.8` landed as:
+  - removed obsolete thin wrappers from `src/mini_agent/agent_core/engine.py`
+  - added `docs/AGENT_CORE_RUNTIME_SEAMS.md`
+  - updated `docs/ARCHITECTURE.md`
+  - updated `docs/FRAMEWORK_SKELETON.md`
+  - updated `src/mini_agent/agent_core/__init__.py`
+- targeted verification for the `P34.8` slice:
+  - `uv run ruff check src/mini_agent/agent_core/engine.py src/mini_agent/agent_core/post_turn.py src/mini_agent/agent_core/__init__.py tests/test_agent_core_history_summarization.py tests/test_agent_core_presentation.py tests/test_agent_core_exports.py docs/AGENT_CORE_RUNTIME_SEAMS.md`
+  - `uv run pytest tests/test_agent_core_history_summarization.py tests/test_agent_core_presentation.py tests/test_agent_core_post_turn.py tests/test_agent_core_exports.py tests/test_agent_core_kernel.py tests/test_agent_core_execution_policy.py tests/test_agent_core_execution_tools.py tests/test_agent_core_execution_loop.py tests/test_agent_core_streaming.py tests/test_memory_automation.py -q`
+  - result: `65 passed`
+
+### Next Likely Seam
+
+- the next seam should be chosen from a fresh post-`P34` evaluation, not by extending the completed refactor line mechanically
+
+## Latest Sync: 2026-04-15 Follow-up Model Configuration And Supply Defect Patch
+
+## Current Execution Slice: Follow-up Model Configuration And Supply Defect Patch (2026-04-15)
+
+### Why This Slice Is Next
+
+- `P33b.6` closed the main runtime/provider truth line
+- but one follow-up audit still found three practical gaps in the model configuration / supply seam:
+  - custom provider `headers` and `timeout` were configurable but not fully consumed at runtime
+  - runtime preset supply still re-triggered preset discovery and could drop Ollama on transient probe failures
+  - `mini-agent models` did not load `.env.local`, unlike the main config bootstrap path
+
+### Scope
+
+- finish runtime propagation for custom provider transport knobs:
+  - `headers`
+  - `timeout`
+- separate runtime preset supply from live inventory discovery
+- keep enabled Ollama runtime supply stable from persisted state without requiring a fresh successful probe
+- make CLI preset/model inspection load `.env.local` before env-based preset resolution
+- add focused regression coverage only for these follow-up defects
+
+### Acceptance
+
+- routed runtime clients receive configured custom headers and timeout
+- runtime preset catalog no longer performs fresh discovery while building executable supply
+- enabled Ollama with persisted state remains runnable during transient probe failures
+- `mini-agent models --list-presets` sees keys from `.env.local`
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- transport binding now carries route headers + timeout into protocol execution profiles and SDK client construction
+- runtime preset catalog now rebuilds executable preset supply from:
+  - current env-resolved preset connection info
+  - persisted preset model state
+  instead of depending on a fresh discovery pass
+- Ollama runtime fallback is intentionally narrow:
+  - only enabled local preset
+  - only when persisted runtime state already exists
+- CLI model inspection now loads `.env.local` through the same bootstrap helper used by config loading
+
+### Next Likely Seam
+
+- current model configuration / supply seam is now at a usable level for:
+  - preset providers
+  - custom OpenAI-compatible providers
+  - custom Anthropic-compatible providers
+- the next work should be a fresh evaluation, not more blind patching:
+  - whether provider governance needs a `P33c`
+  - whether remaining work is now operator ergonomics rather than core runtime correctness
+
+## Latest Sync: 2026-04-15 P33b.6 Route Observability And Diagnostics
+
+## Current Execution Slice: P33b.6 Route Observability And Diagnostics (2026-04-15)
+
+### Why This Slice Is Next
+
+- `P33b.5` already corrected the runtime/provider contract story
+- but one operator-facing gap still remained:
+  - agent-routing diagnostics existed
+  - model/provider routing truth did not
+  - bootstrap and candidate-selection reasoning still disappeared before operators could inspect it
+- the next safe correction therefore needed to stay narrow:
+  - do not redesign logging
+  - do not reinterpret existing agent-routing counters
+  - only make the latest model-route decision chain inspectable end to end
+
+### Scope
+
+- add one lightweight model-route diagnostics recorder in `runtime.py`
+- record latest routed or pinned model-route attempt, including explicit-route failures
+- preserve the existing `/api/v1/ops/diagnostics/routing` agent-routing counters while extending the contract with parallel model-route state
+- propagate bootstrap selection diagnostics from `Config -> LLMConfig -> BootstrapLLMSettings -> runtime`
+- enrich kernel route diagnostics with:
+  - route intent
+  - selection reason
+  - fallback reason
+  - candidate chain summary
+- add focused regression coverage across:
+  - runtime
+  - kernel
+  - surface service
+  - ops router
+  - config bootstrap
+
+### Acceptance
+
+- `/api/v1/ops/diagnostics/routing` still reports the existing agent-routing stats unchanged
+- operators can also inspect latest model/provider route truth from the same diagnostics surface
+- runtime records candidate-chain and failure snapshots for routed and pinned resolution paths
+- kernel diagnostics can explain why the active model route won and whether bootstrap policy influenced it
+- bootstrap selection reason/policy survive into runtime diagnostics instead of being dropped during config bootstrap
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- runtime now maintains a lightweight model-route snapshot + resolution counter
+- snapshots capture:
+  - resolution kind
+  - catalog source/path
+  - route intent
+  - requested identity
+  - selected provider/model
+  - mapping mode
+  - candidate list
+  - breaker gating
+  - capability truth/confidence/source
+  - bootstrap selection diagnostics
+  - failure text for rejected routes
+- `MainAgentRoutingDiagnostics` now carries:
+  - existing agent-routing counters
+  - `model_route_resolutions`
+  - `latest_model_route`
+- kernel route diagnostics now merge the richer runtime snapshot so active route inspection is not limited to the selected model id alone
+
+### Next Likely Seam
+
+- `P33b` planned runtime/provider truth slices are now functionally complete
+- the next follow-up should start from higher-level evaluation:
+  - whether a `P33c` line is needed
+  - whether provider-governance work should move to rollout/ops ergonomics instead of core runtime truth
+
+## Latest Sync: 2026-04-15 P33b.5 Provider Contract Tightening
+
+## Current Execution Slice: P33b.5 Provider Contract Tightening (2026-04-15)
+
+### Why This Slice Is Next
+
+- `P33b.4` already made bootstrap choice explicit
+- but one contract mismatch still remained across provider config and operations surfaces:
+  - custom provider `source` was real
+  - custom provider `api_type` was not
+  - runtime only maintains `openai` and `anthropic` execution families
+- that meant some write/setup surfaces still suggested a broader provider protocol story than the runtime actually honors
+
+### Scope
+
+- tighten custom-provider protocol-family contract to the maintained runtime families only:
+  - `openai`
+  - `anthropic`
+- stop public ops/setup request DTOs from accepting removed fake protocol families such as `custom`
+- preserve compatibility for existing local catalogs by normalizing legacy `api_type: custom` to `openai`
+- remove the last route-selector default that still treated `custom` like a maintained runtime family
+
+### Acceptance
+
+- public provider setup/update surfaces no longer advertise or accept fake runtime protocol families
+- legacy stored custom-provider catalogs with `api_type: custom` still load as OpenAI-compatible instead of breaking
+- runtime/provider/ops layers tell the same story:
+  - provider source may be `custom` or `preset`
+  - provider protocol family is maintained as `openai` or `anthropic`
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- removed `ProviderAPIType.CUSTOM` from the maintained runtime-family enum
+- added canonical provider-api-type normalization with:
+  - public-surface rejection for removed `custom`
+  - legacy catalog compatibility mapping from `custom` -> `openai`
+- tightened ops request DTO validation for:
+  - provider upsert
+  - provider setup model discovery
+- narrowed discovery/setup protocol mapping to maintained families only
+- removed the last route-selector default that still listed `custom` as a supported runtime family
+
+### Next Likely Seam
+
+- `P33b.6 Route Observability And Diagnostics`
+- the remaining governance gap is explanation quality:
+  - route and bootstrap decisions are now more honest
+  - but operators still cannot inspect enough of the candidate/ranking/fallback story from one surface
+
+## Latest Sync: 2026-04-15 P33b.4 Bootstrap Provider Governance
+
+## Current Execution Slice: P33b.4 Bootstrap Provider Governance (2026-04-15)
+
+### Why This Slice Is Next
+
+- `P33b.3` already fixed discovery integrity, but startup preset selection was still governed by hidden enumeration order:
+  - `detect_preset_providers()` collected configured presets in provider-dict order
+  - `get_first_available_preset()` still took the first detected candidate
+- that meant multi-key bootstrap remained deterministic only by accident, not by explicit policy
+- the next correction needed to make startup selection:
+  - explicit
+  - inspectable
+  - preference-aware
+  - safe around enabled local providers such as Ollama
+
+### Scope
+
+- add one bootstrap preset-selection policy seam in `preset_providers.py`
+- support explicit bootstrap preference via env/configurable selection input
+- replace enumeration-order choice with stable bootstrap-priority ordering
+- preserve the existing cloud-first / Ollama-opt-in default behavior, but make it policy-driven rather than positional
+- expose bootstrap diagnostics for:
+  - selected provider
+  - why it won
+  - what alternatives were present
+
+### Acceptance
+
+- multi-key startup no longer depends on provider dictionary order
+- explicit bootstrap preference wins when available
+- Ollama remains opt-in and does not silently take over when cloud presets are also configured
+- bootstrap selection diagnostics are available to callers instead of being implicit inside config bootstrap
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- added a dedicated bootstrap selection result type and candidate policy seam
+- bootstrap ordering now uses:
+  - explicit preferred provider
+  - explicit bootstrap priority
+  - stable provider-id tie-break
+- selected preset payload now carries bootstrap diagnostics fields for future surfaces/logging
+
+### Next Likely Seam
+
+- `P33b.5 Provider Contract Tightening`
+- the next governance gap is still contract honesty:
+  - config/ops/runtime protocol stories remain broader and looser than the actually maintained runtime execution families
+
+## Latest Sync: 2026-04-15 P33b.3 Discovery Integrity And Cache Scope
+
+## Current Execution Slice: P33b.3 Discovery Integrity And Cache Scope (2026-04-15)
+
+### Why This Slice Is Next
+
+- `P33b.2` already corrected capability truth, but discovery ownership was still unsafe in two concrete places:
+  - discovery cache scope was too coarse and could mix different endpoints under one provider-type cache entry
+  - custom discovery could still overwrite configured inventory with a smaller discovered list
+- those risks sit directly underneath runtime/provider truth:
+  - stale or cross-endpoint cache results can misrepresent actual available inventory
+  - destructive discovery writeback can erase intentional operator-configured models
+
+### Scope
+
+- make discovery cache endpoint-aware instead of provider-type-only
+- normalize cache scope around provider type, effective base URL, and protocol flavor
+- change custom-provider discovery writeback from destructive replacement to non-destructive merge
+- keep current recommendation/default behavior, but stop accidental model-list shrinkage
+
+### Acceptance
+
+- discovery results from different compatible endpoints no longer share one cache entry by accident
+- custom discovery no longer removes configured models just because one refresh returns fewer models
+- newly discovered models can still enrich the provider inventory without losing existing configured metadata
+- focused discovery/registry/runtime regressions remain green
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- `ModelDiscoveryCache` now scopes cache files by:
+  - provider type
+  - normalized base URL
+  - protocol flavor
+- custom discovery now merges:
+  - existing configured models
+  - newly discovered models
+  - existing metadata/limits
+  - discovered metadata/context updates
+- configured inventory remains preserved even when discovery returns a partial subset
+
+### Next Likely Seam
+
+- `P33b.4 Bootstrap Provider Governance`
+- the next runtime-governance gap is still bootstrap determinism:
+  - preset provider choice remains too order-driven instead of policy-driven and inspectable
+
+## Latest Sync: 2026-04-15 P33b.2 Capability Truth Grading
+
+## Current Execution Slice: P33b.2 Capability Truth Grading (2026-04-15)
+
+### Why This Slice Is Next
+
+- `P33b.1` already separated exact route intent from automatic fallback
+- the next unsafe runtime contract was capability optimism:
+  - discovery without capability evidence still wrote most provider models as if tools/thinking support were confirmed
+  - routing then treated those guessed-true flags like real truth
+- before discovery-integrity or bootstrap-governance work continues, runtime capability truth needs to become honest:
+  - explicit support
+  - explicit non-support
+  - unknown without guessed confirmation
+
+### Scope
+
+- stop defaulting discovered models to implicit tool/thinking support without evidence
+- persist graded capability truth and confidence into model metadata
+- update routed ranking so:
+  - known unsupported remains filtered when capability is required
+  - confirmed support outranks unknown
+  - unknown outranks known unsupported on preference-only paths
+- expose chosen-route capability truth through kernel diagnostics
+
+### Acceptance
+
+- runtime no longer treats missing capability evidence as confirmed support
+- discovery metadata preserves capability truth/confidence instead of only guessed booleans
+- route selection prefers confirmed support over unknown when tools are required
+- chosen route diagnostics can show whether capability support was confirmed or unknown
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- capability discovery now emits:
+  - `supports_tools`
+  - `supports_tools_truth`
+  - `supports_tools_confidence`
+  - `supports_tools_source`
+  - `supports_thinking`
+  - `supports_thinking_truth`
+  - `supports_thinking_confidence`
+  - `supports_thinking_source`
+- missing evidence now stays `unknown` instead of collapsing to `true`
+- route scoring now distinguishes:
+  - confirmed required tool support
+  - unknown required tool support
+  - supported vs unknown vs unsupported thinking preference
+
+### Next Likely Seam
+
+- `P33b.3 Discovery Integrity And Cache Scope`
+- the next runtime-truth problem is discovery ownership and cache identity:
+  - discovery results are still too coarse per endpoint/profile
+  - custom discovery can still overwrite configured inventory too aggressively
+
+## Latest Sync: 2026-04-15 P33b.1 Route Intent Hardening
+
+## Current Execution Slice: P33b.1 Route Intent Hardening (2026-04-15)
+
+### Why This Slice Is Next
+
+- the new `P33b` line starts with the highest-risk remaining runtime contract gap:
+  - operator/runtime can still disagree about whether a requested model was explicit or only a routing hint
+- the dangerous behavior was narrow and concrete:
+  - pinned provider/model requests were already strict
+  - but automatic routing still allowed an explicit `requested_model` to silently degrade into `fallback_default`
+- before capability grading or provider-governance work continues, the route contract needs to become honest:
+  - explicit requests fail
+  - automatic routes may still fall back
+
+### Scope
+
+- add an explicit route-intent seam to provider model mapping and routed runtime resolution
+- make explicit requested-model routing reject silent provider-default fallback
+- preserve existing automatic fallback behavior for genuinely automatic routing
+- keep pinned provider/model selection semantics unchanged and strict
+- add focused regression coverage at runtime and kernel boundaries
+
+### Acceptance
+
+- explicit `requested_model` routing no longer silently resolves to a provider default when no provider can match it
+- automatic routed selection still may use `fallback_default`
+- wrong provider/model pinning still fails loudly
+- kernel passes explicit route intent when a caller explicitly supplies `requested_model` without a pinned provider
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- added `RouteIntent` support to the model-mapper and routed-runtime seam
+- added `requested_model_route_intent` override support to `AgentKernelBuildOptions`
+- default kernel behavior now treats non-pinned `requested_model` as explicit unless a caller deliberately overrides the intent back to automatic
+
+### Next Likely Seam
+
+- `P33b.2 Capability Truth Grading`
+- the next runtime-honesty problem is capability optimism:
+  - tool/thinking support currently looks more certain than the evidence actually warrants
+
+## Latest Sync: 2026-04-15 P33b Runtime Truth And Provider Governance Planning
+
+## Current Execution Slice: P33b Runtime Truth And Provider Governance Planning (2026-04-15)
+
+### Why This Slice Is Next
+
+- original `P33.1` through `P33.8` are now effectively landed as the runtime-upgrade baseline
+- the remaining model/runtime issues are no longer protocol-foundation gaps
+- they are governance and truth-model problems around:
+  - route intent
+  - capability evidence
+  - discovery integrity
+  - bootstrap provider selection
+  - provider contract honesty
+- keeping those follow-up issues under the original `P33` tail would keep blurring:
+  - completed baseline runtime upgrade work
+  - new second-stage provider/runtime governance work
+
+### Scope
+
+- create a dedicated `P33b` successor plan for runtime truth and provider governance
+- freeze original `P33` as the completed foundation line
+- define the next upgrade slices for:
+  - exact-vs-automatic route intent
+  - capability truth grading
+  - discovery cache/inventory integrity
+  - bootstrap preset governance
+  - provider contract tightening
+  - route observability
+
+### Acceptance
+
+- `P33b` exists as a separate active plan doc instead of staying mixed into the old `P33` tail
+- the new line is explicitly framed as second-stage runtime/provider governance work
+- the next implementation anchor is clear and narrow enough to start immediately
+
+### Status
+
+- completed
+
+### Canonical Plan Doc
+
+- `docs/P33B_RUNTIME_TRUTH_AND_PROVIDER_GOVERNANCE_PLAN_2026-04-15.md`
+
+### Next Likely Seam
+
+- `P33b.1 Route Intent Hardening`
+- make exact provider/model requests fail loudly instead of silently falling back to provider defaults
+- keep automatic route selection free to fall back only on explicitly automatic paths
+
+## Latest Sync: 2026-04-15 P33.22 CLI Command Config-Load Helper Consolidation
+
+## Current Execution Slice: P33.22 CLI Command Config-Load Helper Consolidation (2026-04-15)
+
+### Why This Slice Is Next
+
+- `P33.21` concentrated real config loading at entry/composition seams
+- but the maintained CLI command surface still repeated the same thin pattern in several places:
+  - raw `load_entry_config()` calls
+  - identical `Failed to load configuration` banner handling
+- the remaining duplication was now shallow enough that one tiny CLI-only helper could improve readability without pushing config ownership back down into shared runtime/core layers
+
+### Scope
+
+- add one private CLI-only config-load helper in `cli.py`
+- rewire repeated CLI command branches to that helper
+- keep headless mode's custom structured error output intact
+- preserve the silent default-log-dir fallback in `prune-export-jobs`
+
+### Acceptance
+
+- repeated CLI command entrypoints no longer inline the same `load_entry_config()` + banner branch
+- the helper remains CLI-surface-local rather than becoming a shared runtime/core abstraction
+- headless error output and export-prune fallback semantics remain unchanged
+- focused CLI regression coverage remains green
+
+### Status
+
+- completed
+
+### Next Likely Seam
+
+- inspect whether `cli_interactive.run_interactive_session(...)` startup config/self-check failure handling should stay session-local, or whether one tiny CLI-session helper would clarify startup ownership without blurring the boundary between command entry and interactive-session bootstrap
+
+## Latest Sync: 2026-04-15 Worktree Hygiene / Slice Classification Audit
+
+## Current Execution Slice: Worktree Hygiene / Slice Classification Audit (2026-04-15)
+
+### Why This Slice Is Next
+
+- the repo-local cache/noise cleanup is already done
+- but the remaining dirty tree still spans large real refactor work, so starting new development without classifying it would risk mixing:
+  - late `P32` structure/boundary work
+  - active `P33` LLM/runtime/config work
+  - docs/test sync
+- the user explicitly asked for state entry and hygiene before resuming new feature work
+
+### Scope
+
+- verify whether any additional ignored trash remains safe to remove
+- classify the remaining tracked/untracked changes into coherent slice groups
+- identify cross-slice hotspot files that should not be split by directory alone
+- recommend a practical commit/handoff order before new development resumes
+
+### Acceptance
+
+- no further obvious removable repo-noise remains besides intentionally preserved local runtime/config state
+- remaining changes are grouped into commit-safe buckets with rationale
+- suspicious leftovers and cross-slice hotspots are called out explicitly
+
+### Status
+
+- completed
+
+### Recommended Grouping
+
+1. hygiene guardrail only
+   - `.gitignore` boundary fix plus the already removed repo-local caches/noise
+2. legacy browser / remote-channel retirement
+   - `src/apps/agent_studio/*`
+   - `src/apps/open_webui/*`
+   - `src/channels/*`
+   - `src/gateway/channels/*`
+   - aligned scripts/tests/docs
+3. `P32` structure / runtime / session / transport realignment
+   - `agent_core`
+   - `application`
+   - `interaction`
+   - `runtime`
+   - `session`
+   - `transport`
+   - `novel`
+   - gateway host/composition realignment
+4. memory shared-service extraction
+   - `src/mini_agent/memory/*`
+   - related runtime/command integration
+   - aligned memory tests
+5. `P33` LLM runtime / config upgrade
+   - `config*`
+   - `llm/*`
+   - `model_manager/*`
+   - config-injection touches in CLI/TUI/kernel/gateway composition
+   - `scripts/ollama_live_smoke.py`
+   - aligned runtime tests/docs
+6. docs sync last
+   - `README*`
+   - architecture/dev guides
+   - `task_plan.md`
+   - `progress.md`
+   - `findings.md`
+
+### Cross-Slice Hotspots
+
+- do not split these mechanically by directory:
+  - `src/mini_agent/cli.py`
+  - `src/mini_agent/cli_interactive.py`
+  - `src/mini_agent/tui/app.py`
+  - `src/mini_agent/runtime/main_agent_runtime_manager.py`
+  - `src/apps/agent_studio_gateway/main.py`
+  - `src/apps/agent_studio_gateway/composition.py`
+  - `tests/test_main_agent_surface_service.py`
+  - `tests/test_tui_app.py`
+- these files carry both late `P32` ownership extractions and active `P33` config/runtime tightening, so staging must follow slice semantics rather than folder boundaries
+
+## Latest Sync: 2026-04-15 P33.21 Entry Config Loader Consolidation
+
+## Current Execution Slice: P33.21 Entry Config Loader Consolidation (2026-04-15)
+
+### Why This Slice Is Next
+
+- `P33.20` removed the last hidden helper-local config discovery from the active CLI path
+- after that cut, `Config.load()` ownership was finally concentrated at entry/composition seams
+- but those seams still repeated the same thin patterns:
+  - direct entry `Config.load()` calls
+  - inline noninteractive loader wrappers for TUI/runtime/kernel wiring
+- before moving on, that duplication needed one explicit maintained helper without pushing config discovery back down into shared runtime/core layers
+
+### Scope
+
+- add tiny shared entry/bootstrap config helpers
+- rewire active CLI/TUI/gateway entry/composition paths to those helpers
+- prove the active `src` tree no longer keeps scattered direct `Config.load()` sites outside the helper module
+
+### Acceptance
+
+- active entry/composition code no longer repeats raw `Config.load()` or inline noninteractive loader lambdas
+- surfaces still choose interactive vs noninteractive setup behavior explicitly
+- focused CLI/TUI/gateway regression coverage remains green
+
+### Status
+
+- completed
+
+### Next Likely Seam
+
+- evaluate whether repeated CLI operator-command `load_entry_config()` + error-report branches should stay surface-local, or whether a tiny CLI-only helper would improve readability without re-centralizing bootstrap behavior across surfaces
+
+## Latest Sync: 2026-04-15 P33.20 Headless / CLI Helper Config Boundary Closure
+
+## Current Execution Slice: P33.20 Headless / CLI Helper Config Boundary Closure (2026-04-15)
+
+### Why This Slice Is Next
+
+- `P33.19` removed the duplicate interactive CLI config-load hop
+- but one surface-local fallback still remained:
+  - `cli_interactive.build_agent(...)` could still rediscover config on its own
+  - headless mode still depended on that helper-local fallback
+- before moving on, that last exception needed to be removed so the active CLI path matched the same ownership rule as kernel/runtime/TUI/gateway
+
+### Scope
+
+- require explicit injected config for `cli_interactive.build_agent(...)`
+- move headless config loading to the actual CLI entry seam
+- update CLI submission-loop regression coverage to prove the new seam
+
+### Acceptance
+
+- `cli_interactive.build_agent(...)` no longer performs hidden config discovery
+- headless mode explicitly loads config before the async execution helper runs
+- focused CLI/kernel/TUI/gateway regression coverage remains green
+
+### Status
+
+- completed
+
+### Next Likely Seam
+
+- evaluate whether the remaining entry/composition `Config.load()` sites should stay intentionally duplicated by surface, or whether a tiny shared entry-bootstrap helper would improve clarity without smearing responsibilities back across surfaces
+
+## Latest Sync: 2026-04-15 P33.19 CLI Interactive Config Reuse Cleanup
+
+## Current Execution Slice: P33.19 CLI Interactive Config Reuse Cleanup (2026-04-15)
+
+### Why This Slice Is Next
+
+- `P33.18` left config discovery only at entry/composition seams
+- but the interactive CLI flow still loaded config for startup checks and then could rediscover it again during the first agent bootstrap
+- that duplication was shallow, but it was still unnecessary once the entry already had a chosen config
+
+### Scope
+
+- reuse the already loaded CLI interactive config during the first agent bootstrap
+- keep surface-local helper behavior intact for callers that do not preload config
+- update CLI submission-loop doubles to accept the explicit config seam
+
+### Acceptance
+
+- interactive CLI startup no longer performs the first agent bootstrap through a second config discovery hop
+- CLI submission-loop regression coverage remains green
+
+### Status
+
+- completed
+
+### Next Likely Seam
+
+- decide whether the remaining entry/composition `Config.load()` sites should stay as-is, or whether a tiny shared entry bootstrap helper would improve clarity without over-centralizing surface responsibilities
+
+## Latest Sync: 2026-04-15 P33.14 Config Loader Responsibility Split
+
+## Current Execution Slice: P33.14 Config Loader Responsibility Split (2026-04-15)
+
+### Why This Slice Is Next
+
+- the recent `P33` cuts clarified runtime truth
+- but `Config.from_yaml(...)` was still structurally muddy and mixed env absorption, bootstrap fallback, and every section parser in one place
+- before pushing further on config/runtime ownership, that loader seam needed to be made explicit
+
+### Scope
+
+- split `Config.from_yaml(...)` into explicit helper steps
+- separate YAML validation, bootstrap LLM resolution, runtime parsing, and other section parsing
+- add loader-focused regression for invalid root shape and disabled interactive bootstrap
+
+### Acceptance
+
+- `Config.from_yaml(...)` becomes orchestration rather than a monolithic parser
+- invalid non-mapping config roots fail with a clear error
+- `allow_interactive_setup=False` does not trigger first-launch bootstrap
+- focused regression stays green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-15 P33.13 Protocol-Binding / Rectifier Residual Env Fallback Removal
+
+## Current Execution Slice: P33.13 Protocol-Binding / Rectifier Residual Env Fallback Removal (2026-04-15)
+
+### Why This Slice Is Next
+
+- `P33.12` moved active request-policy and rectifier defaults into `config.runtime`
+- but rectifier still kept a local env-fallback helper, which left one hidden policy-discovery path alive
+- before moving on, that residual path needed to be removed and the active `src` runtime profile-construction paths needed one final audit
+
+### Scope
+
+- audit active `src` callers of protocol-profile construction
+- remove `rectifier.py` env-fallback behavior
+- prove via tests that protocol binding and direct rectifier defaults no longer read env toggles
+
+### Acceptance
+
+- active `src` runtime has no side-path protocol-profile construction outside the unified runtime seam
+- `rectify_openai_request(...)` and `rectify_anthropic_request(...)` no longer read env by default
+- focused regression stays green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-15 P33.12 Runtime Request-Policy / Rectifier Ownership Realignment
+
+## Current Execution Slice: P33.12 Runtime Request-Policy / Rectifier Ownership Realignment (2026-04-15)
+
+### Why This Slice Is Next
+
+- `P33.11` moved retry into `config.runtime`
+- but active request-policy defaults and rectifier defaults were still partly owned by protocol/profile env fallbacks
+- that would leave hidden runtime policy truth below the config boundary unless corrected now
+
+### Scope
+
+- add explicit runtime config ownership for request-policy defaults
+- add explicit runtime config ownership for rectifier defaults
+- pass those defaults through kernel -> failover -> protocol binding
+- stop the hot runtime path from reading request-policy env vars directly inside protocol binding
+- update focused config/binding/kernel regression coverage
+
+### Acceptance
+
+- active runtime request-policy defaults come from `config.runtime.request_policy`
+- active runtime rectifier defaults come from `config.runtime.rectifier`
+- protocol binding keeps provider-aware defaults but no longer owns hidden hot-path env policy
+- focused regression stays green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-15 P33.11 Runtime Retry Config Boundary Realignment
+
+## Current Execution Slice: P33.11 Runtime Retry Config Boundary Realignment (2026-04-15)
+
+### Why This Slice Is Next
+
+- `P33.10` narrowed routing input to bootstrap-only config
+- but retry policy still sat under `config.llm`, which kept one runtime-policy concern attached to the bootstrap subtree
+- that would keep teaching the wrong ownership model unless it was corrected now
+
+### Scope
+
+- add an explicit runtime config subtree for retry ownership
+- remove retry from `LLMConfig`
+- update maintained YAML examples to `runtime.retry`
+- reject legacy top-level `retry:` instead of silently carrying compatibility
+- verify kernel retry bootstrap now reads runtime-owned config
+
+### Acceptance
+
+- retry is no longer owned by `config.llm`
+- active config shape uses `runtime.retry`
+- legacy top-level `retry:` is rejected with a clear migration error
+- focused config/kernel regression stays green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-15 P33.10 Bootstrap-Only Route Boundary Narrowing
+
+## Current Execution Slice: P33.10 Bootstrap-Only Route Boundary Narrowing (2026-04-15)
+
+### Why This Slice Is Next
+
+- `P33.1` behavior was already mostly landed, but one important interface seam was still teaching the old ownership story
+- runtime routing helpers still accepted the whole `Config` object even though only bootstrap route input was needed
+- that had to be narrowed before continuing later runtime closure work, otherwise `config.llm` could drift back in through interface shape alone
+
+### Scope
+
+- extract one minimal bootstrap route input model from loaded config
+- rewire routing APIs to accept bootstrap-only input instead of full config
+- remove config-shaped dependency from session model-selection identity resolution
+- keep retry/runtime policy ownership unchanged
+- update active runtime-flow docs and focused regression coverage
+
+### Acceptance
+
+- routing APIs no longer accept the full config object as a route source
+- bootstrap fallback remains supported through a synthetic bootstrap provider path
+- session model-selection identity resolution no longer depends on runtime config
+- focused routing/kernel regression suites stay green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-15 P33.9 Gemini Active Runtime Residual Cleanup
+
+## Current Execution Slice: P33.9 Gemini Active Runtime Residual Cleanup (2026-04-15)
+
+### Why This Slice Is Next
+
+- `P33.1` locked the decision that Gemini is removed from active runtime scope
+- after `P33.8` live validation, the remaining runtime drift was no longer architectural uncertainty
+- it was stale Gemini support still living in:
+  - provider enums
+  - model discovery
+  - model registry discovery mapping
+  - ops provider setup/discovery
+- that drift needed to be removed before continuing the next runtime closure slice
+
+### Scope
+
+- remove Gemini from active runtime/provider enums and default routing support
+- remove Gemini model-discovery endpoint/fallback/fetch branches
+- stop advertising Gemini in active model-manager exports
+- reject Gemini in active provider setup/discovery flows instead of silently mapping it
+- keep unrelated historical/reference Gemini material untouched
+
+### Acceptance
+
+- active runtime/provider config no longer treats Gemini as a maintained protocol
+- model discovery no longer knows a Gemini endpoint or fallback catalog
+- ops discovery returns an explicit unsupported-provider error for Gemini
+- targeted runtime + ops regression suites stay green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-15 P33.8 Ollama Local Provider Integration Live Validation
+
+## Current Execution Slice: P33.8 Ollama Local Provider Integration Live Validation (2026-04-15)
+
+### Why This Slice Is Next
+
+- `P33.1` through `P33.7` were landed in sequence first, so the runtime seam was finally stable enough for a maintained local provider path
+- the correct next step was therefore not more protocol cleanup
+- it was to add `Ollama` on top of the corrected:
+  - registry truth
+  - routing seam
+  - protocol binding
+  - request-policy ownership
+
+### Scope
+
+- add `Ollama` as a maintained local preset/provider source
+- support no-auth local operation without requiring a user-supplied fake API key
+- discover local models from Ollama's maintained endpoints
+- keep the runtime protocol-centric:
+  - default Anthropic-compatible path
+  - optional OpenAI-compatible override
+- avoid surprising startup drift by requiring explicit local enablement
+
+### Acceptance
+
+- Ollama can be enabled and routed without fake external API-key requirements
+- discovered Ollama models flow through the same provider/model registry path
+- runtime can resolve `preset-ollama` like other maintained providers
+- explicit enablement avoids silently hijacking existing cloud/bootstrap startup behavior
+
+### Follow-up Validation Focus
+
+- verify session-scoped selection can target `preset-ollama`
+- verify local `CLI / TUI` surfaces rebuild correctly onto the Ollama preset route
+- tighten operator feedback when Ollama is enabled but the local daemon is unavailable
+- validate one real streamed prompt and one real tool-call turn against the local Ollama daemon
+- close any loopback/proxy transport defects revealed by live-machine execution
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-15 P33.7 Request Policy / Protocol Parameter Upgrade
+
+## Current Execution Slice: P33.7 Request Policy / Protocol Parameter Upgrade (2026-04-15)
+
+### Why This Slice Is Next
+
+- `P33.6` made route capability requirements explicit, but request defaults were still drifting across:
+  - protocol binding
+  - rectifier options
+  - protocol clients
+- that meant one important runtime seam was still not honest:
+  - who owns request policy for one bound provider/model route
+- before adding `P33.8 Ollama`, that ownership needed to be made explicit and testable
+
+### Scope
+
+- define one explicit bound request-policy object
+- move effective request defaults into the binding/profile layer
+- narrow rectifier ownership back to payload normalization only
+- rewire OpenAI / Anthropic clients to consume request policy instead of client-owned defaults
+
+### Acceptance
+
+- protocol clients are no longer the long-term owner of request defaults
+- request policy is inspectable on the bound execution profile
+- rectifier is no longer the owner of thinking-budget / output-token defaults
+- focused protocol/request-policy regression stays green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P33.3 Rich Response Model Upgrade
+
+## Current Execution Slice: P33.3 Rich Response Model Upgrade (2026-04-14)
+
+### Why This Slice Is Next
+
+- `P33.2` cleaned the execution boundary, but the response contract was still too thin for the next runtime upgrades:
+  - buffered completions were represented as one flattened response object
+  - the runtime had no canonical event model shared by both buffered and future native streaming output
+- that meant `P33.4 Native Streaming` would otherwise need to redesign both:
+  - protocol client output
+  - agent/application consumption contracts
+- the cleaner move was to normalize the response seam first so streaming can become an execution upgrade, not another contract rewrite
+
+### Scope
+
+- introduce a canonical normalized completion model:
+  - `LLMCompletionResult`
+- introduce a canonical normalized event model:
+  - `LLMStreamEvent`
+  - `LLMStreamEventType`
+- make buffered completions representable as normalized event streams
+- update protocol clients, failover, logger, and agent execution to consume the richer completion contract
+- keep this slice intentionally buffered-only:
+  - do not yet implement provider-native streaming transport
+
+### Acceptance
+
+- protocol clients return `LLMCompletionResult` instead of the old thin response contract
+- buffered completions can be synthesized into normalized events
+- normalized event lists can be aggregated back into a buffered completion result
+- agent/logger/test surfaces consume the new completion model without reintroducing protocol-specific parsing
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P33.2 Protocol Boundary Hardening
+
+## Current Execution Slice: P33.2 Protocol Boundary Hardening (2026-04-14)
+
+### Why This Slice Is Next
+
+- `P33.1` fixed the runtime truth source, but one important seam was still dirty:
+  - provider compatibility policy still leaked into the protocol wrapper/client layer
+- the clearest example was `llm_wrapper.py`, which still decided:
+  - MiniMax endpoint suffix rewriting
+  - provider/domain-aware base URL normalization
+- protocol clients also still carried provider-shaped assumptions:
+  - MiniMax-flavored defaults
+  - inline request tweaks coupled to endpoint flavor
+- if this seam stayed mixed, later work on:
+  - native streaming
+  - request policy
+  - Ollama
+  would keep building on a muddy boundary
+
+### Scope
+
+- introduce an explicit protocol execution profile/binding layer
+- move provider compatibility rules out of `LLMClient` wrapper code
+- stop letting OpenAI / Anthropic protocol clients decide provider compatibility details
+- keep this cut intentionally narrow:
+  - do not redesign the full response model yet
+  - do not implement native streaming yet
+
+### Acceptance
+
+- `LLMClient` becomes a thin protocol-dispatch facade
+- MiniMax-compatible endpoint normalization moves into explicit binding logic
+- protocol clients consume already-bound execution profiles
+- provider-specific compatibility rules stop living inside protocol wrapper/client branching
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P33.1 Registry Truth Consolidation
+
+## Current Execution Slice: P33.1 Registry Truth Consolidation (2026-04-14)
+
+### Why This Slice Is Next
+
+- the runtime truth direction was already decided in `P33`, but the hot path still had one unresolved contradiction:
+  - `config.llm` still participated directly in runtime route selection
+- that meant the code was still teaching two owners for runtime provider/model truth:
+  - provider registry
+  - direct config fallback
+- `Gemini` also still remained visible in active preset/runtime-facing UX even after the design decision to remove it from active scope
+
+### Scope
+
+- make runtime route selection resolve through the registry path only
+- downgrade `config.llm` to bootstrap-only behavior by synthesizing one runtime bootstrap provider when the registry is empty
+- stop using `config.llm.provider` and `config.llm.model` as implicit hot-path routing preferences when the registry already exists
+- remove `Gemini` from active preset/runtime-facing setup and CLI UX
+
+### Acceptance
+
+- routed LLM settings never return a direct `config` route in the hot path
+- empty-registry startup resolves through a synthetic bootstrap provider entry
+- provider/session model selection defaults come from provider registry state instead of `config.llm.model`
+- active preset/runtime-facing CLI/config flows no longer advertise `Gemini`
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P33 LLM Runtime Upgrade Planning
+
+## Current Execution Slice: P33 LLM Runtime Upgrade Planning (2026-04-14)
+
+### Why This Slice Is Next
+
+- the model runtime is now stable enough to inspect as its own seam instead of treating it as support glue
+- the current runtime works, but several design debts are now visible:
+  - `config.llm` is still a peer truth source beside the provider registry
+  - protocol execution and provider compatibility policy are still partly mixed
+  - streaming is still not provider-native
+  - model discovery/latest selection is still partly heuristic
+- the user has now explicitly locked several runtime decisions:
+  - no need for one native SDK per brand
+  - `Gemini` should leave active runtime scope
+  - `MiniMax` stays in the `anthropic` compatibility family
+  - route capability growth should stay limited to `tools / thinking / context_window`
+  - `Ollama` should be considered as a real local provider path
+
+### Scope
+
+- define the canonical truth direction for runtime model/provider ownership
+- define the next upgrade plan for:
+  - protocol boundary cleanup
+  - native streaming
+  - discovery/latest selection
+  - capability-aware routing
+  - request-policy parameterization
+  - Ollama local integration
+- record the plan in a dedicated design doc before implementation
+
+### Acceptance
+
+- the project has one explicit LLM runtime upgrade plan doc
+- the correct truth model is written down clearly
+- Ollama integration direction is decided at design level
+- the next implementation slice is narrowed to one concrete first cut instead of another broad runtime rewrite
+
+### Canonical Plan Doc
+
+- `docs/P33_LLM_RUNTIME_UPGRADE_PLAN_2026-04-14.md`
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32.61 Shared Remote Recovery Feedback Semantics
+
+## Current Execution Slice: P32.61 Shared Remote Recovery Feedback Semantics (2026-04-14)
+
+### Why This Slice Is Next
+
+- after the Remote Interaction architecture lock, the next remaining boundary drift was smaller but real:
+  - `QQ` still hand-built shared-session recovery/status wording for `/status` and `/continue`
+- that wording was not adapter-only glue; it encoded shared runtime/session semantics:
+  - route ownership
+  - restart interruption state
+  - lost approvals after restart
+  - resume hint
+  - skill-reload pending state
+- if left in `QQ`, every future Remote Interaction adapter would be tempted to clone it
+
+### Scope
+
+- add one shared owner for remote recovery/status feedback semantics
+- export the shared text through session summary/detail read models
+- rewire `QQ` to prefer the shared payload and keep only adapter-local recent-message formatting
+
+### Acceptance
+
+- primary shared-session recovery/status wording no longer lives only in `QQ`
+- session detail/summary transport payload carries shared remote recovery text
+- `QQ` `/status` and `/continue` prefer the shared payload instead of defining shared semantics locally
+- focused regression around projection round-trip and restart recovery remains green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32.60 Remote Interaction / QQ Architecture Lock
+
+## Current Execution Slice: P32.60 Remote Interaction / QQ Architecture Lock (2026-04-14)
+
+### Why This Slice Is Next
+
+- the active architecture docs already said the right thing in principle:
+  - entrances are `CLI / TUI / DesktopUI / Remote Interaction`
+- but the repo still physically carried multiple drift sources:
+  - `interaction` normalization still treated `WeChat / Feishu / WebUI` as active aliases
+  - legacy Python and TypeScript channel trees still lived in the active source tree
+  - tests and smoke paths still taught a fake multi-channel active model
+- that meant future work could keep drifting back into:
+  - `QQ` as a fifth entrance
+  - dormant remote adapters treated like maintained paths
+  - parallel channel abstractions reappearing in design discussions
+
+### Scope
+
+- lock interaction normalization to one active remote adapter: `QQ`
+- keep `Remote Interaction` as the fourth product entrance
+- delete legacy non-QQ channel trees from the active repo
+- delete obsolete QQ/WeChat combined smoke/test surfaces
+- sync active architecture / plan docs so the physical repo and the written design match
+
+### Acceptance
+
+- active code resolves only `QQ` as an active remote adapter
+- `Remote Interaction` remains the entrance-level abstraction
+- old `src/channels/*`, `src/mini_agent/channels/*`, and `src/gateway/channels/*` trees are removed
+- active docs no longer teach `QQ` as a peer entrance or keep dormant non-QQ trees as live paths
+- focused regression for interaction, channel ingress, session binding, and runtime stack remains green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32.59 Shared Runtime-Policy Feedback / Response Semantics
+
+## Current Execution Slice: P32.59 Shared Runtime-Policy Feedback / Response Semantics (2026-04-14)
+
+### Why This Slice Is Next
+
+- after `P32.58`, the next real cross-surface semantic leak was runtime-policy feedback
+- the runtime-policy plan/execution rules already lived in:
+  - `src/mini_agent/runtime/runtime_policy_service.py`
+- but the user-facing success/failure/unchanged feedback still leaked across surfaces:
+  - `TUI` handwrote unchanged / failed / updated command feedback
+  - `QQ` handwrote shared-session runtime-policy success text
+- the honest owner was the existing runtime-policy service, not another surface helper
+
+### Scope
+
+- extend the runtime-policy service with shared feedback semantics
+- carry that shared feedback through the shared runtime-policy response
+- rewire `TUI` and `QQ` to consume the shared semantics while preserving TUI-local session-title display ownership
+
+### Acceptance
+
+- runtime-policy success/unchanged/failure wording no longer lives only in `TUI`
+- shared-session runtime-policy responses carry shared feedback fields
+- `QQ` remote formatting becomes thinner by preferring shared response details
+- `TUI` keeps local status-bar ownership for its display title instead of trusting remote transport labels
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32.58 Shared MCP Local Reload Feedback Semantics
+
+## Current Execution Slice: P32.58 Shared MCP Local Reload Feedback Semantics (2026-04-14)
+
+### Why This Slice Is Next
+
+- after `P32.57`, the next similar but smaller shared-semantic seam was local `mcp reload`
+- `McpCommandService` already owned:
+  - action validation
+  - reload execution
+  - result payload and status semantics
+- but the follow-up local runtime rebuild feedback still leaked into surfaces:
+  - `CLI` kept its own reload-success line
+  - `TUI` kept its own local warm-reload prefix
+- this did not justify a large new abstraction, but it did justify returning the remaining feedback ownership to the `MCP` command owner
+
+### Scope
+
+- keep `MCP` execution flow unchanged
+- add a thin shared owner for local reload feedback semantics
+- rewire `CLI` and `TUI` to consume it
+
+### Acceptance
+
+- `CLI` no longer handwrites the local MCP reload success line
+- `TUI` no longer handwrites the local MCP warm-reload prefix
+- the remaining local MCP reload feedback semantics live with `tools.mcp`
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32.57 Shared Skill Runtime-Reload Feedback Semantics
+
+## Current Execution Slice: P32.57 Shared Skill Runtime-Reload Feedback Semantics (2026-04-14)
+
+### Why This Slice Is Next
+
+- after `P32.56`, the next real cross-surface drift was no longer session feedback
+- local `skill` mutation success already had one owner in:
+  - `src/mini_agent/commands/execution.py`
+- but the follow-up runtime-reload semantics still lived in two surfaces:
+  - `src/mini_agent/cli_interactive.py`
+  - `src/mini_agent/tui/app.py`
+- the duplicated ownership was not just wording:
+  - mutation -> busy-summary mapping
+  - mutation -> warm-reload prefix mapping
+  - mutation -> CLI reload success/failure messaging
+- that made `skill` mutation/reload behavior a real shared semantic seam, not just surface polish
+
+### Scope
+
+- extract one shared owner for local skill runtime-reload feedback semantics
+- rewire `CLI` and `TUI` to consume it
+- keep execution mechanics separate:
+  - `CLI` still rebuilds its current agent
+  - `TUI` still queues or warms session runtime as needed
+
+### Acceptance
+
+- `CLI` no longer owns handwritten mutation -> reload success/failure text
+- `TUI` no longer owns handwritten mutation -> busy/warm/status descriptor logic
+- shared skill reload semantics live under `agent_core.skills`
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P30.5 Residual Hotspot Audit
+
+## Current Execution Slice: P30.5 Residual Hotspot Audit (2026-04-14)
+
+### Why This Slice Is Next
+
+- after landing shared `/memory`, `/model`, and `/context` planning seams, the remaining question was no longer "what else can be extracted"
+- the real question became "what should deliberately stay in the surface layer so `P30.5` does not drift into extraction for its own sake"
+
+### Audit Outcome
+
+- `CLI`
+  - the remaining inline branch in [cli_interactive.py](d:\file\Mini-Agent\src\mini_agent\cli_interactive.py) is `workflow`
+  - keep it local:
+    - it is entrance-specific workflow launch orchestration
+    - it is not duplicated across another terminal entrance
+    - extracting it now would not reduce shared-entrance drift
+- `TUI`
+  - keep [SessionCommandPlan](d:\file\Mini-Agent\src\mini_agent\tui\app.py):
+    - it bundles cursor movement, focus switching, and remote lifecycle actions tied to the TUI session list
+    - this is surface orchestration, not shared command semantics
+  - keep [KbCommandPlan](d:\file\Mini-Agent\src\mini_agent\tui\app.py):
+    - the parse surface is tiny (`status|on|off`)
+    - the real shared owner already exists in `LocalOperatorCommandService.execute_kb(...)`
+    - extraction would save little and add more indirection than value
+  - keep [McpCommandPlan](d:\file\Mini-Agent\src\mini_agent\tui\app.py):
+    - the parse surface is also tiny (`status|list|reload`)
+    - the high-complexity part is local runtime rebuild / remote control dispatch, which is already rightly surface-owned
+  - keep [SkillCommandPlan](d:\file\Mini-Agent\src\mini_agent\tui\app.py) and [RemoteSkillCommandPlan](d:\file\Mini-Agent\src\mini_agent\tui\app.py):
+    - shared request parsing already lives in `prepare_skill_request(...)`
+    - the remaining TUI plan objects mostly carry surface transport/routing metadata
+
+### Structural Conclusion
+
+- `P30.5` is now effectively in a keep state rather than an extraction state
+- the current remaining `CommandPlan` objects in `TUI` are mostly:
+  - surface orchestration
+  - transport mapping
+  - cursor/focus/view concerns
+- those are not the same class of drift that `/memory`, `/model`, and `/context` represented
+
+### Recommended Next Step
+
+- stop further `P30.5` plan extraction unless a fresh duplication hotspot appears
+- shift effort back to:
+  - higher-value core capability work
+  - clearer boundary audits at larger module seams
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P30.5 CLI-TUI Shared Context Command Plan Convergence
+
+## Current Execution Slice: P30.5 CLI-TUI Shared Context Command Plan Convergence (2026-04-14)
+
+### Why This Slice Is Next
+
+- after landing the shared `/memory` and `/model` planning seams, the next remaining terminal drift was `/context`
+- `CLI` still normalized `brief/full` aliases inline before calling the shared execution service
+- `TUI` still owned its own `ContextCommandPlan` even though the actual `/context` execution semantics already lived in the shared command layer
+- the honest owner for `/context` planning is `src/mini_agent/commands/execution.py`, because both `CLI` and `TUI` need the same action normalization and side-effect classification
+
+### Scope
+
+- move `ContextCommandPlan` into the shared command execution layer
+- add one shared `prepare_context_command_plan(...)` helper
+- rewire:
+  - `src/mini_agent/cli_interactive.py`
+  - `src/mini_agent/tui/app.py`
+  to consume the same shared `/context` planning seam
+
+### Acceptance
+
+- `CLI` no longer normalizes `/context brief|full` inline
+- `TUI` no longer owns a second surface-local `ContextCommandPlan`
+- `/context` action normalization and mutate/refresh classification are shared by default across terminal entrances
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P30.5 CLI-TUI Shared Model Command Plan Convergence
+
+## Current Execution Slice: P30.5 CLI-TUI Shared Model Command Plan Convergence (2026-04-14)
+
+### Why This Slice Is Next
+
+- after landing the shared `/memory` planning seam, the next clear entrance drift was local `/model`
+- `CLI` still kept a handwritten `show/list/use` branch in `src/mini_agent/cli_interactive.py`
+- `TUI` already had a local `ModelCommandPlan`, but it still lived inside the surface instead of the shared command layer
+- the honest owner for `/model` planning is `src/mini_agent/commands/execution.py`, because `CLI` and `TUI` both need the same action normalization and request shaping
+
+### Scope
+
+- move `ModelCommandPlan` into the shared command execution layer
+- add one shared `prepare_model_command_plan(...)` helper
+- rewire:
+  - `src/mini_agent/cli_interactive.py`
+  - `src/mini_agent/tui/app.py`
+  to consume the same shared `/model` planning seam
+
+### Acceptance
+
+- `CLI` no longer keeps a handwritten `show/list/use` `/model` branch
+- `TUI` no longer owns a second surface-local `ModelCommandPlan`
+- `/model` action normalization is shared by default across terminal entrances
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P30.5 CLI-TUI Shared Memory Command Plan Convergence
+
+## Current Execution Slice: P30.5 CLI-TUI Shared Memory Command Plan Convergence (2026-04-14)
+
+### Why This Slice Is Next
+
+- after the earlier `TUI` command-plan work and the shared `/skill` request seam, the next obvious entrance drift was local `/memory`
+- `CLI` still kept a large handwritten `/memory` branch in `src/mini_agent/cli_interactive.py`
+- `TUI` already had a structured `MemoryCommandPlan`, but that plan still lived inside the surface instead of the shared command layer
+- the honest owner for `/memory` command parsing is `src/mini_agent/commands/execution.py`, because both `CLI` and `TUI` need the same action normalization, usage handling, and request shaping
+
+### Scope
+
+- move `MemoryCommandPlan` into the shared command execution layer
+- add one shared `prepare_memory_command_plan(...)` helper
+- rewire:
+  - `src/mini_agent/cli_interactive.py`
+  - `src/mini_agent/tui/app.py`
+  to consume that same shared `/memory` planning seam
+
+### Acceptance
+
+- `CLI` no longer keeps a long action-by-action `/memory` branch
+- `TUI` no longer owns a second surface-local `/memory` parser shell
+- `/memory` action normalization, usage handling, and mutation classification are shared by default across terminal entrances
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32.46 Memory Command Core Consolidation
+
+## Current Execution Slice: P32.46 Memory Command Core Consolidation (2026-04-14)
+
+### Why This Slice Is Next
+
+- after `P32.45`, the next real boundary issue was not inside `MainAgentRuntimeManager`
+- `/memory` command semantics were still duplicated across:
+  - `src/mini_agent/runtime/session_memory_command_handler.py`
+  - `src/mini_agent/commands/execution.py`
+- that duplication meant the actual escaped owner was no longer runtime-local
+- the honest shared owner is `mini_agent.memory`, because both runtime and local operator flows execute the same memory-command business rules
+
+### Scope
+
+- extract one shared `/memory` command core into `src/mini_agent/memory/`
+- move the workspace runtime-memory backend adapter out of `runtime/` and into the `memory/` package
+- rewire:
+  - `RuntimeSessionMemoryCommandHandler`
+  - `LocalOperatorCommandService.execute_memory_action(...)`
+  to thin wrappers around the shared owner
+
+### Acceptance
+
+- runtime and local memory command flows use one shared owner for action semantics, selector resolution, durable reads, and mutation payload shaping
+- `runtime/session_memory_command_handler.py` becomes an HTTP/runtime wrapper rather than a second business implementation
+- `commands/execution.py` no longer reimplements the `/memory` action family inline
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32.45 Runtime Manager Boundary Audit
+
+## Current Execution Slice: P32.45 Runtime Manager Boundary Audit (2026-04-14)
+
+### Why This Slice Is Next
+
+- after `P32.44`, the next candidate was the largest remaining runtime owner:
+  - `src/mini_agent/runtime/main_agent_runtime_manager.py`
+- the question was whether it still hides a real mixed business boundary, or whether it is simply the maintained runtime port façade with internal service assembly
+
+### Scope
+
+- audit `src/mini_agent/runtime/main_agent_runtime_manager.py`
+- compare its public surface to `session_runtime_port.py`
+- inspect whether the `_initialize_*` phases are:
+  - real escaped shared owners that should move out
+  - or one-time internal graph assembly for the runtime façade
+- perform only tiny cleanup if a low-risk dead helper is found
+
+### Acceptance
+
+- a clear keep/split decision is recorded for `MainAgentRuntimeManager`
+- if kept, the reasons are documented so later cleanup does not drift into composition-only file splitting
+- any dead code found during the audit is removed
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32.44 Tooling / Turn-Context Builder Split
+
+## Current Execution Slice: P32.44 Tooling / Turn-Context Builder Split (2026-04-14)
+
+### Why This Slice Is Next
+
+- after `P32.43`, the next audit pass checked `transport` and `runtime` for real ownership leaks
+- `transport` currently reads honestly as:
+  - low-level gateway transport in `gateway_client.py`
+  - typed session facade in `remote_session_client.py`
+- the more honest split target was `src/mini_agent/runtime/tooling.py`
+- that file still combined:
+  - runtime policy + tool bootstrap
+  - skill path resolution
+  - turn-context provider assembly
+
+### Scope
+
+- keep transport intact and record that keep decision implicitly in the slice findings
+- extract runtime skill path resolution into a dedicated owner
+- extract turn-context provider assembly into a dedicated owner
+- rewire kernel / skill-support / tests to the new ownership layout
+
+### Acceptance
+
+- `runtime/tooling.py` no longer owns turn-context provider assembly
+- skill path resolution no longer lives inside the general tooling bootstrap module
+- focused kernel / turn-context / runtime-policy regressions remain green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32.43 Gateway Ops Auth Split / Interaction Adapter Audit
+
+## Current Execution Slice: P32.43 Gateway Ops Auth Split / Interaction Adapter Audit (2026-04-14)
+
+### Why This Slice Is Next
+
+- after `P32.42`, the next likely cleanup candidates were:
+  - `src/mini_agent/application/interaction_request_adapter.py`
+  - gateway-side transport/composition naming around ops auth
+- the goal was to avoid fake cleanup:
+  - keep `interaction_request_adapter` if it is still a truthful single owner
+  - only cut code if a real ownership leak remained
+
+### Scope
+
+- audit `src/mini_agent/application/interaction_request_adapter.py`
+- inspect gateway ops auth placement across:
+  - `src/apps/agent_studio_gateway/ops_router.py`
+  - `src/apps/agent_studio_gateway/main.py`
+  - `src/apps/agent_studio_gateway/composition.py`
+- if router-local auth had become shared composition policy, extract it into a dedicated gateway auth module
+
+### Acceptance
+
+- `interaction_request_adapter.py` has a clear keep/split decision recorded
+- gateway ops auth no longer lives inside the ops router module if it is shared outside the router
+- gateway ops and main-agent API regressions remain green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32.42 SessionSurfaceBinding Alias Removal
+
+## Current Execution Slice: P32.42 SessionSurfaceBinding Alias Removal (2026-04-14)
+
+### Why This Slice Is Next
+
+- after P32.41, one low-risk but misleading naming target was explicitly identified
+- SessionSurfaceBinding was not a real owner
+- it was only an alias of ApplicationInteractionBinding
+- leaving that alias in place would keep teaching an extra fake abstraction in the application layer
+
+### Scope
+
+- remove SessionSurfaceBinding from the codebase and package exports
+- replace remaining callers with ApplicationInteractionBinding
+- run session/surface/gateway regressions to confirm the alias removal is behavior-neutral
+
+### Acceptance
+
+- SessionSurfaceBinding no longer exists as an exported or maintained application name
+- tests use ApplicationInteractionBinding directly where binding semantics are being asserted
+- session/surface/gateway regressions remain green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32.41 Session Service / Naming-Debt Audit
+
+## Current Execution Slice: P32.41 Session Service / Naming-Debt Audit (2026-04-14)
+
+### Why This Slice Is Next
+
+- after `P32.40`, the next question was whether `SessionApplicationService` still hides a real mixed boundary
+- at the same time, several runtime/application filenames still look close enough to create naming confusion even if the ownership is correct
+
+### Scope
+
+- audit `src/mini_agent/application/session_service.py`
+- inspect naming relationships among:
+  - `session_lifecycle.py`
+  - `session_runtime_lifecycle_handler.py`
+  - `session_runtime_port.py`
+  - `surface_service_types.py`
+  - `main_agent_runtime_policy_loader.py`
+  - `SessionSurfaceBinding`
+
+### Acceptance
+
+- a clear keep/split decision is recorded for `SessionApplicationService`
+- naming-debt items are separated into:
+  - real near-term cleanup candidates
+  - accurate names that should remain as-is for now
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32.40 Surface Chat Flow / Surface Service Boundary Audit
+
+## Current Execution Slice: P32.40 Surface Chat Flow / Surface Service Boundary Audit (2026-04-14)
+
+### Why This Slice Is Next
+
+- after `P32.39`, the next obvious large application owners were:
+  - `src/mini_agent/application/surface_chat_flow_handler.py`
+  - `src/mini_agent/application/main_agent_surface_service.py`
+- both sit on major user-facing paths, so splitting them carelessly would create churn across gateway/TUI/client contracts
+- the goal of this slice is to verify whether they are true mixed owners or intentional facade/flow owners
+
+### Scope
+
+- audit `SurfaceChatFlowHandler` for:
+  - request chat flow
+  - stream chat flow
+  - dry-run handling
+  - turn finalization
+- audit `MainAgentSurfaceService` for:
+  - public surface facade responsibility
+  - interaction binding / workspace resolution
+  - orchestration composition
+  - session operation pass-through methods
+
+### Acceptance
+
+- a clear keep/split decision is recorded for both owners
+- if the answer is keep, the reasons are documented so later cleanup does not drift into facade-splitting
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32.39 Route Resolution / Delegation Execution Split
+
+## Current Execution Slice: P32.39 Route Resolution / Delegation Execution Split (2026-04-14)
+
+### Why This Slice Is Next
+
+- after `P32.38`, the next candidate worth auditing was `src/mini_agent/application/agent_route_execution_handler.py`
+- the audit showed an asymmetric result:
+  - route resolution + routing diagnostics still belong together
+  - delegated child-turn execution + fallback behavior do not
+- the mixed owner was not the routing table itself
+- it was the way one application owner still combined:
+  - route parsing/resolution
+  - route diagnostics bookkeeping
+  - delegated child-session execution
+  - fallback back to the main agent
+
+### Scope
+
+- keep `AgentRouteExecutionHandler` as the route-resolution and route-diagnostics owner
+- extract delegated child-turn execution and fallback into a dedicated application owner
+- rewire `MainAgentSurfaceService` to compose both owners explicitly
+- add focused handler-level regression coverage for the new delegation owner
+
+### Acceptance
+
+- `AgentRouteExecutionHandler` no longer directly owns delegated child-turn execution
+- delegation fallback behavior still works with the same external contract
+- surface/gateway routing regressions remain green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32.38 Channel Ingress / Novel Action Ownership Split
+
+## Current Execution Slice: P32.38 Channel Ingress / Novel Action Ownership Split (2026-04-14)
+
+### Why This Slice Is Next
+
+- after `P32.37`, the next real ownership leak showed up in the remote interaction application seam
+- `ChannelIngressUseCases` was still mixing:
+  - remote message ingress and conversation binding
+  - feature-specific `/novel ...` command parsing
+  - feature-specific novel action dispatch
+- under the current architecture, remote ingress should stay a surface entry owner, not a feature-command owner
+
+### Scope
+
+- extract channel-facing novel command parsing/dispatch into a dedicated application owner
+- keep `ChannelIngressUseCases` focused on:
+  - remote message ingress
+  - conversation/session binding lookup
+  - forwarding regular chat messages into main-agent chat
+- update gateway composition and tests to wire the new owner explicitly
+
+### Acceptance
+
+- `ChannelIngressUseCases` no longer directly parses or dispatches novel actions
+- channel-facing `/novel ...` behavior still works through the dedicated owner
+- focused channel/gateway regressions remain green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32.37 Session Control Ownership Split
+
+## Current Execution Slice: P32.37 Session Control Ownership Split (2026-04-14)
+
+### Why This Slice Is Next
+
+- after `P32.36`, the next suspicious runtime boundary was no longer `session_operator_handler.py`
+- the audit showed `RuntimeSessionOperatorHandler` is still a legitimate command-orchestration facade:
+  - it routes one session operator surface
+  - it coordinates transcript/persist/locking behavior
+  - it does not pretend to own the underlying business domains
+- the real mixed owner was `src/mini_agent/runtime/session_control_handler.py`
+- that file still mixed:
+  - agent context controls
+  - knowledge-base toggles
+  - MCP inspection/reload controls
+
+### Scope
+
+- keep `RuntimeSessionOperatorHandler` intact as the operator-command facade
+- split the old mixed session control owner into:
+  - `RuntimeSessionAgentControlHandler`
+  - `RuntimeSessionMcpControlHandler`
+- extract shared control command models/routing into `session_control_models.py`
+- rewire runtime composition and operator dispatch to the new owners
+- add focused handler-level regression coverage
+
+### Acceptance
+
+- MCP control no longer lives in the same runtime owner as context/KB control
+- `RuntimeSessionOperatorHandler` remains only a coordination facade, not a fake business owner
+- live surface/service/gateway regressions remain green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32.36 Recovery-State Ownership Completion
+
+## Current Execution Slice: P32.36 Recovery-State Ownership Completion (2026-04-14)
+
+### Why This Slice Is Next
+
+- after `P32.35`, recovery/reset ownership was improved but not fully closed
+- `apply_stored_recovery(...)` still lived in `session_hydration_builder.py`
+- that method mutates recovery projection state, so it belongs with the recovery owner rather than the hydration payload builder
+
+### Scope
+
+- move `apply_stored_recovery(...)` into `RuntimeSessionRecoveryResetHandler`
+- remove the mutation from `RuntimeSessionHydrationBuilder`
+- rewire restore assembly to use the recovery owner directly
+- add focused regression coverage for the apply path
+
+### Acceptance
+
+- recovery projection state apply/clear/build/reset all live under one runtime owner
+- hydration builder no longer mutates recovery state directly
+- restore/runtime/session regressions remain green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32.35 Runtime Pending-Approval and Recovery/Reset Extraction
+
+## Current Execution Slice: P32.35 Runtime Pending-Approval and Recovery/Reset Extraction (2026-04-14)
+
+### Why This Slice Is Next
+
+- after `P32.34`, the next honest mixed-owner target was `src/mini_agent/runtime/session_live_state_handler.py`
+- unlike `RuntimeSessionMemoryCommandHandler`, this file really mixed distinct runtime concerns:
+  - surface binding
+  - transcript/activity mutation
+  - pending approval state
+  - recovery/reset cleanup
+- the right next cut was to extract the non-live-state concerns while keeping transcript/binding together
+
+### Scope
+
+- extract pending-approval normalization/mutation into a dedicated runtime owner
+- extract recovery-context + runtime-reset cleanup into a dedicated runtime owner
+- keep `RuntimeSessionLiveStateHandler` focused on:
+  - surface binding
+  - transcript/activity recording
+  - turn running-state flags
+- rewire runtime manager composition and regression tests to the new seams
+
+### Acceptance
+
+- `RuntimeSessionLiveStateHandler` no longer owns approval-state or recovery/reset behavior
+- runtime manager wiring uses explicit owners for:
+  - pending approval state
+  - recovery/reset
+- focused runtime/session/gateway regressions remain green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32.34 Session Package Public-Surface Hard Refactor
+
+## Current Execution Slice: P32.34 Session Package Public-Surface Hard Refactor (2026-04-14)
+
+### Why This Slice Is Next
+
+- `P32.33` confirmed that `mini_agent.session.store` was no longer the live runtime session truth
+- keeping that module exported from `mini_agent.session` would keep teaching the wrong architecture
+- the right next cut is a hard package-surface correction, not another large-file split
+
+### Scope
+
+- remove `SessionStore` / `SessionState` / `session_store` from `mini_agent.session`
+- delete `src/mini_agent/session/store.py`
+- replace legacy store tests with:
+  - session package public-surface regression coverage
+  - direct `SessionPersistence` contract coverage
+- update active structure docs so the current session boundary is explicit
+
+### Acceptance
+
+- `mini_agent.session` exports only live owners:
+  - persistence
+  - projections
+  - conversation binding
+- no live source/test path imports the deleted legacy store surface
+- targeted session/runtime/gateway regressions remain green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32.33 Session Store Canonical Ownership Audit
+
+## Current Execution Slice: P32.33 Session Store Canonical Ownership Audit (2026-04-14)
+
+### Why This Slice Is Next
+
+- after `P32.32`, the next suspicious structure problem was no longer just a large file
+- it was a package-level ownership contradiction:
+  - `src/mini_agent/session/__init__.py` still presents `SessionStore` / `SessionState` as canonical
+  - the live runtime already uses `MainAgentSessionState` plus runtime-owned persistence/hydration handlers
+- the goal of this slice is to verify whether `mini_agent.session.store` is still active infrastructure or a misleading second session truth
+
+### Scope
+
+- audit all live `src/` imports of:
+  - `SessionStore`
+  - `SessionState`
+  - `session_store`
+- compare `session/store.py` responsibilities against:
+  - `runtime/session_state.py`
+  - `runtime/session_runtime_persistence.py`
+  - `runtime/session_managed_store_handler.py`
+- decide whether the next hard refactor should target:
+  - `session/store.py` public positioning
+  - or another runtime module instead
+
+### Acceptance
+
+- a clear keep/demote/delete direction is recorded for `SessionStore`
+- the real session truth is explicitly named in active docs
+- the next physical-structure cut is chosen based on ownership, not line count
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32 Runtime Session Memory Command Boundary Audit
+
+## Current Execution Slice: P32.32 Runtime Session Memory Command Boundary Audit (2026-04-14)
+
+### Why This Slice Is Next
+
+- after `P32.31`, the next suspicious large owner in the physical-structure cleanup was:
+  - `src/mini_agent/runtime/session_memory_command_handler.py`
+- unlike `OperationsUseCases`, this module sits in a valid runtime domain, so the question is not "can it be split" but "should it be split"
+- the audit goal is to avoid another fake cleanup that only produces thin shells and weaker ownership
+
+### Scope
+
+- inspect the command families handled by `RuntimeSessionMemoryCommandHandler`
+- verify how it is composed into runtime/session operator flows
+- check maintained tests that exercise runtime memory, durable memory, and mutation paths
+- decide whether this is a real mixed-responsibility module or one cohesive command-domain owner
+
+### Acceptance
+
+- a clear keep/split decision is recorded
+- if the answer is "keep", the concrete reasons are documented
+- if any smaller future-safe cleanup exists, it is recorded separately from a hard split
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32 Operations Provider/Memory Use-Case Split
+
+## Current Execution Slice: P32.31 Operations Provider/Memory Use-Case Split (2026-04-14)
+
+### Why This Slice Is Next
+
+- after `P32.30`, the next high-value physical-structure target was explicitly identified
+- `src/mini_agent/application/operations_use_cases.py` still mixed:
+  - provider/model admin flows
+  - memory admin flows
+  - path/policy resolution helpers
+- unlike some other large modules, this was a real ownership blend, not just file size
+### Scope
+
+- extract shared path/policy resolution into a dedicated application helper
+- split provider/model operations into their own application use-case module
+- split memory operations into their own application use-case module
+- rewire gateway ops transport to inject/use the separated dependencies
+- replace the old mixed `OperationsUseCases` surface instead of keeping a compatibility shell
+
+### Acceptance
+
+- `application/` no longer exposes one mixed ops owner for provider/model + memory
+- gateway ops routes keep the same HTTP contract while depending on separated use-case owners
+- tests cover the split at unit and gateway-contract levels
+- active docs record the new ownership so future cleanup does not drift back
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32 Operations/Memory Boundary Audit After Catalog Path Consolidation
+
+## Current Execution Slice: P32.30 Operations/Memory Boundary Audit After Catalog Path Consolidation (2026-04-14)
+
+### Why This Slice Is Next
+
+- after `P32.29`, one small runtime cleanup still remained:
+  - `RuntimeSessionCatalogHandler` still owned its own workspace path-key helper instead of using the shared runtime path seam
+- once that was cleaned, the next question was no longer runtime-manager residue
+- it was "which of the remaining large modules is actually mixing responsibilities, and which is just large?"
+
+### Scope
+
+- unify `RuntimeSessionCatalogHandler` path-key logic to `workspace_path_utils.py`
+- audit:
+  - `OperationsUseCases`
+  - `RuntimeSessionMemoryCommandHandler`
+- record which one is the real next refactor target
+
+### Acceptance
+
+- session catalog dedupe logic uses the shared workspace path seam
+- the next meaningful post-`P32.29` target is explicitly identified
+- active docs capture the conclusion so later slices do not drift
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32 Application Managed Session Turn Extraction
+
+## Current Execution Slice: P32.29 Application Managed Session Turn Extraction (2026-04-14)
+
+### Why This Slice Is Next
+
+- after the runtime-side cleanup, the next worthwhile physical-structure issue moved back up into `application/`
+- `session_service.py` still co-located two different responsibilities:
+  - `SessionApplicationService`
+  - `ManagedSessionTurn`
+- `ManagedSessionTurn` is not the service itself
+- it is an application-layer turn lease / scoped session object, and keeping it inside the service file made the service module look broader than it really is
+
+### Scope
+
+- move `ManagedSessionTurn` into its own application module
+- update application orchestrators and exports to import it from the new canonical home
+- keep `SessionApplicationService` focused on session-facing application operations
+
+### Acceptance
+
+- `SessionApplicationService` no longer physically owns the `ManagedSessionTurn` type
+- application turn/chat executors import the turn lease from its dedicated module
+- focused application/runtime/gateway regression remains green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32 Runtime Session Snapshot Builder Extraction
+
+## Current Execution Slice: P32.28 Runtime Session Snapshot Builder Extraction (2026-04-14)
+
+### Why This Slice Is Next
+
+- after `P32.27`, `RuntimeSessionReadModelBuilder` still mixed two adjacent but distinct responsibilities:
+  - summary/detail/message/recovery read models
+  - snapshot export construction
+- that made the read-model builder broader than its name and ownership suggested
+- snapshot export already had a routing owner in `RuntimeSessionSnapshotHandler`, so the natural next cut was a dedicated snapshot builder seam
+
+### Scope
+
+- extract `build_session_snapshot(...)` and `build_session_snapshot_from_record(...)` into `RuntimeSessionSnapshotBuilder`
+- wire snapshot export routing through the new builder
+- leave summary/detail/recovery read-model logic in `RuntimeSessionReadModelBuilder`
+
+### Acceptance
+
+- snapshot export no longer lives inside `RuntimeSessionReadModelBuilder`
+- snapshot handler consumes a dedicated snapshot builder seam
+- focused runtime/surface/session/gateway regression remains green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32 Runtime Workspace Path Utility Consolidation
+
+## Current Execution Slice: P32.27 Runtime Workspace Path Utility Consolidation (2026-04-14)
+
+### Why This Slice Is Next
+
+- after `P32.26`, the runtime-manager boundary audit showed the remaining suspicious residue was no longer large orchestration logic
+- it was small duplicated utility ownership:
+  - workspace-path normalization existed in multiple runtime places
+  - `MainAgentRuntimeManager` still kept a `_normalize_surface(...)` pass-through shell over `normalize_surface_label(...)`
+- leaving that in place would keep the manager artificially noisy even after the bigger orchestration cuts landed
+
+### Scope
+
+- extract shared workspace-path normalization into `runtime/workspace_path_utils.py`
+- rewire runtime manager and lifecycle helpers to consume the shared path seam
+- remove manager-local surface/workspace utility wrappers that no longer carry real ownership
+
+### Acceptance
+
+- runtime workspace path normalization has one canonical owner
+- `MainAgentRuntimeManager` no longer owns path/surface helper shells
+- focused runtime/surface/gateway regression remains green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32 Runtime Session Hydration Coordinator Extraction
+
+## Current Execution Slice: P32.26 Runtime Session Hydration Coordinator Extraction (2026-04-14)
+
+### Why This Slice Is Next
+
+- after `P32.25`, `main_agent_runtime_manager.py` still held two restore/hydrate private entrypoints:
+  - persisted-record -> hydration payload
+  - hydration payload -> managed session registration/persistence
+- those methods were not really manager-specific orchestration
+- they were the glue between restore logic and the managed session store boundary
+
+### Scope
+
+- extract a dedicated `RuntimeSessionHydrationCoordinator`
+- let it own:
+  - persisted-record restore routing
+  - hydrated-session insertion into the managed session map
+  - lineage registration
+  - optional persistence after snapshot/derived hydration
+- remove the manager-local restore/hydrate private methods
+
+### Acceptance
+
+- persisted restore / hydrate glue no longer lives as private manager methods
+- session registry / managed-store callbacks use the explicit hydration seam
+- focused runtime/surface/session/gateway regression remains green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32 Runtime Session Agent Support Seam Extraction
+
+## Current Execution Slice: P32.25 Runtime Session Agent Support Seam Extraction (2026-04-14)
+
+### Why This Slice Is Next
+
+- after `P32.24`, `main_agent_runtime_manager.py` still visibly owned one more cohesive helper cluster:
+  - agent construction for selected/default identities
+  - knowledge-base enable/apply inspection
+  - sandbox-diagnostics to runtime-policy override translation
+  - runtime config loading
+- those helpers were used by creation, restore, control, hydration, and runtime-rebuild paths
+- they belong to runtime-owned support assembly, not to the top-level manager orchestration surface
+
+### Scope
+
+- extract runtime-local agent/config/KB helpers into `RuntimeSessionAgentSupport`
+- rewire creation, hydration, control, restore, and agent-runtime assembly to consume that seam
+- add focused regression coverage for:
+  - default vs selected agent build routing
+  - KB state inspection/apply behavior
+  - runtime config loader injection
+
+### Acceptance
+
+- agent/config/KB helper logic no longer lives inside `MainAgentRuntimeManager`
+- runtime handlers consume an explicit support seam instead of manager helper methods
+- focused runtime/surface/session/gateway regression remains green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32 Runtime Session Model Identity Codec Extraction
+
+## Current Execution Slice: P32.24 Runtime Session Model Identity Codec Extraction (2026-04-14)
+
+### Why This Slice Is Next
+
+- after `P32.23`, another cohesive helper cluster still lived inside `main_agent_runtime_manager.py`
+- it owned selected/pending model identity normalization and route translation for session model selection
+- those helpers are real runtime session model-identity logic, but not manager orchestration
+
+### Scope
+
+- extract selected/pending model identity helpers into `RuntimeSessionModelIdentityCodec`
+- rewire hydration, read-model, model-selection, restore, operator, and agent-runtime assembly to consume the codec seam
+- add focused codec regression coverage
+
+### Acceptance
+
+- selected/pending model identity helper logic no longer lives inside `MainAgentRuntimeManager`
+- runtime services consume an explicit model-identity seam instead of manager helper methods
+- focused runtime/surface/session/gateway regression remains green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32 Runtime Session Payload Codec Extraction
+
+## Current Execution Slice: P32.23 Runtime Session Payload Codec Extraction (2026-04-14)
+
+### Why This Slice Is Next
+
+- after `P32.22`, one large chunk of non-manager behavior still lived inside `main_agent_runtime_manager.py`
+- it was the payload/message/token normalization logic used by:
+  - persistence
+  - hydration
+  - read-model building
+  - runtime restore
+- those helpers were cohesive, but they were not manager orchestration
+
+### Scope
+
+- extract runtime payload/message/token helpers into a dedicated `RuntimeSessionPayloadCodec`
+- rewire runtime diagnostics, hydration, read-model, restore, and agent-runtime handlers to consume the codec seam
+- add focused codec tests for message restoration/serialization and token-state restoration
+
+### Acceptance
+
+- payload/message/token normalization no longer lives inside `MainAgentRuntimeManager`
+- runtime services consume a dedicated codec seam instead of manager static methods
+- focused runtime/surface/session/gateway regression remains green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32 Runtime Contracts Extraction
+
+## Current Execution Slice: P32.22 Runtime Contracts Extraction (2026-04-14)
+
+### Why This Slice Is Next
+
+- after the `application / session / channel` seam cleanup, the next clean runtime cut was not deeper behavior
+- it was the contract surface itself:
+  - `MainAgentRuntimeMode`
+  - `MainAgentRuntimePolicy`
+  - `MainAgentRuntimeDiagnostics`
+- those types still lived inside `main_agent_runtime_manager.py`, which forced pure policy-loading code to import the manager module just to access runtime contracts
+
+### Scope
+
+- move runtime contracts into a dedicated runtime contracts module
+- update policy loader, runtime package exports, and active tests to import contracts from the new canonical home
+- keep `MainAgentRuntimeManager` focused on orchestration behavior rather than contract ownership
+
+### Acceptance
+
+- runtime policy/config code no longer imports the manager module just to access runtime contracts
+- `main_agent_runtime_contracts.py` becomes the canonical owner of runtime mode/policy/diagnostics types
+- focused runtime/gateway/surface regression remains green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32 Main-Agent Surface Runtime Dependency Removal
+
+## Current Execution Slice: P32.21 Main-Agent Surface Runtime Dependency Removal (2026-04-14)
+
+### Why This Slice Is Next
+
+- after `P32.19` and `P32.20`, `MainAgentSurfaceService` had already been narrowed to `SessionApplicationService`
+- but its constructor still carried a direct `runtime_manager` dependency that the service no longer actually used
+- keeping that parameter around would preserve a fake dependency in the public shape of the service
+
+### Scope
+
+- remove the unused `runtime_manager` dependency from `MainAgentSurfaceService`
+- update gateway composition and surface-service tests to construct the service through `SessionApplicationService` only
+- keep runtime-touching test helpers explicit by reaching through the injected session service instead of the surface API
+
+### Acceptance
+
+- `MainAgentSurfaceService` no longer imports or accepts `SessionRuntimePort`
+- gateway composition constructs the surface service from the shared session service seam only
+- focused surface/session/channel/gateway regression remains green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32 Channel Ingress / Conversation Binding Port Extraction
+
+## Current Execution Slice: P32.20 Channel Ingress / Conversation Binding Port Extraction (2026-04-14)
+
+### Why This Slice Is Next
+
+- after `P32.19`, the next obvious shared-boundary leak was in `ChannelIngressUseCases`
+- it still depended on the concrete `ConversationBindingService` type and still encoded binding assembly assumptions in the application service boundary
+- that kept remote/session reachability logic from reading like a session-owned seam
+
+### Scope
+
+- add a session-owned `ConversationBindingPort`
+- make `ChannelIngressUseCases` depend on the port instead of the concrete binding service
+- update gateway composition and tests to inject the port implementation explicitly
+
+### Acceptance
+
+- `ChannelIngressUseCases` no longer imports the concrete binding service type
+- composition owns the concrete binding-service assembly and injects it through the port seam
+- focused channel/gateway/surface/session regression remains green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32 Main-Agent Surface / Session Service Ownership Extraction
+
+## Current Execution Slice: P32.19 Main-Agent Surface / Session Service Ownership Extraction (2026-04-14)
+
+### Why This Slice Is Next
+
+- after `P32.18`, the biggest remaining `application / runtime / session` ownership leak was no longer naming
+- `MainAgentSurfaceService` still constructed `SessionApplicationService` internally, which blurred a boundary we had already started cleaning in `P32.6`
+- that meant host-owned assembly was partly leaking back into an application service, making the layering story harder to trust
+
+### Scope
+
+- make `MainAgentSurfaceService` consume an explicit injected `SessionApplicationService`
+- move session-service assembly ownership into gateway composition
+- update surface-service tests to follow the explicit seam and add a focused injection proof
+
+### Acceptance
+
+- `MainAgentSurfaceService` no longer creates `SessionApplicationService` internally
+- gateway composition owns runtime-manager, session-service, and surface-service assembly as separate seams
+- focused surface/session/gateway regression remains green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32 Agent-Core Engine And Turn-Context Test Surface Realignment
+
+## Current Execution Slice: P32.18 Agent-Core Engine / Turn-Context / Policy Test Naming Realignment (2026-04-14)
+
+### Why This Slice Is Next
+
+- after `P32.17`, most execution-focused test surfaces were already aligned, but the most visible engine-facing tests still carried older naming:
+  - `tests/test_agent.py`
+  - `tests/test_agent_turn_context.py`
+  - `tests/test_agent_execution_policy.py`
+- that still made the current regression surface look split between generic root-era naming and the now-canonical `agent_core` tree
+
+### Scope
+
+- rename the remaining engine-facing tests to `agent_core`-consistent names
+- update current docs and validation references to the renamed test surfaces
+- keep the change narrow to naming and references, without changing runtime behavior
+
+### Acceptance
+
+- engine-facing regression surfaces use `agent_core` naming
+- current docs no longer instruct developers to run the removed old test paths
+- focused engine/kernel regression stays green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32 Agent-Core Naming Consistency Sweep
+
+## Current Execution Slice: P32.17 Agent-Core Naming Consistency And Test Surface Realignment (2026-04-14)
+
+### Why This Slice Is Next
+
+- after `P32.1`, the physical `agent_core` tree was largely unified, but a few strong naming leaks still remained:
+  - the self-improvement skill engine still lived at `agent_core/self_improve.py` instead of under the `skills/` domain it belongs to
+  - execution-focused tests still carried `test_code_agent_*` names even though `code_agent/` had already been removed
+  - one execution primitive still exported `CodeAgentMCPClient`, keeping the deleted old-core name alive in current APIs
+- that left the tree structurally cleaner than before, but still not semantically self-consistent
+
+### Scope
+
+- move self-improvement skill ownership into `agent_core/skills/`
+- rename execution-focused tests to `agent_core`-consistent names
+- remove remaining live `CodeAgent*` naming from current agent-core execution exports
+- update active docs and terminal readiness scripts to current paths
+
+### Acceptance
+
+- `src/mini_agent/agent_core/skills/self_improve.py` is the canonical home of the self-improvement engine
+- current source/tests/scripts no longer reference the removed `code_agent` package as a live execution owner
+- execution test names reflect `agent_core` ownership
+- focused execution/kernel regression stays green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-14 P32 Gateway Ops Transport Dependency Pattern Unification
+
+## Current Execution Slice: P32.16 Gateway Ops Transport DI Pattern Unification (2026-04-14)
+
+### Why This Slice Is Next
+
+- after `P32.13`/`P32.14`/`P32.15`, most gateway transport and host concerns were already split cleanly, but one inconsistency still remained:
+  - `src/apps/agent_studio_gateway/main_agent_router.py` already used explicit injected dependencies and a router factory
+  - `src/apps/agent_studio_gateway/ops_router.py` still behaved like a module-global singleton router with hidden service ownership
+- that meant the gateway transport layer still taught two different patterns for the same responsibility
+- the next correct cut was to make ops transport follow the same dependency-injected router-factory pattern as the main-agent transport
+
+### Scope
+
+- introduce an explicit ops-router dependency object
+- make `ops_router.py` export `create_ops_router(...)` instead of a module-global router singleton
+- keep host-owned service construction in `src/apps/agent_studio_gateway/main.py`
+- update gateway tests to patch the host-owned operations use-case assembly instead of transport-module globals
+
+### Acceptance
+
+- `src/apps/agent_studio_gateway/ops_router.py` owns only ops HTTP contract translation plus router-factory wiring
+- `src/apps/agent_studio_gateway/main.py` owns `GATEWAY_OPERATIONS_USE_CASES` and mounts `create_ops_router(...)`
+- gateway transport routers now use one consistent DI/factory pattern across main-agent and ops surfaces
+- focused gateway regression stays green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-13 P32 Gateway Static Host Extraction
+
+## Current Execution Slice: P32.15 Studio Static Host / SPA Fallback Extraction (2026-04-13)
+
+### Why This Slice Is Next
+
+- after `P32.14`, `main.py` had become much thinner, but it still directly owned the browser-hosting details:
+  - workspace file mount
+  - Studio dist resolution
+  - `/assets` mounting
+  - root index route
+  - SPA fallback route
+  - dist-missing fallback response
+- that kept frontend hosting policy mixed into the gateway entrypoint
+
+### Scope
+
+- add a dedicated static-host module for Studio/browser serving
+- move dist resolution and SPA fallback route registration out of `main.py`
+- keep the gateway entrypoint as a thin assembly module
+
+### Acceptance
+
+- `src/apps/agent_studio_gateway/static_host.py` owns Studio static hosting and SPA fallback wiring
+- `src/apps/agent_studio_gateway/main.py` only assembles the host and calls the static-host configurator
+- focused static-host and gateway regression stays green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-13 P32 Gateway Composition Extraction
+
+## Current Execution Slice: P32.14 Runtime / Service Composition Builder Extraction (2026-04-13)
+
+### Why This Slice Is Next
+
+- after `P32.13`, `main.py` already stopped owning most HTTP transport, but it still directly owned:
+  - runtime-manager construction
+  - surface-service construction
+  - channel-ingress construction
+  - bootstrap error formatting / SSE helpers / workspace resolution
+  - gateway startup/shutdown lifecycle cleanup
+- that meant the entry module was thinner, but still not a clean host entrypoint
+
+### Scope
+
+- add an explicit gateway composition module for runtime/service/lifecycle wiring
+- make `main.py` instantiate settings + composition and then just assemble the host
+- move health/runtime diagnostics building onto the composition object
+- update tests to patch the composition object instead of old module-level caches
+
+### Acceptance
+
+- `src/apps/agent_studio_gateway/composition.py` is the canonical runtime/service wiring home
+- `src/apps/agent_studio_gateway/main.py` reads as a thin entry/assembly module
+- focused gateway API + runtime matrix regression stays green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-13 P32 Main-Agent Transport Router Extraction
+
+## Current Execution Slice: P32.13 Gateway Main-Agent HTTP Transport Extraction (2026-04-13)
+
+### Why This Slice Is Next
+
+- after `P32.12`, `main.py` no longer owned the novel cluster, but it still carried the whole main-agent HTTP/SSE contract surface:
+  - `/api/v1/system/health`
+  - `/api/v1/ops/diagnostics/*`
+  - `/api/v1/agent/*`
+  - `/api/v1/channel/message`
+- that meant the composition root still doubled as a route business layer
+- the next correct cut was to move protocol translation out of `main.py` while keeping service/runtime wiring in the composition root
+
+### Scope
+
+- add a dedicated gateway transport router for main-agent/session/channel routes
+- make `main.py` mount that router instead of declaring those endpoints inline
+- keep external API paths and test contracts stable
+
+### Acceptance
+
+- `src/apps/agent_studio_gateway/main_agent_router.py` owns the main-agent HTTP/SSE transport contract
+- `src/apps/agent_studio_gateway/main.py` keeps composition, lifecycle, static mounting, and service wiring only
+- existing gateway API regression remains green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-13 P32 Novel Transport / Runtime Ownership Realignment
+
+## Current Execution Slice: P32.12 Novel Transport Extraction From Gateway Main (2026-04-13)
+
+### Why This Slice Is Next
+
+- after `P32.11`, `ops` transport naming was corrected, but `src/apps/agent_studio_gateway/main.py` still owned a large novel-only cluster:
+  - profile/env parsing
+  - project path helpers
+  - chapter history/version helpers
+  - novel use-case factory wiring
+  - `/api/v1/novel/*` route handlers
+- leaving that cluster in the composition root kept teaching the wrong ownership story:
+  - `main.py` looked like a second business layer
+  - the existing `subprograms/novel_generator/gateway/router.py` stayed stale and duplicated
+  - `mini_agent.novel` still lacked a canonical runtime wiring home
+
+### Scope
+
+- move novel runtime wiring into `src/mini_agent/novel/runtime.py`
+- upgrade `src/subprograms/novel_generator/gateway/router.py` into the maintained novel HTTP transport
+- mount the subprogram router from `src/apps/agent_studio_gateway/main.py`
+- keep `/api/v1/novel/*` external contracts and channel novel-action behavior stable
+
+### Acceptance
+
+- `src/apps/agent_studio_gateway/main.py` no longer owns novel-specific route handlers or wiring helpers
+- `src/subprograms/novel_generator/gateway/router.py` is the maintained novel transport surface
+- `src/mini_agent/novel/runtime.py` is the canonical runtime wiring home for novel use cases
+- focused regression for gateway novel endpoints and channel novel dispatch stays green
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-13 P32 Gateway Ops Router Neutralization
+
+## Current Execution Slice: P32.11 Ops Router Naming Realignment (2026-04-13)
+
+### Why This Slice Is Next
+
+- after `P32.10`, the service seam was already neutralized, but the gateway transport file still advertised paused `Studio` ownership:
+  - `src/apps/agent_studio_gateway/ops_router.py`
+  - `tests/test_agent_studio_gateway_ops_router.py`
+- that is smaller than the previous ownership cuts, but it still matters because transport/module names teach where future code gets added
+- if left unchanged, the repo would still imply that `/api/v1/ops` is a Studio-private route set instead of a maintained shared ops transport surface
+
+### Scope
+
+- rename `studio_router.py` to `ops_router.py`
+- rename internal auth and route symbols from `studio_*` to `ops_*`
+- keep `/api/v1/ops` external contracts and existing auth env behavior stable
+- sync active docs and focused tests to the new router name
+
+### Acceptance
+
+- gateway ops transport file path is `src/apps/agent_studio_gateway/ops_router.py`
+- maintained tests point at `tests/test_agent_studio_gateway_ops_router.py`
+- gateway composition imports `ops_router` / `_require_ops_auth`
+- focused regression stays green after the rename
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-13 P32 Session/Novel Ownership + Operations Seam Neutralization
+
+## Current Execution Slice: P32.9-P32.10 Shared Ownership Realignment (2026-04-13)
+
+### Why This Slice Is Next
+
+- `P32.8` cleaned up transport ownership, but two misleading ownership pockets still remained:
+  - remote conversation binding still looked application-owned even though it is session-domain reachability state
+  - `StudioOpsUseCases` still made a shared provider/memory service look like one surface's private backend
+- leaving those names in place would keep teaching the wrong repository story:
+  - `session` would look incomplete as the canonical remote binding home
+  - `application` would still look partially owned by the paused browser/Studio surface
+- the right next cut is therefore another hard physical ownership correction, not a new feature slice
+
+### Scope
+
+- move remote conversation binding service into `src/mini_agent/session/`
+- extract novel profile/service ownership out of `src/mini_agent/application/` into `src/mini_agent/novel/`
+- rename the shared provider/memory ops seam to surface-neutral ownership
+- keep `/api/v1/ops` transport contracts stable while correcting internal ownership and names
+
+### Acceptance
+
+- `session/` is the obvious home for remote conversation binding lookup/persistence service code
+- `novel/` is the obvious home for novel-specific profile/use-case code
+- `application/` no longer advertises a Studio-owned shared ops service
+- focused regression for gateway ops, channel ingress, and novel paths stays green
+
+### Status
+
+- completed
+
 ## Latest Sync: 2026-04-13 DesktopUI Freeze And Service-Layer Return
 
 ## Current Execution Slice: Application Service Seam Hardening Return (2026-04-13)
@@ -11,7 +3527,7 @@
   - it can attach/start local gateway
   - it can create/select/fork sessions
   - it can stream replies and show operator activity
-- the latest真人联调 also confirmed the current bottleneck is no longer "missing frontend shell"
+- the latest閻喍姹夐懕鏃囩殶 also confirmed the current bottleneck is no longer "missing frontend shell"
 - the bigger risk is now architectural:
   - core/service seams are still not reduced enough
   - frontend polishing can easily start compensating for backend boundary debt
@@ -75,10 +3591,14 @@
 - legacy src/mini_agent/application/main_agent_gateway_use_cases.py is now only a thin compatibility export
 - gateway app composition no longer keeps _MAIN_AGENT_USE_CASES
 - targeted regression passed:
-  - uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py
+  - uv run pytest tests/test_main_agent_surface_service.py tests/test_agent_studio_gateway_api_v1.py
   - result: 95 passed
 
 ### Refactor Focus After This Cut
+
+- application binding is now the shared normalization seam for session operators and remote binding lookups
+
+- runtime policy / lifecycle policy loading has now been moved out of gateway main into a shared runtime loader seam
 
 - keep shrinking remaining gateway-* naming/ownership that still represents shared application behavior instead of transport behavior
 - inspect whether the next safest slice is:
@@ -127,7 +3647,7 @@
   - share / unshare selected session
   - fork selected session
   - compact selected session
-- DesktopUI has now absorbed the first真人联调 corrections:
+- DesktopUI has now absorbed the first閻喍姹夐懕鏃囩殶 corrections:
   - `New Session` follows current runtime capacity constraints more naturally by creating a blank derived session when a current session already exists
   - desktop client timeout budget is no longer unrealistically low for operator actions
   - layout pressure is being pushed back toward the center conversation area
@@ -163,7 +3683,7 @@
 - keep improving conversation/task rendering quality
 - add more runtime/session controls only when they can still reuse existing shared contracts
 - avoid drifting into desktop-owned backend semantics while the shell grows
-- keep using真人联调 findings to tighten shell behavior before adding richer desktop-only features
+- keep using閻喍姹夐懕鏃囩殶 findings to tighten shell behavior before adding richer desktop-only features
 
 ### Status
 
@@ -1697,7 +5217,7 @@
 - `src/mini_agent/tui/gateway_client.py`
 - `src/apps/qqbot_channel/bot.mjs`
 - `tests/test_model_routing_runtime.py`
-- `tests/test_main_agent_gateway_use_cases.py`
+- `tests/test_main_agent_surface_service.py`
 - `tests/test_interface_dto_contracts.py`
 - `tests/test_session_remote_service.py`
 - `task_plan.md`
@@ -2189,7 +5709,7 @@
 - `src/apps/agent_studio_gateway/main.py`
 - `src/mini_agent/commands/catalog.json`
 - `src/mini_agent/tui/app.py`
-- `tests/test_main_agent_gateway_use_cases.py`
+- `tests/test_main_agent_surface_service.py`
 - `tests/test_tui_app.py`
 - `task_plan.md`
 - `progress.md`
@@ -2243,7 +5763,7 @@
 - `src/mini_agent/application/session_service.py`
 - `src/mini_agent/application/gateway_route_execution_handler.py`
 - `src/mini_agent/agent_core/delegation.py`
-- `tests/test_main_agent_gateway_use_cases.py`
+- `tests/test_main_agent_surface_service.py`
 - `task_plan.md`
 - `progress.md`
 - `findings.md`
@@ -2311,7 +5831,7 @@
 - `src/mini_agent/runtime/session_snapshot.py`
 - `src/mini_agent/runtime/session_snapshot_handler.py`
 - `tests/test_agent_core_session.py`
-- `tests/test_main_agent_gateway_use_cases.py`
+- `tests/test_main_agent_surface_service.py`
 - `docs/P23_AGENT_CORE_TASK_PLAN.md`
 - `task_plan.md`
 - `progress.md`
@@ -2530,7 +6050,7 @@
 ### Files In Scope
 
 - `src/mini_agent/runtime/main_agent_runtime_manager.py`
-- `tests/test_main_agent_gateway_use_cases.py`
+- `tests/test_main_agent_surface_service.py`
 - `scripts/shared_session_gateway_walkthrough.py`
 - `task_plan.md`
 - `progress.md`
@@ -2583,7 +6103,7 @@
 
 - `src/mini_agent/runtime/session_turn_scope_handler.py`
 - `src/mini_agent/runtime/main_agent_runtime_manager.py`
-- `tests/test_main_agent_gateway_use_cases.py`
+- `tests/test_main_agent_surface_service.py`
 - `task_plan.md`
 - `progress.md`
 - `findings.md`
@@ -3011,7 +6531,7 @@
 
 - `src/mini_agent/application/gateway_route_execution_handler.py`
 - `src/mini_agent/application/main_agent_gateway_use_cases.py`
-- `tests/test_main_agent_gateway_use_cases.py`
+- `tests/test_main_agent_surface_service.py`
 - `tests/test_session_service.py`
 - `tests/test_tui_app.py`
 - `task_plan.md`
@@ -3068,7 +6588,7 @@
 
 - `src/mini_agent/application/gateway_agent_execution_handler.py`
 - `src/mini_agent/application/main_agent_gateway_use_cases.py`
-- `tests/test_main_agent_gateway_use_cases.py`
+- `tests/test_main_agent_surface_service.py`
 - `tests/test_session_service.py`
 - `tests/test_tui_app.py`
 - `task_plan.md`
@@ -3129,7 +6649,7 @@
 
 - `src/mini_agent/application/gateway_chat_flow_handler.py`
 - `src/mini_agent/application/main_agent_gateway_use_cases.py`
-- `tests/test_main_agent_gateway_use_cases.py`
+- `tests/test_main_agent_surface_service.py`
 - `tests/test_session_service.py`
 - `tests/test_tui_app.py`
 - `task_plan.md`
@@ -3189,7 +6709,7 @@
 - `src/mini_agent/runtime/main_agent_runtime_manager.py`
 - `src/mini_agent/application/session_service.py`
 - `tests/test_session_service.py`
-- `tests/test_main_agent_gateway_use_cases.py`
+- `tests/test_main_agent_surface_service.py`
 - `task_plan.md`
 - `progress.md`
 - `findings.md`
@@ -3238,7 +6758,7 @@
 
 - `src/mini_agent/runtime/session_command_coordinator.py`
 - `src/mini_agent/runtime/main_agent_runtime_manager.py`
-- `tests/test_main_agent_gateway_use_cases.py`
+- `tests/test_main_agent_surface_service.py`
 - `tests/test_tui_app.py`
 - `task_plan.md`
 - `progress.md`
@@ -3295,7 +6815,7 @@
 
 - `src/mini_agent/runtime/session_command_coordinator.py`
 - `src/mini_agent/runtime/main_agent_runtime_manager.py`
-- `tests/test_main_agent_gateway_use_cases.py`
+- `tests/test_main_agent_surface_service.py`
 - `tests/test_session_service.py`
 - `tests/test_tui_app.py`
 - `task_plan.md`
@@ -3359,7 +6879,7 @@
 
 - `src/mini_agent/runtime/session_agent_runtime_handler.py`
 - `src/mini_agent/runtime/main_agent_runtime_manager.py`
-- `tests/test_main_agent_gateway_use_cases.py`
+- `tests/test_main_agent_surface_service.py`
 - `task_plan.md`
 - `progress.md`
 - `findings.md`
@@ -3421,7 +6941,7 @@
 
 - `src/mini_agent/runtime/session_catalog_handler.py`
 - `src/mini_agent/runtime/main_agent_runtime_manager.py`
-- `tests/test_main_agent_gateway_use_cases.py`
+- `tests/test_main_agent_surface_service.py`
 - `task_plan.md`
 - `progress.md`
 - `findings.md`
@@ -3670,7 +7190,7 @@
 
 - `src/mini_agent/runtime/session_skill_command_handler.py`
 - `src/mini_agent/runtime/main_agent_runtime_manager.py`
-- `tests/test_main_agent_gateway_use_cases.py`
+- `tests/test_main_agent_surface_service.py`
 - `progress.md`
 - `findings.md`
 - `task_plan.md`
@@ -4240,7 +7760,7 @@
 
 - `src/mini_agent/runtime/main_agent_runtime_manager.py`
 - `src/mini_agent/application/session_service.py`
-- `tests/test_main_agent_gateway_use_cases.py`
+- `tests/test_main_agent_surface_service.py`
 - `tests/test_session_service.py`
 - `tests/test_p19_runtime_matrix.py`
 - `progress.md`
@@ -5236,10 +8756,10 @@
 ### Verification
 
 - `uv run pytest tests/test_code_agent_sandbox.py tests/test_security_policy.py -q`
-- `uv run pytest tests/test_bash_tool.py tests/test_agent_execution_policy.py tests/test_code_agent_permissions.py tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_gateway_use_cases.py -q -k "sandbox or approval or bash or security or session or snapshot"`
+- `uv run pytest tests/test_bash_tool.py tests/test_agent_core_execution_policy.py tests/test_code_agent_permissions.py tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_surface_service.py -q -k "sandbox or approval or bash or security or session or snapshot"`
 - `uv run pytest tests/test_command_catalog.py tests/test_interface_dto_contracts.py tests/test_cli_submission_loop.py -q`
 - `uv run pytest tests/test_tui_app.py -q -k "sandbox or status_panel or prompt_input_slash_completer_suggests_command_candidates"`
-- `uv run pytest tests/test_main_agent_gateway_use_cases.py -q -k "session or snapshot or model or mcp"`
+- `uv run pytest tests/test_main_agent_surface_service.py -q -k "session or snapshot or model or mcp"`
 
 ## Current Execution Slice: Windows Low-Integrity Restricted Launch Finalization (2026-04-11)
 
@@ -5291,8 +8811,8 @@
 ### Verification
 
 - `uv run pytest tests/test_code_agent_sandbox.py tests/test_bash_tool.py -q`
-- `uv run pytest tests/test_security_policy.py tests/test_agent_execution_policy.py tests/test_code_agent_permissions.py -q`
-- `uv run pytest tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_gateway_use_cases.py -q -k "approval or bash or security"`
+- `uv run pytest tests/test_security_policy.py tests/test_agent_core_execution_policy.py tests/test_code_agent_permissions.py -q`
+- `uv run pytest tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_surface_service.py -q -k "approval or bash or security"`
 
 ## Current Execution Slice: Windows Token / Job Restriction Tightening (2026-04-11)
 
@@ -5344,8 +8864,8 @@
 ### Verification
 
 - `uv run pytest tests/test_code_agent_sandbox.py tests/test_bash_tool.py -q`
-- `uv run pytest tests/test_security_policy.py tests/test_agent_execution_policy.py tests/test_code_agent_permissions.py -q`
-- `uv run pytest tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_gateway_use_cases.py -q -k "approval or bash or security"`
+- `uv run pytest tests/test_security_policy.py tests/test_agent_core_execution_policy.py tests/test_code_agent_permissions.py -q`
+- `uv run pytest tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_surface_service.py -q -k "approval or bash or security"`
 
 ## Current Execution Slice: Windows Native Restricted-Process Launch (2026-04-11)
 
@@ -5404,8 +8924,8 @@
 ### Verification
 
 - `uv run pytest tests/test_code_agent_sandbox.py tests/test_bash_tool.py -q`
-- `uv run pytest tests/test_security_policy.py tests/test_agent_execution_policy.py tests/test_code_agent_permissions.py -q`
-- `uv run pytest tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_gateway_use_cases.py -q -k "approval or bash or security"`
+- `uv run pytest tests/test_security_policy.py tests/test_agent_core_execution_policy.py tests/test_code_agent_permissions.py -q`
+- `uv run pytest tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_surface_service.py -q -k "approval or bash or security"`
 
 ## Current Execution Slice: Sandbox Auto-Edit Mutation Tiering (2026-04-11)
 
@@ -5462,8 +8982,8 @@
 
 ### Verification
 
-- `uv run pytest tests/test_security_policy.py tests/test_code_agent_permissions.py tests/test_agent_execution_policy.py tests/test_code_agent_tools.py -q`
-- `uv run pytest tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_gateway_use_cases.py -q -k approval`
+- `uv run pytest tests/test_security_policy.py tests/test_code_agent_permissions.py tests/test_agent_core_execution_policy.py tests/test_code_agent_tools.py -q`
+- `uv run pytest tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_surface_service.py -q -k approval`
 - `uv run pytest tests/test_security_audit.py tests/test_bash_tool.py tests/test_code_agent_sandbox.py -q`
 
 ## Current Execution Slice: Sandbox Default-Mutation Approval Tightening (2026-04-11)
@@ -5521,8 +9041,8 @@
 
 ### Verification
 
-- `uv run pytest tests/test_security_policy.py tests/test_security_audit.py tests/test_code_agent_permissions.py tests/test_agent_execution_policy.py -q`
-- `uv run pytest tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_gateway_use_cases.py -q -k approval`
+- `uv run pytest tests/test_security_policy.py tests/test_security_audit.py tests/test_code_agent_permissions.py tests/test_agent_core_execution_policy.py -q`
+- `uv run pytest tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_surface_service.py -q -k approval`
 - `uv run pytest tests/test_bash_tool.py tests/test_code_agent_sandbox.py -q`
 
 ## Current Execution Slice: Sandbox Hardening And Real Approval Wiring (2026-04-11)
@@ -5557,11 +9077,11 @@
 - `src/mini_agent/config/config-example.yaml`
 - `src/mini_agent/code_agent/sandbox/manager.py`
 - `src/mini_agent/code_agent/sandbox/network.py`
-- `src/mini_agent/agent.py`
+- `src/mini_agent/agent_core/engine.py`
 - focused tests under:
   - `tests/test_security_policy.py`
   - `tests/test_code_agent_sandbox.py`
-  - `tests/test_agent_execution_policy.py`
+  - `tests/test_agent_core_execution_policy.py`
   - `tests/test_bash_tool.py`
 
 ### Execution Steps
@@ -5588,10 +9108,10 @@
 
 ### Verification
 
-- `uv run pytest tests/test_file_tools_workspace_boundary.py tests/test_security_policy.py tests/test_agent_execution_policy.py tests/test_bash_tool.py tests/test_code_agent_sandbox.py tests/test_code_agent_permissions.py -q`
-- `uv run pytest tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_gateway_use_cases.py -q -k "approval or security or bash"`
+- `uv run pytest tests/test_file_tools_workspace_boundary.py tests/test_security_policy.py tests/test_agent_core_execution_policy.py tests/test_bash_tool.py tests/test_code_agent_sandbox.py tests/test_code_agent_permissions.py -q`
+- `uv run pytest tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_main_agent_surface_service.py -q -k "approval or security or bash"`
 - `uv run pytest tests/test_config_local_env.py tests/test_single_instance.py tests/test_cli_stack_command.py tests/test_provider_config.py -q`
-- `uv run pytest tests/test_agent_core_kernel.py tests/test_agent.py tests/test_security_audit.py -q`
+- `uv run pytest tests/test_agent_core_kernel.py tests/test_agent_core_engine_live.py tests/test_security_audit.py -q`
 
 ## Current Stage Override: Demo Baseline (2026-04-11)
 
@@ -5824,11 +9344,11 @@ Primary doc:
   - shared runtime memory is now injected only when the query itself looks workspace-scoped, or when session hits are insufficient
   - this keeps `workspace:shared` as a supplemental workspace layer instead of competing with current task/session memory
 - Verification:
-  - `uv run pytest tests/test_memory_service.py tests/test_user_modeling.py tests/test_memory_automation.py tests/test_agent_turn_context.py tests/test_session_search.py tests/test_session_store_persistence.py tests/test_agent_core_kernel.py tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py -q`
-  - `uv run python -m compileall src/mini_agent/memory/paths.py src/mini_agent/memory/builtin_memory.py src/mini_agent/memory/service.py src/mini_agent/memory/automation.py src/mini_agent/memory/session_search.py src/mini_agent/session/persistence.py src/mini_agent/core/session.py src/mini_agent/tools/user_modeling.py src/mini_agent/turn_context.py src/mini_agent/runtime/tooling.py src/mini_agent/agent_core/kernel.py src/apps/agent_studio_gateway/main.py`
-  - `uv run pytest tests/test_memoria_runtime.py tests/test_memory_service.py tests/test_main_agent_gateway_use_cases.py tests/test_agent_studio_gateway_api_v1.py tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_interface_dto_contracts.py -q`
+  - `uv run pytest tests/test_memory_service.py tests/test_user_modeling.py tests/test_memory_automation.py tests/test_agent_core_turn_context.py tests/test_session_search.py tests/test_session_store_persistence.py tests/test_agent_core_kernel.py tests/test_main_agent_surface_service.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - `uv run python -m compileall src/mini_agent/memory/paths.py src/mini_agent/memory/builtin_memory.py src/mini_agent/memory/service.py src/mini_agent/memory/automation.py src/mini_agent/memory/session_search.py src/mini_agent/session/persistence.py src/mini_agent/core/session.py src/mini_agent/tools/user_modeling.py src/mini_agent/agent_core/context/turn_context.py src/mini_agent/runtime/tooling.py src/mini_agent/agent_core/kernel.py src/apps/agent_studio_gateway/main.py`
+  - `uv run pytest tests/test_memoria_runtime.py tests/test_memory_service.py tests/test_main_agent_surface_service.py tests/test_agent_studio_gateway_api_v1.py tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_interface_dto_contracts.py -q`
   - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/application/main_agent_gateway_use_cases.py src/apps/agent_studio_gateway/main.py src/mini_agent/tui/gateway_client.py src/mini_agent/tui/app.py src/mini_agent/cli_interactive.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_interface_dto_contracts.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_interface_dto_contracts.py tests/test_agent_studio_gateway_api_v1.py -q`
   - inline `compileall` verification for updated memory/runtime/TUI/CLI modules
 
 ## Current Execution Slice: P26 Reset/Delete Semantics Hardening
@@ -5862,7 +9382,7 @@ Primary doc:
 - `src/mini_agent/tui/app.py`
 - `src/mini_agent/cli_interactive.py`
 - `tests/test_memoria_runtime.py`
-- `tests/test_main_agent_gateway_use_cases.py`
+- `tests/test_main_agent_surface_service.py`
 - `tests/test_tui_app.py`
 - `tests/test_cli_submission_loop.py`
 
@@ -5893,8 +9413,8 @@ Primary doc:
 
 - completed and verified
 - verification:
-  - `uv run python -m compileall src/mini_agent/memory/memoria_runtime.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/tui/app.py src/mini_agent/cli_interactive.py tests/test_memoria_runtime.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_cli_submission_loop.py`
-  - `uv run pytest tests/test_memoria_runtime.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_cli_submission_loop.py -q`
+  - `uv run python -m compileall src/mini_agent/memory/memoria_runtime.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/tui/app.py src/mini_agent/cli_interactive.py tests/test_memoria_runtime.py tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_cli_submission_loop.py`
+  - `uv run pytest tests/test_memoria_runtime.py tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_cli_submission_loop.py -q`
   - result: `171 passed`
 
 ## Current Execution Slice: P26 Snapshot / Import / Export Runtime-Memory Parity
@@ -5931,7 +9451,7 @@ Primary doc:
 - `src/mini_agent/runtime/main_agent_runtime_manager.py`
 - `src/mini_agent/application/main_agent_gateway_use_cases.py`
 - `src/mini_agent/tui/app.py`
-- `tests/test_main_agent_gateway_use_cases.py`
+- `tests/test_main_agent_surface_service.py`
 - `tests/test_tui_app.py`
 - `tests/test_agent_studio_gateway_api_v1.py`
 
@@ -5955,8 +9475,8 @@ Primary doc:
 
 - completed and verified
 - verification:
-  - `uv run python -m compileall src/mini_agent/interfaces/agent.py src/mini_agent/memory/memoria_runtime.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/tui/app.py tests/test_memoria_runtime.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py`
-  - `uv run pytest tests/test_memoria_runtime.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py -q`
+  - `uv run python -m compileall src/mini_agent/interfaces/agent.py src/mini_agent/memory/memoria_runtime.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/tui/app.py tests/test_memoria_runtime.py tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py`
+  - `uv run pytest tests/test_memoria_runtime.py tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py -q`
 - result: `181 passed`
 
 ## Current Execution Slice: P26 Workspace-Shared Runtime-Memory Portability
@@ -5991,7 +9511,7 @@ Primary doc:
 - `src/mini_agent/runtime/main_agent_runtime_manager.py`
 - `src/mini_agent/tui/app.py`
 - `tests/test_memoria_runtime.py`
-- `tests/test_main_agent_gateway_use_cases.py`
+- `tests/test_main_agent_surface_service.py`
 - `tests/test_tui_app.py`
 - `tests/test_agent_studio_gateway_api_v1.py`
 - `tests/test_interface_dto_contracts.py`
@@ -6016,8 +9536,8 @@ Primary doc:
 
 - completed and verified
 - verification:
-  - `uv run python -m compileall src/mini_agent/interfaces/agent.py src/mini_agent/memory/memoria_runtime.py src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/tui/app.py tests/test_memoria_runtime.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py`
-  - `uv run pytest tests/test_memoria_runtime.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py -q`
+  - `uv run python -m compileall src/mini_agent/interfaces/agent.py src/mini_agent/memory/memoria_runtime.py src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/tui/app.py tests/test_memoria_runtime.py tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py`
+  - `uv run pytest tests/test_memoria_runtime.py tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py -q`
 - result: `186 passed`
 
 ## Current Execution Slice: P26 Workspace-Shared Boundary / Promotion Policy
@@ -6057,7 +9577,7 @@ Primary doc:
 - `src/apps/qqbot_channel/bot.mjs`
 - `src/mini_agent/commands/catalog.json`
 - `tests/test_memoria_runtime.py`
-- `tests/test_main_agent_gateway_use_cases.py`
+- `tests/test_main_agent_surface_service.py`
 - `tests/test_tui_app.py`
 - `tests/test_cli_submission_loop.py`
 
@@ -6081,8 +9601,8 @@ Primary doc:
 
 - completed and verified
 - verification:
-  - `uv run python -m compileall src/mini_agent/memory/promotion.py src/mini_agent/memory/runtime_task_memory.py src/mini_agent/memory/memoria_runtime.py src/mini_agent/memory/diagnostics.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py tests/test_memoria_runtime.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_cli_submission_loop.py`
-  - `uv run pytest tests/test_memoria_runtime.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py -q`
+  - `uv run python -m compileall src/mini_agent/memory/promotion.py src/mini_agent/memory/runtime_task_memory.py src/mini_agent/memory/memoria_runtime.py src/mini_agent/memory/diagnostics.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py tests/test_memoria_runtime.py tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_cli_submission_loop.py`
+  - `uv run pytest tests/test_memoria_runtime.py tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_cli_submission_loop.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py -q`
   - `node --check src/apps/qqbot_channel/bot.mjs`
   - result: `206 passed`
 
@@ -6111,10 +9631,10 @@ Primary doc:
 ### Files In Scope
 
 - `src/mini_agent/memory/promotion.py`
-- `src/mini_agent/turn_context.py`
+- `src/mini_agent/agent_core/context/turn_context.py`
 - `tests/test_memoria_runtime.py`
-- `tests/test_agent_turn_context.py`
-- `tests/test_main_agent_gateway_use_cases.py`
+- `tests/test_agent_core_turn_context.py`
+- `tests/test_main_agent_surface_service.py`
 - `tests/test_tui_app.py`
 - `tests/test_cli_submission_loop.py`
 
@@ -6135,8 +9655,8 @@ Primary doc:
 
 - completed and verified
 - verification:
-  - `uv run python -m compileall src/mini_agent/memory/promotion.py src/mini_agent/turn_context.py tests/test_memoria_runtime.py`
-  - `uv run pytest tests/test_memoria_runtime.py tests/test_agent_turn_context.py tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_cli_submission_loop.py -q`
+  - `uv run python -m compileall src/mini_agent/memory/promotion.py src/mini_agent/agent_core/context/turn_context.py tests/test_memoria_runtime.py`
+  - `uv run pytest tests/test_memoria_runtime.py tests/test_agent_core_turn_context.py tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_cli_submission_loop.py -q`
   - result: `204 passed`
 
 ## Latest Sync: 2026-04-10 Workspace-Shared Operator Surface + Explicit KB Grounding Boundary
@@ -6168,8 +9688,8 @@ Primary doc:
   - `memory consolidated search <query>` exposes ranked consolidated-memory lookup
   - consolidated-memory read surfaces now align across gateway/TUI/CLI/QQ without changing explicit refresh semantics
 - Verification:
-  - `uv run python -m compileall src/mini_agent/memory/diagnostics.py src/mini_agent/interfaces/agent.py src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/cli_interactive.py src/mini_agent/tui/gateway_client.py src/mini_agent/tui/app.py tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py tests/test_cli_submission_loop.py tests/test_command_catalog.py`
-  - `uv run pytest tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py tests/test_cli_submission_loop.py tests/test_command_catalog.py tests/test_memoria_runtime.py tests/test_memory_automation.py tests/test_interface_dto_contracts.py tests/test_agent_studio_gateway_api_v1.py tests/test_memory_service.py tests/test_memory_relevance.py -q`
+  - `uv run python -m compileall src/mini_agent/memory/diagnostics.py src/mini_agent/interfaces/agent.py src/mini_agent/application/main_agent_gateway_use_cases.py src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/cli_interactive.py src/mini_agent/tui/gateway_client.py src/mini_agent/tui/app.py tests/test_tui_app.py tests/test_main_agent_surface_service.py tests/test_cli_submission_loop.py tests/test_command_catalog.py`
+  - `uv run pytest tests/test_tui_app.py tests/test_main_agent_surface_service.py tests/test_cli_submission_loop.py tests/test_command_catalog.py tests/test_memoria_runtime.py tests/test_memory_automation.py tests/test_interface_dto_contracts.py tests/test_agent_studio_gateway_api_v1.py tests/test_memory_service.py tests/test_memory_relevance.py -q`
   - `node --check src/apps/qqbot_channel/bot.mjs`
   - result: `242 passed`
 
@@ -6188,10 +9708,10 @@ Primary doc:
   - session/shared runtime namespaces
   - prepared sources now sit under that same session/workspace context block
 - Verification:
-  - `uv run pytest tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py tests/test_cli_submission_loop.py tests/test_command_catalog.py tests/test_interface_dto_contracts.py -q`
+  - `uv run pytest tests/test_tui_app.py tests/test_main_agent_surface_service.py tests/test_cli_submission_loop.py tests/test_command_catalog.py tests/test_interface_dto_contracts.py -q`
   - `node --check src/apps/qqbot_channel/bot.mjs`
   - result: `203 passed`
-  - `uv run pytest tests/test_tui_app.py tests/test_main_agent_gateway_use_cases.py tests/test_cli_submission_loop.py -q`
+  - `uv run pytest tests/test_tui_app.py tests/test_main_agent_surface_service.py tests/test_cli_submission_loop.py -q`
   - result: `190 passed`
 
 ## Latest Sync: 2026-04-10 KB Call-Decision + Memory Writeback Quality
@@ -6209,7 +9729,7 @@ Primary doc:
 - Verification:
   - `uv run pytest tests/test_memory_automation.py tests/test_memoria_runtime.py tests/test_knowledge_base_tool.py tests/test_memory_real_use_flow.py -q`
   - result: `31 passed`
-  - `uv run pytest tests/test_memory_service.py tests/test_memoria_runtime.py tests/test_agent_turn_context.py tests/test_memory_automation.py tests/test_session_search.py tests/test_knowledge_base_tool.py tests/test_main_agent_gateway_use_cases.py tests/test_memory_real_use_flow.py -q`
+  - `uv run pytest tests/test_memory_service.py tests/test_memoria_runtime.py tests/test_agent_core_turn_context.py tests/test_memory_automation.py tests/test_session_search.py tests/test_knowledge_base_tool.py tests/test_main_agent_surface_service.py tests/test_memory_real_use_flow.py -q`
   - result: `103 passed`
 
 ## Latest Sync: 2026-04-12 Runtime-Policy + Session-Control Handler Extraction
@@ -6227,11 +9747,11 @@ Primary doc:
 - [completed] MCP inspection/reload monkeypatchability is preserved during the extraction:
   - handler dependencies are injected through manager-owned lambdas so existing monkeypatch-based tests still observe the runtime module seam
 - Verification:
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "runtime_policy or control_session" -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "runtime_policy or control_session" -q`
   - result: `8 passed`
-  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_runtime_policy_handler.py src/mini_agent/runtime/session_control_handler.py tests/test_main_agent_gateway_use_cases.py`
-  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_runtime_policy_handler.py src/mini_agent/runtime/session_control_handler.py tests/test_main_agent_gateway_use_cases.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_runtime_policy_handler.py src/mini_agent/runtime/session_control_handler.py tests/test_main_agent_surface_service.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_runtime_policy_handler.py src/mini_agent/runtime/session_control_handler.py tests/test_main_agent_surface_service.py`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - result: `203 passed`
   - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
   - result: `11 passed`
@@ -6259,11 +9779,11 @@ Primary doc:
   - added explicit `budget -> reset` coverage
   - added explicit busy-session rejection coverage
 - Verification:
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "context_policy or update_session_context or context_update" -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "context_policy or update_session_context or context_update" -q`
   - result: `3 passed`
-  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_context_policy_handler.py tests/test_main_agent_gateway_use_cases.py`
-  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_context_policy_handler.py tests/test_main_agent_gateway_use_cases.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_context_policy_handler.py tests/test_main_agent_surface_service.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_context_policy_handler.py tests/test_main_agent_surface_service.py`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - result: `205 passed`
   - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
   - result: `11 passed`
@@ -6288,11 +9808,11 @@ Primary doc:
   - persist session
   - return handler-built response
 - Verification:
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "cancel_session or approval or pending_approval" -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "cancel_session or approval or pending_approval" -q`
   - result: `3 passed`
-  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_interrupt_handler.py tests/test_main_agent_gateway_use_cases.py`
-  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_interrupt_handler.py tests/test_main_agent_gateway_use_cases.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_interrupt_handler.py tests/test_main_agent_surface_service.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_interrupt_handler.py tests/test_main_agent_surface_service.py`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - result: `205 passed`
   - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
   - result: `11 passed`
@@ -6318,11 +9838,11 @@ Primary doc:
   - persisted-record export path now has a dedicated test
   - existing runtime-task-memory and workspace-shared-memory export tests still validate live export payloads
 - Verification:
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "import_session_snapshot or export_session or persisted_export" -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "import_session_snapshot or export_session or persisted_export" -q`
   - result: `3 passed`
-  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_snapshot_handler.py tests/test_main_agent_gateway_use_cases.py`
-  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_snapshot_handler.py tests/test_main_agent_gateway_use_cases.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_snapshot_handler.py tests/test_main_agent_surface_service.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_snapshot_handler.py tests/test_main_agent_surface_service.py`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - result: `207 passed`
   - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
   - result: `11 passed`
@@ -6355,11 +9875,11 @@ Primary doc:
   - latest persisted shared-session restore
   - snapshot import/export still green
 - Verification:
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "persisted_interrupted_session or restarted_shared_session or survives_runtime_restart or restores_latest_persisted_shared_session or import_session_snapshot or export_session or persisted_export" -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "persisted_interrupted_session or restarted_shared_session or survives_runtime_restart or restores_latest_persisted_shared_session or import_session_snapshot or export_session or persisted_export" -q`
   - result: `7 passed`
-  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_restore_handler.py tests/test_main_agent_gateway_use_cases.py`
-  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_restore_handler.py tests/test_main_agent_gateway_use_cases.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_restore_handler.py tests/test_main_agent_surface_service.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_restore_handler.py tests/test_main_agent_surface_service.py`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - result: `207 passed`
   - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
   - result: `11 passed`
@@ -6393,13 +9913,454 @@ Primary doc:
 - [completed] minor repo hygiene:
   - removed unused `asyncio` import from `tests/test_p19_runtime_matrix.py` so lint can include that file cleanly
 - Verification:
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py -k "assigns_human_readable_session_title_hints or chat_applies_session_title_hint_on_new_shared_session or restores_latest_persisted_shared_session or team_mode or single_main_workspace_only or max_active_sessions or survives_runtime_restart or get_or_create_session" -q`
+  - `uv run pytest tests/test_main_agent_surface_service.py -k "assigns_human_readable_session_title_hints or chat_applies_session_title_hint_on_new_shared_session or restores_latest_persisted_shared_session or team_mode or single_main_workspace_only or max_active_sessions or survives_runtime_restart or get_or_create_session" -q`
   - result: `9 passed`
-  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_access_handler.py tests/test_main_agent_gateway_use_cases.py tests/test_p19_runtime_matrix.py`
-  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_access_handler.py tests/test_main_agent_gateway_use_cases.py tests/test_p19_runtime_matrix.py`
-  - `uv run pytest tests/test_main_agent_gateway_use_cases.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
+  - `uv run ruff check src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_access_handler.py tests/test_main_agent_surface_service.py tests/test_p19_runtime_matrix.py`
+  - `uv run python -m compileall src/mini_agent/runtime/main_agent_runtime_manager.py src/mini_agent/runtime/session_access_handler.py tests/test_main_agent_surface_service.py tests/test_p19_runtime_matrix.py`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py tests/test_interface_dto_contracts.py tests/test_session_service.py tests/test_p19_runtime_matrix.py -q`
   - result: `207 passed`
   - `uv run pytest tests/test_interaction_surface.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_session_projection.py tests/test_shared_session_gateway_walkthrough.py -q`
   - result: `11 passed`
 
 
+
+
+
+## Latest Sync: 2026-04-13 Binding + Lifecycle Boundary Cleanup
+
+- [completed] Step `3`: gateway/TUI residual binding cleanup
+  - `cancel` moved onto `MainAgentSessionCancelRequest`
+  - TUI remote operator calls now share one binding helper
+  - gateway client binding payloads now normalize through `ApplicationInteractionBinding`
+- [completed] Step `2`: runtime session lifecycle boundary cleanup
+  - added `src/mini_agent/runtime/session_runtime_lifecycle_handler.py`
+  - creation/restore handlers now take unified lifecycle bootstrap callback
+  - session-registry lifecycle refresh now routes through the extracted lifecycle handler
+- [completed] Verification for both slices
+  - focused regression tests green
+  - broader application/runtime/TUI/gateway suite green: `245 passed`
+- [next] Continue manager shrink only where the boundary is still materially mixed
+  - inspect whether session operator orchestration still leaks storage/runtime/live-state concerns together
+  - prefer another explicit handler extraction only if it removes a real semantic seam instead of producing a thin pass-through shell
+
+## Latest Sync: 2026-04-13 Managed Store Boundary
+
+- [completed] Extract managed session store seam
+  - added `src/mini_agent/runtime/session_managed_store_handler.py`
+  - active/persisted lookup, delete cleanup, persistence, id allocation, and expiry removal no longer live inline in manager
+- [completed] Rewired runtime manager + registry + operator entrypoints to use the managed store seam
+- [completed] Verification green
+  - focused: `8 passed`
+  - broader runtime/gateway/TUI regression: `222 passed`
+- [next] Candidate next shrink slice
+  - inspect the remaining session admin mutation cluster
+  - likely target: `rename/shared/reset/set_active_surface` orchestration so manager no longer mixes lock scope with live-state mutation details
+
+## Latest Sync: 2026-04-13 Session Admin Boundary
+
+- [completed] Extract session admin mutation seam
+  - added `src/mini_agent/runtime/session_admin_handler.py`
+  - manager admin methods now delegate rename/shared/reset/active-surface mutation details
+- [completed] Lifecycle reset path unified through `session_runtime_lifecycle_handler.py`
+- [completed] Verification green
+  - focused: `9 passed`
+  - broader runtime/gateway/TUI regression: `225 passed`
+- [next] Reassess remaining manager surface before the next cut
+  - confirm whether any real semantic cluster still mixes with manager wiring
+  - if yes, prefer one more explicit seam
+  - if no, stop shrinking and return focus to agent-core feature work
+
+## Latest Sync: 2026-04-13 Runtime Manager Stop Point
+
+- [completed] Reassessed remaining `MainAgentRuntimeManager` surface after recent extractions
+- [decision] No further shrink cut is justified right now
+  - remaining responsibilities are mostly valid facade/composition concerns
+  - next possible extractions would likely be thin shells
+- [next] Shift effort back to agent-core capability work on top of the now-stabler service backbone
+
+## Latest Sync: 2026-04-13 P32 Project Structure Realignment
+
+## Current Execution Slice: P32.1 Agent-Core Tree Realignment (2026-04-13)
+
+### Why This Slice Is Next
+
+- the logical architecture has been stabilized enough that the remaining drift is now physical
+- the repo tree still tells the wrong story:
+  - `agent_core/` and `code_agent/` look like two peer cores
+  - `agent.py` and `turn_context.py` still sit at the package root even though they are agent-kernel concerns
+  - `core/session.py` still advertises a historical packaging model that no longer matches the current session architecture
+- if this is not corrected now, future work on memory / RAG / MCP / remote / DesktopUI will keep landing on a misleading physical skeleton
+
+### Scope
+
+- lock the project-structure realignment plan in docs
+- land the first hard-realignment cut for the visible agent kernel tree
+- unify:
+  - `Agent`
+  - turn context
+  - former `code_agent` execution pieces
+  under one `agent_core` tree
+
+### Out Of Scope
+
+- no broad runtime/service rewrite in this slice
+- no `core/session.py` move yet if it would complicate the first cut
+- no new user-facing features
+
+### Acceptance
+
+- repo no longer presents `code_agent` as a peer core after the first cut
+- `Agent` and turn-context ownership become physically obvious from the tree
+- focused tests for agent-core, CLI/TUI/runtime imports, and execution paths stay green
+
+### Canonical Plan Doc
+
+- `docs/P32_PROJECT_STRUCTURE_REALIGNMENT_PLAN_2026-04-13.md`
+
+### Status
+
+- in_progress
+
+### P32.1 Status Update (2026-04-13)
+
+- first hard-realignment cut is now landed
+- completed in this cut:
+  - `src/mini_agent/agent_core/engine.py` -> `src/mini_agent/agent_core/engine.py`
+  - `src/mini_agent/agent_core/context/turn_context.py` -> `src/mini_agent/agent_core/context/turn_context.py`
+  - `src/mini_agent/code_agent/context.py` -> `src/mini_agent/agent_core/context/loop_context.py`
+  - `src/mini_agent/code_agent/context_compression.py` -> `src/mini_agent/agent_core/context/context_compaction.py`
+  - remaining `code_agent/*` runtime primitives -> `src/mini_agent/agent_core/execution/*`
+- old peer `code_agent` source tree is now removed from active source ownership
+- next structural target remains:
+  - `core/session.py` cleanup and session packaging realignment
+- verification:
+  - `uv run pytest -q`
+  - result: `918 passed, 15 skipped`
+  - targeted `ruff check` on the realignment slice
+  - result: all green
+
+### P32.2 Status Update (2026-04-13)
+
+- second hard-realignment cut is now landed for historical session packaging
+- completed in this cut:
+  - `src/mini_agent/core/session.py` -> `src/mini_agent/session/store.py`
+  - `src/mini_agent/session/__init__.py` now exports `SessionState`, `SessionStore`, `session_store`
+  - `src/mini_agent/core/` removed
+  - store tests now import from `mini_agent.session`
+- structural outcome:
+  - `agent_core/session` is no longer semantically polluted by storage concerns
+  - the session storage/search API now sits under the canonical `session/` package
+- next structural targets remain naming-debt cleanup and service-boundary tightening, not more fake-core packaging
+
+### P32.3 Status Update (2026-04-13)
+
+- third realignment cut is now landed for shared application-layer naming cleanup
+- completed in this cut:
+  - `src/mini_agent/application/gateway_agent_execution_handler.py` -> `src/mini_agent/application/agent_turn_execution_handler.py`
+  - `src/mini_agent/application/gateway_route_execution_handler.py` -> `src/mini_agent/application/agent_route_execution_handler.py`
+  - `src/mini_agent/application/gateway_chat_flow_handler.py` -> `src/mini_agent/application/surface_chat_flow_handler.py`
+  - removed `src/mini_agent/application/main_agent_gateway_use_cases.py`
+  - removed `MainAgentGatewayUseCases` export in favor of `MainAgentSurfaceService`
+  - removed `to_gateway_chat_execution_request(...)` in favor of `to_surface_chat_execution_request(...)`
+- structural outcome:
+  - shared application orchestration no longer presents gateway transport naming as if it were the business owner
+  - the canonical top-level application entry is now `MainAgentSurfaceService`
+- verification:
+  - `uv run pytest tests/test_interaction_request_adapter.py tests/test_main_agent_surface_service.py tests/test_shared_session_gateway_walkthrough.py tests/test_channel_ingress_gateway_walkthrough.py -q`
+  - result: `79 passed`
+  - targeted `ruff check` on the application realignment slice
+  - result: all green
+
+
+### P32.3.1 Test Surface Rename Update (2026-04-13)
+
+- renamed `tests/test_main_agent_gateway_use_cases.py` -> `tests/test_main_agent_surface_service.py`
+- updated `scripts/terminal_readiness_gate.py` to the canonical test path
+- verification:
+  - `uv run pytest tests/test_main_agent_surface_service.py -q`
+  - result: `74 passed`
+  - `uv run pytest tests/test_terminal_readiness_gate.py -q`
+  - result: `8 passed`
+  - `uv run pytest -q`
+  - result: `918 passed, 15 skipped`
+
+### P32.4 Boundary Audit Notes (2026-04-13)
+
+- audited remaining boundaries across `application / runtime / session`
+- current highest-value residual seams are:
+  - `application` still imports interaction binding normalization from `runtime.interaction_surface`
+  - `SessionApplicationService` still depends directly on concrete runtime types (`MainAgentRuntimeManager`, `MainAgentSessionState`, `RuntimeSessionTurnScopeHandler`)
+  - `RemoteSessionService` is still an application-layer facade over a transport-shaped `gateway_client`
+- recommended next cleanup order:
+  1. move `interaction_surface` normalization into a shared non-runtime module
+  2. introduce a slimmer runtime port for `SessionApplicationService`
+  3. decide whether `RemoteSessionService` should remain application-owned or move behind a transport/client seam
+
+### P32.5 Interaction Surface Extraction (2026-04-13)
+
+- moved `src/mini_agent/runtime/interaction_surface.py` -> `src/mini_agent/interaction/surface.py`
+- added canonical shared export package:
+  - `src/mini_agent/interaction/__init__.py`
+- updated application/runtime/tests imports to `mini_agent.interaction`
+- removed the old runtime-local module instead of keeping a compatibility shim
+- verification:
+  - `uv run pytest tests/test_interaction_surface.py tests/test_interaction_request_adapter.py tests/test_main_agent_surface_service.py tests/test_p19_runtime_matrix.py -q`
+  - result: `86 passed`
+  - `uv run pytest -q`
+  - result: `918 passed, 15 skipped`
+  - targeted `ruff check` on the interaction extraction slice
+  - result: all green
+- architectural outcome:
+  - interaction binding normalization is now a shared cross-layer module
+  - `application` no longer depends on a runtime-owned interaction normalization source
+- next recommended seam:
+  - define a slimmer runtime port for `SessionApplicationService`
+
+## 2026-04-13 P32.6 Session Runtime Port Realignment
+
+- [completed] added `src/mini_agent/application/session_runtime_port.py` as the application-facing runtime seam
+- [completed] rewired `SessionApplicationService` to consume runtime ports instead of concrete runtime manager/session/turn-scope classes
+- [completed] rewired `MainAgentSurfaceService` constructor typing to the shared runtime port
+- [completed] added boundary-friendly projection properties to `src/mini_agent/runtime/session_state.py`
+- [completed] added a structural seam test that uses a fake runtime port
+- Verification:
+  - `uv run pytest tests/test_session_service.py tests/test_main_agent_surface_service.py tests/test_interaction_surface.py tests/test_interaction_request_adapter.py -q`
+  - result: `90 passed`
+  - `uv run pytest -q`
+  - result: `919 passed, 15 skipped`
+  - targeted `ruff check` on the seam slice
+  - result: all green
+- Next likely seam:
+  - `RemoteSessionService` still looks transport-shaped around `gateway_client`
+
+## 2026-04-13 P32.7 Remote Session Transport Port Realignment
+
+- [completed] added `src/mini_agent/application/remote_session_transport_port.py` as the explicit transport seam for `RemoteSessionService`
+- [completed] rewired `RemoteSessionService` to depend on `RemoteSessionTransportPort` instead of a loosely named `gateway_client` object
+- [completed] updated shared exports and TUI wiring to pass `session_transport=self.gateway_client`
+- [completed] updated remote-session tests to the new seam naming
+- Verification:
+  - `uv run pytest tests/test_session_remote_service.py tests/test_tui_app.py tests/test_tui_gateway_client.py -q`
+  - result: `129 passed`
+  - `uv run pytest -q`
+  - result: `919 passed, 15 skipped`
+  - `uv run ruff check src/mini_agent/application src/mini_agent/tui/app.py tests/test_session_remote_service.py tests/test_session_service.py tests/test_main_agent_surface_service.py`
+  - result: all green
+- Structural outcome:
+  - `RemoteSessionService` still remains a client-side facade, but its dependency is now expressed as a transport port rather than a gateway-specific implementation detail
+
+## 2026-04-13 P32.8 Transport Client Packaging Realignment
+
+- [completed] moved client-side remote session and gateway clients into `src/mini_agent/transport/`
+- [completed] renamed `RemoteSessionService` -> `RemoteSessionClient`
+- [completed] renamed `TuiGatewayClient` -> `GatewayClient`
+- [completed] rewired TUI/Desktop to import from the shared transport package
+- [completed] renamed transport-related tests to match the new ownership
+- Verification:
+  - `uv run pytest tests/test_transport_remote_session_client.py tests/test_transport_gateway_client.py tests/test_tui_app.py tests/test_desktop_app.py -q`
+  - result: `131 passed`
+  - `uv run pytest -q`
+  - result: `919 passed, 15 skipped`
+  - targeted `ruff check` on the transport realignment slice
+  - result: all green
+- Outcome:
+  - `application/` now holds shared use cases only
+  - local gateway/session clients now live in a transport-owned package that TUI/Desktop can share cleanly
+
+## 2026-04-15 Agent-Core Core Analysis
+
+- [completed] audited the current `agent_core` implementation as a runtime kernel, not just the `Agent` class
+- [completed] traced the main execution path from kernel bootstrap to submission loop, turn scheduler, planner/executor loop, tool execution, turn-context injection, and post-turn memory hooks
+- [completed] reviewed current contract coverage through:
+  - `tests/test_agent_core_kernel.py`
+  - `tests/test_agent_core_execution_loop.py`
+  - `tests/test_agent_core_turn_context.py`
+- current architectural conclusion:
+  - the runtime assembly path is already usable and more mature than the physical tree size alone suggests
+  - the strongest subsystem is turn-context preparation plus runtime bootstrap diagnostics
+  - the largest remaining debt is concentration of behavior inside `agent_core/engine.py` and `context/turn_context.py`
+- current highest-value refactor order:
+  1. split `Agent` into planner/executor, history/summarization, and runtime side-effect services
+  2. replace dynamic `setattr(...)` runtime attachments with typed runtime capability objects
+  3. remove type mutation in turn-scoped scheduler overrides
+  4. separate console rendering from core runtime execution
+  5. decide whether concurrency-safe tools should actually execute in parallel
+
+## 2026-04-15 P34 Agent-Core Refactor Planning
+
+- [completed] created the active `P34` plan document:
+  - `docs/P34_AGENT_CORE_REFACTOR_PLAN_2026-04-15.md`
+- `P34` is now defined as the structural hardening line for `agent_core` after `P32` ownership cleanup and `P33/P33b` model/runtime governance work
+- locked first implementation recommendation:
+  1. `P34.1` runtime binding contract hardening
+  2. `P34.2` turn-scoped policy contract hardening
+- later planned slices:
+  - tool execution coordinator extraction
+  - history/summarization semantics correction
+  - headless presentation boundary
+  - turn-context package decomposition
+  - post-turn side-effect extraction
+  - final `Agent` facade slimming
+
+## 2026-04-15 P34.1 P34.2 Runtime Binding + Policy Contract Hardening
+
+- [completed] added typed runtime binding owner:
+  - `src/mini_agent/agent_core/runtime_bindings.py`
+- [completed] rewired `Agent` to own explicit runtime bindings and explicit runtime mutation helpers:
+  - runtime bindings
+  - runtime services
+  - tool approval handler override
+  - typed execution policy override
+- [completed] rewired kernel runtime attachment away from ad-hoc `setattr(...)`:
+  - `src/mini_agent/agent_core/kernel.py`
+- [completed] rewired submission-loop approval bridge binding to an explicit helper:
+  - `src/mini_agent/agent_core/execution/agent_loop.py`
+- [completed] rewired surface turn execution approval injection to an explicit helper context:
+  - `src/mini_agent/application/agent_turn_execution_handler.py`
+- [completed] removed scheduler type mutation for turn-scoped policy override:
+  - `src/mini_agent/agent_core/execution/scheduler.py`
+- [completed] added regression coverage:
+  - `tests/test_agent_core_kernel.py`
+  - `tests/test_agent_core_execution_loop.py`
+  - `tests/test_agent_core_execution_policy.py`
+- verification:
+  - `uv run ruff check src/mini_agent/agent_core/runtime_bindings.py src/mini_agent/agent_core/engine.py src/mini_agent/agent_core/kernel.py src/mini_agent/agent_core/execution/agent_loop.py src/mini_agent/agent_core/execution/scheduler.py src/mini_agent/application/agent_turn_execution_handler.py src/mini_agent/runtime/tooling.py tests/test_agent_core_kernel.py tests/test_agent_core_execution_loop.py tests/test_agent_core_execution_policy.py`
+  - result: all green
+  - `uv run pytest tests/test_agent_core_kernel.py tests/test_agent_core_execution_loop.py tests/test_agent_core_execution_policy.py tests/test_runtime_session_model_identity_codec.py -q`
+  - result: `37 passed`
+  - `uv run pytest tests/test_main_agent_surface_service.py tests/test_cli_submission_loop.py -q`
+  - result: `106 passed`
+- broader sweep:
+  - `uv run pytest -q`
+  - result: `1069 passed, 15 skipped, 6 failed`
+  - note: remaining failures are in unrelated walkthrough/TUI/runtime snapshot surfaces, not in the `P34.1/P34.2` slice
+
+## 2026-04-15 P34.3 Tool Execution Coordinator Extraction
+
+- [completed] extracted shared tool approval request contract:
+  - `src/mini_agent/agent_core/execution/tool_approval.py`
+- [completed] extracted dedicated tool authorization/execution coordinator:
+  - `src/mini_agent/agent_core/execution/tool_execution_coordinator.py`
+- [completed] rewired `Agent` to own the coordinator and delegate the old inline tool-execution cluster through thin compatibility wrappers:
+  - `src/mini_agent/agent_core/engine.py`
+- [completed] updated the execution package exports so the new seam is part of the canonical `agent_core.execution` surface:
+  - `src/mini_agent/agent_core/execution/__init__.py`
+- [completed] preserved current execution semantics for:
+  - empty tool-call steps returning `StepTransition.COMPLETE`
+  - approval round-trips before execution
+  - runtime-policy-mediated bash approval
+  - best-effort cancellation during running tools
+  - per-tool message append and hook emission
+- verification:
+  - `uv run ruff check src/mini_agent/agent_core/engine.py src/mini_agent/agent_core/execution/tool_approval.py src/mini_agent/agent_core/execution/tool_execution_coordinator.py src/mini_agent/agent_core/execution/__init__.py tests/test_agent_core_execution_policy.py tests/test_agent_core_execution_loop.py tests/test_agent_core_execution_tools.py tests/test_agent_core_execution_permissions.py`
+  - result: all green
+  - `uv run pytest tests/test_agent_core_execution_policy.py tests/test_agent_core_execution_loop.py tests/test_agent_core_execution_tools.py tests/test_agent_core_execution_permissions.py tests/test_main_agent_surface_service.py -q`
+  - result: `114 passed`
+- next likely seam:
+  - `P34.4` history and summarization semantics correction
+
+## 2026-04-15 P34.4 History And Summarization Semantics Correction
+
+- [completed] extracted dedicated history compaction and summarization service:
+  - `src/mini_agent/agent_core/history/summarization.py`
+  - `src/mini_agent/agent_core/history/__init__.py`
+- [completed] rewired `Agent` history summarization to the extracted service:
+  - `src/mini_agent/agent_core/engine.py`
+- [completed] replaced fake-user summary writeback with an explicit internal summary representation:
+  - role: `assistant`
+  - name: `__mini_agent_history_summary__`
+  - content prefix: `[Internal Assistant Summary]`
+- [completed] added compatibility handling for older summary history:
+  - legacy `[Assistant Execution Summary]` fake-user messages are normalized into the new internal assistant summary shape during compaction
+  - already compacted internal summaries are preserved instead of being redundantly re-summarized
+- [completed] added focused regression coverage:
+  - `tests/test_agent_core_history_summarization.py`
+- verification:
+  - `uv run ruff check src/mini_agent/agent_core/engine.py src/mini_agent/agent_core/history/__init__.py src/mini_agent/agent_core/history/summarization.py tests/test_agent_core_history_summarization.py`
+  - result: all green
+  - `uv run pytest tests/test_agent_core_history_summarization.py tests/test_agent_core_execution_policy.py tests/test_agent_core_execution_loop.py tests/test_agent_core_execution_tools.py tests/test_agent_core_execution_permissions.py tests/test_main_agent_surface_service.py -q`
+  - result: `117 passed`
+- next likely seam:
+  - `P34.5` headless core presentation boundary
+
+## 2026-04-15 P34.5 Headless Core Presentation Boundary
+
+- [completed] extracted presentation ownership out of the core runtime path:
+  - `src/mini_agent/agent_core/presentation.py`
+- [completed] rewired `Agent` to depend on a semantic presenter instead of direct ANSI/console formatting:
+  - `src/mini_agent/agent_core/engine.py`
+- [completed] rewired adjacent extracted services to the same presenter seam:
+  - `src/mini_agent/agent_core/execution/tool_execution_coordinator.py`
+  - `src/mini_agent/agent_core/history/summarization.py`
+- [completed] preserved compatibility for current surfaces while making headless execution explicit:
+  - `console_output=True` now uses `AnsiConsoleAgentRuntimePresenter`
+  - `console_output=False` now uses `NullAgentRuntimePresenter`
+  - custom presenters can be injected directly into `Agent`
+- [completed] added focused regression coverage:
+  - `tests/test_agent_core_presentation.py`
+- verification:
+  - `uv run ruff check src/mini_agent/agent_core/engine.py src/mini_agent/agent_core/presentation.py src/mini_agent/agent_core/execution/tool_execution_coordinator.py src/mini_agent/agent_core/history/summarization.py tests/test_agent_core_history_summarization.py tests/test_agent_core_presentation.py`
+  - result: all green
+  - `uv run pytest tests/test_agent_core_presentation.py tests/test_agent_core_history_summarization.py tests/test_agent_core_execution_policy.py tests/test_agent_core_execution_loop.py tests/test_agent_core_execution_tools.py tests/test_agent_core_execution_permissions.py tests/test_main_agent_surface_service.py -q`
+  - result: `119 passed`
+- next likely seam:
+  - `P34.6` turn-context package decomposition
+
+## 2026-04-16 P32b OpenWebUI Legacy Release Surface Slice
+
+- [completed] cut a narrow `P32b` hygiene slice for the removed OpenWebUI surface instead of bundling it into the broader dirty worktree
+- [completed] removed the remaining active OpenWebUI release-path assets:
+  - `src/apps/open_webui/*`
+  - `scripts/ci/open_webui_smoke.py`
+  - `scripts/ci/open_webui_verify.py`
+  - `tests/test_open_webui_*`
+- [completed] aligned active release entrypoints with the current architecture:
+  - simplified `.github/workflows/ci.yml` release handoff to deterministic gate + advisory summary only
+  - removed OpenWebUI advisory startup/report artifact handling from CI
+  - updated `scripts/ci/release_gate.py`
+  - updated `scripts/ci/release_promotion_checklist.py`
+  - updated `src/mini_agent/dev/release_promotion_checklist.py`
+- [completed] cleaned script index guidance so archive/current replacements no longer point at removed OpenWebUI flows:
+  - `scripts/README.md`
+  - `scripts/ci/README.md`
+  - `scripts/archive/README.md`
+- verification:
+  - `uv run pytest tests/test_release_promotion_checklist.py -q`
+  - result: `3 passed`
+  - `uv run python scripts/ci/release_gate.py --help`
+  - result: exit `0`
+  - `uv run python scripts/ci/release_promotion_checklist.py --help`
+  - result: exit `0`
+  - `git diff --cached --check`
+  - result: clean
+- commit:
+  - `127bc9c`
+  - `p32b: remove openwebui legacy release surface`
+- next likely hygiene slice:
+  - `agent_studio` frontend tree removal plus the minimum host/doc cleanup required to keep that deletion self-consistent
+
+## 2026-04-16 P32b Legacy Channel Tree Removal Slice
+
+- [completed] cut a second narrow `P32b` hygiene slice for deleted remote-channel legacy trees
+- [completed] removed the remaining legacy channel trees and their dedicated smoke/test surface:
+  - `src/channels/types/*`
+  - `src/channels/wechat/*`
+  - `src/gateway/channels/*`
+  - `src/mini_agent/channels/*`
+  - `scripts/qq_wechat_smoke.py`
+  - `tests/test_channels.py`
+- [completed] confirmed the current active repo already treats these paths as historical removals in active indexes:
+  - `docs/DEVELOPMENT_INDEX.md`
+  - `docs/REFACTOR_TASKS.md`
+- verification:
+  - `rg -n "mini_agent\\.channels|src/channels/wechat|src/gateway/channels|qq_wechat_smoke|test_channels\\.py|channels/types" src tests scripts -g '!scripts/archive/**'`
+  - result: no active source/test/script references
+  - `uv run pytest tests/test_markdown_links.py -q`
+  - result: `1 passed`
+  - `git diff --cached --check`
+  - result: clean
+- commit:
+  - `c6ca8bb`
+  - `p32b: drop legacy channel trees`
+- next likely hygiene slice:
+  - `agent_studio` frontend removal plus the minimum gateway-host alignment needed to keep browser-static hosting out of the active tree

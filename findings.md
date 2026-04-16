@@ -1,5 +1,2136 @@
 # Findings
 
+## 2026-04-16 P38 Round-1 Narrow Commit Finalization
+
+- The round-1 closure result is already strong enough to stand as its own checkpoint.
+- Re-running the key verification right before finalization confirmed that this is still true:
+  - `uv run pytest -q` -> `1161 passed, 15 skipped`
+  - maintained active-path `ruff` perimeter -> `All checks passed!`
+- That means the best next move is not another exploratory cleanup pass.
+- The best next move is to preserve the restored baseline with one explicit narrow commit.
+- The honest round-1 commit boundary is:
+  - [test_cli_tui_command.py](/d:/file/Mini-Agent/tests/test_cli_tui_command.py)
+  - [findings.md](/d:/file/Mini-Agent/findings.md)
+  - [progress.md](/d:/file/Mini-Agent/progress.md)
+  - [task_plan.md](/d:/file/Mini-Agent/task_plan.md)
+  - [P38_FIRST_CLOSURE_PLAN_2026-04-16.md](/d:/file/Mini-Agent/docs/P38_FIRST_CLOSURE_PLAN_2026-04-16.md)
+  - [P38_FIRST_CLOSURE_ROUND1_REPORT_2026-04-16.md](/d:/file/Mini-Agent/docs/P38_FIRST_CLOSURE_ROUND1_REPORT_2026-04-16.md)
+  - [PROJECT_COMPLETENESS_EVALUATION_2026-04-16.md](/d:/file/Mini-Agent/docs/PROJECT_COMPLETENESS_EVALUATION_2026-04-16.md)
+- This remains phase-honest because it preserves:
+  - one entrance-contract repair
+  - the evaluation/plan/report documents that define the closure story
+  - planning-memory sync for that same story
+- It does not silently absorb:
+  - mixed `kernel / model-runtime` work
+  - broader repo-wide lint cleanup
+  - wider `DesktopUI` or remote product-polish work
+- The right follow-up after this checkpoint is to start a new explicit line rather than let the dirty tree imply the next priority.
+
+## 2026-04-16 P38 First Closure Planning
+
+- The next useful milestone is no longer another feature line.
+- The next useful milestone is a first closure round.
+- The purpose of that round is not full-repo perfection.
+- The purpose is to restore a controlled baseline on the maintained runtime/product path:
+  - full-suite green
+  - active entrance contract consistency
+  - bounded active-path lint cleanup
+  - honest dirty-tree slice boundaries
+- The current best first-round closure order is:
+  1. fix active entrance contract drift
+  2. clean the active-path lint perimeter
+  3. keep mixed `kernel / model-runtime` work out of the closure commit unless bundled honestly
+  4. rerun verification and write the round-1 closure report
+- This round should explicitly avoid trying to close everything at once:
+  - no DesktopUI redesign
+  - no remote feature expansion
+  - no full repo-wide lint cleanup of every bundled/example/archive path
+- The right name for this line is:
+  - `P38 First Closure`
+- A formal plan was added:
+  - [P38_FIRST_CLOSURE_PLAN_2026-04-16.md](/d:/file/Mini-Agent/docs/P38_FIRST_CLOSURE_PLAN_2026-04-16.md)
+- The first execution results are already clear:
+  - `P38.1` restored full-suite green
+  - `P38.2` active-path perimeter lint is already green
+- That means the current repo-wide `ruff` debt is mostly outside the maintained round-1 perimeter and should not block the closure baseline unless we explicitly widen scope.
+- The current round-1 slice boundary is also narrow enough to be honest:
+  - one active test contract repair
+  - planning-memory updates
+  - the new `P38` plan doc
+- This is a much safer closure slice than trying to mix in the broader dirty-tree `kernel / model-runtime / entrance-polish` backlog.
+- Round-1 closure should stop at this narrow restored baseline.
+- The active-path perimeter is already green, so widening the scope now would mostly reintroduce mixed cleanup risk rather than solve a still-blocking maintained-path problem.
+- Formal round-1 outcome recorded in:
+  - [P38_FIRST_CLOSURE_ROUND1_REPORT_2026-04-16.md](/d:/file/Mini-Agent/docs/P38_FIRST_CLOSURE_ROUND1_REPORT_2026-04-16.md)
+
+## 2026-04-16 Overall Project Completeness Evaluation
+
+- The project is no longer best described as "unfinished architecture exploration".
+- It is better described as:
+  - a mostly-real terminal-first agent platform baseline
+  - with incomplete closure and uneven entrance maturity
+- The current docs claim that:
+  - `P33b` is done
+  - `P34` is done
+  - `P36` is done
+  - `P37` is done
+- Code and tests largely support that claim:
+  - shared `agent_core` is real
+  - session/runtime consolidation is real
+  - TUI orchestration convergence is real
+  - model/provider/runtime-truth work is real
+- The strongest current evidence from full verification is:
+  - `uv run pytest -q` -> `1160 passed, 15 skipped, 1 failed`
+  - `uv run ruff check src tests` -> `57` findings
+- The one full-suite failure is:
+  - [test_cli_tui_command.py](/d:/file/Mini-Agent/tests/test_cli_tui_command.py)
+  - current `cli.run_tui_mode(...)` passes `config_loader=...`
+  - the test stub still expects the older `run_tui(...)` contract
+- That means the project's main remaining problem is no longer missing architecture.
+- The main remaining problem is:
+  - closure quality
+  - contract drift
+  - dirty-tree / hygiene debt
+  - uneven maturity across entrances
+- Entrance maturity is currently uneven:
+  - `CLI / TUI / gateway`: strong and near-baseline
+  - `DesktopUI`: real but still thin relative to TUI
+  - `QQ remote adapter`: real and operational, but not yet a generalized remote platform
+- Overall practical judgment:
+  - architecture completion: high
+  - functional completion: medium-high
+  - release cleanliness: medium
+- A fair overall completion estimate is:
+  - around `75%~80%` overall
+  - with architecture itself closer to `85%~90%`
+
+## 2026-04-16 Strict Kernel Boundary Evaluation
+
+- The current dirty-tree `agent_core/kernel.py` is not a pure `P34` adoption cut.
+- Its direct behavior change is now a mixed bundle of:
+  - `P34` typed runtime-binding adoption
+  - `P33b` route-intent / bootstrap-provider / capability-truth diagnostics
+  - protocol-bound request-policy and rectifier wiring
+  - failover/client execution-profile binding needed for streaming-capable runtime truth
+- The strongest evidence is in the kernel dependency closure:
+  - [kernel.py](/d:/file/Mini-Agent/src/mini_agent/agent_core/kernel.py) now imports bootstrap-only route input from [bootstrap.py](/d:/file/Mini-Agent/src/mini_agent/model_manager/bootstrap.py)
+  - it builds `RouteRequirementProfile` and explicit `RouteIntent` for routed selection through [runtime.py](/d:/file/Mini-Agent/src/mini_agent/model_manager/runtime.py)
+  - it binds `ProtocolRequestPolicy` from [protocol_binding.py](/d:/file/Mini-Agent/src/mini_agent/llm/protocol_binding.py)
+  - it injects request-policy and rectifier options into [failover.py](/d:/file/Mini-Agent/src/mini_agent/model_manager/failover.py)
+  - it moved turn-context assembly ownership into [turn_context_provider_builder.py](/d:/file/Mini-Agent/src/mini_agent/runtime/turn_context_provider_builder.py)
+- That means `kernel` is no longer just:
+  - “switch old agent import to `agent_core.engine.Agent`”
+  - “replace dynamic `setattr(...)` with typed runtime bindings”
+- It now also owns runtime semantics that belong upstream of `agent_core`:
+  - exact-vs-automatic route intent
+  - tool-capability requirements for route selection
+  - bootstrap-only provider fallback truth
+  - route selection story and candidate diagnostics
+  - request-policy defaults and rectifier ownership
+  - provider execution profile assembly for buffered + streaming failover
+- The new kernel tests confirm the same coupling:
+  - [test_agent_core_kernel.py](/d:/file/Mini-Agent/tests/test_agent_core_kernel.py) now asserts route intent, bootstrap route input, capability truth, route diagnostics story, and request-policy / rectifier propagation
+  - those are not core-only structural assertions anymore
+- Strict classification of the current kernel closure:
+  - pure `P34`: `agent_core.engine.Agent` adoption, `set_agent_runtime_bindings(...)`, moving turn-context builder out of `runtime.tooling`
+  - `P33b`: bootstrap config extraction, route-intent selection, capability-truth diagnostics, bootstrap-provider catalog truth, protocol request policy, rectifier binding, richer routed candidate metadata
+  - mixed / cannot separate cheaply: `FailoverLLMClient(...)` construction in kernel, because the new constructor now expects the protocol/runtime-governance inputs
+- Result:
+  - current `kernel` is not phase-honest as a standalone `P34` commit
+  - the minimum honest adoption is a combined `P34 + P33b` bundle
+  - if we want a pure `P34` next step, we must reduce the kernel diff rather than commit the current file as-is
+- Safest next options are:
+  - defer kernel adoption until the remaining `P33b` runtime-governance slice is ready to travel with it
+  - or reduce `kernel.py` to a smaller cut that keeps only typed binding / `agent_core.engine.Agent` adoption and preserves the old routing/failover contract
+- Recommendation:
+  - do not cut the current `kernel.py` under a `P34`-only message
+  - treat it as a mixed boundary and either bundle it honestly with model/runtime-governance work or shrink it first
+
+## 2026-04-16 P34.2 Turn-Scoped Policy Contract Hardening
+
+- The next tempting `P34` move was direct `kernel` adoption of the new core, but that line is still not phase-honest.
+- The current dirty-tree `kernel.py` depends on:
+  - bootstrap-only model route input
+  - protocol binding profiles
+  - richer failover/runtime provider diagnostics
+  - newer request-policy and rectifier ownership
+- That combination would reopen `P33b` runtime/model-governance work, not just `P34`.
+- A cleaner `P34.2` seam exists entirely inside the agent-core scheduler:
+  - current `TurnScheduler` fallback still mutates `agent.execution_policy`
+  - that behavior is exactly the type-shape problem called out in the `P34` plan
+- The right hardening move is:
+  - make typed turn-policy override an explicit contract
+  - if an agent implements `override_execution_policy(...)`, use that path
+  - otherwise only apply temporary `max_steps` / `max_tool_calls_per_step` overrides and leave `execution_policy` untouched
+- This preserves the real invariant we want:
+  - scheduler-owned turn overrides should affect runtime limits
+  - scheduler should not silently rewrite the shape of an agent-owned policy object
+- The resulting boundary is cleaner than a `kernel` cut right now because it:
+  - stays entirely inside `agent_core`
+  - updates only loop/policy tests
+  - avoids bundling provider/bootstrap/protocol changes under a core-maintenance commit
+
+## 2026-04-16 P34.1 Agent-Core Runtime Package Landing
+
+- The clean first `P34` cut was not "rewrite all imports to `agent_core` immediately".
+- The clean cut was:
+  - land the real `agent_core` implementation package
+  - bridge legacy entrypoints onto it
+  - postpone direct `kernel / runtime / TUI` adoption until their upstream dependencies can be committed honestly
+- A key dependency trap showed up while evaluating the earlier broader `P34.1` idea:
+  - current dirty-tree `kernel.py` already depends on newer provider/bootstrap/runtime-truth work
+  - taking that version of `kernel.py` would have dragged `P33b` runtime/bootstrap changes back into the same commit
+- Compatibility shims are enough to make the new core real without reopening that trap:
+  - `mini_agent.agent` can point to `agent_core.engine`
+  - `mini_agent.turn_context` can point to `agent_core.context.turn_context`
+  - `mini_agent.code_agent` package surfaces can point to `agent_core.execution` and `context_compaction`
+- Another important dependency surfaced inside the new engine:
+  - the new planner/executor loop expects normalized completion events
+  - old buffered callers still expect `LLMResponse`
+  - the right bridge is schema compatibility, not forcing the whole `llm/*` stack into this commit
+- The compatibility-safe solution was:
+  - keep `LLMResponse` available as a backward-compatible wrapper over `LLMCompletionResult`
+  - let the new engine synthesize normalized completion results when a legacy buffered object is returned
+- This means `P34.1` can be landed independently while still preserving old call sites and older fake/test LLM surfaces.
+- The resulting phase boundary is much healthier:
+  - `P34.1` = new core runtime package + compatibility bridge
+  - later `P34` = direct kernel/runtime adoption once those upstream model/runtime seams are explicitly staged
+
+## 2026-04-16 P32b Final Doc And History Boundary Closure
+
+- The final honest `P32b` slice was documentation-only, not more code movement.
+- The active-doc layer still needed one more correction after `2b3bae2`:
+  - make `QQ` the only active remote adapter in current wording
+  - make browser `WebUI / OpenWebUI` removal explicit instead of leaving "paused compatibility" language behind
+  - stop historical session-boundary docs from reading like live module maps
+- The right closeout pattern was:
+  - update active architecture/contributor docs
+  - add one explicit `P32` remote-interaction lock doc
+  - prepend historical-boundary notes to `P29 / P30 / P31` docs where old remote/browser references remain as evidence
+- A useful hygiene rule emerged during this cut:
+  - do not let active docs jump ahead to future physical structure that is still sitting only in the dirty worktree
+  - if a doc mixes `P32b` hygiene with later `P34 / P36` structure stories, it should stay out of the hygiene commit
+- Another useful hygiene signal:
+  - some remaining doc files in the dirty tree show encoding damage or broader future-line edits
+  - those were intentionally left out of this commit boundary instead of being silently swept into `P32b`
+- With `d6343bc` landed, `P32b` is now materially complete as a three-slice closeout:
+  - `4064fe6` current-guidance/index sync
+  - `2b3bae2` gateway/browser physical closure
+  - `d6343bc` final doc/history boundary sync
+
+## 2026-04-16 Post-2b3bae2 Dirty Worktree Classification
+
+- After the second `P32b` commit, the remaining dirty tree is no longer mostly hygiene work.
+- A coarse ownership split of the remaining paths came out to:
+  - `p32b_hygiene_docs`: `14`
+  - `p33b_model_provider`: `37`
+  - `p34_agent_core`: `128`
+  - `p36_runtime_session`: `109`
+  - `p37_tui_surface`: `30`
+  - `cross_cutting_misc`: `42`
+- That means residual `P32b` is now the minority of the dirty tree.
+- The largest remaining buckets are feature/refactor lines that should keep their own commit story:
+  - `P34`: `agent_core`, `code_agent` collapse, transport/interaction ownership, related tests
+  - `P36`: runtime/session/memory contract consolidation and related tests
+  - `P33b`: model/provider/runtime-truth work under `llm`, `model_manager`, config, and provider tests/docs
+  - `P37`: TUI command/projector/orchestration seams and related tests/docs
+- The remaining honest `P32b` scope is mainly:
+  - active-vs-historical doc boundary cleanup
+  - repo metadata hygiene that directly supports the repo-shape story
+- Cross-cutting files such as package exports, desktop/gateway supervisors, adapter apps, and integration tests should be staged only alongside the feature slice that actually needs them.
+- The practical implication is:
+  - do not cut another broad "repo hygiene" commit from the current dirty tree
+  - either finish `P32b` with one last doc/history slice
+  - or stop `P32b` and reopen from the real feature bucket
+
+## 2026-04-16 P32b Physical Structure Closure
+
+- The unmaintained browser `agent_studio` tree was now safe to remove as an active-repo surface.
+- The maintained app story is the gateway host, not a parallel browser studio frontend.
+- `src/apps/agent_studio_gateway/main.py` had become an overloaded ownership point:
+  - host bootstrapping
+  - main-agent HTTP routes
+  - ops auth and ops routing
+- Splitting that file into:
+  - `composition.py`
+  - `main_agent_router.py`
+  - `ops_auth.py`
+  - `ops_router.py`
+  leaves the gateway package in a more truthful maintained shape without reopening unrelated runtime architecture.
+- The active walkthrough/readiness layer had drifted behind the current runtime contracts more than the gateway package itself:
+  - current walkthroughs should use `MainAgentSurfaceService` with `SessionApplicationService`
+  - `ChannelIngressUseCases` constructor expectations changed
+  - TUI walkthroughs need to tolerate signature drift instead of assuming one exact constructor
+  - Windows walkthrough safety still benefits from forcing `DummyOutput()` when no console is attached
+- Prepared-context expectations in walkthroughs must follow the current projection behavior instead of older context snapshots.
+- Focused verification stayed green for the whole closure slice:
+  - targeted gateway/application/session/novel/readiness bundle passed with `163` tests
+  - no active source/test/script references remained to `src/apps/agent_studio` or the removed studio router surface after the cleanup
+
+## 2026-04-16 P32b Repo Hygiene And Structure Alignment
+
+- The code-level structure is currently in much better shape than the active docs imply.
+- Current active source/test/script search shows no live references to the removed ownership paths that would most directly break the structure story:
+  - `main_agent_gateway_use_cases`
+  - `session_remote_service`
+  - `tui.gateway_client`
+  - `mini_agent.code_agent`
+- The remaining repo-hygiene drift is therefore concentrated in the guidance layer:
+  - `DEVELOPMENT_INDEX.md` still pointed at `P30` as the execution anchor and still described `P33` as active
+  - `DOCS_INDEX.md` still described the current stage as `P30`
+  - `REFACTOR_TASKS.md` still pointed to `P30` as the current execution anchor
+  - maintained docs such as `REFACTOR_TASKS.md` still referenced renamed tests like `tests/test_main_agent_gateway_use_cases.py`
+- The physical repo tree and the framework skeleton are broadly aligned now:
+  - `src/apps/desktop_ui/` exists and matches the architectural map
+  - the maintained app paths are `agent_studio_gateway`, `desktop_ui`, and `qqbot_channel`
+  - legacy browser and legacy channel trees are no longer active paths
+- That means the honest second-pass `P32` priority is:
+  - current-doc/index correction
+  - active-vs-historical boundary cleanup
+  - commit slicing for the still-dirty worktree
+- It should not be another speculative feature refactor line.
+
+## 2026-04-15 Post-P36 Evaluation Kickoff
+
+- `P36` is not currently blocked by obvious unfinished acceptance work.
+- The recorded `P36` exit criteria and the latest focused verification line are aligned:
+  - runtime/session reads were consolidated
+  - projection refresh paths were consolidated
+  - runtime-facing tests now share maintained contract carriers
+- That means the next useful question is no longer "what else from the old `P36` plan remains?"
+- The real question is "what pressure still exists in the live code after `P36`, and does it justify a new line at all?"
+- The most likely remaining hotspot classes to inspect are:
+  - `runtime manager` composition thickness
+  - `surface/TUI` local-vs-remote parallel behavior seams
+  - any still-frequent direct `session.runtime.agent` reach-through outside maintained support helpers
+- First scan result:
+  - remaining pressure is concentrated, not diffuse
+  - `src/mini_agent/runtime/main_agent_runtime_manager.py` is still very large at about 1116 lines
+  - `src/mini_agent/runtime/session_operator_handler.py` is still large at about 772 lines
+  - `src/mini_agent/tui/app.py` remains the dominant hotspot at about 9455 lines
+- The `runtime/session` layer still has direct `session.runtime.agent` and `session.projection.*` mutations in some maintained handlers, but the bigger post-`P36` concern may now be orchestration thickness rather than missing read/write helper seams.
+- `tui/app.py` still contains many local runtime-attached checks and direct projection mutations, which suggests the next real risk may be local-vs-remote workflow orchestration drift rather than another small codec/support extraction.
+- Additional hotspot evidence:
+  - `main_agent_runtime_manager.py` has essentially no direct `runtime.agent` reads in its forwarding methods and only negligible direct projection mutation, so its size is mostly composition/wrapper cost
+  - `session_operator_handler.py` still has some direct runtime/projection touches, but they are concentrated around operator-command execution rather than broad architectural leakage
+  - `tui/app.py` is in a different category:
+    - about 61 `runtime.agent` reads/touches
+    - about 273 projection-field touches
+    - many paired local/remote pathways, including multiple `_apply_remote_*`, `_sync_remote_*`, `_run_remote_*`, and `_dispatch_remote_*` methods
+- That pattern strongly suggests the next meaningful follow-up is more likely to be a TUI/runtime orchestration line than another runtime-session contract cleanup line.
+- `SessionApplicationService` and `MainAgentSurfaceService` are comparatively healthy after `P36`:
+  - the surface layer is now thin and mostly delegates to session/chat flow services
+  - the application session service mostly performs request-to-runtime adaptation
+  - this makes them weaker candidates for the next refactor line
+- `MainAgentRuntimeManager` still has file-size pressure, but its late methods are mostly:
+  - store lock
+  - require/load session
+  - delegate to a handler
+  - return transport data
+- `tui/app.py` still directly owns broad remote-state projection logic:
+  - `_apply_remote_session_summary(...)` mutates many session projection fields directly from transport payloads
+  - `_apply_remote_session_detail(...)` extends that with context/prepared-context/message synchronization
+  - `_run_remote_chat_turn(...)` and `_run_chat_turn(...)` are parallel high-complexity workflows rather than thin strategy variants
+- Test gravity supports the same conclusion:
+  - `tests/test_tui_app.py` is about 5001 lines
+  - `tests/test_main_agent_surface_service.py` is about 4245 lines
+  - `tests/test_cli_submission_loop.py` is about 1823 lines
+- That test concentration suggests future maintenance cost and regression risk are likely to be highest in TUI/surface orchestration, especially around local-vs-remote behavior convergence.
+
+## 2026-04-15 P37.1 Remote Session Projection Service Kickoff
+
+- The first safe `P37` cut is to extract remote transport-payload-to-TUI-session mapping before touching local/remote turn execution.
+- That seam is cohesive enough to extract without redesigning turn flow:
+  - remote summary application
+  - remote detail application
+  - remote message list application
+- Moving that logic into one TUI-facing projector immediately reduces one concentrated direct-mutation block in `tui/app.py` while preserving the existing runtime/session seams from `P36`.
+- Focused verification for this kickoff remained green:
+  - new projector unit tests passed
+  - the full `tests/test_tui_app.py` suite also stayed green
+
+## 2026-04-16 P37.2 Turn State Coordinator Kickoff
+
+- The next safe `P37.2` cut is below result-handling logic but above raw field mutation:
+  - shared local/remote turn session-task state transitions
+- That seam is small but real:
+  - start turn
+  - attach active task id
+  - set busy/running state
+  - clear local pending approvals
+  - clear/reset local turn state at the end
+- Extracting that owner keeps the current branch logic intact while reducing one more repeated local/remote mutation block inside `tui/app.py`.
+- Focused verification remained green:
+  - new turn-state coordinator unit tests passed
+  - projector tests still passed
+  - the full `tests/test_tui_app.py` suite still passed
+
+## 2026-04-16 P37.2 Turn Outcome Coordinator
+
+- The next highest-value duplication in `tui/app.py` is no longer turn-start mutation.
+- It is the parallel local/remote turn outcome handling near the tail of:
+  - `_run_remote_chat_turn(...)`
+  - `_run_chat_turn(...)`
+- The shared semantics are cohesive enough to extract without touching stream mechanics:
+  - task status / stop-reason / note mapping
+  - activity completion detail labels
+  - operator-facing status text
+  - default system-message fallback text for cancelled/limit/failure endings
+- The success-path reply mechanics should stay local to `tui/app.py` in this cut because they still differ materially:
+  - remote flow may finalize an already-streamed message index or stream a reply from gateway payload
+  - local flow may finalize a live submission-loop stream or emit a final assistant reply from payload text
+- The landed extraction now gives those semantics one maintained owner:
+  - `src/mini_agent/tui/session_turn_outcome_coordinator.py`
+- The `resume_pending` branch is also intentionally non-shared for this cut.
+- It mixes restart recovery semantics with exception handling and would widen the extraction risk if folded into the same owner.
+
+## 2026-04-16 P37.2 Remote Turn Stream Coordinator
+
+- After the turn-state and turn-outcome cuts, the next safe remaining owner inside `_run_remote_chat_turn(...)` was the remote stream/event loop itself.
+- That loop was cohesive enough to extract without reopening the completed outcome semantics:
+  - stream-vs-fallback selection
+  - event normalization
+  - activity/status/delegation dispatch
+  - approval-request / approval-resolved dispatch
+  - delta chunk accumulation
+  - terminal `done` payload capture
+- The landed extraction now gives remote stream consumption one maintained TUI-facing owner:
+  - `src/mini_agent/tui/session_remote_turn_stream_coordinator.py`
+- The extraction stayed intentionally below turn orchestration:
+  - turn outcome application still stays in `tui/app.py`
+  - final reply flush and remote detail sync still stay in `tui/app.py`
+  - local turn flow and `resume_pending` recovery stayed untouched
+- With that cut landed, `P37.2` is now materially complete.
+- The next meaningful structural pressure is no longer inside turn execution convergence.
+- It is the operator-command orchestration cluster still concentrated in `tui/app.py`.
+
+## 2026-04-16 P37.3 Approval Command Coordinator Kickoff
+
+- The safest first `P37.3` cut is approval command orchestration, not the whole dispatcher.
+- That branch already had a cohesive responsibility:
+  - resolve local-vs-remote approval execution
+  - normalize local token-selection errors
+  - normalize remote approval failures
+  - clear pending approvals
+  - emit command feedback and operator status
+- The landed extraction now gives that behavior one maintained TUI-facing owner:
+  - `src/mini_agent/tui/session_approval_command_coordinator.py`
+- The extraction stayed intentionally narrow:
+  - it does not own modal rendering
+  - it does not own remote stream approval event handling
+  - it does not own the command dispatcher itself
+- That makes it a good kickoff seam for `P37.3` because it removes one mixed local/runtime/network branch from `tui/app.py` without forcing a large command-router rewrite.
+- The next likely `P37.3` seams are runtime-policy and context command orchestration, where the same local-vs-remote branching pattern still appears.
+
+## 2026-04-16 P37.3 Runtime Policy Command Coordinator
+
+- After the approval-command kickoff, the next safest `P37.3` branch was runtime-policy command orchestration.
+- That branch already had a cohesive responsibility:
+  - resolve current effective runtime policy
+  - detect unchanged requests
+  - route local vs remote apply flow
+  - normalize success/failure command feedback and status text
+- The landed extraction now gives that behavior one maintained TUI-facing owner:
+  - `src/mini_agent/tui/session_runtime_policy_command_coordinator.py`
+- The extraction stayed intentionally narrow:
+  - runtime-policy apply helpers still stay in `tui/app.py`
+  - actual local runtime reconfigure and remote transport calls were not redesigned in this cut
+- That makes it a good second `P37.3` seam because it removes another mixed local/runtime/network branch from `tui/app.py` while preserving existing operator wording and tests.
+- The next likely `P37.3` seam is now context command orchestration, with memory command orchestration as the next fallback candidate.
+
+## 2026-04-16 P37.3 Context Command Coordinator
+
+- After approval and runtime-policy command extractions, the next safest `P37.3` branch was the main `context` command flow.
+- That branch already had a cohesive orchestration story:
+  - resolve the command plan
+  - refresh context snapshot when needed
+  - run initial command validation/render result
+  - route remote vs local policy mutation
+  - rerun final context rendering
+- The landed extraction now gives that behavior one maintained TUI-facing owner:
+  - `src/mini_agent/tui/session_context_command_coordinator.py`
+- The extraction stayed intentionally narrow:
+  - context planning still stays in `prepare_context_command_plan(...)`
+  - local context execution still stays in `LocalOperatorCommandService.execute_context(...)`
+  - remote context update helpers still stay in `tui/app.py`
+- That makes it a good third `P37.3` seam because it removes another mixed local/runtime/network flow from `tui/app.py` without redesigning command semantics.
+- The next likely `P37.3` seam is now memory command orchestration, with KB command orchestration as the next fallback candidate.
+
+## 2026-04-16 P37.3 Memory Command Coordinator
+
+- After `context`, `memory` was the next strongest `P37.3` hotspot because it still mixed:
+  - command-plan resolution
+  - local busy gating
+  - local-vs-remote execution dispatch
+  - feedback/status/render sequencing
+- The safe cut was not to redesign memory command semantics.
+- The safe cut was to extract the TUI-facing orchestration layer above the existing memory command planner/execution helpers:
+  - keep `prepare_memory_command_plan(...)` as the plan owner
+  - keep the mutation-heavy memory execution helpers in `tui/app.py`
+  - move plan-result handling and repeated sequencing into one maintained coordinator
+- The landed extraction now gives that behavior one maintained TUI-facing owner:
+  - `src/mini_agent/tui/session_memory_command_coordinator.py`
+- The extraction stayed intentionally narrow:
+  - it does not redesign memory command payloads
+  - it does not move runtime/durable memory domain behavior out of existing owners
+  - it does not reopen turn-flow ownership
+- That makes it a good fourth `P37.3` seam because it removes another heavy command-family branch from `tui/app.py` while preserving the already-stable memory surface.
+- The next likely `P37.3` seam is now KB command orchestration, with MCP command orchestration as the next fallback candidate.
+
+## 2026-04-16 P37.3 KB Command Coordinator
+
+- After `memory`, `kb` was the next clean `P37.3` seam because it still bundled one whole orchestration story in `tui/app.py`:
+  - plan resolution
+  - remote status refresh special-case
+  - local-vs-remote toggle branching
+  - command feedback, status text, and render sequencing
+- The safe cut was again to extract only the TUI-facing orchestration layer.
+- The existing owners stayed intact:
+  - `_resolve_kb_command_plan(...)` still owns plan construction in `tui/app.py`
+  - `_execute_remote_kb_command(...)` still owns the remote helper details
+  - local KB toggle callback mechanics still stay in `tui/app.py`
+- The landed extraction now gives the orchestration itself one maintained owner:
+  - `src/mini_agent/tui/session_kb_command_coordinator.py`
+- This was the right size cut because KB sits between the lighter command families and the still-heavier remaining ones:
+  - lighter than `memory`
+  - still broad enough to remove a real mixed local/runtime/network branch from `tui/app.py`
+- The next likely `P37.3` seam is now MCP command orchestration, with skill command orchestration as the next fallback candidate.
+
+## 2026-04-16 P37.3 MCP Command Coordinator
+
+- After `kb`, `mcp` was the next best `P37.3` seam because it still mixed several operator-facing branches inside one TUI method:
+  - plan-result error/usage handling
+  - local-vs-remote execution split
+  - unsynced remote fallback feedback
+  - local reload runtime-rebuild wiring
+  - feedback/status/render sequencing
+- The safe cut was again to extract only the orchestration layer above existing owners.
+- The existing owners stayed intact:
+  - `_resolve_mcp_command_plan(...)` still owns plan construction in `tui/app.py`
+  - `_dispatch_remote_control_command(...)` still owns the shared remote control helper
+  - local MCP reload runtime-rebuild mechanics still stay in `tui/app.py`
+- The landed extraction now gives the MCP command orchestration one maintained owner:
+  - `src/mini_agent/tui/session_mcp_command_coordinator.py`
+- This was a healthy cut because it removes another mixed local/runtime/network branch without forcing a redesign of the shared remote-control helper or the local runtime warm path.
+- The next likely `P37.3` seam is now skill command orchestration, with model command orchestration as the next fallback candidate.
+
+## 2026-04-16 P37.3 Skill Command Coordinator
+
+- After `mcp`, `skill` was still a meaningful `P37.3` hotspot because one TUI method still owned:
+  - plan-result error handling
+  - local-vs-remote execution split
+  - remote failure normalization
+  - local result-application dispatch
+  - final render sequencing
+- The safe cut stayed above the real skill-domain owners.
+- The existing owners remained intact:
+  - `_resolve_skill_command_plan(...)` still owns plan construction in `tui/app.py`
+  - `_run_remote_skill_action(...)` and `_apply_remote_skill_response(...)` still own remote request/response semantics
+  - `_apply_local_skill_command_result(...)` still owns the heavier local runtime/policy side effects
+- The landed extraction now gives that orchestration one maintained owner:
+  - `src/mini_agent/tui/session_skill_command_coordinator.py`
+- This was the right size cut because skill flows are semantically richer than KB/MCP, but the TUI orchestration seam was still clean enough to extract without reopening skill-domain behavior.
+- The next likely `P37.3` seam is now model command orchestration, with only small dispatcher-tail cleanup left after that if a real hotspot still remains.
+
+## 2026-04-16 P37.3 Model Command Coordinator
+
+- After `skill`, the remaining obvious command-family branch in `tui/app.py` was `model`.
+- This seam was structurally different from `memory/kb/mcp/skill`:
+  - less about remote/local branching
+  - more about top-level action dispatch across list, cursor, apply, discover, refresh, use, filter, and limit
+- The safe cut was therefore more conservative:
+  - extract the TUI-facing command orchestration layer
+  - keep real model-selection, discovery, filter, and limit behavior in existing `app.py` helpers
+- The existing owners stayed intact:
+  - `_resolve_model_command_plan(...)` still owns plan construction
+  - `_apply_session_model_selection(...)` and adjacent selection helpers still own actual model-switch semantics
+  - `_discover_for_selected_provider(...)` still owns provider discovery behavior
+  - `_execute_model_limit_command_plan(...)` still owns learned-limit detail behavior
+- The landed extraction now gives top-level model command orchestration one maintained owner:
+  - `src/mini_agent/tui/session_model_command_coordinator.py`
+- This was the right size cut because it removes another large action dispatcher from `tui/app.py` without forcing a redesign of the more stateful model-selection and limit-management logic.
+- With `model` moved, the `P37.3` command-family backlog is now materially thinned.
+- The next step should likely be a short tail evaluation:
+  - either one last narrow dispatcher-tail cleanup if a real hotspot still remains
+  - or treating `P37.3` as materially complete and moving to a post-`P37` assessment
+
+## 2026-04-16 Post-P37 TUI Surface Evaluation
+
+- After the `model` cut, the strongest remaining TUI command tail is `session`.
+- But it no longer matches the earlier `P37.3` command-family pattern closely enough to justify “one more coordinator” by default:
+  - it is more about session lifecycle and surface mutation than repeated local/runtime/network branching
+  - several heavier subflows already sit behind dedicated helpers
+- `sandbox` is the opposite case:
+  - it is already thin enough that extracting it would mostly create ceremony
+- That leaves the current `P37` state in a healthier place than the raw file size of `tui/app.py` might suggest:
+  - the original concentrated command-family backlog is materially gone
+  - the next real TUI problem, if one is opened, should be framed differently
+- The honest recommendation is therefore:
+  - treat `P37` as materially complete
+  - do not keep extending `P37.3` just to remove small remaining wrappers
+  - start any future TUI follow-up from a fresh lifecycle/composition problem statement
+
+## 2026-04-15 P34.8 Final Agent-Facade Slimming And Architecture Lock
+
+- By the time `P34.7` landed, the main remaining `engine.py` risk was not one more hidden subsystem.
+- It was drift risk:
+  - extracted seams existed
+  - but some dead-thin wrappers still made `Agent` look like it owned more than it really did
+  - the architecture docs still described `agent_core` mostly as one directory, not as a set of maintained runtime seams
+- The safest final move was therefore not another large extraction.
+- It was to lock the new shape explicitly:
+  - remove obsolete pass-through helpers
+  - make the remaining facade methods read more like orchestration
+  - document the seam ownership model in one active reference doc
+  - reflect those seam types in the public top-level export surface
+- That last point matters because architecture drift often starts when the code has one shape and the visible reference surface teaches another.
+- Exporting the stable seam types is a lightweight way to make the current ownership model inspectable without forcing callers into deep internal paths.
+- After this slice, `P34` should be treated as complete.
+- Future work on `agent_core` should start from a fresh problem statement, not by assuming there is still another missing extraction inside the same refactor line.
+
+## 2026-04-15 P34.7 Post-Turn Side-Effect Service Extraction
+
+- The remaining post-turn smell in `engine.py` was not only duplicated code volume.
+- It was ownership confusion:
+  - `run_turn()` finished the planner/executor loop
+  - then immediately became the owner of two unrelated writeback flows
+  - each flow had its own anchor validation, failure payload shape, and logger event behavior
+- The safest correction was not to move those behaviors into the memory package.
+- They still belong to `agent_core`, because they are turn-completion side effects rather than standalone memory-domain primitives.
+- The right boundary is:
+  - memory modules keep the domain rules for `process_turn(...)`
+  - one agent-core post-turn service owns when those processors are invoked and how their payloads are surfaced back to the agent facade
+- That keeps the existing observable contract intact:
+  - `last_memory_automation`
+  - `last_runtime_task_memory`
+  - existing logger event names
+  - existing missing-anchor and failure payload shapes
+- After this slice, `engine.py` is closer to the intended orchestrator role:
+  - complete loop
+  - map terminal state to stop reason
+  - delegate post-turn side effects
+  - return turn result
+- That leaves `P34.8` as a real finishing pass rather than another subsystem extraction pass.
+
+## 2026-04-15 P34.6 Turn-Context Package Decomposition
+
+- The safest way to cut `turn_context.py` was not a behavior rewrite.
+- It was a compatibility-first package split:
+  - keep `mini_agent.agent_core.context.turn_context` as the stable import facade
+  - move implementation ownership behind sibling modules grouped by responsibility
+- That matters because the current subsystem already has strong runtime behavior:
+  - provider readiness
+  - follow-up query expansion
+  - ranking and budget curation
+  - prepared-context diagnostics
+- Rewriting those semantics while splitting file ownership would have mixed two risk classes in one slice.
+- The internal helper graph also showed a natural ownership shape:
+  - types/normalization helpers
+  - policy normalization
+  - curation/ranking
+  - diagnostics/formatting
+  - provider implementations
+- Keeping that shape local makes the next provider or formatting change less likely to reopen a giant hotspot.
+- Another useful outcome is boundary honesty:
+  - provider builder still depends on the public turn-context facade
+  - providers themselves now depend only on the smaller helper surfaces they actually use
+- After this slice, the remaining `agent_core` pressure is more clearly back inside `engine.py`, especially around post-turn side effects.
+- That makes `P34.7` the right next cut instead of further polishing the already-split turn-context package.
+
+## 2026-04-15 Follow-up Model Configuration And Supply Defect Patch
+
+- The remaining defects after `P33b.6` were no longer big architectural gaps.
+- They were contract-completion issues at the runtime/config seam:
+  - configuration surface claimed support for custom `headers` and `timeout`
+  - runtime transport path did not fully consume them
+  - runtime preset supply still mixed together:
+    - executable provider construction
+    - live provider discovery
+- Those two responsibilities need different failure behavior.
+- Discovery may fail transiently.
+- Executable runtime supply should be able to continue from persisted truth when the project already knows enough to run.
+- Ollama made that distinction especially visible:
+  - bootstrap / UI discovery can reasonably require local reachability
+  - runtime supply should not disappear just because one probe or discovery refresh fails while persisted model state already exists
+- The narrow safe fix was not to make every preset path ignore reachability.
+- The right boundary is:
+  - keep default preset resolution behavior unchanged for normal discovery/listing flows
+  - add an explicit runtime-safe preset resolution path that can skip live local reachability/discovery when runtime state already exists
+- The CLI inconsistency was smaller but still important operationally.
+- `Config.from_yaml(...)` already loads `.env.local`.
+- `mini-agent models` did not, which meant two official entry points could disagree about whether a preset provider was configured.
+- After this follow-up, the model configuration / supply line is materially more coherent:
+  - config surface and runtime transport surface now match
+  - runtime preset supply and discovery have cleaner responsibilities
+  - CLI inspection and config bootstrap see the same local env file source
+
+## 2026-04-15 P33b.6 Route Observability And Diagnostics
+
+- The most important design boundary in this slice was to keep two routing stories separate:
+  - agent request dispatch routing
+  - model/provider runtime routing
+- The existing `/api/v1/ops/diagnostics/routing` endpoint already had a stable meaning:
+  - cache hits
+  - fallback counts
+  - matched agent/scope statistics
+- Reusing that endpoint was still the right move, but only if the project did not silently redefine those existing counters as model-routing counters.
+- The safest extension was therefore parallel, not replacement:
+  - preserve the existing agent-routing stats exactly as they are
+  - add a separate `latest_model_route` payload plus resolution count alongside them
+- The runtime also did not need a full logging subsystem for this slice.
+- What operators were missing was one inspectable snapshot of the latest route decision chain:
+  - what was requested
+  - which candidates were ranked
+  - which candidate was blocked by circuit breaker
+  - which route finally won
+  - whether a fallback/default mapping was involved
+  - why bootstrap had picked the underlying preset in the first place
+- That made a lightweight runtime-owned snapshot more appropriate than broad event logging:
+  - low risk
+  - easy to reset in tests
+  - directly reusable by kernel and ops surfaces
+- Another important continuity choice was to reuse `P33b.4` bootstrap diagnostics instead of inventing new bootstrap reasoning at the observability layer.
+- Before this slice, those bootstrap fields existed on the preset payload but were dropped by the config/bootstrap seam.
+- Carrying them through `Config -> LLMConfig -> BootstrapLLMSettings -> runtime` is cleaner than re-deriving bootstrap decisions later from partial runtime state.
+- Kernel diagnostics also needed to stay honest about their role.
+- They should not become a second route planner.
+- The right improvement was to enrich the active-route inspection payload with already-recorded runtime truth:
+  - route intent
+  - selected reason
+  - fallback reason
+  - candidate counts
+  - bootstrap reason
+- After this slice, the runtime truth line is noticeably stronger:
+  - exact-route failures are inspectable instead of only raising
+  - breaker-driven failover becomes visible
+  - bootstrap/provider-governance decisions survive into runtime inspection
+  - operators can inspect the route story from one place without mixing it up with agent dispatch routing
+
+## 2026-04-15 P33b.5 Provider Contract Tightening
+
+- The important distinction in this slice is:
+  - `custom` is a provider source category
+  - it is not a maintained runtime protocol family
+- Before this fix, the project still had one misleading leftover:
+  - custom-provider write/setup surfaces could still accept `api_type: custom`
+  - one route-selector default still listed `ProviderAPIType.CUSTOM`
+  - but the maintained runtime execution families were already only:
+    - `openai`
+    - `anthropic`
+- That made the configuration story looser than the runnable story.
+- The safest narrow correction was not to break older local catalogs outright.
+- The better boundary is:
+  - public setup/update contracts reject removed fake protocol families
+  - legacy stored catalogs may still normalize `custom` to the actual maintained compatibility family they meant, which is `openai`
+- This keeps two goals aligned at once:
+  - stop teaching the wrong contract going forward
+  - avoid surprising local breakage for users who already have `providers.json` history from the older shape
+- Setup-model-discovery also needed the same tightening.
+- It should discover models for maintained compatibility families, not advertise extra provider-runtime families that the terminal runtime does not really own.
+- After this slice, the contract is cleaner:
+  - provider source:
+    - `custom`
+    - `preset`
+  - provider protocol family:
+    - `openai`
+    - `anthropic`
+- That is the right base for the next diagnostics slice because route/selection observability is only useful when the contracts being explained are already honest.
+
+## 2026-04-15 P33b.4 Bootstrap Provider Governance
+
+- The bootstrap-provider bug was not in runtime routing.
+- It was one layer earlier, in preset bootstrap:
+  - configured preset detection happened in provider-dict order
+  - bootstrap then simply took the first detected candidate
+- That meant startup choice was deterministic only because Python preserves dict insertion order, not because the project had an explicit bootstrap policy.
+- The safest fix for this slice was therefore not to move selection into runtime.
+- The right fix was to make preset bootstrap selection itself an explicit policy seam.
+- One important design choice in this slice was to keep provider-governance and runtime-governance separate:
+  - runtime route selection already has its own policy space
+  - bootstrap preset choice only needs to decide the initial preset provider/model when config is incomplete
+- So the new selection seam stays narrow:
+  - explicit preferred provider wins when available
+  - otherwise explicit bootstrap priority wins
+  - stable provider-id tie-break keeps the result reproducible even if priorities ever match
+- Ollama also needed to stay intentionally special:
+  - it is valid as a bootstrap source when explicitly enabled
+  - but it should not quietly outrank configured cloud presets just because local discovery happens to succeed
+- Encoding that as explicit bootstrap priority is cleaner than relying on enum/dict position.
+- Diagnostics also matter here because this decision happens before most runtime surfaces exist:
+  - if callers cannot inspect why a preset was chosen, bootstrap governance becomes opaque again
+  - attaching diagnostics to the selected preset payload is a small but useful bridge until richer runtime observability grows later
+- This slice intentionally does not solve provider contract mismatch.
+- It only makes the bootstrap selection story explicit and explainable.
+
+## 2026-04-15 P33b.3 Discovery Integrity And Cache Scope
+
+- The discovery-cache bug was simple but high-impact:
+  - `ModelDiscoveryCache` stored one file per provider type only
+  - so different OpenAI-compatible endpoints could silently reuse each other's cached model list
+- That is especially risky now that the project supports:
+  - preset providers
+  - custom OpenAI-compatible providers
+  - local/provider-specific endpoints like Ollama
+- The right fix for this slice did not require a new cache service.
+- It only required making cache identity explicit enough:
+  - provider type
+  - normalized base URL
+  - protocol flavor
+- The custom discovery writeback bug was separate but related:
+  - discovery results were being treated as authoritative replacement inventory
+  - a partial refresh could therefore shrink `provider.models`
+  - that let temporary API incompleteness erase configured inventory truth
+- For `P33b.3`, the smallest safe correction was merge-without-destruction rather than full dual-track persistence:
+  - keep configured models
+  - overlay discovered metadata/context where available
+  - append newly discovered models
+  - preserve learned limits and existing metadata unless discovery actually adds stronger data
+- That keeps the slice narrow while still correcting the unsafe ownership assumption:
+  - discovery may enrich inventory truth
+  - discovery must not silently delete configured inventory truth
+- One intentionally deferred design choice remains:
+  - custom discovery and recommendation still influence effective default ordering by moving the selected model to the front
+  - this slice preserves that behavior for continuity
+  - deeper policy ownership of bootstrap/default choice belongs more naturally to the next governance seam than to this integrity fix
+
+## 2026-04-15 P33b.2 Capability Truth Grading
+
+- The core capability-truth bug was concentrated in one place:
+  - `infer_model_capabilities(...)`
+  - it treated absence of evidence as provider-wide capability confirmation
+- In practice that meant:
+  - OpenAI / Anthropic / MiniMax / Ollama discovered models usually became `supports_tools=True`
+  - several providers also became `supports_thinking=True`
+  - but this was often not based on any per-model capability signal at all
+- The routing layer was already closer to the desired shape than the discovery layer:
+  - `False` already behaved like a hard block for required tools
+  - `None`/missing metadata already behaved like "allowed but not confirmed"
+- So the highest-value fix was not a complete routing rewrite.
+- It was to stop discovery from manufacturing `True` where no evidence existed, then make route ranking distinguish:
+  - confirmed support
+  - unknown support
+  - confirmed non-support
+- One subtle route-quality gap still needed a scoring change after discovery truth was fixed:
+  - required-tools routing used to treat confirmed support and unknown as effectively equal
+  - that preserved compatibility, but it did not reward stronger evidence
+- The resulting route-policy improvement is intentionally narrow:
+  - required capability:
+    - unsupported is filtered
+    - supported outranks unknown
+  - preferred capability:
+    - supported outranks unknown
+    - unknown outranks explicit unsupported
+- The metadata shape now carries the capability-evidence layer directly instead of only flattened guessed booleans:
+  - bool value when known
+  - truth label
+  - confidence
+  - source
+- This gives the runtime a more honest explanation surface without introducing a whole new provider-capability subsystem.
+
+## 2026-04-15 P33b.1 Route Intent Hardening
+
+- The route-intent bug was not spread evenly across the whole selection stack.
+- The already strict pieces were:
+  - `resolve_pinned_llm_candidate(...)`
+  - session model-selection identity resolution that validates through the pinned path
+- The unsafe piece was the routed path:
+  - `requested_model` could mean "user explicitly asked for this"
+  - or it could mean "this is only a soft routing hint"
+  - the old code had no way to tell those apart
+- Because `map_model_for_provider(...)` always allowed `fallback_default` when no exact or partial match existed, explicit requested-model routing could silently produce a provider default instead of surfacing a mismatch.
+- The safest narrow fix was to add a route-intent seam rather than trying to make every `requested_model` strict by default everywhere:
+  - routed runtime now accepts `RouteIntent`
+  - explicit route intent rejects unmatched model requests
+  - automatic route intent still allows provider-default fallback
+- Kernel behavior needed one small but important policy decision:
+  - if a caller passes `requested_model` without pinning `provider_source` and `provider_id`, that should default to explicit intent
+  - otherwise the shared kernel would keep erasing user intent before runtime routing even began
+- It was also important not to over-change the already-correct strict path:
+  - wrong provider/model pairs were already rejected by pinned resolution
+  - `P33b.1` only needed to preserve and cover that behavior, not redesign it
+- Resulting contract after the slice:
+  - pinned selection remains exact and loud on mismatch
+  - explicit routed requested-model selection is now loud on mismatch
+  - only genuinely automatic routing is still allowed to fall back to provider defaults
+
+## 2026-04-15 P33b Runtime Truth And Provider Governance Planning
+
+- The original `P33` plan is now best understood as complete foundation work, not the active place to keep attaching every later model/runtime cleanup.
+- `P33.1` through `P33.8` already landed the important first-stage runtime upgrades:
+  - registry-first route truth
+  - protocol binding
+  - richer response/event model
+  - native streaming
+  - discovery metadata persistence
+  - capability-aware routing seam
+  - request-policy ownership
+  - Ollama local-provider integration
+- The remaining problems exposed by the current code are now a different class of issue:
+  - route intent is still too fuzzy between exact request and automatic route
+  - capability truth is still inferred too optimistically
+  - discovery cache scope is too coarse for multiple compatible endpoints
+  - custom-provider discovery can still overwrite configured inventory too aggressively
+  - bootstrap preset choice is still driven by enumeration order rather than explicit policy
+  - provider configuration still presents some shapes that are not as runnable as they look
+- Those issues are not "P33 unfinished."
+- They are the second-stage governance problems that only become visible after `P33` made the runtime foundation honest enough to inspect.
+- So the cleanest planning move is to split the lines:
+  - keep `P33` as the completed runtime-upgrade baseline
+  - create `P33b` as the follow-up runtime truth and provider governance track
+- The right first implementation cut under `P33b` is route intent hardening, not another broad capability or config sweep.
+- The highest-risk remaining behavior is still silent mismatch handling:
+  - operator asks for one model
+  - runtime quietly gives another
+- As long as that remains possible, later provider-governance improvements still sit on an unsafe contract.
+
+## 2026-04-15 P33.22 CLI Command Config-Load Helper Consolidation
+
+- After `P33.21`, the remaining config-load duplication was no longer architectural drift across runtime/core layers.
+- It was surface-local repetition inside `cli.py`.
+- Several CLI command entrypoints were still repeating the exact same shallow behavior:
+  - call `load_entry_config()`
+  - print the same failure banner
+  - return early
+- This is exactly the kind of duplication that is now safe to remove because the ownership story is already corrected:
+  - config discovery still happens at the CLI surface
+  - the helper does not become a shared service
+  - runtime/core layers still only consume injected config or loaders
+- Two non-identical cases mattered and should remain distinct:
+  - headless mode must keep owning structured `json / stream-json / text` error output
+  - export-prune should keep its quiet fallback to the default log dir when config is unavailable
+- That distinction is important because `P33` is not trying to centralize everything that mentions config.
+- It is trying to keep ownership explicit while removing boilerplate that no longer carries business meaning.
+- The resulting seam is easier to explain:
+  - CLI commands that just need standard config-loading behavior use one CLI-local helper
+  - special surfaces with distinct output/fallback semantics still own those semantics directly
+
+## 2026-04-15 Worktree Hygiene / Slice Classification Audit
+
+- After the initial cache/noise cleanup, the repo is no longer dirty because of stray garbage.
+- It is dirty because several real refactor tracks are still sharing one worktree:
+  - late `P32` structure/boundary work
+  - active `P33` LLM/runtime/config work
+  - legacy browser/channel retirement
+  - docs/test synchronization
+- The hygiene dry-run is now stable:
+  - `git clean -ndX` only surfaces intentionally preserved local runtime/config artifacts
+  - there is no second wave of obvious cache trash left to delete safely
+- The largest pure-deletion cluster is the intentional retirement of legacy/browser-only surfaces:
+  - `src/apps/agent_studio/*`
+  - `src/apps/open_webui/*`
+  - `src/channels/*`
+  - `src/gateway/channels/*`
+  - related scripts/tests
+- The most entangled cluster is the active shared runtime surface, not the deletion-heavy slice:
+  - `src/mini_agent/cli.py`
+  - `src/mini_agent/cli_interactive.py`
+  - `src/mini_agent/tui/app.py`
+  - `src/mini_agent/runtime/main_agent_runtime_manager.py`
+  - `src/apps/agent_studio_gateway/main.py`
+  - `src/apps/agent_studio_gateway/composition.py`
+  - `tests/test_main_agent_surface_service.py`
+  - `tests/test_tui_app.py`
+- Those files span both:
+  - late `P32` ownership extractions
+  - current `P33` config/runtime tightening
+- So they should not be split by folder alone during staging or commit prep.
+- The `.gitignore` correction turned out to be more than a cosmetic hygiene fix:
+  - anchoring `memory/`, `MEMORY.md`, and `USER.md` to repo root stopped Git from accidentally hiding real source files under `src/mini_agent/memory/`
+  - that makes the new memory slice visible and stageable instead of silently ignored
+- Practical implication for the next development turn:
+  - choose one slice owner first
+  - otherwise even a small runtime-surface change is likely to mix `P32`, `P33`, and docs/test sync in the same commit again
+
+## 2026-04-15 P33.21 Entry Config Loader Consolidation
+
+- After `P33.20`, the remaining config-load story was finally honest enough to simplify safely:
+  - shared runtime/core helpers no longer discovered config on their own
+  - only entry/composition seams still called `Config.load()`
+- Once those remaining sites were mapped, the duplication turned out to be very narrow:
+  - direct entry loads
+  - repeated noninteractive loader wrappers for TUI/runtime/kernel wiring
+- That shape matters because it changes what the next cleanup should be.
+- This was no longer a reason to invent another shared config service.
+- It was only a reason to give the entry/bootstrap seam one tiny maintained helper so surfaces stop repeating boilerplate while still owning the bootstrap decision.
+- One practical compatibility detail also surfaced immediately:
+  - several CLI tests stub `Config.load` with zero-argument doubles
+  - so the helper should preserve the old default call shape for the interactive path instead of always passing `allow_interactive_setup=...` explicitly
+- The resulting boundary is stronger and easier to explain:
+  - entry/composition layers still decide whether setup may be interactive
+  - active `src` now routes actual config loading through one tiny bootstrap helper module
+  - runtime/core layers remain pure consumers of injected config or loaders
+
+## 2026-04-15 P33.20 Headless / CLI Helper Config Boundary Closure
+
+- After `P33.19`, the config-load map was already much healthier.
+- But one small ownership leak was still present:
+  - `cli_interactive.build_agent(...)` could still silently recover by calling `Config.load()`
+  - the headless path still depended on that helper-local fallback
+- This was no longer a deep runtime architecture problem.
+- It was a seam-discipline problem:
+  - entry had not explicitly declared config ownership for headless
+  - the CLI helper was still willing to paper over that omission
+- The correct `P33` move here was to finish the cut instead of preserving convenience:
+  - `build_agent(...)` should only consume injected config
+  - headless mode should load config at the entry and pass it down explicitly
+- That keeps the ownership story consistent across all active maintained surfaces:
+  - CLI entrypoints own config bootstrap
+  - TUI entry wiring owns config bootstrap
+  - gateway composition owns config/bootstrap loaders
+  - shared kernel/runtime/helper seams consume injected dependencies only
+- This is a quiet but important finish to the recent config-boundary work because it removes the last "surface helper can still save you with global config" exception from the active CLI path.
+
+## 2026-04-15 P33.19 CLI Interactive Config Reuse Cleanup
+
+- After `P33.18`, the remaining config loads were finally at the surface layer, but one small inefficiency still stood out:
+  - `run_interactive_session(...)` loaded config for startup/self-check
+  - then the first interactive agent bootstrap could still load config again through the CLI helper
+- This was no longer a deep architecture bug.
+- But it was still a seam-quality issue:
+  - the surface had already decided what config it was using
+  - the first agent bootstrap should reuse that decision instead of rediscovering it
+- The right correction here was small and direct:
+  - keep `build_agent(...)` able to act as a surface-local helper
+  - but make the main interactive flow reuse the config it already loaded
+- This is a good example of the later `P33` work getting quieter:
+  - earlier slices removed hidden truth ownership from runtime/core layers
+  - this slice simply removes one redundant rediscovery step from an entry flow
+- The resulting config-load map is now much easier to justify:
+  - operator/CLI command entrypoints
+  - TUI entrypoint wiring
+  - gateway composition wiring
+  - one CLI surface-local helper fallback for cases where the caller did not already resolve config
+
+## 2026-04-15 P33.18 Runtime-Manager Composition-Owned Config Loader
+
+- After `P33.17`, the core kernel had stopped owning config discovery, but one convenience fallback still remained in the shared runtime layer:
+  - `MainAgentRuntimeManager` could still manufacture its own runtime-config loader
+- Compared with earlier leaks, this was already much better.
+- But it still meant a shared runtime service was willing to reach into global config state if the caller forgot to wire the seam.
+- For `P33`, that is still one layer too low.
+- The better ownership is:
+  - composition/entry chooses how runtime config is loaded
+  - runtime manager consumes that loader as an explicit dependency
+- This slice is valuable because it finishes the config-truth cleanup at the runtime boundary itself:
+  - runtime helpers already became explicit in `P33.16`
+  - kernel became explicit in `P33.17`
+  - now the runtime-manager shell is explicit too
+- The practical result is that the remaining `Config.load()` map is finally easy to explain:
+  - CLI entry/operator commands
+  - CLI interactive entry bootstrap
+  - TUI entry bootstrap
+  - gateway composition bootstrap
+- That is a much healthier stop point than before because every remaining config load now lives in a place that actually behaves like an entry/composition layer.
+
+## 2026-04-15 P33.17 Agent-Kernel Config Injection Boundary Cleanup
+
+- After `P33.16`, the biggest remaining hidden config owner in the active core path was no longer runtime support.
+- It was the shared kernel builder itself:
+  - `agent_core/kernel.py` still decided when and how to call `Config.load()`
+  - that meant every surface could look clean while the core still quietly owned global config discovery
+- That is not the right boundary for a shared kernel.
+- A shared kernel should assume config has already been decided by its caller.
+- It can consume config, but it should not be the place that discovers config from process-global state.
+- This slice therefore moves the seam one layer deeper than `P33.16`:
+  - entry/composition layers own config discovery
+  - the shared kernel only consumes injected config/config-loader dependencies
+- The most important behavioral change is not user-visible.
+- It is architectural honesty:
+  - when the kernel is called without config injection now, it fails explicitly
+  - that makes missing composition obvious during tests and future refactors instead of silently masking it with global fallback behavior
+- This also leaves the remaining `Config.load()` map much easier to reason about:
+  - CLI commands loading config for operator actions
+  - CLI interactive entry loading config for startup/self-check
+  - gateway composition supplying config loaders into runtime/kernel seams
+  - one remaining convenience fallback in `MainAgentRuntimeManager`
+- That last runtime-manager default is now the clearest remaining candidate if we want to push `P33` all the way to composition-owned config truth.
+
+## 2026-04-15 P33.16 Runtime / Surface Hidden Config-Load Boundary Cleanup
+
+- After `P33.15`, the config class itself was in a better state, but one important operational smell still remained:
+  - runtime support helpers could still quietly call `Config.load()`
+  - workspace-skill helper functions could still discover config on their own
+  - the TUI app class still carried its own hidden config-loading fallback
+- That is exactly the kind of drift that makes a system look modular while still keeping a global hidden truth source alive.
+- The real ownership should be:
+  - entry/surface layer decides how config is loaded
+  - runtime manager owns the config-loader seam it passes to runtime sub-services
+  - shared helper functions consume config explicitly instead of discovering it implicitly
+- The most useful correction in this slice is not just "fewer `Config.load()` calls".
+- It is that the failure mode becomes honest:
+  - if a caller forgets to provide runtime config to a path that truly needs it, the seam now fails explicitly
+  - it no longer silently succeeds by reaching into global config state behind the caller's back
+- This is especially important for `workspace_support`:
+  - it is a shared utility layer
+  - shared utility layers are exactly where hidden global dependency fallbacks tend to linger the longest
+  - removing that fallback makes the ownership story much easier to preserve in later `P33` work
+- The remaining hidden default worth considering later is one level higher:
+  - `MainAgentRuntimeManager` still offers a default runtime-config loader for convenience
+  - that is a much better place for the fallback than runtime/support helpers, but it is still a candidate for a future "composition-owned only" cut
+
+## 2026-04-15 P33.15 Bootstrap Setup Seam Extraction
+
+- After `P33.14`, `Config.from_yaml(...)` was structurally cleaner, but one boundary smell still remained:
+  - the `Config` class still directly owned first-launch operator setup behavior
+  - and it still directly owned `.env.local` bootstrap loading helpers
+- That is not ideal because those concerns are adjacent to config loading, but they are not actually the same thing as config parsing.
+- They are bootstrap/setup concerns:
+  - environment preparation
+  - operator-first-run prompting
+  - local secret file write-back
+- Keeping them inside `Config` would keep the class half parser, half setup workflow owner.
+- The better boundary is:
+  - `Config` owns orchestration over config data
+  - bootstrap helper owns first-launch environment/setup behavior
+- One useful secondary improvement from this slice:
+  - other services that only need env bootstrap support no longer need to reach through `Config` for that behavior
+  - they can depend on the smaller seam directly
+- This is a quieter refactor than the recent runtime-policy cuts, but it is the same kind of correction:
+  - move behavior to the module that actually owns it
+  - keep the config class from quietly becoming a god object again
+
+## 2026-04-15 P33.14 Config Loader Responsibility Split
+
+- After the recent `P33` boundary work, one more problem became obvious:
+  - `Config.from_yaml(...)` was still a monolithic method doing too many different jobs
+- It was simultaneously:
+  - reading files
+  - validating legacy keys
+  - loading env-local fallbacks
+  - resolving bootstrap LLM fallback behavior
+  - parsing runtime config
+  - parsing every other config section
+- That shape is risky even when behavior is correct.
+- It makes later boundary work harder because every small config ownership change has to cut through one large mixed method.
+- The right fix here was not another comment.
+- The right fix was to turn `from_yaml(...)` back into an orchestrator and make the sub-steps explicit.
+- One small but worthwhile safety improvement also landed with this cut:
+  - config root and section parsing no longer assume everything loaded from YAML is a mapping
+  - invalid shapes now fail at the loader boundary instead of falling into accidental `AttributeError`-style behavior
+- This slice does not change the `P33` architecture by itself.
+- But it materially reduces the cost and risk of continuing to refine config/runtime truth in later slices.
+
+## 2026-04-15 P33.13 Protocol-Binding / Rectifier Residual Env Fallback Removal
+
+- After `P33.12`, the hot runtime path was already much cleaner, but two residual escape hatches still mattered:
+  - `rectifier.py` still had its own `from_env()` fallback
+  - it was still worth proving that active `src` runtime code no longer had side-path profile construction outside the unified kernel/failover seam
+- The second point turned out well:
+  - there is no remaining active `src` caller constructing protocol profiles directly outside the maintained seam
+- That means the main risk left was conceptual, not architectural:
+  - if rectifier functions can still self-load env policy, future call sites may quietly revive hidden runtime policy truth below config loading
+- So the right final cleanup here was to remove that fallback entirely.
+- This is a good `P33` stop point for the current boundary because it leaves a much clearer story:
+  - config loading may absorb process-env defaults
+  - runtime config carries the effective policy
+  - kernel/failover passes policy downward
+  - protocol binding and rectifier execution consume policy, they do not discover it
+
+## 2026-04-15 P33.12 Runtime Request-Policy / Rectifier Ownership Realignment
+
+- After `P33.11`, `config.llm` had been narrowed, but one important runtime-policy leak still remained:
+  - request policy defaults were still read directly inside `protocol_binding.py`
+  - rectifier defaults were still attached to profile construction through `from_env()` fallbacks
+- That meant the hot runtime path was still carrying hidden policy truth below the config/runtime layer.
+- This is exactly the kind of drift `P33` is trying to eliminate:
+  - routing truth should be explicit
+  - runtime policy truth should be explicit
+  - protocol execution should not secretly own process-env policy
+- The right cut here was not to remove provider-aware defaults from binding.
+- Those still belong in binding.
+- The right cut was to separate:
+  - provider-aware execution defaults
+  - global runtime policy overrides
+- The active runtime now does that through:
+  - `config.runtime.request_policy`
+  - `config.runtime.rectifier`
+- Another useful outcome from this slice:
+  - legacy env knobs can still exist for developer override
+  - but the env read now happens in config loading, not inside protocol execution/profile construction
+- That is a much cleaner ownership story because the protocol layer now receives policy instead of discovering it.
+
+## 2026-04-15 P33.11 Runtime Retry Config Boundary Realignment
+
+- After `P33.10`, one config-boundary inconsistency was still left behind:
+  - routing had already been narrowed away from full `Config`
+  - but retry policy still lived under `config.llm`
+- That ownership was wrong for two reasons:
+  - retry is not part of model/bootstrap identity
+  - the YAML file already treated it like a global runtime concern
+- Leaving retry under `llm` would keep teaching that `config.llm` is still a partially active runtime policy owner.
+- That is exactly the kind of drift `P33` is trying to remove.
+- The clean fix is:
+  - keep `config.llm` for bootstrap route input
+  - move retry to `config.runtime.retry`
+  - make the file shape explicit instead of relying on convention
+- Rejecting legacy top-level `retry:` is the right hard-refactor choice here.
+- Silent compatibility would preserve the old mental model and let future config edits drift back across the same boundary.
+- The useful structural result from this slice is small but important:
+  - `config.llm` is now closer to a pure bootstrap model
+  - runtime execution policy has a clearer home
+  - config shape and runtime ownership now tell the same story
+
+## 2026-04-15 P33.10 Bootstrap-Only Route Boundary Narrowing
+
+- After `P33.1`, the runtime behavior was mostly corrected, but one interface-level drift still remained:
+  - routing functions still accepted the whole `Config` object
+- Even when the implementation only used `config.llm` for bootstrap, that signature still taught the wrong ownership model.
+- It suggested that routing was allowed to depend on all of config again.
+- That kind of drift is subtle, because behavior may already be correct while boundaries are still wrong.
+- The right fix here was not another comment or convention.
+- The right fix was to make the API itself honest:
+  - extract one minimal bootstrap route input
+  - pass that explicit input into routing
+  - stop threading full runtime config through selection/routing helpers that do not need it
+- This is valuable because it turns `P33` from a behavioral promise into a type/interface constraint:
+  - registry truth stays primary
+  - bootstrap truth is explicit and tiny
+  - runtime policy remains elsewhere
+- Another useful outcome from this slice:
+  - session model-selection identity resolution never actually needed runtime config ownership
+  - it only needed provider registry validation
+- Removing the config-shaped parameter there reduces the chance that future session work quietly reintroduces config-owned routing defaults.
+
+## 2026-04-15 P33.9 Gemini Active Runtime Residual Cleanup
+
+- `P33.1` had already made the design decision:
+  - Gemini is not part of the maintained active runtime path
+- The real problem was that the code still taught a different story than the plan:
+  - discovery still had Gemini endpoints and fallback inventory
+  - provider enums still advertised Gemini as a supported runtime protocol
+  - ops discovery still accepted Gemini as if it were a maintained setup path
+- That kind of drift is more dangerous than an obvious TODO.
+- It creates a false product promise:
+  - operators think Gemini is supported
+  - runtime tests may stop covering the real maintained surface
+  - later cleanup slices keep carrying dead branching cost
+- The most important correction in this slice was not only deleting enum values.
+- It was restoring honest boundaries:
+  - active runtime supports the maintained protocol family only
+  - stale provider names must fail explicitly
+  - historical/reference Gemini material can remain outside the hot path without affecting runtime truth
+- One especially important correction was in setup/discovery behavior.
+- Silently mapping unsupported provider names to `openai` would have been convenient, but it would also hide configuration mistakes.
+- Rejecting `gemini` in active ops flows is the right behavior now because:
+  - it matches the locked `P33` decision
+  - it keeps failures near the operator input
+  - it prevents “looks configured but routes somewhere else” bugs
+- Another useful distinction from this slice:
+  - not every `gemini` string in the repo is runtime drift
+  - `GEMINI.md` memory-file semantics and MCP profile conversion helpers are separate concerns
+- Keeping that distinction matters because otherwise cleanup turns into accidental feature loss instead of architectural correction.
+
+## 2026-04-15 P33.8 Ollama Local Provider Integration
+
+- The main design trap in `P33.8` was not the protocol integration itself.
+- The real trap was startup truth.
+- If Ollama had been treated as "auto-present whenever localhost responds", it would have silently changed the corrected `P33.1` bootstrap behavior:
+  - local daemon reachable
+  - preset registry no longer empty
+  - bootstrap-config path gets bypassed
+- That would be architecture drift disguised as convenience.
+- The safer choice is explicit enablement:
+  - Ollama is now a maintained local preset/provider
+  - but it only enters the active preset chain when the user explicitly enables it
+- That preserves two things at once:
+  - first-class integration
+  - stable existing cloud/bootstrap behavior
+- Another useful design result is that Ollama did not need a new provider API family.
+- The runtime stays protocol-centric:
+  - default Ollama route uses the Anthropic-compatible path for coding-agent work
+  - optional OpenAI-compatible mode is an override, not a second runtime subsystem
+- Discovery also turned out to need one practical fallback:
+  - use `/v1/models` as the maintained OpenAI-compatible inventory path
+  - fall back to `/api/tags` for older/native daemon layouts
+- That keeps discovery resilient without teaching the rest of the runtime two different provider shapes.
+- The most important structural outcome from this slice is therefore not just "Ollama works."
+- It is:
+  - Ollama now plugs into registry truth
+  - selection/routing still stay on the same corrected seam
+  - no fake user-managed API key is required
+  - no hidden local-daemon auto-takeover was introduced
+- The next practical risk after landing `P33.8` is no longer architecture drift.
+- It is edge honesty:
+  - can a session explicitly select `preset-ollama`
+  - do local `CLI / TUI` rebuild onto that route cleanly
+  - does the CLI distinguish "not enabled" from "enabled but daemon unreachable"
+- Those are small seams, but they decide whether a local-provider path feels reliable in real use.
+- Live-machine validation exposed one more concrete runtime fact:
+  - loopback local providers are not only a protocol-binding problem
+  - they are also a transport-environment problem
+- On this machine, two different layers initially failed for the same reason:
+  - discovery/reachability traffic
+  - provider SDK execution traffic
+- Both were trusting global proxy env vars and misrouting `localhost` traffic, which produced false `502` failures against the local Ollama daemon.
+- The correct repair is not to special-case Ollama behavior everywhere.
+- The correct repair is:
+  - bypass proxy env for loopback discovery/reachability endpoints
+  - bypass proxy env for loopback SDK transports in the protocol client layer
+- That keeps the fix aligned with `P33`:
+  - protocol/runtime seams stay clean
+  - maintained local providers become reliable on real developer machines
+  - no new provider family is introduced just to survive proxy leakage
+- Additional live validation of `MINI_AGENT_OLLAMA_PROTOCOL=openai` produced one more practical conclusion:
+  - the optional OpenAI-compatible path is routable and operational
+  - but on the current local `qwen3.5:9b` model it is not behaviorally equivalent to the default Anthropic-compatible path
+- Specifically:
+  - discovery works
+  - streaming works
+  - tool calling works
+  - but the model may finish a tool turn with thinking-only output and no final assistant text message
+- That is a quality/compatibility difference, not a routing failure.
+- So the current product decision remains correct:
+  - keep Ollama defaulting to the Anthropic-compatible route
+  - treat the OpenAI-compatible override as optional and lower-confidence for agent-style tool-finalization behavior
+
+## 2026-04-15 P33.7 Request Policy / Protocol Parameter Upgrade
+
+- The real remaining drift after `P33.6` was not routing anymore.
+- It was that request policy still had no honest owner.
+- The same class of defaults was split across three places:
+  - protocol binding
+  - rectifier options
+  - protocol clients
+- That split was especially risky for the next runtime phase because `Ollama` would otherwise inherit another round of copied request logic.
+- The cleanest repair was to make one thing explicit:
+  - a bound `ProtocolRequestPolicy` on `ProtocolExecutionProfile`
+- That let the runtime preserve an important distinction:
+  - binding decides the effective policy for one routed provider/model path
+  - rectifier normalizes payload shape
+  - protocol clients only translate the already-bound policy into SDK call kwargs
+- One important choice in this slice was not to keep thinking-budget ownership in the rectifier.
+- Leaving it there would keep mixing:
+  - "what should this route send"
+  - "how should this payload be normalized"
+- Moving thinking budget, reasoning split, stream flags, and output-token defaults into the bound policy makes later runtime growth much safer.
+- Another useful detail is that the bound policy now captures route-specific support decisions without pushing them down into the clients.
+- Example:
+  - OpenAI-compatible MiniMax routes can carry a thinking budget by default
+  - generic third-party OpenAI-compatible routes do not inherit that budget automatically
+- That is exactly the kind of compatibility decision the binding layer should own.
+- The practical result is that `P33.7` closes the last obvious "client-owned policy" gap before `P33.8`.
+- `Ollama` can now plug into:
+  - provider registry truth
+  - capability-aware routing
+  - explicit request-policy binding
+  instead of inheriting hidden defaults from one protocol client branch.
+
+## 2026-04-15 P33.6 Capability-Aware Routing Upgrade
+
+- `P33.5` only became valuable once the runtime truly consumed the new metadata.
+- Before this slice, `supports_tools / supports_thinking / context_window` existed mostly as stored facts, not routing truth.
+- The cleanest repair was to avoid building a second "smart router".
+- Instead, the existing selector only needed one small new input:
+  - a normalized route requirement profile
+- That profile turned out to be enough for the current phase because the real needs are intentionally narrow:
+  - hard filter known non-tool routes when tools are required
+  - hard filter known undersized context windows when a minimum is explicitly requested
+  - add one explicit preference bonus for thinking-capable models
+- Another important design choice in this slice was to keep pinned/manual selection exact.
+- That avoids a common routing mistake:
+  - user picks a specific model
+  - runtime silently "helpfully" swaps it for a more compatible one
+- The main automatic route path is the right place for capability-aware filtering.
+- Exact session/provider/model pinning is not.
+- One more useful boundary decision landed here:
+  - `min_context_window` is now a stable routing seam
+  - but the kernel does not invent a universal default threshold yet
+- That is the safer move.
+- It gives `P33.7` and later session/request policy work a place to plug in explicit thresholds without hard-coding a premature global number into the runtime today.
+
+## 2026-04-15 P33.5 Model Discovery / Latest Selection Upgrade
+
+- The real problem with preset latest-selection was not only that it was heuristic.
+- The deeper problem was that the heuristic result was being treated like durable truth.
+- That meant the project was losing the two pieces of information the next routing slice actually needs:
+  - why this model was recommended
+  - what capabilities/discovery confidence the inventory currently has
+- The right repair was therefore two-part:
+  - move recommendation into one explicit policy seam (`curated_latest / official_default / discovered_latest`)
+  - persist discovery/capability metadata in registry truth instead of recomputing it ad hoc
+- One practical design win from this slice is that we did not need a full "model object" refactor yet.
+- Extending provider state with normalized `model_metadata` was enough to:
+  - keep the current provider catalog structure intact
+  - preserve discovery/capability information through preset/custom/runtime catalog flows
+  - leave `P33.6` able to consume the metadata without another registry rewrite first
+- Another useful correction landed almost for free:
+  - provider-setup model discovery now recommends from the same explicit policy seam instead of reading only `latest_base_model`
+- The important structural result is that `latest_base_model` is now demoted back to what it really is:
+  - one weak discovery signal
+  - not the universal source of default-selection truth
+
+## 2026-04-15 P33.4 Local Surface Streaming Closure
+
+- The protocol-native streaming work in `P33.4` was necessary, but it was not sufficient by itself.
+- There was still one visible product-level gap:
+  - local `CLI / TUI` were structurally downstream of the submission loop
+  - but they were still effectively waiting on buffered final payload handling
+- The important realization here is that the project already had the correct seam.
+- Once `agent_loop` started publishing normalized `loop.llm_event`, local surfaces did not need:
+  - provider SDK awareness
+  - another streaming protocol
+  - a second planner contract
+- They only needed to subscribe to the same submission-bus runtime events and treat live deltas as the primary truth.
+- That gave two useful design outcomes:
+  - local surfaces are now aligned with the same normalized event seam as shared/gateway streaming
+  - final buffered replies are restored to their correct role as terminal completion payloads, not the primary live-display source
+- This closes `P33.4` in the more honest sense:
+  - native streaming exists at the protocol layer
+  - the planner consumes it
+  - shared surfaces stream it
+  - local `CLI / TUI` now also consume it directly instead of faking liveliness from buffered completions
+
+## 2026-04-14 P33.4 Native Streaming Upgrade
+
+- The project's old streaming path was not a protocol problem first.
+- It was a seam-order problem:
+  - provider clients still buffered
+  - agent execution still consumed buffered completions only
+  - the gateway only replayed final text as fake deltas
+- Once `P33.3` normalized the response/event model, the honest upgrade path became much simpler:
+  - add native stream methods at the protocol layer
+  - aggregate those same normalized events back into the buffered completion the planner already understands
+- That turned out to be the key design win in this slice.
+- The agent loop did not need a second planner contract for streaming.
+- It only needed to consume `LLMStreamEvent` directly and keep `LLMCompletionResult` as the aggregated terminal shape.
+- One additional runtime detail surfaced during implementation:
+  - Anthropic-style streaming usage can arrive incrementally
+  - if the runtime keeps "last usage event wins" semantics, token accounting becomes wrong
+- The fix belongs in the response normalizer, not in one provider client:
+  - usage aggregation now merges incremental updates instead of blindly replacing them
+- Another useful boundary improvement landed almost for free:
+  - submission-loop progress can now publish `loop.llm_event`
+  - local surfaces do not need to parse provider SDK payloads later to gain live output support
+- The important result of `P33.4` is therefore broader than "gateway streams sooner":
+  - protocol-native streams now exist
+  - agent planning consumes them directly
+  - application streaming no longer depends on fake final-text replay when live deltas are available
+  - local surface evolution has a proper core event seam to build on next
+
+## 2026-04-14 P33.3 Rich Response Model Upgrade
+
+- The old buffered response contract was no longer the right center for the runtime.
+- It was sufficient for "one request, one final string", but it was already too small for the real next steps:
+  - native streaming
+  - richer usage metadata
+  - thinking/tool-call deltas that should not depend on provider-specific response parsing at higher layers
+- The correct center is a normalized event stream, with buffered completion as its aggregated form.
+- That led to one important design choice in this slice:
+  - `LLMCompletionResult` is now the canonical buffered result
+  - it always carries or can synthesize a normalized `events` list
+- This matters because it lets the project evolve toward streaming without forcing:
+  - a second result model
+  - a parallel logger contract
+  - another agent-loop rewrite for every provider
+- Another useful cleanup surfaced during validation:
+  - `tests/test_agent_core_turn_context.py` contained pre-existing corrupted prompt literals
+  - that problem was unrelated to the response-model redesign, but it blocked lint/test confidence for this slice
+  - repairing those prompts was the right minimal fix because it restored a valid regression gate without changing test intent
+- The practical structural gain from `P33.3` is:
+  - protocol clients now emit normalized completion results
+  - logger writes normalized event payloads
+  - buffered and future streamed output now share one honest response seam
+- This leaves `P33.4` in a much better position:
+  - native streaming can focus on transport/event emission
+  - higher layers no longer need another response-contract migration
+
+## 2026-04-14 P33.2 Protocol Boundary Hardening
+
+- The real protocol-boundary bug was not inside failover or registry routing anymore.
+- It was inside the execution seam itself:
+  - `llm_wrapper.py` still normalized provider-compatible endpoints
+  - protocol clients still embedded provider-shaped defaults/tweaks
+- The clean fix was to add one explicit execution profile layer between:
+  - routed provider settings
+  - protocol client execution
+- That profile is now the honest owner for:
+  - normalized protocol base URL
+  - compatibility headers
+  - OpenAI extra request body defaults already in use
+  - rectifier capability flags tied to the bound endpoint
+- A useful refinement surfaced during this cut:
+  - the old OpenAI rectifier only injected thinking budget by re-inspecting the endpoint
+  - that kept provider compatibility knowledge alive in a lower layer
+  - moving that decision into profile-bound rectifier options makes the boundary cleaner
+- This slice deliberately stopped short of a full request-policy redesign.
+- The important structural gain is narrower:
+  - protocol clients now execute one bound profile
+  - provider compatibility policy no longer lives in the wrapper/client branch logic
+- That leaves `P33.3 / P33.4 / P33.7` with a much cleaner seam to build on.
+
+## 2026-04-14 P33.1 Registry Truth Consolidation
+
+- The real runtime bug was not only the explicit config fallback branch.
+- The subtler bug was that `config.llm.provider` and `config.llm.model` still biased routing even when the registry already existed.
+- That meant the system was still effectively carrying two routing truths.
+- The correct repair was:
+  - keep `config.llm` only as bootstrap input
+  - synthesize a bootstrap provider entry when the registry is empty
+  - route that bootstrap provider through the exact same selector/failover path as every other provider
+- After this cut:
+  - runtime routes no longer surface a direct `config` source
+  - bootstrap routes now carry a normal provider identity (`bootstrap-config`)
+  - provider default models, not `config.llm.model`, now supply omitted selection defaults once a registry provider is targeted
+- `Gemini` removal in this slice was intentionally limited to active preset/runtime-facing setup and CLI UX.
+- Deeper `Gemini` discovery/protocol leftovers still exist outside the active runtime hot path and belong to later cleanup slices, not to `P33.1`.
+
+## 2026-04-14 P33 LLM Runtime Upgrade Planning
+
+- The project does not need one native SDK per brand to satisfy its real usage pattern.
+- The correct runtime center is protocol execution, not vendor-name symmetry.
+- This means the current "two protocol clients, many provider routes" shape is acceptable in principle.
+- But the current implementation still has real design debt:
+  - `config.llm` still acts as a peer truth source beside the provider registry
+  - protocol clients still host some provider-specific compatibility behavior
+  - streaming is still application-layer replay, not native provider streaming
+  - latest-model selection is still partly heuristic
+- The right truth model is:
+  - provider registry owns provider/model inventory truth
+  - session identity owns active model truth
+  - runtime policy/config owns retry/rectifier/request-policy defaults
+- `config.llm` should therefore become bootstrap-only, not remain a first-class runtime route owner.
+- `Gemini` should leave active runtime scope.
+- `MiniMax` should remain an active provider target inside the `anthropic` compatibility family.
+- Route capability expansion should stay deliberately small for now:
+  - `tools`
+  - `thinking`
+  - `context_window`
+- `Ollama` is a good fit for this runtime after seam cleanup because official docs currently expose:
+  - OpenAI-compatible local endpoints
+  - Anthropic-compatible local endpoints
+  - no real auth requirement for local API access
+- The correct implementation order is not "add Ollama first".
+- The correct order is:
+  - fix runtime truth
+  - clean protocol boundary
+  - add native streaming
+  - improve discovery/routing/request policy
+  - then add Ollama onto the corrected seam
+
+## 2026-04-14 P32.46 Memory Command Core Consolidation
+
+- `P32.32` was correct about one narrow question:
+  - `RuntimeSessionMemoryCommandHandler` was not worth splitting into smaller runtime-only shells just because it was large.
+- But a different problem emerged once the runtime side was compared directly with local operator execution:
+  - the same `/memory` command semantics had been reimplemented a second time in [execution.py](d:\file\Mini-Agent\src\mini_agent\commands\execution.py)
+  - that made the real boundary issue cross-surface ownership duplication, not runtime file size
+- The honest owner is therefore neither:
+  - `runtime/session_memory_command_handler.py`
+  - nor `commands/execution.py`
+- The honest owner is `mini_agent.memory`, because both callers need the same domain behavior:
+  - selector resolution
+  - runtime/shared lookup rules
+  - durable memory read behavior
+  - promote/save mutation behavior
+  - formatted details payload construction
+- The right fix was:
+  - extract a shared [command_service.py](d:\file\Mini-Agent\src\mini_agent\memory\command_service.py)
+  - move the runtime-memory backend seam into [runtime_backend.py](d:\file\Mini-Agent\src\mini_agent\memory\runtime_backend.py)
+  - leave runtime and local callers as thin wrappers over the shared owner
+- This is an important correction to the earlier keep decision:
+  - do not split cohesive runtime owners only for size
+  - do extract when comparison across surfaces reveals a real escaped shared owner
+
+## 2026-04-14 P32.45 Runtime Manager Boundary Audit
+
+- `MainAgentRuntimeManager` is large, but it is large for an understandable reason.
+- It combines two adjacent concerns:
+  - the public runtime port façade consumed by the application layer
+  - one-time internal wiring of subordinate runtime services
+- That looks suspicious at first glance, but it is not the same kind of boundary leak as the earlier mixed owners.
+- The public methods line up closely with [session_runtime_port.py](d:\file\Mini-Agent\src\mini_agent\application\session_runtime_port.py).
+- They mostly do three things:
+  - take the store lock consistently
+  - load/require the relevant managed session when needed
+  - delegate actual domain work to already-extracted runtime handlers
+- The `_initialize_*` phases also do not currently escape as shared utilities.
+- They are private construction phases for the manager's own internal graph.
+- Extracting them now would mostly create a composition-only file, not a clearer business owner.
+- So this slice is a keep decision.
+- The only code cleanup worth landing here was removing an unused private helper.
+- That preserves momentum without pretending there is a deeper split ready to happen.
+
+## 2026-04-14 P32.44 Tooling / Turn-Context Builder Split
+
+- `transport` was worth auditing, but not worth cutting yet.
+- `gateway_client.py` still reads as one low-level HTTP transport owner.
+- `remote_session_client.py` still reads as one typed session facade over that transport.
+- The real ownership leak was in `runtime/tooling.py`.
+- That module had accumulated three different seams:
+  - runtime-policy and approval/bootstrap helpers
+  - skill directory path resolution
+  - turn-context provider assembly
+- Those responsibilities are adjacent in runtime startup order, but they are not the same owner.
+- Path resolution is shared by both tool bootstrap and skill-command support.
+- Turn-context provider assembly belongs to context preparation, not tool initialization.
+- The honest cut was therefore:
+  - keep `tooling.py` for tool/bootstrap/policy behavior
+  - extract [skill_path_resolver.py](d:\file\Mini-Agent\src\mini_agent\runtime\skill_path_resolver.py)
+  - extract [turn_context_provider_builder.py](d:\file\Mini-Agent\src\mini_agent\runtime\turn_context_provider_builder.py)
+- This is the kind of split we want more of in `P32`:
+  - not smaller files for their own sake
+  - clearer homes for seams that are already being reused across different runtime flows
+
+## 2026-04-14 P32.43 Gateway Ops Auth Split / Interaction Adapter Audit
+
+- `interaction_request_adapter.py` looked suspicious mostly because of its filename breadth, not because of its behavior.
+- The audit result is keep.
+- It still owns one adjacent application concern:
+  - normalize request-shaped interaction inputs into one binding object
+  - project that binding back into the specific request contracts needed by the application layer
+- That is different from the mixed owners we have been removing.
+- It is not combining routing, persistence, or surface-specific policy.
+- The more honest cleanup target was in the gateway transport package.
+- `ops_router.py` still contained auth helpers that had already escaped router-local use.
+- Once `main.py` and composition wiring depend on the same auth policy, that policy is no longer a router implementation detail.
+- Leaving it inside `ops_router.py` would keep teaching the wrong boundary:
+  - router module as route owner
+  - router module as shared auth-policy owner
+- The correct fix was to extract a dedicated gateway auth owner:
+  - [ops_auth.py](d:\file\Mini-Agent\src\apps\agent_studio_gateway\ops_auth.py)
+- This is the same cleanup pattern we want elsewhere in `P32`:
+  - keep cohesive adapters/facades
+  - cut only where a utility has become a shared owner outside the file that still hosts it
+
+## 2026-04-14 P32.42 SessionSurfaceBinding Alias Removal
+
+- This was the right kind of naming cleanup to do now.
+- SessionSurfaceBinding was not an active owner.
+- It was only a second name for ApplicationInteractionBinding.
+- That kind of alias is harmful because it suggests there are two different abstractions when there is really only one.
+- Removing it improves the application story without changing behavior:
+  - session-facing code now points directly at the real binding abstraction
+  - tests assert binding semantics against the real type rather than against an alias
+- This is a better use of naming-cleanup effort than renaming active multi-caller modules whose ownership is already accurate.
+## 2026-04-14 P32.41 Session Service / Naming-Debt Audit
+
+- `SessionApplicationService` is broad, but it still reads as one application owner.
+- Its responsibilities are adjacent parts of one seam:
+  - session CRUD/mutation wrappers over the runtime port
+  - request-to-binding normalization for session-scoped operations
+  - managed turn preparation for chat and derived chat
+- That means its current shape is not the same kind of problem as the earlier mixed owners we split.
+- The more interesting result from this audit is naming debt.
+- Several names look close, but they are still telling the truth about different layers:
+  - `session_lifecycle.py` serves TUI/CLI surface lifecycle helpers and the exported surface runtime
+  - `session_runtime_lifecycle_handler.py` serves the managed main-agent runtime lifecycle owner
+  - `session_runtime_port.py` is correctly named as an application-facing port into runtime
+  - `surface_service_types.py` is a small shared callable-types module, not a hidden service owner
+  - `main_agent_runtime_policy_loader.py` is a composition-root helper and still reads honestly
+- The one small naming debt that does look worth cleaning later is `SessionSurfaceBinding`.
+- It is only an alias of `ApplicationInteractionBinding`, not a real separate owner.
+- That kind of alias is a better next naming cleanup target than renaming active multi-caller modules whose ownership is already accurate.
+
+## 2026-04-14 P32.40 Surface Chat Flow / Surface Service Boundary Audit
+
+- `SurfaceChatFlowHandler` is large, but it still reads as one lifecycle owner.
+- Its branches are not separate business domains.
+- They are delivery modes of the same chat-turn flow:
+  - request/response
+  - SSE streaming
+  - dry-run variants
+  - shared turn finalization
+- Splitting it now would likely create transport-mode shells around one flow contract.
+- `MainAgentSurfaceService` is also broad, but for a different reason.
+- It is an intentional public application façade.
+- Its many methods mostly expose one maintained surface for gateway and clients while delegating the underlying work to:
+  - `SessionApplicationService`
+  - `SurfaceChatFlowHandler`
+  - `AgentRouteExecutionHandler`
+  - `AgentDelegationExecutionHandler`
+- So the current problem is not hidden mixed business ownership.
+- The current shape is mostly façade breadth.
+- That means these two files should be kept for now, and later cleanup should avoid façade-splitting unless a new internal business domain genuinely accumulates inside them.
+
+## 2026-04-14 P32.39 Route Resolution / Delegation Execution Split
+
+- `AgentRouteExecutionHandler` turned out to be a better split target than it first looked.
+- The important distinction was inside the file itself:
+  - route resolution and route diagnostics still belong together
+  - delegated child-turn execution and fallback do not
+- If we had split route resolution away from diagnostics, we would likely have created bookkeeping shells.
+- But keeping delegation execution inside the route owner would keep teaching the wrong application boundary.
+- Delegation execution is not just a routing concern.
+- It owns:
+  - derived session creation
+  - delegated child-turn execution
+  - delegation event assembly
+  - fallback back to the main agent
+- The honest cut was therefore:
+  - keep `AgentRouteExecutionHandler` as the route-resolution / diagnostics owner
+  - extract `AgentDelegationExecutionHandler` as the delegated execution owner
+- This leaves the application layer easier to extend:
+  - future routing rules can evolve without dragging child-turn execution details with them
+  - delegation policy/fallback behavior now has one explicit home
+
+## 2026-04-14 P32.38 Channel Ingress / Novel Action Ownership Split
+
+- `ChannelIngressUseCases` had become another quiet mixed owner.
+- The problem was not file size.
+- The problem was that one application entry owner was simultaneously claiming:
+  - remote conversation ingress and binding lookup
+  - feature-specific `/novel ...` command parsing
+  - feature-specific novel action dispatch
+- Under the current architecture, that is the wrong teaching signal.
+- Remote ingress is a surface-entry concern.
+- Novel action parsing/dispatch is feature-command behavior.
+- Keeping both in one owner would make every future remote-only feature command look like something that belongs inside ingress orchestration.
+- The correct fix was to keep ingress thin and extract a dedicated owner:
+  - `ChannelNovelActionHandler`
+- That leaves the boundaries more honest:
+  - `ChannelIngressUseCases` now owns remote message entry and session binding
+  - channel-facing novel actions now have an explicit application owner
+
+## 2026-04-14 P32.37 Session Control Ownership Split
+
+- The audit result was asymmetric:
+  - `RuntimeSessionOperatorHandler` looked large, but it is still a real orchestration facade
+  - `RuntimeSessionControlHandler` looked smaller, but it was the actual mixed owner
+- That distinction matters.
+- Splitting `RuntimeSessionOperatorHandler` now would mostly create routing shells around one command surface:
+  - lock/persist/transcript coordination still belongs together
+  - the underlying command domains are already delegated
+- The real structural leak was that one `session_control` owner claimed three different business areas:
+  - agent context control (`compact`, `drop_memories`)
+  - agent knowledge-base toggles (`kb_on`, `kb_off`)
+  - MCP inspection/reload (`mcp_status`, `mcp_list`, `mcp_reload`)
+- The honest cut was:
+  - keep `operator` as the command facade
+  - split `control` into agent-side control and MCP control
+- This improves the runtime picture in a meaningful way:
+  - contributors can now find MCP operational ownership directly
+  - context/KB control stays close to agent-facing runtime behavior
+  - the operator layer stops being the next automatic split target just because it is large
+
+## 2026-04-14 P32.36 Recovery-State Ownership Completion
+
+- `P32.35` improved the live-state boundary, but recovery ownership was still split across two files.
+- The remaining leak was `apply_stored_recovery(...)` inside `RuntimeSessionHydrationBuilder`.
+- That method does not build hydration payloads.
+- It mutates recovery projection state.
+- Moving it into `RuntimeSessionRecoveryResetHandler` completes the recovery owner more honestly:
+  - apply stored recovery
+  - build recovery turn context
+  - clear recovery state
+  - reset runtime/recovery state
+- This is a small cut, but it matters because it stops hydration code from silently owning projection-state mutation.
+
+## 2026-04-14 P32.35 Runtime Pending-Approval and Recovery/Reset Extraction
+
+- `RuntimeSessionLiveStateHandler` turned out to be a real mixed-owner module, not just a long one.
+- The important distinction was this:
+  - surface binding + transcript/activity mutation still belong together as "live state"
+  - pending approval state does not
+  - recovery/reset cleanup does not
+- Leaving those concerns inside one `live_state` owner would keep teaching the wrong runtime picture:
+  - approvals would look like transcript/live-view state
+  - reset/recovery cleanup would look like a side effect of transcript mutation
+- The correct fix was a targeted extraction instead of a full fan-out split:
+  - `RuntimeSessionPendingApprovalStateHandler`
+  - `RuntimeSessionRecoveryResetHandler`
+- This keeps the cut meaningful without creating a pile of forwarding shells.
+- The remaining `RuntimeSessionLiveStateHandler` now reads much more honestly:
+  - bind/update active surface state
+  - append transcript entries
+  - maintain per-turn activity/live running flags
+
+## 2026-04-14 P32.34 Session Package Public-Surface Hard Refactor
+
+- The correct follow-up to the `P32.33` audit was deletion, not renaming.
+- `SessionStore` was not a thin wrapper over the live runtime.
+- It was a dead public story that kept teaching contributors there were two session cores.
+- Hard-removing it improves the structure materially:
+  - `mini_agent.session` now reads as a persistence/projection/binding package
+  - runtime session truth remains explicitly under `mini_agent.runtime`
+  - future session work is less likely to accidentally reattach to a fake store aggregate
+- Replacing the store-only tests with package-export and `SessionPersistence` contract tests also improves the regression surface:
+  - the tests now protect the current owners
+  - they no longer keep a deleted ownership model alive by inertia
+
+## 2026-04-14 P32.33 Session Store Canonical Ownership Audit
+
+- `mini_agent.session.store` is no longer the active runtime session owner.
+- The live runtime session truth now sits in:
+  - [session_state.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_state.py)
+  - [session_runtime_persistence.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_runtime_persistence.py)
+  - [session_managed_store_handler.py](d:\file\Mini-Agent\src\mini_agent\runtime\session_managed_store_handler.py)
+  - [main_agent_runtime_manager.py](d:\file\Mini-Agent\src\mini_agent\runtime\main_agent_runtime_manager.py)
+- `mini_agent.session` still matters, but for different reasons than its current package story suggests.
+- Its live responsibilities are primarily:
+  - persistence primitives via `SessionPersistence`
+  - transport/read projections
+  - conversation binding state
+- The problem is not that the whole `session` package is obsolete.
+- The problem is that `session/__init__.py` and `session/store.py` still teach an outdated story:
+  - they describe `SessionStore` / `SessionState` as canonical
+  - they export a second session aggregate that live runtime code no longer uses
+- Search evidence supports this strongly:
+  - live `src/mini_agent` imports do not meaningfully depend on `SessionStore`
+  - maintained consumers instead depend on `SessionPersistence`, projections, and binding services
+  - `SessionStore` is currently kept alive mostly by its own dedicated tests
+- So the next correct physical-structure move is not another arbitrary large-file split.
+- It is to fix the package boundary story itself:
+  - stop presenting `SessionStore` as canonical public session truth
+  - either demote/rehome it as legacy infrastructure or delete it if no real maintained caller remains
+  - keep `mini_agent.session` focused on persistence/binding/projection ownership
+
+## 2026-04-14 P32.32 Runtime Session Memory Command Boundary Audit
+
+- `RuntimeSessionMemoryCommandHandler` is large, but it is not currently the same kind of problem `OperationsUseCases` was.
+- The module still owns one coherent runtime concern:
+  - execute `/memory ...` commands against one session's runtime/durable memory surfaces
+- Its branches are command families within that one concern, not separate application domains:
+  - cheap runtime/session/shared reads
+  - durable workspace/global/consolidated reads
+  - controlled mutations such as refresh, promote, save, and shared clear
+- The file also already delegates important formatting/detail work out to `mini_agent.memory.diagnostics`, which is a good sign:
+  - presentation helpers are mostly not trapped in the runtime handler itself
+  - the remaining logic is primarily command routing, selector resolution, backend calls, and result assembly
+- So the right decision here is:
+  - do not hard-split the module now
+  - avoid creating artificial `read_handler` / `mutation_handler` shells that would mostly forward the same diagnostics/session/backend state around
+- The better future trigger is behavioral divergence, not line count.
+- Revisit a split only if one of these happens:
+  - durable-memory reads gain a large independent policy/cache/transport story
+  - mutation commands gain distinct retry/approval/persistence semantics beyond the current shared pattern
+  - a second caller needs one subset of the behavior without the rest of the command surface
+
+
+
+## 2026-04-14 P32.31 Operations Provider/Memory Use-Case Split
+
+- The audit conclusion from `P32.30` was correct: `OperationsUseCases` was not just large, it was teaching the wrong ownership model.
+- One application module was simultaneously claiming:
+  - provider/model admin behavior
+  - workspace memory admin behavior
+  - file-system/path-policy enforcement helpers
+- That shape matters because it quietly encourages future gateway features to keep accreting into one generic "ops" owner.
+- The correct fix was a real split, not a facade rename:
+  - shared path/policy helpers moved into `operations_path_policy.py`
+  - provider/model flows moved into `operations_provider_use_cases.py`
+  - memory flows moved into `operations_memory_use_cases.py`
+  - gateway transport now injects the separated owners explicitly
+- This leaves the application layer in a healthier state:
+  - provider/model admin and memory admin are separate use-case seams
+  - shared policy logic no longer hides inside one of those domains
+  - the old mixed module stops teaching future contributors that "ops" is a single business owner
+
+
+
+## 2026-04-14 Operations Use Cases / Session Memory Handler Boundary Audit
+
+- After the runtime-manager and application turn-lease cleanup, the next two 鈥渓arge鈥?modules were:
+  - `OperationsUseCases`
+  - `RuntimeSessionMemoryCommandHandler`
+- They are not equally problematic.
+- `OperationsUseCases` is the clearer next refactor target because it still mixes three different concerns:
+  - provider/model admin flows
+  - memory admin flows
+  - path-policy / catalog-path resolution helpers
+- That is not just file size.
+- It is a real ownership blend inside one application module.
+- By contrast, `RuntimeSessionMemoryCommandHandler` is large but still reads as one domain owner:
+  - it handles session-scoped memory command routing
+  - its read/mutate branches are different behaviors of the same command surface
+- So the practical conclusion is:
+  - split `OperationsUseCases` next
+  - keep `RuntimeSessionMemoryCommandHandler` intact for now unless command semantics begin to fork into truly separate owners
+
+## 2026-04-14 Session Catalog Workspace Path Utility Consolidation
+
+- After introducing `workspace_path_utils.py`, one duplicate path-normalization owner still remained in `RuntimeSessionCatalogHandler`.
+- That duplication was smaller than the manager residue we already cleaned, but it still mattered:
+  - session summary dedupe keys were not using the shared runtime path seam
+  - catalog logic still looked like it owned a separate path-key concept
+- Removing that duplicate keeps the runtime picture more honest:
+  - one canonical workspace path-key owner
+  - less small-copy drift risk in dedupe and conversation-key logic
+
+## 2026-04-14 Application Managed Session Turn Extraction
+
+- After the runtime slices, the next structural issue was not deeper runtime behavior.
+- It was physical ownership inside `application/`.
+- `session_service.py` still co-located:
+  - `SessionApplicationService`
+  - `ManagedSessionTurn`
+- Those two concepts are closely related, but they are not the same responsibility.
+- `ManagedSessionTurn` is an application turn lease / scoped session object.
+- Keeping it in the service module made the service file look broader than it really was.
+- Pulling it into `managed_session_turn.py` improves the structure in a simple, honest way:
+  - the service file now reads like a service file
+  - turn/chat executors import the turn lease from its real owner
+  - the physical tree better matches the already-frozen application layering
+
+## 2026-04-14 Runtime Session Snapshot Builder Extraction
+
+- After the workspace-path cleanup, `RuntimeSessionReadModelBuilder` still mixed two adjacent but different responsibilities:
+  - read-model construction for summary/detail/message/recovery views
+  - snapshot export construction
+- That is the kind of mixing that starts small but keeps a module name from telling the truth.
+- Snapshot export already had an orchestration home in `RuntimeSessionSnapshotHandler`.
+- The missing piece was a dedicated builder seam.
+- Pulling snapshot construction into `RuntimeSessionSnapshotBuilder` improves the runtime structure:
+  - read-model code now reads more like read-model code
+  - snapshot export has an explicit builder owner
+  - manager wiring now communicates the distinction instead of hiding it inside one broad builder
+
+## 2026-04-14 Runtime Workspace Path Utility Consolidation
+
+- After the hydration coordinator cut, the runtime-manager boundary audit showed the remaining noise was no longer orchestration.
+- It was duplicated utility ownership:
+  - workspace-path normalization existed in multiple runtime files
+  - the manager still kept a `_normalize_surface(...)` helper that only forwarded to `normalize_surface_label(...)`
+- That kind of residue matters because it makes the manager look more authoritative than it really is.
+- The right correction was not another manager helper rename.
+- It was to move shared workspace-path logic into one canonical runtime utility seam and let the manager consume that seam directly.
+- This leaves the manager closer to its real job:
+  - initialize runtime services
+  - expose runtime entrypoints
+  - stop pretending to own tiny normalization helpers that already have better homes
+
+## 2026-04-14 Runtime Session Hydration Coordinator Extraction
+
+- After the agent-support cut, `main_agent_runtime_manager.py` still held two restore/hydrate private methods.
+- They were not random leftovers.
+- Together they owned one narrow but important responsibility:
+  - connect restore payload preparation to the managed session map
+  - register newly hydrated sessions
+  - optionally persist them after import/derived hydration
+- That is coordination logic, but not top-level runtime-manager logic.
+- It is specifically hydration coordination.
+- Pulling that into `RuntimeSessionHydrationCoordinator` improves the structure in a practical way:
+  - managed-store and registry callbacks now target an explicit seam
+  - the manager loses another private helper block
+  - the remaining private surface is now much closer to pure assembly
+
+## 2026-04-14 Runtime Session Agent Support Seam Extraction
+
+- After the model-identity codec cut, `main_agent_runtime_manager.py` still owned one more helper cluster that did not read like orchestration:
+  - selected/default agent construction routing
+  - knowledge-base enable/apply inspection
+  - sandbox-diagnostics to runtime-policy override translation
+  - runtime config loading
+- Those helpers are tightly related.
+- Together they describe the runtime-owned support seam that other handlers depend on when they need a rebuilt agent or runtime-local config/KB behavior.
+- Pulling them into `RuntimeSessionAgentSupport` improves the boundary in a useful way:
+  - creation/restore/control/runtime-rebuild flows now depend on one explicit support owner
+  - tests can patch runtime config loading at the real seam instead of reaching into the manager module
+  - the manager loses another non-orchestration residue block and reads more honestly as assembly/coordinator code
+
+## 2026-04-14 Runtime Session Model Identity Codec Extraction
+
+- After the payload codec cut, `main_agent_runtime_manager.py` still visibly owned another helper cluster:
+  - model source normalization
+  - selected identity resolution
+  - pending identity resolution
+  - route-to-identity translation
+  - selected/pending identity mutation
+- Those helpers are not random utilities.
+- Together they define the session model identity seam.
+- Pulling them into `RuntimeSessionModelIdentityCodec` makes the runtime structure more legible:
+  - hydration/builders use one identity normalizer
+  - operator/runtime restore paths use one selected/pending identity owner
+  - the manager loses another chunk of data-shaping residue
+
+## 2026-04-14 Runtime Session Payload Codec Extraction
+
+- After extracting runtime contracts, the next remaining non-manager block inside `main_agent_runtime_manager.py` was still easy to spot:
+  - payload normalization
+  - prepared-context normalization
+  - agent-message serialization / restoration
+  - token estimation / restoration
+- Those helpers were cohesive, but they did not express orchestration.
+- They express session payload codec behavior.
+- Pulling them into `RuntimeSessionPayloadCodec` improves the runtime story in a practical way:
+  - manager wires services together
+  - codec owns payload/message/token translation
+  - hydration/read-model/restore paths now share an explicit helper seam instead of borrowing manager statics
+
+## 2026-04-14 Runtime Contracts Extraction
+
+- The next honest runtime cut was not another handler move.
+- It was contract ownership.
+- `main_agent_runtime_manager.py` still owned runtime mode/policy/diagnostics types even though:
+  - policy loading needs them
+  - runtime package exports them
+  - tests treat them as standalone runtime contracts
+- That forced code like `main_agent_runtime_policy_loader.py` to depend on the manager module even though it only needed declarative runtime types.
+- Extracting those contracts clarifies the layering:
+  - contract types live in a neutral runtime-contract module
+  - the manager consumes them
+  - policy loading consumes them
+  - package exports route to the real owner instead of the manager by accident
+
+## 2026-04-14 Main-Agent Surface Runtime Dependency Removal
+
+- Once `MainAgentSurfaceService` was switched to injected `SessionApplicationService`, one quieter problem remained:
+  - the constructor still advertised a direct runtime dependency it no longer used
+- That kind of stale dependency is easy to underestimate.
+- It keeps the public surface lying about ownership:
+  - callers think surface orchestration still depends on runtime directly
+  - tests keep using that accidental field because it is there
+- Removing the dependency is a small cut, but it matters architecturally:
+  - the surface service now depends only on the shared session application seam
+  - runtime access in tests becomes explicit instead of piggybacking on a stale service field
+
+## 2026-04-14 Channel Ingress / Conversation Binding Port Extraction
+
+- After `P32.19`, one concrete leak still stood out in the shared ingress path:
+  - `ChannelIngressUseCases` depended directly on `ConversationBindingService`
+- That matters because channel ingress is application orchestration, while conversation binding truth is session-owned reachability state.
+- Leaving the concrete service in the application signature makes the boundary read backwards:
+  - application looks like it owns the binding implementation
+  - session looks like it only provides a helper
+- The right correction was a small but explicit port:
+  - `mini_agent.session.ConversationBindingPort`
+- With that in place:
+  - session still owns the binding implementation
+  - application depends on the capability it needs, not the concrete type
+  - composition remains the place where the real binding service gets assembled
+
+## 2026-04-14 Main-Agent Surface / Session Service Ownership Extraction
+
+- The next boundary problem after the naming cleanup was not another stale path.
+- It was an ownership leak inside `application` itself:
+  - `MainAgentSurfaceService` still constructed `SessionApplicationService`
+- That shape quietly reintroduced the same ambiguity we had already started removing with `SessionRuntimePort`:
+  - is session orchestration assembled by the host/composition layer?
+  - or is a higher-level application service allowed to assemble lower-level application services ad hoc?
+- The correct answer for this repo is the first one.
+- `MainAgentSurfaceService` should orchestrate shared surface behavior, not secretly own session-service assembly.
+- Moving that construction back into gateway composition improves two things at once:
+  - the layering story gets more honest
+  - test seams become simpler because callers can inject the exact session service they want to exercise
+
+## 2026-04-13 Gateway Static Host Extraction
+
+- After the composition extraction, `main.py` was already much healthier.
+- But one host-specific concern was still stuck there:
+  - Studio/browser static hosting policy
+  - dist discovery
+  - `/assets` mount
+  - SPA fallback
+- That is not domain logic, but it is still important ownership.
+- Entry modules become messy again when they keep accreting serving details, even after service and transport have been cleaned up.
+- The right last step for this gateway line was to make browser hosting explicit:
+  - `src/apps/agent_studio_gateway/static_host.py`
+- This leaves the entrypoint easier to reason about:
+  - `main.py` assembles
+  - `composition.py` wires runtime/services
+  - `*_router.py` files own transport contracts
+  - `static_host.py` owns browser/static serving policy
+
+## 2026-04-13 Gateway Composition Extraction
+
+- After the transport extractions, the next remaining leak was no longer route ownership.
+- It was host wiring ownership:
+  - `main.py` still directly built runtime manager, surface service, channel ingress, health payloads, and startup/shutdown cleanup
+- That is a quieter kind of architecture debt:
+  - the file looks thinner after routers move out
+  - but it still teaches contributors that entry modules are allowed to own runtime/service assembly logic
+- The right correction was to create an explicit composition home:
+  - `src/apps/agent_studio_gateway/composition.py`
+- This improves the structure at two levels:
+  - `main.py` becomes a real entry/assembly module instead of a partly hidden service builder
+  - tests now patch one composition object instead of reaching into scattered module-level caches
+- That second point matters more than it first appears:
+  - tests that patch real composition seams tend to survive refactors better
+  - tests that patch ad-hoc module globals often encode accidental structure instead of intended boundaries
+
+## 2026-04-13 Main-Agent Transport Router Extraction
+
+- After the novel transport cut, `main.py` still had one large ownership leak:
+  - it was still the declared HTTP/SSE contract owner for system health, runtime diagnostics, agent sessions/chat, and channel ingress
+- That was no longer just a file-size issue.
+- It blurred two different responsibilities:
+  - composition/lifecycle/wiring
+  - protocol translation for the maintained main-agent API surface
+- The right correction was not to push this into `application`.
+- It was to create a gateway transport module with injected service/runtime getters:
+  - `src/apps/agent_studio_gateway/main_agent_router.py`
+- That keeps the boundaries cleaner:
+  - `main.py` composes the host
+  - `main_agent_router.py` translates HTTP/SSE contracts
+  - `application` and `runtime` still own orchestration behavior
+- This is the kind of cut that helps future entrances too:
+  - desktop / remote / later desktop-shell work can keep depending on the same service layer
+  - while the gateway transport stays visibly separate from composition and from domain logic
+
+## 2026-04-13 Novel Transport / Runtime Ownership Realignment
+
+- After the `ops` rename, the next remaining gateway ownership leak was not another naming issue.
+- It was a whole product-subdomain transport cluster still living in the composition root:
+  - `src/apps/agent_studio_gateway/main.py` still carried novel env defaults, path/history helpers, runtime wiring, and `/api/v1/novel/*` handlers
+- That shape was actively misleading:
+  - it made `main.py` look like a second business layer
+  - it left `subprograms/novel_generator/gateway/router.py` as a stale duplicate instead of the maintained transport owner
+  - it meant `mini_agent.novel` still had domain types/use cases but no canonical runtime wiring home
+- The right correction was to split by real ownership:
+  - `mini_agent.novel.runtime` now owns novel runtime wiring
+  - `subprograms.novel_generator.gateway.router` now owns novel HTTP transport
+  - `agent_studio_gateway.main` is back to composition/mounting duty
+- This also fixed a quieter duplication problem:
+  - request DTOs are no longer redefined in the subprogram router
+  - the router now consumes `mini_agent.interfaces` as the canonical contract layer
+
+## 2026-04-13 Gateway Ops Router Neutralization
+
+- `P32.10` neutralized the shared application seam, but one transport-level naming leak still remained:
+  - the gateway route module was still called `studio_router.py`
+  - its internal auth and handler names were still `studio_*`
+- That is not just cosmetics.
+- Route-module names are part of the physical ownership story, and this one still implied a paused frontend owned the maintained `/api/v1/ops` transport.
+- The right correction was a hard rename, not another alias:
+  - `studio_router.py` -> `ops_router.py`
+  - `_require_studio_auth` -> `_require_ops_auth`
+  - handler names now describe `ops` transport behavior instead of `Studio` frontend ownership
+- This keeps the architecture story consistent across two layers at once:
+  - `application` owns the shared operations use cases
+  - `agent_studio_gateway` owns the `/api/v1/ops` transport exposure
+  - neither layer now pretends the paused browser Studio surface is the semantic owner
+
+## 2026-04-13 Session / Novel Ownership + Operations Seam Neutralization
+
+- `P32.8` fixed transport ownership, but two quieter ownership leaks were still teaching the wrong architecture:
+  - remote conversation binding still looked like an application/gateway utility even though it is session reachability state
+  - `StudioOpsUseCases` still implied that a shared provider/memory admin seam belonged to one product surface
+- The right fix was not another compatibility alias.
+- It was to let physical ownership finally match the intended semantics:
+  - conversation binding resolution/persistence now lives under `session/`
+  - novel profile/use-case code now lives under `novel/`
+  - shared ops/provider-memory use cases stay in `application/`, but with a surface-neutral name
+- This is exactly the kind of cleanup that prevents later drift:
+  - remote adapters keep looking thinner because binding truth is visibly centralized in `session`
+  - application services stop advertising paused `Studio/Web` ownership in their public names
+  - future CLI/TUI/Desktop/remote work has a cleaner target for where shared admin/ops behavior belongs
+
+## 2026-04-13 Application Binding Unification For Session Operators
+
+- The next remaining leak after the service/module cleanup was not a missing handler.
+- It was duplicated binding normalization:
+  - `SessionApplicationService` still rebuilt `surface/channel/conversation/sender` binding in several operator methods
+  - `RemoteConversationBindingService` also re-normalized remote context even when `ChannelIngressUseCases` had already normalized it
+- That duplication is small in code size but expensive in architecture terms:
+  - it makes remote semantics easier to drift apart
+  - it keeps request-routing responsibility split across multiple layers
+- The correction was to promote `ApplicationInteractionBinding` into the single application-level interaction binding object.
+- With that in place:
+  - session operators reuse one binding type
+  - remote binding lookup/persistence reuse the already-resolved binding
+  - top surface service methods can pass request objects through instead of manually unpacking remote metadata again
+- This is the kind of cleanup that improves future CLI / TUI / desktop / remote convergence without requiring a broad rewrite.
+## 2026-04-13 Runtime Policy Loader Extraction
+
+- The next useful lifecycle-related seam was not inside the already-split runtime state machine.
+- It was one level higher:
+  - gateway main still owned environment parsing for runtime mode, workspace policy, team capacity, and lifecycle policy wiring
+- That made the HTTP composition root look more authoritative than it should be.
+- The correction is to move that policy loading into a runtime-level helper:
+  - `main_agent_runtime_policy_loader.py`
+- This keeps the ownership cleaner:
+  - runtime defines how runtime policy is loaded
+  - gateway only decides that it needs a runtime manager
+- This is a small change, but it matters because it prevents later CLI / TUI / desktop / remote entrances from reusing gateway-private policy parsing as if that were the real application seam.
 ## 2026-04-13 Application Service Seam Hardening Return Follow-up
 
 - The previous seam correction renamed the top service conceptually, but one important ownership leak still remained:
@@ -62,7 +2193,7 @@
   - structured activity cards make approvals, delegation, stream status, model actions, and gateway excerpts easier to scan
   - that moves DesktopUI closer to a real operator console instead of a thin chat wrapper
 
-## 2026-04-13 P31.4 Desktop真人联调收口一
+## 2026-04-13 P31.4 Desktop閻喍姹夐懕鏃囩殶閺€璺哄經娑撯偓
 
 - The first real operator test immediately exposed a practical mismatch between UI semantics and runtime semantics:
   - DesktopUI had a `New Session` affordance
@@ -1204,7 +3335,7 @@
 - This slice is a good example of a better cleanup heuristic for the remaining work:
   - when a method looks large, first ask whether the bulk is actual business logic or just an over-wide interface
   - here the right fix was interface consolidation, not another handler
-- The remaining runtime-manager hotspots are therefore increasingly “real�?
+- The remaining runtime-manager hotspots are therefore increasingly 閳ユ笧eal閳?
   - `__init__` is still the main composition blob
   - several operator-facing methods still look mid-sized, but many of them now mostly contain response shaping and session lookup rather than hidden orchestration
 
@@ -1248,7 +3379,7 @@
 - This slice did not materially reduce total file length the way the earlier registry/operator cuts did.
 - It still matters because it reduces exception paths:
   - cancel/approval now belong to the same operator-command surface as control/context/memory/skill/model/policy
-  - the runtime manager has fewer “but this one is special�?orchestration branches left inline
+  - the runtime manager has fewer 閳ユ競ut this one is special閳?orchestration branches left inline
 
 ## 2026-04-13 P30.7ad Session Operator Handler Extraction
 
@@ -1339,7 +3470,7 @@
   - the correct boundary is therefore:
     - direct wiring where signatures already match
     - tiny lambda shims only where signature shaping is structurally required
-- This slice is valuable because it removes “fake thinness�?
+- This slice is valuable because it removes 閳ユ竾ake thinness閳?
   - the runtime manager now delegates to real owners more directly
   - fewer manager-local helper names need to be mentally traversed before reaching the real implementation
   - the extracted seams are now more honest to the architecture we have been moving toward
@@ -2088,7 +4219,7 @@
   - it receives normalization/diagnostic/snapshot callbacks from the runtime manager rather than reaching into runtime internals directly
 - That design is important:
   - the builder is extracted, but not turned into a new god-service
-  - it is still bounded to “assemble read models from already-owned data�?  - runtime manager remains the owner of execution state and runtime-side helper orchestration
+  - it is still bounded to 閳ユ竵ssemble read models from already-owned data閳?  - runtime manager remains the owner of execution state and runtime-side helper orchestration
 - The manager still contains some thin wrapper methods after this cut:
   - that is acceptable for now because call sites remain stable while the large builder bodies are gone
   - the architectural win is that read-model construction now has a dedicated home and can evolve/test independently
@@ -2174,7 +4305,7 @@
   - local runtime rebuild actions like MCP reload belong to runtime lifecycle, while their operator-visible summaries belong to projection/view
 - This matters because the old flat structure made control flow deceptively simple while hiding responsibility drift:
   - operator command handlers were mutating run-state, approval-state, and remote-control metadata through one undifferentiated object
-  - after this cut, the control layer is much closer to the intended “surface drives session projection and runtime host�?model
+  - after this cut, the control layer is much closer to the intended 閳ユ笩urface drives session projection and runtime host閳?model
 - This keeps the direction aligned with the target architecture:
   - TUI is moving toward a session projection + runtime host + operator view
   - instead of continuing as an accidental session owner
@@ -2212,7 +4343,7 @@
   - `MainAgentSessionState` is still a single flat object carrying runtime host state, session truth, recovery state, diagnostics, transcript state, and persistence-facing fields together
 - The runtime-side issue is therefore different from the old TUI alias seam:
   - there is no hidden `__getattr__/__setattr__` shim like TUI had
-  - but there is still a “god state object�?and a “god manager�?that concentrate too many responsibilities in one place
+  - but there is still a 閳ユ笀od state object閳?and a 閳ユ笀od manager閳?that concentrate too many responsibilities in one place
 - The most obvious duplication seam is projection building:
   - runtime manager builds summary/detail/snapshot from live session state
   - runtime manager builds summary/detail/snapshot again from persisted records
@@ -2906,7 +5037,7 @@
   - query `session:<id>` first
   - include `workspace:shared` when the query itself is workspace/runtime-scoped, or when session hits are sparse
 - This makes the runtime-memory hierarchy much clearer in practice:
-  - session memory answers “what matters to this active thread?�?  - workspace-shared memory answers “what workspace-level runtime conventions help when session memory is missing or the question is broader?�?
+  - session memory answers 閳ユ辅hat matters to this active thread?閳?  - workspace-shared memory answers 閳ユ辅hat workspace-level runtime conventions help when session memory is missing or the question is broader?閳?
 ## 2026-04-10 Memory Operator Ergonomics
 
 - The first Phase 5 memory command surface was functional but still too operator-hostile for real use:
@@ -3034,12 +5165,12 @@
   - shared gateway sessions already persist transcript + metadata and can be restored lazily.
 - The next real gap is more specific:
   - recovery is mostly turn-level, not execution-state-level
-  - tool progress is rendered as activity lines, but there is not yet one durable, structured “latest tool state�?surface that survives interruption cleanly
+  - tool progress is rendered as activity lines, but there is not yet one durable, structured 閳ユ笓atest tool state閳?surface that survives interruption cleanly
 - Current tool observability is split across:
   - transient loop bus events in `code_agent.agent_loop`
   - transcript activity items in TUI/gateway rendering
   - coarse `running_state` strings on session/task objects
-- A good next slice should therefore avoid overbuilding “full checkpoint replay�?and instead tighten:
+- A good next slice should therefore avoid overbuilding 閳ユ竾ull checkpoint replay閳?and instead tighten:
   - structured per-turn tool state snapshots
   - clearer persistence of interrupted work status for resume/review
   - one shared payload shape that CLI/TUI/gateway can all consume consistently
@@ -3101,9 +5232,9 @@
   - turn-context providers also need to support workspace-relative future usage
   - the practical fix is dual resolution with fallback, not a new path contract
 - Focused regression for this slice is green:
-  - `tests/test_agent_turn_context.py`
+  - `tests/test_agent_core_turn_context.py`
   - `tests/test_code_agent_loop.py`
-  - `tests/test_agent_execution_policy.py`
+  - `tests/test_agent_core_execution_policy.py`
   - `tests/test_main_agent_gateway_use_cases.py`
   - `tests/test_tui_app.py`
   - `tests/test_agent_core_kernel.py`
@@ -3482,7 +5613,7 @@
   - update indexes so archived material remains discoverable but no longer impersonates active guidance
 - `scripts/` had a second discoverability problem:
   - root mixed daily developer helpers with release-handoff / promotion / matrix scripts
-  - the directory looked “active�?even when several files were only meaningful in CI or release workflows
+  - the directory looked 閳ユ竵ctive閳?even when several files were only meaningful in CI or release workflows
 - The clean split for scripts is now:
   - active operator/developer helpers stay in `scripts/`
   - release/CI/reporting scripts move to `scripts/ci/`
@@ -3575,7 +5706,7 @@
   - `/cancel` should release any approval waiters with `None` while also setting the cancel event
   - that behavior now lives with the interrupt logic instead of remaining inline in the manager
 - Restart-recovery approval conflicts are now more clearly localized:
-  - the “interrupted after restart, send a new message�?rule is part of the interrupt domain, not general manager plumbing
+  - the 閳ユ笅nterrupted after restart, send a new message閳?rule is part of the interrupt domain, not general manager plumbing
 
 ## 2026-04-12 Snapshot Import / Export Extraction
 
@@ -3583,10 +5714,10 @@
   - hydration payload construction already lived in `session_hydration_builder.py`
   - snapshot DTO construction already lived in `session_read_model_builder.py`
   - manager still owned the remaining gatekeeping/orchestration glue around them
-- That made snapshot import/export a good “thin coordinator�?cut rather than a deep redesign:
+- That made snapshot import/export a good 閳ユ涪hin coordinator閳?cut rather than a deep redesign:
   - import path still needs store locking and final hydration
   - but collision checks, auto-id allocation handoff, and payload preparation no longer need to stay inline in the manager
-  - export path only needs to resolve “live session vs persisted record vs missing�?- One useful reminder from this cut:
+  - export path only needs to resolve 閳ユ笓ive session vs persisted record vs missing閳?- One useful reminder from this cut:
   - constructor wiring order matters once extracted handlers depend on other extracted builders
   - `_session_snapshots` had to be initialized after `_session_hydration_builder` and read-model wiring existed
   - this was a clean initialization-order bug, not a design bug
@@ -3610,7 +5741,7 @@
   - lifecycle bootstrap and session-state instantiation
   - post-state runtime hydration
 - The right boundary is:
-  - restore handler owns “how to hydrate�?  - manager owns “where the hydrated session lives�?(`_sessions`) and “when to persist�?- One practical lesson from this cut:
+  - restore handler owns 閳ユ笁ow to hydrate閳?  - manager owns 閳ユ辅here the hydrated session lives閳?(`_sessions`) and 閳ユ辅hen to persist閳?- One practical lesson from this cut:
   - the best focused validation was not new micro-tests for every helper branch
   - it was reusing the real restart/recovery tests that already exercise persisted restore semantics end-to-end
   - this gives much stronger confidence than a purely synthetic handler-only test would
@@ -3632,8 +5763,473 @@
   - handler decides which branch applies
   - manager performs the side effects for the chosen branch
 - This cut also reinforces a useful refactor pattern for the rest of the manager:
-  - “selection logic�?and “mutation/orchestration logic�?should not live in the same method when the selection tree is large
+  - 閳ユ笩election logic閳?and 閳ユ笗utation/orchestration logic閳?should not live in the same method when the selection tree is large
 - One small but worth-keeping cleanup happened during this slice:
   - widening lint coverage surfaced an unused `asyncio` import in `tests/test_p19_runtime_matrix.py`
   - removing it keeps the widened verification path clean without changing behavior
 
+
+
+
+## 2026-04-13 Application Binding Cleanup + Runtime Lifecycle Wiring
+
+- The TUI/gateway cleanup exposed a boundary lesson worth keeping:
+  - application-layer request normalization had already been unified
+  - but the shell layers were still manually rebuilding `surface/channel/conversation/sender` in multiple places
+  - that kind of residual duplication is exactly how session behavior drifts across entrances even after a clean app-layer seam exists
+- The right fix here was not another compatibility wrapper:
+  - `cancel` was the odd one out and is now request-object based like the rest of the session operator flows
+  - TUI now builds remote request bindings once and reuses them everywhere
+  - gateway client now treats interaction binding as shared app-level behavior instead of maintaining a second local binding model
+- The lifecycle cut surfaced a similar pattern inside the runtime manager:
+  - creation and restore already depended on the same lifecycle bootstrap concept
+  - session registry reuse/restore already depended on the same lifecycle refresh concept
+  - manager still owned those as scattered callbacks plus two local helper methods
+- The cleaner boundary is:
+  - lifecycle handler owns session-key construction for the runtime channel, lifecycle bootstrap, and lifecycle refresh delegation
+  - creation/restore/registry receive one consistent seam instead of manually recombining lifecycle pieces
+  - manager keeps only the reset closure because that is where live runtime-state mutation still belongs
+- This is a good example of the current refactor rule for the project:
+  - if multiple entrances or handlers already share the same semantic operation, the seam should be explicit before continuing feature work
+  - otherwise later remote/DesktopUI work will keep reintroducing drift on top of a half-finished boundary
+
+## 2026-04-13 Managed Session Store Extraction
+
+- After the operator and lifecycle cuts, the next real mixed boundary was not more operator logic.
+- The remaining mixed concern lived in one layer below that:
+  - live `_sessions` map ownership
+  - persisted-record probing
+  - restore handoff into live state
+  - delete-time task-memory cleanup
+  - lineage removal
+  - id allocation across live + persisted namespaces
+  - silent persistence with sandbox diagnostics capture
+- That cluster is coherent enough to deserve its own seam.
+- Pulling it into `session_managed_store_handler.py` improves the architecture in a concrete way:
+  - operator/domain handlers no longer need manager-local lookup helpers to reach a session
+  - registry wiring now depends on a store seam instead of five unrelated manager methods
+  - restore stays a restore concern, while store resolution stays a store concern
+- This also clarifies the next likely cut:
+  - manager still contains a small cluster of admin/live-state mutations (`rename/shared/reset/set_active_surface`) that are now free of storage semantics
+  - if we continue shrinking the manager, that cluster should become its own session-admin mutation seam rather than being left as scattered one-off methods
+
+## 2026-04-13 Session Admin Mutation Extraction
+
+- After the managed-store cut, the manager still had one coherent mutation cluster left:
+  - rename title
+  - toggle shared flag
+  - reset runtime/transcript/lifecycle state
+  - switch active surface
+- Those actions did not belong in persistence/store code anymore, but they still mixed lock scope with concrete live-state mutations.
+- Extracting them into `session_admin_handler.py` is the cleaner boundary because:
+  - they all act on one already-resolved managed session
+  - they all mutate live session state and then persist
+  - they are admin/session-governance operations, not chat/operator flows
+- This cut also confirms a pattern that is working well for the runtime refactor:
+  - store resolution first
+  - then a focused handler for one semantic domain
+  - manager left mainly as the place where lock scope and service composition meet
+- The remaining manager shape is now much cleaner, and the next cuts should stay disciplined:
+  - avoid extracting tiny one-method wrappers
+  - only cut where a true semantic cluster still mixes with manager wiring
+
+## 2026-04-13 Runtime Manager Reassessment
+
+- This reassessment matters because repeated extractions can become counterproductive once the real boundaries are already in place.
+- After the recent cuts, the manager is no longer carrying the heavy mixed domains that originally justified refactoring:
+  - interaction binding normalization moved out
+  - lifecycle bootstrap/refresh moved out
+  - managed session store semantics moved out
+  - admin/live-state mutation semantics moved out
+- What remains is mostly composition glue, and composition glue is allowed to live in the manager.
+- The main warning sign for over-refactoring is now present:
+  - the next possible cuts would mostly move tiny lookup/delegation snippets rather than whole semantic domains
+  - that would increase indirection without materially improving boundary clarity
+- So the right architecture choice at this point is restraint:
+  - preserve `MainAgentRuntimeManager` as the runtime composition/facade layer
+  - only resume shrinking if a future feature causes a concrete cross-domain knot to reappear
+
+## 2026-04-13 Project Structure Realignment Audit
+
+- The current problem is no longer primarily "missing architecture."
+- The architecture documents are already mostly aligned.
+- The real remaining drift is that the physical tree still tells an old story:
+  - `agent_core/` reads like one core
+  - `code_agent/` reads like another core
+  - `turn_context.py` sits outside both even though it is agent-core context logic
+  - `agent.py` is the real engine but lives at the package root as if it were only a legacy convenience
+- This is not merely cosmetic:
+  - package names shape where future code gets added
+  - misleading names create false seams
+  - false seams then become duplicated logic and long-term refactor cost
+- The best first correction is not to touch every naming debt at once.
+- The best first correction is to collapse the visible "double core" problem:
+  - move `Agent`
+  - move turn-context logic
+  - move former `code_agent` execution/runtime primitives
+  into a single `agent_core` tree
+- `core/session.py` is also stale, but it is a cleaner second cut after the agent-kernel tree is unified.
+
+## 2026-04-13 P32.1 Agent-Core Tree Realignment Landed
+
+- Landed the first hard-realignment cut that removes the repo's visible "double core" problem.
+- Physical ownership is now clearer:
+  - `Agent` now lives in `agent_core/engine.py`
+  - turn-context ownership now lives in `agent_core/context/`
+  - former `code_agent` execution/runtime primitives now live in `agent_core/execution/`
+- The first cut deliberately stopped before `core/session.py`.
+- That is still the correct second cut because session packaging is a separate semantic knot from the execution-kernel split.
+- One practical lesson from this slice:
+  - once files were re-saved, a few old garbled strings in tests/scripts turned into real syntax failures
+  - those were not caused by the new structure itself, but they did need to be cleaned to get the repo back to a trustworthy baseline
+- The good outcome is that the structural move is now validated by full regression, not just by import smoke.
+
+## 2026-04-13 P32.2 Session Packaging Realignment Landed
+
+- Removed the historical `core/session.py` packaging.
+- `SessionState`, `SessionStore`, and `session_store` now live in `src/mini_agent/session/store.py`.
+- Canonical import is now `mini_agent.session`.
+- This restores a clean ownership split between:
+  - session persistence/search infrastructure
+  - runtime managed session state
+  - agent_core session-domain policy/lineage
+
+## 2026-04-13 P32.3 Shared Application Naming Realignment
+
+- The next naming debt was no longer inside agent_core or session packaging.
+- It was the shared application seam still wearing gateway transport names.
+- That was misleading because these handlers were already used as surface-neutral orchestration.
+- The correction landed by:
+  - renaming handler modules to neutral ownership names
+  - deleting the `main_agent_gateway_use_cases.py` compatibility module
+  - dropping the `MainAgentGatewayUseCases` alias
+  - removing `to_gateway_chat_execution_request(...)` from the application binding adapter
+- The useful outcome is that the application layer now advertises the same ownership model the architecture docs describe.
+
+## 2026-04-13 P32.4 Boundary Audit Notes
+
+- After the naming cleanup, the most important remaining issues are no longer misleading filenames.
+- They are real dependency-shape leftovers.
+- Three stand out:
+  - interaction binding normalization is shared logic, but still lives under `runtime`
+  - the session application service is coupled to concrete runtime state/manager types
+  - the remote session facade is still transport-shaped through `gateway_client`
+- These are good next targets because they change real ownership boundaries rather than just labels.
+
+## 2026-04-13 P32.5 Interaction Surface Extraction
+
+- The next real boundary repair after the naming cleanup was straightforward:
+  - interaction normalization was shared logic
+  - but the source of truth still lived under `runtime`
+- That shape was wrong because `application` had to import a runtime-owned module for a cross-layer concern.
+- The correction landed by moving the module to `mini_agent.interaction.surface` and exporting it from `mini_agent.interaction`.
+- This is a real boundary improvement, not just a rename:
+  - `application` now depends on a shared module
+  - `runtime` also depends on the same shared module
+  - the ownership story now matches the architecture story
+
+## 2026-04-13 P32.6 Session Runtime Port Realignment
+
+- The most useful next cut was not to invent a new adapter stack inside runtime.
+- The useful cut was to define the seam where the application layer already consumes runtime behavior.
+- Introducing `SessionRuntimePort` and related protocols was enough to:
+  - remove the concrete runtime imports from application
+  - preserve the current runtime manager as the implementation owner
+  - avoid a long-lived compatibility wrapper layer
+- A small but important supporting move was adding projection-friendly properties on `MainAgentSessionState`.
+- That keeps nested runtime/projection knowledge from leaking upward without forcing a larger object-graph rewrite.
+- One practical lesson from this slice:
+  - some tests still intentionally reach into `MainAgentSurfaceService._runtime_manager` for runtime-only setup helpers
+  - removing that private reference broke test helpers even though the boundary design itself was correct
+  - keeping the private attribute is acceptable for now because the type boundary is still narrowed at the constructor/import level
+- The next real seam is still `RemoteSessionService`, which remains shaped around a transport client rather than a pure application contract.
+
+## 2026-04-13 P32.7 Remote Session Transport Port Realignment
+
+- `RemoteSessionService` was already duck-typed, but the seam was still semantically weak because everything was described as a `gateway_client`.
+- That naming kept transport ownership blurry even though the code no longer needed a concrete TUI gateway class.
+- Adding `RemoteSessionTransportPort` was enough to make the dependency explicit without moving the concrete HTTP client out of `tui/` yet.
+- This is a good incremental cut because it improves the boundary story while keeping the physical move smaller than a full transport package extraction.
+- After this cut, the remaining cleanup is less about naming and more about deciding whether some client-side transport facades should eventually live outside `application/` entirely.
+
+## 2026-04-13 P32.8 Transport Client Packaging Realignment
+
+- After P32.7, the dependency seam was improved but the physical ownership story was still not good enough.
+- `RemoteSessionClient` and `GatewayClient` are transport-side client adapters, not application services and not TUI-owned utilities.
+- The clean next step was to move them into a shared `transport/` package and rename them to neutral client language.
+- This cut is important because it reduces future drift in two ways:
+  - TUI will no longer look like the owner of the gateway transport client
+  - `application/` will no longer look like the owner of client-side remote session facades
+- The move stayed intentionally narrow:
+  - no runtime behavior changed
+  - no gateway API contract changed
+  - only ownership, naming, and imports changed
+- This is now a better base for the larger physical-structure cleanup that comes next.
+
+## 2026-04-14 P32.16 Gateway Ops Transport Dependency Pattern Unification
+
+- After `P32.13` and `P32.15`, the gateway host was much cleaner, but one structural inconsistency still remained:
+  - `main_agent_router.py` already used an explicit dependency object plus `create_*_router(...)`
+  - `ops_router.py` still looked like a hidden singleton transport module
+- That difference seems small, but it matters because transport patterns teach future ownership.
+- Leaving one router factory-based and the other singleton-based would keep inviting new gateway code into the wrong place.
+- The right correction was not another alias or helper.
+- The right correction was to make `ops_router.py` match the maintained gateway transport pattern exactly:
+  - transport file owns HTTP contract translation
+  - host entry owns service construction
+  - router assembly is explicit through injected dependencies
+- Concretely, the host now owns:
+  - `GATEWAY_OPERATIONS_USE_CASES`
+  - `create_ops_router(OpsRouterDependencies(...))` mounting
+- And the transport file now owns:
+  - `/api/v1/ops/*` route contract
+  - auth dependency attachment
+  - use-case access through an injected getter rather than a hidden module-global service
+- This is a valuable small cut because it closes the gateway transport cluster cleanly:
+  - `main.py` reads as host/composition/mounting
+  - both maintained gateway routers teach the same dependency pattern
+  - future refactors have one obvious place for service construction and one obvious place for protocol translation
+
+## 2026-04-14 P32.17 Agent-Core Naming Consistency Sweep
+
+- After `P32.1`, the biggest physical tree problem was gone, but a smaller semantic problem still remained:
+  - the code had moved into `agent_core`
+  - yet parts of the current repo still kept teaching the deleted `code_agent` story
+- Three leaks mattered most:
+  - `self_improve.py` still lived at the `agent_core` root even though it is clearly a skills-domain concern
+  - execution regression tests still used `test_code_agent_*` names
+  - one maintained execution API still exported `CodeAgentMCPClient`
+- These are not just cosmetic leftovers.
+- They influence where future code gets added and what maintainers think the architecture still is.
+- The correct cut here was a naming-consistency sweep, not another compatibility alias:
+  - move `self_improve.py` under `agent_core/skills/`
+  - rename execution test surfaces to `agent_core_execution_*`
+  - rename `CodeAgentMCPClient` to `ExecutionMCPClient`
+- This sweep is especially useful because it closes the gap between:
+  - the physical directory story
+  - the exported API story
+  - the test-suite story
+  - the active documentation story
+- One deliberate boundary choice in this slice:
+  - active docs were updated to current ownership
+  - historical task logs that describe old steps were not mass-rewritten
+  - that keeps current guidance accurate without erasing development history
+
+## 2026-04-14 P32.18 Agent-Core Engine-Facing Test Surface Sweep
+
+- After `P32.17`, the execution-layer test names were much cleaner, but the most obvious engine-facing entrypoints still looked older than the tree they test:
+  - `test_agent.py`
+  - `test_agent_turn_context.py`
+  - `test_agent_execution_policy.py`
+- These files matter more than their size suggests.
+- They are the first tests maintainers tend to open when they want to understand the engine, context preparation, and runtime policy behavior.
+- Leaving them under generic root-era names would keep teaching the pre-realignment structure even after the source tree was corrected.
+- The right fix was another narrow naming cut:
+  - make the tests advertise `agent_core` ownership
+  - update current doc references to the renamed files
+  - align current docs to the canonical `engine.py` and `context/turn_context.py` paths at the same time
+- This slice intentionally did not try to rewrite every historical record.
+- It only corrected the current surfaces that developers are likely to run and trust today.
+
+## 2026-04-15 Agent-Core Core Analysis
+
+- The current `agent_core` should be read as four layers working together:
+  - kernel/bootstrap
+  - outer submission/scheduler loop
+  - inner planner/executor loop
+  - turn-context + tool/approval/sandbox support services
+- The bootstrap path in `src/mini_agent/agent_core/kernel.py` is a real strength:
+  - it resolves runtime policy
+  - builds routed/failover LLM settings
+  - initializes tools, sandbox, approval, turn-context providers
+  - emits a rich kernel diagnostics payload
+- `src/mini_agent/agent_core/engine.py` is the main architectural hotspot:
+  - it owns LLM orchestration, tool execution, approval flow, context preparation, summarization, memory automation, runtime task memory, console output, and logging
+  - this is workable today but raises future change risk because too many unrelated reasons to change meet in one file
+- `src/mini_agent/agent_core/context/turn_context.py` is the strongest subsystem and also the second hotspot:
+  - provider-based preparation is solid
+  - dedupe/ranking/budget curation is thoughtful
+  - ephemeral injection avoids long-term history pollution
+  - but too much policy, formatting, diagnostics, provider logic, and aggregation live together
+- The outer execution loop in `agent_core/execution/agent_loop.py` is in decent shape:
+  - queueing, interrupt delivery, approval waiting, progress event publication, and agent reuse are clearly modeled
+  - scheduler isolation gives the runtime a usable surface boundary
+- The scheduler still contains one notable contract smell:
+  - `_turn_policy_override(...)` rewrites `agent.execution_policy` into a dict and later restores it
+  - that weakens typing and can hide future behavior drift
+- Tool execution contracts are stronger than actual execution behavior:
+  - declarative tool metadata includes read/write intent, destructiveness, interrupt behavior, and `concurrency_safe`
+  - actual execution in `Agent._execute_tool_calls(...)` is still sequential
+- Approval/runtime policy integration is reasonably mature:
+  - declarative permission policy + cache + escalation exists
+  - runtime policy can additionally inspect shell commands
+  - the design already supports approval round-trips through the submission loop
+- Sandbox support is useful but uneven:
+  - Windows restricted-token support is the only strong native sandbox backend
+  - non-Windows currently falls back to a no-backend selection path
+- Skills integration is well conceived:
+  - loader/registry/runtime bridge separation is sensible
+  - workspace policy store gives maintainers a durable activation control point
+  - turn-context can surface skill catalog context without forcing the `Agent` class to know skill discovery details
+- Model invocation is correctly outside `agent_core` business logic:
+  - kernel injects `FailoverLLMClient`
+  - agent consumes the client through a narrow `generate/stream_generate` style contract
+  - this separation is one of the reasons the core is still evolvable despite the large engine file
+- Two semantic risks still stand out:
+  - message summarization currently writes execution summaries back as `role="user"`
+  - engine still mixes core runtime state changes with ANSI/console presentation concerns
+
+## 2026-04-15 P34 Agent-Core Refactor Planning
+
+- `P34` is the correct next line because the main residual risk is no longer provider truth or app-layer ownership.
+- The next real risk is core concentration:
+  - `engine.py` owns too many unrelated behaviors
+  - `turn_context.py` is too broad for safe long-term evolution
+- The best first cuts are not the most dramatic cuts.
+- The best first cuts are the narrow contract corrections that make later extractions safer:
+  - replace dynamic runtime bindings with explicit typed bindings
+  - stop mutating `execution_policy` into a dict inside the scheduler
+- `P34` should stay behavior-preserving first.
+- Parallel tool execution, broader sandbox redesign, and brand-new architecture families are not the right opening move for this phase.
+- The `P34` target architecture is:
+  - thin `Agent` facade
+  - explicit runtime bindings
+  - extracted tool coordinator
+  - extracted history/summarization service
+  - extracted post-turn processing
+  - headless core boundary
+  - modular turn-context package
+
+## 2026-04-15 P34.1 P34.2 Implementation Findings
+
+- The cleanest low-risk opening move was not to redesign the runtime graph.
+- The cleanest move was to add one typed runtime-binding owner and compatibility helpers that old call sites can still talk to.
+- This landed as:
+  - `AgentRuntimeBindings`
+  - `set_agent_runtime_bindings(...)`
+  - `set_agent_runtime_services(...)`
+  - `override_agent_tool_approval_handler(...)`
+- `Agent` now has an explicit contract for:
+  - runtime bindings
+  - runtime services
+  - temporary approval-handler override
+  - typed execution-policy override
+- This means kernel/bootstrap and approval-bridge code can stop teaching `setattr(...)` as the normal way to extend the runtime.
+- For `P34.2`, the key improvement is not just “restore the old value later”.
+- The key improvement is:
+  - real `Agent` instances now preserve `AgentExecutionPolicy` during turn-scoped overrides
+  - compatibility-path fake agents that still use dict-shaped policies keep their dict shape instead of being rewritten into a different type
+- This is a meaningful contract correction because scheduler overrides now preserve the agent's policy representation instead of mutating it opportunistically.
+- The targeted and adjacent regression surfaces passed.
+- The remaining full-suite failures were outside the touched slice:
+  - walkthrough setup signatures
+  - TUI constructor signature expectations
+  - runtime session snapshot test fixture shape
+- Those failures do not point back to the new runtime-binding or scheduler-policy changes.
+
+## 2026-04-15 P34.3 Tool Execution Coordinator Extraction Findings
+
+- The highest-value low-risk move here was not to redesign tool semantics.
+- The right move was to make ownership explicit:
+  - `Agent` should still define run-loop state transitions
+  - but it should no longer inline the full tool authorization and execution body
+- Extracting `ToolApprovalRequest` first was important because approval flow is shared contract, not `engine.py` private detail.
+- The dedicated coordinator is a good seam because these responsibilities naturally belong together:
+  - declarative invocation build
+  - runtime-policy and approval evaluation
+  - cancellation-aware tool execution
+  - per-tool logging, console rendering, hook emission, and tool-message append
+- Keeping `engine.py` wrappers was the safer compatibility choice than deleting the old method names outright.
+- That preserves the current agent-facing surface while still removing the heavy implementation body from the core class.
+- The batch-state return type is also the right boundary for this slice:
+  - the coordinator should report tool-execution state
+  - `Agent` should remain the owner of mapping that state into `StepOutcome`
+- Existing regression coverage already captured the risky semantics well:
+  - approval waits before execution
+  - runtime-policy shell approval
+  - best-effort cancellation
+  - empty-tool-step completion behavior
+- After this slice, the next obvious hotspot is no longer tool execution.
+- It is history mutation and summarization semantics, especially the current summary writeback shape.
+
+## 2026-04-15 P34.4 History And Summarization Semantics Correction Findings
+
+- The most important correction in this slice is semantic, not mechanical:
+  - summary messages are history-maintenance artifacts
+  - they are not user intent
+- Writing summaries back as `role="user"` was dangerous because it polluted:
+  - last-user lookup
+  - turn-boundary reasoning
+  - any later logic that treats user messages as authoritative intent
+- The smallest safe correction was not to introduce a whole new protocol role.
+- The safer move was:
+  - keep summaries inside the existing `Message` model
+  - represent them as assistant-owned internal artifacts
+  - mark them explicitly so compaction can recognize them later
+- Using an internal assistant summary marker solves two problems at once:
+  - the model no longer sees a fake user turn
+  - the runtime can distinguish compacted history from ordinary assistant output when compaction runs again
+- Preserving existing internal summaries instead of re-summarizing them was an important follow-up choice.
+- Without that, older rounds would keep being recursively compressed even when nothing new happened in those slices.
+- Legacy compatibility also mattered here because older sessions may already contain the fake-user summary shape.
+- Normalizing `[Assistant Execution Summary]` into the new internal assistant summary format during compaction is a good low-risk bridge:
+  - no migration script required
+  - old polluted summaries stop creating new fake-user boundaries the next time compaction runs
+- After this slice, the next concentration hotspot is no longer history mutation itself.
+- The next obvious boundary is presentation:
+  - core execution still emits ANSI/terminal strings directly
+  - that is the next seam to isolate under `P34.5`
+
+## 2026-04-15 P34.5 Headless Core Presentation Boundary Findings
+
+- The key design choice in this slice was to extract presentation semantically, not mechanically.
+- Simply keeping `_emit_console(text)` and moving `print()` behind one helper would still leave:
+  - ANSI color choices inside core runtime logic
+  - output phrasing inside engine/coordinator/history services
+  - headless execution defined only by suppression
+- The better boundary is a semantic presenter contract:
+  - core emits events like `step_header`, `tool_call`, `history_summary_completed`
+  - presenter implementations decide whether and how to render them
+- This preserves current CLI/TUI operator feedback without forcing those surfaces to change immediately.
+- The ANSI console presenter is therefore a compatibility bridge, not the new architectural owner.
+- An equally important outcome is that headless is now first-class:
+  - `console_output=False` selects a null presenter
+  - the core no longer needs direct `print()` guards sprinkled through runtime logic
+- Wiring the presenter through the already-extracted coordinator and history service was necessary for the boundary to be real.
+- If only `engine.py` had changed, the runtime would still have hidden terminal ownership leaks in adjacent services.
+- After this slice, the next hotspot is turn-context concentration rather than presentation or history mutation.
+- `P34.6` is now the natural next cut because the current large turn-context module remains the biggest remaining change surface inside `agent_core`.
+
+## 2026-04-16 P32b OpenWebUI Legacy Release Surface Findings
+
+- The removed OpenWebUI tree was one of the few dirty-worktree areas that could still be cut as a self-contained hygiene commit.
+- Unlike `agent_studio` frontend removal, the OpenWebUI slice did not require staging the large gateway host rewrite in `src/apps/agent_studio_gateway/main.py`.
+- The real closure for this slice was not just deleting `src/apps/open_webui/*`.
+- Active release plumbing still referenced OpenWebUI through:
+  - `.github/workflows/ci.yml`
+  - `scripts/ci/release_gate.py`
+  - `scripts/ci/release_promotion_checklist.py`
+  - `src/mini_agent/dev/release_promotion_checklist.py`
+  - `tests/test_release_promotion_checklist.py`
+- That meant the safe commit boundary was:
+  - adapter code deletion
+  - CI/release path cleanup
+  - script index/archive guidance cleanup
+  - release-promotion wording/test alignment
+- `TASKS.md` still contains OpenWebUI-era planning language, but it is encoded awkwardly and is safer to correct in a later documentation-focused slice rather than risk accidental corruption during this commit.
+- After landing the OpenWebUI slice, the next hygiene bottleneck is the browser `agent_studio` tree:
+  - deleting it cleanly still intersects with `src/apps/agent_studio_gateway/main.py`
+  - that slice likely needs a broader but still focused host-alignment commit
+
+## 2026-04-16 P32b Legacy Channel Tree Removal Findings
+
+- The legacy remote-channel trees were cleaner to remove than the browser `agent_studio` tree.
+- The decisive reason is that the maintained repository story had already been updated:
+  - `docs/DEVELOPMENT_INDEX.md` already records `P32.60` as the removal point for `src/channels/*`, `src/mini_agent/channels/*`, and `src/gateway/channels/*`
+  - `docs/REFACTOR_TASKS.md` already treats QQ app-path code as the only maintained remote implementation line
+- Active source/test/script references for these paths were already gone before the commit.
+- That allowed the slice to remain a pure deletion commit with one lightweight verification check instead of dragging in runtime or gateway host edits.
+- The key remaining hygiene blocker is now the browser `agent_studio` tree, because that deletion still intersects with:
+  - `src/apps/agent_studio_gateway/main.py`
+  - the current host/static-serving behavior
+  - tests around the gateway/browser surface boundary
