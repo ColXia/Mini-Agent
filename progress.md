@@ -1,5 +1,40 @@
 # Progress
 
+## 2026-04-16 P40.7 Active Doc Truth Sync
+
+- [completed] resumed the `docs-planning-governance` slice at the active-doc truth boundary instead of mixing in the 9 untracked historical docs
+- [completed] audited the modified active docs and confirmed 4 had real mojibake corruption:
+  - `docs/P23_AGENT_CORE_DETAILED_PLAN.md`
+  - `docs/P23_AGENT_CORE_TASK_PLAN.md`
+  - `docs/OSS_REFERENCE_INDEX.md`
+  - `docs/RUNTIME_FLOW.md`
+- [completed] repaired the corrupted active docs while preserving legitimate refactor-truth updates:
+  - `studio_router` -> `ops_router`
+  - `test_agent_turn_context.py` -> `test_agent_core_turn_context.py`
+  - `test_agent_execution_policy.py` -> `test_agent_core_execution_policy.py`
+  - `src/mini_agent/turn_context.py` -> `src/mini_agent/agent_core/context/turn_context.py`
+  - `src/mini_agent/agent.py` -> `src/mini_agent/agent_core/engine.py`
+  - `code_agent/*` -> `agent_core/*` reference updates where already reflected by the current repo structure
+- [completed] verified the repaired active-doc slice:
+  - `git diff --check -- docs/...`
+  - result: no diff-check failures in the modified active-doc set
+  - `rg -n "<mojibake patterns>"` across the modified active-doc set
+  - result: no remaining matches in the active-doc slice
+- [completed] landed the modified active-doc slice only:
+  - commit: `66476e5`
+  - message: `p40: sync active docs truth`
+- [completed] re-ran the dirty-worktree classifier after the commit:
+  - `python scripts/worktree_slice_report.py`
+  - result:
+    - total dirty paths: `181`
+    - `docs-planning-governance`: `9`
+    - remaining docs residue is now only the 9 untracked historical plan/evaluation docs
+- [next] sync planning-memory files with the new post-docs state
+- [next] after planning sync, the narrowest remaining docs slice is the untracked historical/evaluation doc bundle
+- [note] separate from the dirty tree, two committed docs still look encoding-corrupted and should be tracked as future repo-hygiene cleanup:
+  - `docs/DEVELOPMENT_INDEX.md`
+  - `docs/REFACTOR_TASKS.md`
+
 ## 2026-04-16 P40.6 Memory Governance Support Landing
 
 - [completed] re-audited the remaining `memory-governance` residue after `P40.5`

@@ -1,5 +1,33 @@
 # Findings
 
+## 2026-04-16 P40.7 Active Doc Truth Sync
+
+- The modified active-doc residue was worth cutting before any further code work.
+- It was not merely “docs are behind”:
+  - four active docs had real encoding/mojibake corruption in the dirty tree
+  - the same files also carried legitimate refactor-truth updates that should not be reverted
+- That made this a classic anti-chaos slice:
+  - repair readability
+  - preserve ownership truth
+  - avoid mixing in unrelated historical/untracked planning docs
+- The highest-leverage repairs were:
+  - restoring the two `P23` active docs so recent route/test/path updates were readable again
+  - restoring `OSS_REFERENCE_INDEX.md` so upstream references and Mini-Agent targets matched the current `agent_core` / `plugins` / runtime structure
+  - restoring `RUNTIME_FLOW.md` so operator-facing runtime truth no longer lied about `studio_router`, browser WebUI, or remote adapter status
+- The structural win is bigger than the raw count reduction suggests:
+  - total dirty paths: `191 -> 181`
+  - `docs-planning-governance`: `19 -> 9`
+- What remains in `docs-planning-governance` is now a much cleaner residue:
+  - 9 untracked historical plan/evaluation docs
+  - no more modified active docs inside that bucket
+- One useful residual finding surfaced during validation:
+  - `docs/DEVELOPMENT_INDEX.md` and `docs/REFACTOR_TASKS.md` still contain committed encoding corruption
+  - they are not part of the current dirty tree, so they did not belong in this slice
+  - but they remain a real future repo-hygiene cleanup target if we want the active docs corpus fully trustworthy
+- Practical implication:
+  - the repo is less likely to slide back into “docs say one thing, code says another” during the next iteration
+  - the next docs move can now focus purely on whether to land/archive the historical untracked plan docs, not on repairing active-doc readability first
+
 ## 2026-04-16 P40.6 Memory Governance Support Landing
 
 - The remaining `memory-governance` residue was a real clean-clone integrity problem, not cosmetic drift.

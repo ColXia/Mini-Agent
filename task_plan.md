@@ -1,5 +1,78 @@
 # Task Plan
 
+## Latest Sync: 2026-04-16 P40.7 Active Doc Truth Sync
+
+## Current Execution Slice: P40.7 Active Doc Truth Sync (2026-04-16)
+
+### Why This Slice Is Next
+
+- after `P40.6`, the safest anti-chaos slice was the active portion of `docs-planning-governance`
+- the modified active docs were no longer harmless status drift:
+  - four of them had real mojibake/encoding corruption inside current diffs
+  - several others already carried legitimate path/ownership updates from the recent refactors
+- the right move was therefore to repair and land the active-doc truth layer first, before mixing in the still-untracked historical plan/evaluation docs
+
+### Scope
+
+- repair the confirmed corrupted active docs:
+  - `docs/P23_AGENT_CORE_DETAILED_PLAN.md`
+  - `docs/P23_AGENT_CORE_TASK_PLAN.md`
+  - `docs/OSS_REFERENCE_INDEX.md`
+  - `docs/RUNTIME_FLOW.md`
+- preserve legitimate active-doc truth updates already present in the dirty tree:
+  - `studio_router` -> `ops_router`
+  - turn-context / execution-policy / engine path realignment
+  - `code_agent/*` -> `agent_core/*` reference shifts where the repo has already converged
+  - QQ-only / browser-removed surface truth in runtime docs
+- land the full modified active-doc set as one narrow slice
+- keep the 9 untracked historical plan/evaluation docs out of this cut
+
+### Acceptance
+
+- the modified active docs are readable again and no longer contain the confirmed mojibake corruption
+- active docs reflect the current physical/logical ownership truth instead of stale pre-refactor paths
+- `docs-planning-governance` is reduced to the separate untracked historical-doc residue only
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- repaired and re-landed the corrupted active docs while preserving real refactor updates:
+  - `P23` detailed/task docs restored to readable Chinese and kept the current gateway/test/path naming
+  - `OSS_REFERENCE_INDEX.md` now points at the maintained `agent_core/*`, `plugins/*`, and modern interaction/runtime targets without corrupted headers or upstream paths
+  - `RUNTIME_FLOW.md` now cleanly reflects:
+    - `ops_router`
+    - bootstrap provider-registry fallback
+    - runtime request-policy / rectifier defaults
+    - `agent_core` execution/context ownership
+    - browser WebUI retirement and QQ-only active remote-adapter truth
+- landed only the modified active-doc slice:
+  - commit: `66476e5`
+  - message: `p40: sync active docs truth`
+- post-commit residual snapshot from `python scripts/worktree_slice_report.py`:
+  - total dirty paths: `181`
+  - `agent-core-and-cli-surface`: `62`
+  - `surface-transport-orchestration`: `42`
+  - `runtime-session-contract`: `40`
+  - `developer-tooling-smokes`: `9`
+  - `docs-planning-governance`: `9`
+  - `model-runtime-substrate`: `6`
+- important boundary result:
+  - `docs-planning-governance` now contains only the 9 untracked historical plan/evaluation docs
+  - the previously modified active docs are no longer part of the dirty-tree story
+
+### Next Likely Seam
+
+- current recommended next slice remains `docs-planning-governance`, but it is now a narrower second-stage docs cut:
+  - land or explicitly archive the 9 untracked historical plan/evaluation docs
+- after docs are fully closed, reopen code-bearing slices conservatively based on current classifier size/mix:
+  - `runtime-session-contract`
+  - `surface-transport-orchestration`
+  - `agent-core-and-cli-surface`
+
+
 ## Latest Sync: 2026-04-16 P40.6 Memory Governance Support Landing
 
 ## Current Execution Slice: P40.6 Memory Governance Support Landing (2026-04-16)
