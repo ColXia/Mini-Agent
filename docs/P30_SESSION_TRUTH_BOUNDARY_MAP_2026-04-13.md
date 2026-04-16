@@ -4,6 +4,7 @@
 > Date: 2026-04-13
 > Phase: `P30.2 Session Truth Boundary Lock`
 > Purpose: explicitly document what TUI and remote adapters are allowed to cache, and what remains canonical session truth
+> Update 2026-04-14 (`P32.60`): the old WeChat/channel trees referenced below were removed from the active repo. Their entries remain here as audit evidence only.
 
 ## 1. Core Conclusion
 

@@ -1,7 +1,7 @@
 # Mini-Agent Framework Skeleton
 
 > Status: active
-> Last updated: 2026-04-13
+> Last updated: 2026-04-16
 > Purpose: lock the new framework skeleton so later implementation stays aligned and does not drift back into surface-owned logic or adapter-specific forks
 
 ## 1. Intent
@@ -29,11 +29,10 @@ Mini-Agent has four user-facing entrances:
 Clarifications:
 
 - `Remote Interaction` is a product entrance
-- `QQ / WeChat / Feishu` are concrete adapters under that entrance
-- current active delivery path is `QQ` only
-- `WeChat / Feishu` are future extension targets, not current execution commitments
+- the current active remote adapter is `QQ` only
+- future remote adapters are not kept as active codepaths until explicitly reintroduced
 - `DesktopUI (PySide6)` is the canonical graphical mainline
-- browser `WebUI` is paused as a compatibility/prototype path
+- browser `WebUI / OpenWebUI` are removed
 - `gateway` is a shared host / transport path, not a product entrance
 - `headless` is a runtime mode, not a product entrance
 
@@ -48,8 +47,7 @@ The framework skeleton is:
    - `Remote Interaction`
 2. Remote adapter sub-layer
    - `QQ adapter` (active path)
-   - `WeChat adapter` (future extension)
-   - `Feishu adapter` (future extension)
+   - future remote adapters only after a new architecture decision
 3. Interface / transport layer
    - terminal IO adapters
    - HTTP / SSE / WebSocket API
@@ -126,24 +124,14 @@ The framework skeleton is:
   - `/api/v1/*` lives here
 - `desktop_ui/`
   - `PySide6` desktop app bootstrap and packaging entry
-- `agent_studio/`
-  - paused browser compatibility/prototype path
-  - not the canonical maintained graphical entrance
 - `qqbot_channel/`
   - active remote adapter app
   - thin channel glue only
-- `open_webui/`
-  - compatibility / integration adapter
-  - not the canonical WebUI entrance
 
 ### Transitional / legacy paths
 
-- `src/channels/*`
-  - transitional or legacy channel implementations
-  - no new product behavior should be added here
-- `src/mini_agent/channels/*`
-  - older Python channel abstractions
-  - migration / deletion only unless explicitly reactivated by a new architecture decision
+- historical channel trees under `src/channels/*`, `src/mini_agent/channels/*`, and `src/gateway/channels/*` are removed from the active codebase
+- future remote adapters must start as new app-path implementations under `src/apps/`, not by reviving legacy channel trees
 
 ## 5. Dependency Rules
 
@@ -160,7 +148,7 @@ More concretely:
 - route handlers and bot handlers must not become business-rule owners
 - application services may orchestrate runtime and domain services
 - runtime code may depend on session/core capability modules
-- core capability modules must not depend on TUI, DesktopUI, browser WebUI, or concrete remote adapters
+- core capability modules must not depend on TUI, DesktopUI, or concrete remote adapters
 
 Composition-root exception:
 
@@ -203,12 +191,6 @@ Implications:
 - built as a separate `PySide6` surface, not a TUI wrapper
 - shares the same application layer as CLI and TUI
 - should start on the shared local gateway transport after the thin application-seam correction lands
-
-### Browser WebUI
-
-- paused compatibility/prototype path only
-- not the active mainline product entrance
-- may be revived later only on top of the same shared service contract
 
 ### Remote Interaction
 
@@ -296,7 +278,7 @@ The following are hard no-go areas unless the architecture is explicitly revised
 - treating a concrete remote adapter as if it defines the whole remote entrance
 - adding new maintained product behavior to `src/channels/*`
 - treating compatibility adapters as canonical product entrances
-- expanding WebUI or remote work without reference to the same shared application seams
+- expanding remote work without reference to the same shared application seams
 
 ## 12. Where New Code Goes
 
@@ -317,11 +299,8 @@ When adding a feature, use this routing guide:
   - channel glue only in `src/apps/*_channel/*`
 - model / memory / RAG / skill / MCP behavior:
   - the corresponding core module plus one application seam if the behavior is surface-shared
-- browser transport routes:
+- gateway transport routes:
   - `src/apps/agent_studio_gateway/*`
-- browser frontend presentation:
-  - `src/apps/agent_studio/*`
-
 ## 13. Current Development Order
 
 With the skeleton locked, the next execution order is:
@@ -330,11 +309,12 @@ With the skeleton locked, the next execution order is:
 2. finish session truth boundary cleanup
 3. split TUI view state from runtime/session ownership
 4. normalize remote adapters under the shared remote contract
-5. keep WebUI paused until it resumes on top of the same application layer
+5. do not reintroduce browser WebUI/OpenWebUI compatibility shells
 
 ## 14. References
 
 - [ARCHITECTURE.md](./ARCHITECTURE.md)
+- [P32_REMOTE_INTERACTION_ARCHITECTURE_LOCK_2026-04-14.md](./P32_REMOTE_INTERACTION_ARCHITECTURE_LOCK_2026-04-14.md)
 - [P29_SESSION_BOUNDARY_AUDIT_2026-04-12.md](./P29_SESSION_BOUNDARY_AUDIT_2026-04-12.md)
 - [P30_SURFACE_SESSION_ARCHITECTURE_CORRECTION_2026-04-12.md](./P30_SURFACE_SESSION_ARCHITECTURE_CORRECTION_2026-04-12.md)
 - [P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md](./P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md)

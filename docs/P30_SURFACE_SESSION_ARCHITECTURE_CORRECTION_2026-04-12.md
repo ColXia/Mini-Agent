@@ -3,6 +3,7 @@
 > Status: Active
 > Date: 2026-04-12
 > Goal: lock the corrected architecture before the next refactor phase and GitHub release snapshot
+> Update 2026-04-14 (`P32.60`): `Remote Interaction` is now physically hard-locked to one active adapter path (`src/apps/qqbot_channel/`); legacy WeChat/browser channel code was removed from the active tree to prevent drift
 
 ## 1. Core Correction
 
@@ -11,8 +12,8 @@ The session model must not be owned by any user entrance.
 The canonical rule is:
 
 - `Session` is an independent core object and the single source of truth
-- `CLI`, `TUI`, `WebUI`, and `Remote Interaction` do not own sessions
-- concrete remote channels such as `QQ`, `WeChat`, and `Feishu` are adapter implementations under the remote entrance
+- `CLI`, `TUI`, `DesktopUI`, and `Remote Interaction` do not own sessions
+- concrete remote adapters live under the remote entrance; the active repo currently carries only `QQ`
 - every entrance only observes or operates sessions through shared application services
 
 This explicitly corrects the old drift where surface-local state started behaving like session truth.
@@ -23,13 +24,14 @@ The user-side product model is now explicitly:
 
 1. `CLI`
 2. `TUI`
-3. `WebUI`
+3. `DesktopUI`
 4. `Remote Interaction`
 
 Important clarification:
 
 - `Remote Interaction` is a product entrance category
-- `QQ`, `WeChat`, and `Feishu` are concrete channel adapters under that entrance
+- `QQ` is the only active remote adapter under that entrance today
+- future remote adapters must be explicitly reintroduced instead of being kept as dormant active code
 - `headless` is a runtime mode, not a fifth entrance
 - `gateway` is a shared host / transport path, not a user entrance
 
@@ -40,15 +42,13 @@ The intended architecture is:
 1. User entrance layer
    - `CLI`
    - `TUI`
-   - `WebUI`
+   - `DesktopUI`
    - `Remote Interaction`
 2. Remote channel adapter sub-layer
    - `QQ adapter`
-   - `WeChat adapter`
-   - `Feishu adapter`
+   - future adapters only after explicit reactivation
 3. Interface / transport layer
    - terminal input adapters
-   - browser HTTP / WebSocket API
    - gateway HTTP API
    - remote ingress / egress adapters
 4. Application layer
@@ -88,15 +88,15 @@ It translates protocols. It must not carry business ownership.
 - adds session visibility, activity visibility, model controls, and operator state panels
 - must not become the owner of session truth
 
-### WebUI
+### DesktopUI
 
-- a browser surface sharing the same application layer as CLI/TUI
-- intended for richer interaction patterns such as uploads, provider setup, and customer-facing workflows
+- a graphical surface sharing the same application layer as CLI/TUI
+- intended for richer interaction patterns such as file handling, provider setup, and end-user workflows
 - is not allowed to fork the session model or business rules
 
 ### Remote Interaction
 
-- a peer entrance alongside CLI/TUI/WebUI
+- a peer entrance alongside CLI/TUI/DesktopUI
 - provides remote conversational access into the same shared session/application model
 - is implemented by thin channel adapters rather than by duplicating business logic
 
@@ -119,10 +119,10 @@ They must not:
 
 The architecture must not slide back into any of the following:
 
-- "TUI sessions", "CLI sessions", "WebUI sessions", or "QQ sessions" as separate truth models
+- "TUI sessions", "CLI sessions", "DesktopUI sessions", or "QQ sessions" as separate truth models
 - treating `QQ` as if it defines the whole remote entrance
 - treating remote interaction as a child subsystem of TUI
-- WebUI reimplementing business rules instead of calling application services
+- DesktopUI reimplementing business rules instead of calling application services
 - runtime managers returning directly to entrance-owned behavior logic
 
 ## 6. Current Project Assessment
@@ -144,9 +144,9 @@ The project direction is broadly correct, but the active wording and implementat
 
 ### Still misaligned
 
-- active wording still over-flattens the entrance model into `CLI / TUI / WebUI / QQ`
+- active wording still over-flattens the entrance model into `CLI / TUI / DesktopUI / QQ`
   - that is too implementation-specific
-  - the correct product definition is `CLI / TUI / WebUI / Remote Interaction`
+  - the correct product definition is `CLI / TUI / DesktopUI / Remote Interaction`
 - `src/mini_agent/tui/app.py`
   - `TuiSession` still mixes:
     - session-facing data
@@ -161,12 +161,11 @@ The project direction is broadly correct, but the active wording and implementat
     - runtime state transitions
 - remote-channel architecture is still uneven:
   - active QQ adapter is in `src/apps/qqbot_channel`
-  - WeChat code still lives under `src/channels/wechat`
-  - Feishu is not yet landed
-  - the target adapter contract is not yet fully normalized across channels
-- the Web direction is still in transition:
-  - current codebase has browser-facing paths
-  - but the canonical WebUI entrance contract is not yet fully consolidated on the new architecture
+  - older non-QQ channel trees were drift sources and should be removed instead of kept as "future but active-looking" code
+  - future adapters should start as new app-path implementations only after a new architecture decision
+- the Desktop direction is still in transition:
+  - current codebase has a new desktop path plus shared gateway transport
+  - but the canonical DesktopUI entrance contract is not yet fully consolidated on the new architecture
 
 ## 7. Refactor Rules For The Next Phase
 
@@ -175,7 +174,7 @@ The next refactor work on `main` should follow these rules:
 1. Session truth stays centralized.
 2. Entrances may cache projections, never domain ownership.
 3. Remote channel adapters may cache bindings and delivery state, never session truth.
-4. Web surfaces must use the same application services as terminal surfaces.
+4. Desktop surfaces must use the same application services as terminal surfaces.
 5. Interface/API adapters may translate protocols, but may not embed business logic.
 6. Runtime orchestration must keep shrinking out of entrance code and oversized managers.
 7. `Remote Interaction` must be treated as a first-class entrance, with concrete bots kept as thin implementations underneath it.
@@ -186,8 +185,8 @@ The next development focus after this GitHub snapshot should be:
 
 1. lock the four-entrance product model in active docs and planning
 2. finish separating TUI state, runtime handles, and session projections
-3. keep the remote-channel adapter contract generic while treating `QQ` as the only active delivery path; `WeChat / Feishu` remain future extension targets
-4. clarify the canonical WebUI entrance versus compatibility/integration adapters
+3. keep `Remote Interaction` generic at the entrance level while keeping only `QQ` as the active adapter path in the codebase
+4. clarify the canonical DesktopUI entrance versus remote/integration adapters
 5. continue decomposing `MainAgentRuntimeManager`
 
 ## 9. Branching Intent

@@ -7,7 +7,7 @@ This repository is currently developed as a terminal-first agent project.
 - Read [README.md](../README.md) and [docs/DEVELOPMENT_GUIDE.md](./DEVELOPMENT_GUIDE.md)
 - Check [docs/ARCHITECTURE.md](./ARCHITECTURE.md) for current boundaries
 - Treat `docs/archive/` as historical reference only
-- Prefer TUI / CLI / headless workflows; WebUI is currently paused
+- Prefer CLI / TUI / Desktop / remote workflows; browser WebUI/OpenWebUI are removed
 
 ## Getting Started
 

@@ -18,7 +18,7 @@ Clarifications:
 
 - `DesktopUI` replaces `browser-first WebUI` as the primary end-user graphical entrance
 - the old browser Studio path is no longer the canonical product direction
-- existing browser assets may remain as paused compatibility/prototype material, but they are not the active mainline
+- browser `WebUI / OpenWebUI` are removed from the active codebase
 - `Remote Interaction` still remains an entrance category; current active adapter scope is still `QQ` only
 
 ## 2. Why Option 1 Won
@@ -48,11 +48,7 @@ The active four entrances are now:
 3. `DesktopUI`
 4. `Remote Interaction`
 
-Browser-based `WebUI` is downgraded to:
-
-- paused compatibility/prototype path
-- not the canonical maintained third entrance
-- not the current implementation priority
+Browser-based `WebUI` is removed from the active codebase and must not be reintroduced as a compatibility shell.
 
 ### Boundary rule
 
@@ -154,7 +150,6 @@ src/apps/
   agent_studio_gateway/     local host / transport composition root
   desktop_ui/               PySide6 app bootstrap / packaging entry
   qqbot_channel/            remote adapter app
-  agent_studio/             paused browser compatibility/prototype path
 ```
 
 Repository rule:
@@ -169,7 +164,7 @@ Repository rule:
 Scope:
 
 - sync architecture docs from `WebUI` mainline wording to `DesktopUI` mainline wording
-- record browser Studio as paused compatibility path
+- record browser `WebUI / OpenWebUI` as removed active scope
 - freeze the rule that DesktopUI is a separate frontend, not a TUI wrapper
 
 Deliverables:

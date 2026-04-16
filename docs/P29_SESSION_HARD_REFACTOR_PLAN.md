@@ -4,6 +4,7 @@
 > Date: 2026-04-12
 > Basis: `docs/P29_SESSION_BOUNDARY_AUDIT_2026-04-12.md`
 > Goal: repair session ownership, command ownership, and surface/runtime boundaries without introducing a compatibility shell
+> Update 2026-04-14 (`P32.60`): non-QQ remote channel trees are no longer part of the active repo. Remote work now means tightening the shared session/application boundary plus the single maintained QQ adapter path.
 
 ## 1. Goal
 
@@ -24,7 +25,7 @@ It is a structural repair slice required before more session-facing features con
 - Do not add new session behavior on top of the current mixed model.
 - Prefer deletion / replacement over keeping parallel abstractions alive.
 - Keep TUI/CLI as primary operator surfaces.
-- WebUI remains paused.
+- Browser `WebUI / OpenWebUI` are removed.
 - Keep real runtime behavior testable through focused regression, not only document intent.
 
 ## 3. Non-Goals

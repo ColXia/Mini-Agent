@@ -7,7 +7,9 @@
 - 阅读 [README_CN.md](../README_CN.md) 和 [docs/DEVELOPMENT_GUIDE_CN.md](./DEVELOPMENT_GUIDE_CN.md)
 - 用 [docs/ARCHITECTURE.md](./ARCHITECTURE.md) 确认当前架构边界
 - `docs/archive/` 只作为历史参考，不作为当前实现依据
-- 当前主交互面是 `TUI / CLI / headless`，WebUI 处于暂停开发状态
+- 当前四个主入口是 `CLI / TUI / 桌面端 / 远程交互侧`
+- 默认本地工作流是 `TUI / CLI / headless`
+- 浏览器 `WebUI / OpenWebUI` 已删除
 
 ## 开始开发
 

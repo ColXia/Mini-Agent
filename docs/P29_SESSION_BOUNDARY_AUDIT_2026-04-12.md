@@ -1,5 +1,7 @@
 # P29 Session Boundary Audit (2026-04-12)
 
+> Update 2026-04-14 (`P32.60`): legacy remote channel trees discussed in this audit were later removed from the active repo. Keep this document as boundary evidence, not as a live module map.
+
 ## Purpose
 
 This audit was triggered by the latest session unification work.

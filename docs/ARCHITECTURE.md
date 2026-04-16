@@ -1,9 +1,9 @@
 # Mini-Agent Architecture
 
 > Status: active
-> Last updated: 2026-04-13
+> Last updated: 2026-04-16
 > Product entrance model: `CLI / TUI / DesktopUI / Remote Interaction`
-> Current implementation focus: terminal-first delivery plus `DesktopUI(PySide6)` planning, with `QQ` as the only active remote-channel path; `WeChat / Feishu` remain future extension targets and browser `WebUI` is now a paused compatibility/prototype path rather than the canonical third entrance
+> Current implementation focus: terminal-first delivery plus `DesktopUI(PySide6)` planning, with `QQ` as the only active remote adapter; `WeChat / Feishu` are not carried as active codepaths and browser `WebUI / OpenWebUI` have been removed
 > Framework skeleton lock: [`FRAMEWORK_SKELETON.md`](./FRAMEWORK_SKELETON.md)
 
 ## 1. Architectural Position
@@ -16,19 +16,12 @@ Mini-Agent is a shared agent platform with four user-side entrances:
 - `Remote Interaction`
 
 `Remote Interaction` is a product entrance, not a single bot implementation.
-Its concrete channel adapters conceptually include:
+Current delivery scope is intentionally hard-locked:
 
-- `QQ bot`
-- `WeChat bot`
-- `Feishu bot`
-
-Current delivery scope:
-
-- `QQ bot` is the active implementation path
-- `WeChat bot` is future extension only
-- `Feishu bot` is future extension only
+- `QQ bot` is the only active implementation path
+- `WeChat bot` is not part of the current codebase or delivery scope
+- `Feishu bot` is not part of the current codebase or delivery scope
 - `DesktopUI (PySide6)` is the planned graphical mainline
-- browser `WebUI` is paused as a compatibility/prototype path
 
 At the same time:
 
@@ -64,16 +57,14 @@ See:
 ### Remote channel adapter sub-layer
 
 - `QQ adapter` (active path)
-- `WeChat adapter` (future extension)
-- `Feishu adapter` (future extension)
+- future remote adapters may be added later, but they are not kept as active codepaths today
 
 This sub-layer exists under the remote entrance and is not parallel to the four entrances themselves.
 
 ### Interface / transport layer
 
 - terminal input/output adapters
-- browser HTTP / WebSocket API
-- gateway HTTP API
+- gateway HTTP / SSE API
 - remote channel ingress / egress adapters
 
 This layer translates protocols and presentation contracts.
@@ -112,7 +103,6 @@ This is the shared service layer used by all four entrances.
 - persistence stores
 - LLM clients
 - channel SDKs
-- browser runtimes
 - local filesystem / workspace state
 
 ## 4. Current Runtime Topology
@@ -142,7 +132,7 @@ Remote path detail:
 Remote Interaction
        |
        v
-QQ / WeChat / Feishu adapters
+QQ adapter
        |
        v
 gateway ingress + shared application services
@@ -168,27 +158,19 @@ src/mini_agent/
   desktop/             DesktopUI surface state and view-model helpers
 
 src/apps/agent_studio_gateway/
-  shared gateway host and browser/remote API routes
+  shared gateway host and transport API routes
 
 src/apps/desktop_ui/
   PySide6 desktop bootstrap and packaging entry
 
 src/apps/qqbot_channel/
   active QQ remote-channel adapter app
-
-src/apps/agent_studio/
-  paused browser compatibility/prototype path; not the canonical graphical mainline
-
-src/channels/wechat/
-  future-extension WeChat integration code; not part of the current delivery roadmap
 ```
 
 Planned but not yet landed as a first-class maintained path:
 
 - `DesktopUI (PySide6)` as the canonical maintained graphical path
-- `WeChat remote-channel adapter` as a maintained product path
-- `Feishu remote-channel adapter`
-- browser `WebUI` only if revived later as an optional compatibility surface on the same shared service contract
+- future remote adapters only after a fresh architecture decision and a new app-path implementation
 
 ## 6. Configuration Model
 
@@ -242,11 +224,8 @@ It must not duplicate business rules that belong in the application layer.
 ### What the remote entrance means
 
 The remote entrance is not "QQ mode in TUI".
-It is a separate product entrance whose concrete implementations are channel adapters such as:
-
-- `QQ`
-- `WeChat`
-- `Feishu`
+It is a separate product entrance whose current concrete implementation is the `QQ` adapter.
+Future adapters may be added later, but they are not kept as active codepaths today.
 
 Those adapters may reuse the same commands and services, but they must stay thin.
 
@@ -255,7 +234,7 @@ Those adapters may reuse the same commands and services, but they must stay thin
 - `DesktopUI` is not a browser-first Studio continuation
 - `DesktopUI` is not a wrapper around the current TUI renderer
 - `DesktopUI` should reuse the same application/runtime/session truth through a thin local gateway transport in the first delivery slices
-- if browser Studio remains in the repo, it should be treated as paused compatibility/prototype material rather than the mainline UX direction
+- browser `WebUI / OpenWebUI` are removed and must not be reintroduced as compatibility shells
 
 ## 8. Current Non-Goals
 
@@ -269,5 +248,6 @@ Those adapters may reuse the same commands and services, but they must stay thin
 
 - [`./DEVELOPMENT_GUIDE.md`](./DEVELOPMENT_GUIDE.md)
 - [`./DEVELOPMENT_INDEX.md`](./DEVELOPMENT_INDEX.md)
+- [`./P32_REMOTE_INTERACTION_ARCHITECTURE_LOCK_2026-04-14.md`](./P32_REMOTE_INTERACTION_ARCHITECTURE_LOCK_2026-04-14.md)
 - [`./RUNTIME_FLOW.md`](./RUNTIME_FLOW.md)
 - [`./OSS_REFERENCE_INDEX.md`](./OSS_REFERENCE_INDEX.md)
