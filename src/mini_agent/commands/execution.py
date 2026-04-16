@@ -7,59 +7,40 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Sequence
 
-from mini_agent.memory.diagnostics import (
-    build_memory_overview_payload,
-    format_consolidated_memory_details,
-    format_consolidated_memory_search_details,
-    format_global_profile_details,
-    format_memory_diagnostics,
-    format_memory_export_details,
-    format_memory_overview_details,
-    format_runtime_memory_entry_details,
-    format_runtime_memory_preview_lines,
-    format_runtime_shared_selector_help,
-    format_runtime_session_selector_help,
-    format_workspace_daily_details,
-    format_workspace_note_details,
-    memory_diagnostics_summary_line,
-    resolve_runtime_shared_engram_selector,
-    resolve_runtime_session_engram_selector,
+from mini_agent.memory.command_service import (
+    MemoryCommandError,
+    MemoryCommandRequest,
+    MemoryCommandService,
 )
-from mini_agent.memory.knowledge_base_grounding import format_knowledge_base_grounding_lines
-from mini_agent.memory.memoria_runtime import WorkspaceMemoriaRuntime
-from mini_agent.memory.operator_actions import (
-    save_operator_profile_fact,
-    save_operator_workspace_note,
+from mini_agent.agent_core.skills.command_service import (
+    SkillCommandError,
+    SkillCommandRequest,
+    SkillCommandService,
+    SUPPORTED_SKILL_ACTIONS,
 )
-from mini_agent.memory.service import MemoryService
-from mini_agent.commands.skill_support import (
-    find_skill_entry,
-    format_skill_detail,
-    format_skill_entries,
-    format_skill_install_result,
-    format_skill_policy_overview,
-    format_skill_rollback_result,
-    format_skill_search_results,
-    format_skill_uninstall_result,
-    install_workspace_skill_from_path,
+from mini_agent.agent_core.skills.workspace_support import (
     load_workspace_skill_policy,
-    refresh_skill_catalog_loader,
-    resolve_skill_catalog_loader,
-    resolve_workspace_skill_policy_store,
-    rollback_workspace_skill,
-    search_skill_entries,
-    summarize_skill_entries,
-    uninstall_workspace_skill,
 )
 
 from mini_agent.runtime.sandbox_state import compact_sandbox_summary, format_sandbox_status
-from mini_agent.turn_context import (
+from mini_agent.agent_core.context.turn_context import (
     context_policy_summary_line,
     format_context_policy_details,
     format_prepared_context_diagnostics,
     format_prepared_turn_context_details,
     resolve_turn_context_policy,
 )
+from mini_agent.agent_core.context.command_service import (
+    ContextCommandError,
+    ContextCommandRequest,
+    ContextCommandService,
+)
+from mini_agent.tools.mcp.command_service import (
+    McpCommandError,
+    McpCommandService,
+    McpReloadOutcome,
+)
+from mini_agent.tools.knowledge_base_control_service import KnowledgeBaseControlService
 
 from .catalog import build_command_usage_text, build_unknown_action_text
 from .mcp_support import collect_mcp_operator_snapshot, format_mcp_server_list, format_mcp_status
@@ -95,14 +76,6 @@ class CommandExecutionResult:
         return payload
 
 
-@dataclass(slots=True)
-class McpReloadOutcome:
-    """Surface-specific reload outcome that can be surfaced after shared MCP execution."""
-
-    rebuilt_runtime: bool = False
-    active_model_label: str | None = None
-
-
 @dataclass(frozen=True, slots=True)
 class CatalogModelUseRequest:
     """One validated `/model use` request resolved against a catalog snapshot."""
@@ -110,6 +83,50 @@ class CatalogModelUseRequest:
     identity: tuple[str, str, str]
     provider_id: str
     model_id: str
+
+
+@dataclass(frozen=True, slots=True)
+class MemoryCommandPlan:
+    """Shared `/memory` command plan resolved before local or remote execution."""
+
+    command: str
+    action: str
+    success_status: str
+    failure_summary: str
+    failure_detail_prefix: str
+    failure_status: str
+    detail_mode: str = "full"
+    engram_id: str | None = None
+    content: str | None = None
+    query: str | None = None
+    day: str | None = None
+    export_format: str | None = None
+    summary_fallback: str | Callable[[Any, dict[str, Any]], str] = ""
+    metadata_builder: Callable[[dict[str, Any]], dict[str, Any]] | None = None
+    requires_idle_local_runtime: bool = False
+    is_mutation: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class ModelCommandPlan:
+    """Shared `/model` command plan resolved before surface-specific execution."""
+
+    command: str
+    action: str
+    cursor_delta: int = 0
+    request: CatalogModelUseRequest | None = None
+    filter_value: str | None = None
+    limit_args: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class ContextCommandPlan:
+    """Shared `/context` command plan resolved before surface-specific execution."""
+
+    action: str
+    args: tuple[str, ...]
+    refresh_snapshot: bool = False
+    mutate_policy: bool = False
 
 
 def parse_memory_show_target(surface: str, parts: Sequence[str]) -> tuple[str, str | None, str | None]:
@@ -127,6 +144,646 @@ def parse_memory_show_target(surface: str, parts: Sequence[str]) -> tuple[str, s
     if len(parts) > 1:
         return "full", None, build_command_usage_text(surface, "memory", action="show")
     return "full", first, None
+
+
+def _memory_usage_result(
+    *,
+    surface: str,
+    command: str,
+    action: str | None,
+    status_text: str,
+) -> CommandExecutionResult:
+    return CommandExecutionResult(
+        command=command,
+        summary="usage",
+        details=build_command_usage_text(surface, "memory", action=action),
+        status_text=status_text,
+        kind="usage",
+    )
+
+
+def _memory_unknown_action_result(
+    *,
+    surface: str,
+    command: str,
+    action: str,
+    fallback_action: str | None = None,
+    status_text: str,
+) -> CommandExecutionResult:
+    return CommandExecutionResult(
+        command=command,
+        summary="unknown action",
+        details=build_unknown_action_text(
+            surface,
+            "memory",
+            action,
+            fallback=build_command_usage_text(surface, "memory", action=fallback_action),
+        ),
+        status_text=status_text,
+        kind="error",
+    )
+
+
+def _model_usage_result(
+    *,
+    surface: str,
+    command: str,
+    action: str | None,
+    status_text: str,
+    details: str | None = None,
+    summary: str = "usage",
+) -> CommandExecutionResult:
+    return CommandExecutionResult(
+        command=command,
+        summary=summary,
+        details=details or build_command_usage_text(surface, "model", action=action),
+        status_text=status_text,
+        kind="usage",
+    )
+
+
+def _model_unknown_action_result(
+    *,
+    surface: str,
+    command: str,
+    action: str,
+    fallback_action: str | None = None,
+    status_text: str,
+) -> CommandExecutionResult:
+    return CommandExecutionResult(
+        command=command,
+        summary="unknown action",
+        details=build_unknown_action_text(
+            surface,
+            "model",
+            action,
+            fallback=build_command_usage_text(surface, "model", action=fallback_action),
+        ),
+        status_text=status_text,
+        kind="error",
+    )
+
+
+def prepare_model_command_plan(
+    *,
+    surface: str,
+    args: Sequence[str],
+    providers: Sequence[dict[str, Any]],
+    default_action: str,
+    allow_show: bool,
+    extended_actions: bool,
+    current_filter: str | None = None,
+    strict_basic_arity: bool = False,
+) -> ModelCommandPlan | CommandExecutionResult:
+    """Normalize `/model` semantics into one reusable plan for CLI/TUI."""
+
+    normalized_args = list(args or [])
+    action = normalized_args[0].lower() if normalized_args else default_action
+
+    if action == "show":
+        if not allow_show:
+            return _model_unknown_action_result(
+                surface=surface,
+                command="model",
+                action=action,
+                status_text="Unknown model action.",
+            )
+        if strict_basic_arity and len(normalized_args) > 1:
+            return _model_usage_result(
+                surface=surface,
+                command="model show",
+                action="show",
+                status_text="Model show usage shown.",
+            )
+        return ModelCommandPlan(command="model show", action="show")
+
+    if action == "list":
+        if strict_basic_arity and len(normalized_args) > 1:
+            return _model_usage_result(
+                surface=surface,
+                command="model list",
+                action="list",
+                status_text="Model list usage shown.",
+            )
+        return ModelCommandPlan(command="model list", action="list")
+
+    if action == "use":
+        request = resolve_catalog_model_use_request(
+            surface=surface,
+            providers=providers,
+            args=normalized_args,
+        )
+        if isinstance(request, CommandExecutionResult):
+            return request
+        return ModelCommandPlan(
+            command="model use",
+            action="use",
+            request=request,
+        )
+
+    if not extended_actions:
+        return _model_unknown_action_result(
+            surface=surface,
+            command="model",
+            action=action,
+            status_text="Unknown model action.",
+        )
+
+    if action == "next":
+        return ModelCommandPlan(command="model next", action="cursor", cursor_delta=1)
+    if action == "prev":
+        return ModelCommandPlan(command="model prev", action="cursor", cursor_delta=-1)
+    if action == "apply":
+        return ModelCommandPlan(command="model apply", action="apply")
+    if action == "discover":
+        return ModelCommandPlan(command="model discover", action="discover")
+    if action == "refresh":
+        return ModelCommandPlan(command="model refresh", action="refresh")
+    if action == "filter":
+        if len(normalized_args) < 2:
+            current = current_filter or "off"
+            return _model_usage_result(
+                surface=surface,
+                command="model filter",
+                action="filter",
+                status_text="Model filter usage shown.",
+                summary=f"current={current}",
+                details=(
+                    f"Current model filter: {current}\n"
+                    f"{build_command_usage_text(surface, 'model', action='filter')}"
+                ),
+            )
+        raw_filter = " ".join(normalized_args[1:]).strip()
+        if raw_filter.lower() in {"clear", "none", "off", "*"}:
+            return ModelCommandPlan(command="model filter", action="filter_clear")
+        return ModelCommandPlan(
+            command="model filter",
+            action="filter_set",
+            filter_value=raw_filter,
+        )
+    if action == "limit":
+        limit_args = list(normalized_args[1:])
+        limit_action = "show"
+        if limit_args and limit_args[0].lower() in {"show", "list", "clear"}:
+            limit_action = limit_args[0].lower()
+            limit_args = limit_args[1:]
+        if limit_action == "list":
+            return ModelCommandPlan(command="model limit list", action="limit_list")
+        if limit_action == "show":
+            return ModelCommandPlan(
+                command="model limit show",
+                action="limit_show",
+                limit_args=tuple(limit_args),
+            )
+        if limit_action == "clear":
+            return ModelCommandPlan(
+                command="model limit clear",
+                action="limit_clear",
+                limit_args=tuple(limit_args),
+            )
+        return _model_unknown_action_result(
+            surface=surface,
+            command="model limit",
+            action=limit_action,
+            fallback_action="limit",
+            status_text="Unknown model limit action.",
+        )
+    return _model_unknown_action_result(
+        surface=surface,
+        command="model",
+        action=action,
+        status_text="Unknown model action.",
+    )
+
+
+def prepare_context_command_plan(
+    *,
+    args: Sequence[str],
+    default_action: str = "show",
+) -> ContextCommandPlan:
+    """Normalize `/context` command aliases and side-effect flags across surfaces."""
+
+    normalized_args = list(args or [])
+    action = normalized_args[0].lower() if normalized_args else default_action
+    if action in {"brief", "full"}:
+        normalized_args = ["show", action]
+        action = "show"
+    return ContextCommandPlan(
+        action=action,
+        args=tuple(normalized_args),
+        refresh_snapshot=action in {"show", "stats"},
+        mutate_policy=action in {"include", "exclude", "budget", "reset"},
+    )
+
+
+def prepare_memory_command_plan(
+    *,
+    surface: str,
+    args: Sequence[str],
+    memory_summary_resolver: Callable[[Any, dict[str, Any]], str] | None = None,
+) -> MemoryCommandPlan | CommandExecutionResult:
+    """Normalize `/memory` semantics into one reusable plan for CLI/TUI."""
+
+    normalized_args = list(args or [])
+    action = normalized_args[0].lower() if normalized_args else "status"
+    if action in {"brief", "full"}:
+        normalized_args = ["show", action]
+        action = "show"
+
+    status_summary_fallback: str | Callable[[Any, dict[str, Any]], str]
+    show_summary_fallback: str | Callable[[Any, dict[str, Any]], str]
+    list_summary_fallback: str | Callable[[Any, dict[str, Any]], str]
+    runtime_summary_fallback: str | Callable[[Any, dict[str, Any]], str]
+    if memory_summary_resolver is None:
+        status_summary_fallback = "memory status shown"
+        show_summary_fallback = "memory diagnostics shown"
+        list_summary_fallback = "runtime memory list shown"
+        runtime_summary_fallback = "runtime task memory shown"
+    else:
+        status_summary_fallback = memory_summary_resolver
+        show_summary_fallback = memory_summary_resolver
+        list_summary_fallback = memory_summary_resolver
+        runtime_summary_fallback = memory_summary_resolver
+
+    if action == "status":
+        if len(normalized_args) > 1:
+            return _memory_usage_result(
+                surface=surface,
+                command="memory status",
+                action="status",
+                status_text="Memory status usage shown.",
+            )
+        return MemoryCommandPlan(
+            command="memory status",
+            action="status",
+            detail_mode="brief",
+            success_status="Memory status shown.",
+            failure_summary="status failed",
+            failure_detail_prefix="Memory status failed: ",
+            failure_status="Memory status failed.",
+            summary_fallback=status_summary_fallback,
+        )
+
+    if action == "show":
+        detail_mode, selector, usage_error = parse_memory_show_target(surface, normalized_args[1:])
+        if usage_error:
+            return _memory_usage_result(
+                surface=surface,
+                command="memory show",
+                action="show",
+                status_text="Memory show usage displayed.",
+            )
+        return MemoryCommandPlan(
+            command=(
+                f"memory show {selector}"
+                if selector
+                else f"memory show {detail_mode}" if detail_mode != "full" else "memory show"
+            ),
+            action="session_show" if selector else "show",
+            engram_id=selector,
+            detail_mode=detail_mode,
+            success_status="Runtime memory entry shown." if selector else "Memory diagnostics shown.",
+            failure_summary="show failed",
+            failure_detail_prefix=f"{'Runtime memory entry' if selector else 'Memory diagnostics'} failed: ",
+            failure_status="Runtime memory entry failed." if selector else "Memory diagnostics failed.",
+            summary_fallback=show_summary_fallback,
+        )
+
+    if action == "list":
+        if len(normalized_args) > 1:
+            return _memory_usage_result(
+                surface=surface,
+                command="memory list",
+                action="list",
+                status_text="Memory list usage shown.",
+            )
+        return MemoryCommandPlan(
+            command="memory list",
+            action="list",
+            detail_mode="full",
+            success_status="Runtime memory list shown.",
+            failure_summary="list failed",
+            failure_detail_prefix="Runtime memory list failed: ",
+            failure_status="Runtime memory list failed.",
+            summary_fallback=list_summary_fallback,
+        )
+
+    if action == "overview":
+        if len(normalized_args) > 1:
+            return _memory_usage_result(
+                surface=surface,
+                command="memory overview",
+                action="overview",
+                status_text="Memory overview usage shown.",
+            )
+        return MemoryCommandPlan(
+            command="memory overview",
+            action="overview",
+            detail_mode="full",
+            success_status="Memory overview shown.",
+            failure_summary="overview failed",
+            failure_detail_prefix="Memory overview failed: ",
+            failure_status="Memory overview failed.",
+            summary_fallback="memory overview shown",
+        )
+
+    if action == "export":
+        export_format = normalized_args[1].lower() if len(normalized_args) >= 2 else "jsonl"
+        if len(normalized_args) > 2 or export_format not in {"jsonl", "markdown"}:
+            return _memory_usage_result(
+                surface=surface,
+                command="memory export",
+                action="export",
+                status_text="Memory export usage shown.",
+            )
+        return MemoryCommandPlan(
+            command=f"memory export {export_format}",
+            action="export",
+            export_format=export_format,
+            detail_mode="full",
+            success_status="Memory export prepared.",
+            failure_summary="export failed",
+            failure_detail_prefix="Memory export failed: ",
+            failure_status="Memory export failed.",
+            summary_fallback="memory export prepared",
+        )
+
+    if action == "consolidated":
+        consolidated_action = normalized_args[1].lower() if len(normalized_args) >= 2 else "show"
+        if consolidated_action == "show":
+            if len(normalized_args) > 2:
+                return _memory_usage_result(
+                    surface=surface,
+                    command="memory consolidated",
+                    action="consolidated",
+                    status_text="Memory consolidated usage shown.",
+                )
+            return MemoryCommandPlan(
+                command="memory consolidated",
+                action="consolidated_show",
+                detail_mode="full",
+                success_status="Consolidated memory shown.",
+                failure_summary="consolidated failed",
+                failure_detail_prefix="Consolidated memory view failed: ",
+                failure_status="Consolidated memory view failed.",
+                summary_fallback="consolidated memory shown",
+            )
+        if consolidated_action == "search":
+            query = " ".join(normalized_args[2:]).strip() if len(normalized_args) >= 3 else ""
+            if not query:
+                return _memory_usage_result(
+                    surface=surface,
+                    command="memory consolidated",
+                    action="consolidated",
+                    status_text="Memory consolidated usage shown.",
+                )
+            return MemoryCommandPlan(
+                command=f"memory consolidated search {query}",
+                action="consolidated_search",
+                query=query,
+                detail_mode="full",
+                success_status="Consolidated memory matches shown.",
+                failure_summary="consolidated search failed",
+                failure_detail_prefix="Consolidated memory search failed: ",
+                failure_status="Consolidated memory search failed.",
+                summary_fallback="consolidated memory matches shown",
+            )
+        return _memory_unknown_action_result(
+            surface=surface,
+            command="memory consolidated",
+            action=consolidated_action,
+            fallback_action="consolidated",
+            status_text="Unknown memory consolidated action.",
+        )
+
+    if action == "profile":
+        query = " ".join(normalized_args[1:]).strip() if len(normalized_args) > 1 else ""
+        return MemoryCommandPlan(
+            command="memory profile" + (f" {query}" if query else ""),
+            action="profile",
+            query=query or None,
+            detail_mode="full",
+            success_status="Global profile shown.",
+            failure_summary="profile failed",
+            failure_detail_prefix="Global profile view failed: ",
+            failure_status="Global profile view failed.",
+            summary_fallback="global profile shown",
+        )
+
+    if action == "notes":
+        query = " ".join(normalized_args[1:]).strip() if len(normalized_args) > 1 else ""
+        return MemoryCommandPlan(
+            command="memory notes" + (f" {query}" if query else ""),
+            action="notes",
+            query=query or None,
+            detail_mode="full",
+            success_status="Workspace durable notes shown.",
+            failure_summary="notes failed",
+            failure_detail_prefix="Workspace durable notes view failed: ",
+            failure_status="Workspace durable notes view failed.",
+            summary_fallback="workspace durable notes shown",
+        )
+
+    if action == "daily":
+        if len(normalized_args) != 2:
+            return _memory_usage_result(
+                surface=surface,
+                command="memory daily",
+                action="daily",
+                status_text="Memory daily usage shown.",
+            )
+        day = _safe_text(normalized_args[1])
+        return MemoryCommandPlan(
+            command=f"memory daily {day}",
+            action="daily",
+            day=day or None,
+            detail_mode="full",
+            success_status="Workspace daily memory shown.",
+            failure_summary="daily failed",
+            failure_detail_prefix="Workspace daily memory view failed: ",
+            failure_status="Workspace daily memory view failed.",
+            summary_fallback="workspace daily memory shown",
+        )
+
+    if action == "shared":
+        shared_action = normalized_args[1].lower() if len(normalized_args) >= 2 else "list"
+        selector = _safe_text(normalized_args[2]) if len(normalized_args) >= 3 else ""
+        if shared_action == "list":
+            if len(normalized_args) > 2:
+                return _memory_usage_result(
+                    surface=surface,
+                    command="memory shared",
+                    action="shared",
+                    status_text="Memory shared usage shown.",
+                )
+            return MemoryCommandPlan(
+                command="memory shared list",
+                action="shared_list",
+                detail_mode="full",
+                success_status="Workspace-shared runtime memory list shown.",
+                failure_summary="shared list failed",
+                failure_detail_prefix="Workspace-shared runtime memory list failed: ",
+                failure_status="Workspace-shared runtime memory list failed.",
+                summary_fallback="workspace-shared runtime memory listed",
+            )
+        if shared_action == "show":
+            if len(normalized_args) > 3:
+                return _memory_usage_result(
+                    surface=surface,
+                    command="memory shared",
+                    action="shared",
+                    status_text="Memory shared usage shown.",
+                )
+            return MemoryCommandPlan(
+                command="memory shared show",
+                action="shared_show",
+                engram_id=selector or None,
+                detail_mode="full",
+                success_status="Workspace-shared runtime memory entry shown.",
+                failure_summary="shared show failed",
+                failure_detail_prefix="Workspace-shared runtime memory entry failed: ",
+                failure_status="Workspace-shared runtime memory entry failed.",
+                summary_fallback="workspace-shared runtime memory entry shown",
+                metadata_builder=lambda result: (
+                    {"engram_id": _safe_text(result.get("engram_id"))}
+                    if _safe_text(result.get("engram_id"))
+                    else {}
+                ),
+            )
+        if shared_action == "clear":
+            if len(normalized_args) > 2:
+                return _memory_usage_result(
+                    surface=surface,
+                    command="memory shared",
+                    action="shared",
+                    status_text="Memory shared usage shown.",
+                )
+            return MemoryCommandPlan(
+                command="memory shared clear",
+                action="shared_clear",
+                detail_mode="full",
+                success_status="Workspace-shared runtime memory cleared.",
+                failure_summary="shared clear failed",
+                failure_detail_prefix="Workspace-shared runtime memory clear failed: ",
+                failure_status="Workspace-shared runtime memory clear failed.",
+                summary_fallback="workspace-shared runtime memory cleared",
+                requires_idle_local_runtime=True,
+                is_mutation=True,
+            )
+        return _memory_unknown_action_result(
+            surface=surface,
+            command="memory shared",
+            action=shared_action,
+            fallback_action="shared",
+            status_text="Unknown memory shared action.",
+        )
+
+    if action == "runtime":
+        if len(normalized_args) > 1:
+            return _memory_usage_result(
+                surface=surface,
+                command="memory runtime",
+                action="runtime",
+                status_text="Memory runtime usage shown.",
+            )
+        return MemoryCommandPlan(
+            command="memory runtime",
+            action="runtime",
+            detail_mode="full",
+            success_status="Runtime task memory shown.",
+            failure_summary="runtime failed",
+            failure_detail_prefix="Runtime task memory inspection failed: ",
+            failure_status="Runtime task memory inspection failed.",
+            summary_fallback=runtime_summary_fallback,
+        )
+
+    if action == "refresh":
+        if len(normalized_args) > 1:
+            return _memory_usage_result(
+                surface=surface,
+                command="memory refresh",
+                action="refresh",
+                status_text="Memory refresh usage shown.",
+            )
+        return MemoryCommandPlan(
+            command="memory refresh",
+            action="refresh",
+            detail_mode="full",
+            success_status="Memory refresh completed.",
+            failure_summary="refresh failed",
+            failure_detail_prefix="Memory refresh failed: ",
+            failure_status="Memory refresh failed.",
+            summary_fallback="memory refreshed",
+            requires_idle_local_runtime=True,
+            is_mutation=True,
+        )
+
+    if action == "promote":
+        target = normalized_args[1].lower() if len(normalized_args) >= 2 else ""
+        engram_id = _safe_text(normalized_args[2]) if len(normalized_args) >= 3 else ""
+        if target not in {"shared", "note", "profile"}:
+            return _memory_usage_result(
+                surface=surface,
+                command="memory promote",
+                action="promote",
+                status_text="Memory promote usage shown.",
+            )
+        promote_action = {
+            "shared": "promote_shared",
+            "note": "promote_note",
+            "profile": "promote_profile",
+        }[target]
+        return MemoryCommandPlan(
+            command=f"memory promote {target}",
+            action=promote_action,
+            engram_id=engram_id or None,
+            detail_mode="full",
+            success_status=f"Memory promoted to {target}.",
+            failure_summary="promotion failed",
+            failure_detail_prefix="Memory promotion failed: ",
+            failure_status="Memory promotion failed.",
+            summary_fallback=f"runtime memory promoted to {target}",
+            metadata_builder=lambda result: (
+                {"engram_id": _safe_text(result.get("engram_id"))}
+                if _safe_text(result.get("engram_id"))
+                else {}
+            ),
+            requires_idle_local_runtime=True,
+            is_mutation=True,
+        )
+
+    if action == "save":
+        target = normalized_args[1].lower() if len(normalized_args) >= 2 else ""
+        content = " ".join(normalized_args[2:]).strip() if len(normalized_args) >= 3 else ""
+        if target not in {"note", "profile"}:
+            return _memory_usage_result(
+                surface=surface,
+                command="memory save",
+                action="save",
+                status_text="Memory save usage shown.",
+            )
+        save_action = "save_note" if target == "note" else "save_profile"
+        return MemoryCommandPlan(
+            command=f"memory save {target}",
+            action=save_action,
+            content=content or None,
+            detail_mode="full",
+            success_status=f"Memory saved to {target}.",
+            failure_summary="save failed",
+            failure_detail_prefix="Memory save failed: ",
+            failure_status="Memory save failed.",
+            summary_fallback=f"memory saved to {target}",
+            requires_idle_local_runtime=True,
+            is_mutation=True,
+        )
+
+    return _memory_unknown_action_result(
+        surface=surface,
+        command="memory",
+        action=action,
+        fallback_action=None,
+        status_text="Unknown memory action.",
+    )
 
 
 def resolve_catalog_model_use_request(
@@ -223,6 +880,15 @@ class LocalOperatorCommandService:
         self._mcp_snapshot_loader = mcp_snapshot_loader
         self._mcp_status_formatter = mcp_status_formatter
         self._mcp_server_list_formatter = mcp_server_list_formatter
+        self._memory_commands = MemoryCommandService()
+        self._context_commands = ContextCommandService()
+        self._skill_commands = SkillCommandService()
+        self._mcp_commands = McpCommandService(
+            load_config=self._config_loader,
+            snapshot_loader=self._mcp_snapshot_loader,
+            status_formatter=self._mcp_status_formatter,
+            server_list_formatter=self._mcp_server_list_formatter,
+        )
 
     def execute_sandbox_status(
         self,
@@ -264,601 +930,35 @@ class LocalOperatorCommandService:
         detail_mode: str = "full",
         prepared_context: dict[str, Any] | None = None,
     ) -> CommandExecutionResult:
-        normalized_action = _safe_text(action).lower().replace("-", "_")
-        normalized_engram_id = _safe_text(engram_id) or None
-        normalized_content = _safe_text(content) or None
-        normalized_query = _safe_text(query) or None
-        normalized_day = _safe_text(day) or None
-        normalized_export_format = _safe_text(export_format).lower() or None
+        request = MemoryCommandRequest(
+            action=action,
+            engram_id=engram_id,
+            content=content,
+            query=query,
+            day=day,
+            export_format=export_format,
+            detail_mode=detail_mode,
+        )
+        try:
+            outcome = self._memory_commands.execute(
+                workspace_dir=workspace,
+                session_id=session_id,
+                diagnostics_loader=diagnostics_loader,
+                command=request,
+                prepared_context=prepared_context,
+            )
+        except MemoryCommandError as exc:
+            raise ValueError(exc.detail) from exc
 
-        if normalized_action == "status":
-            diagnostics = diagnostics_loader()
-            summary = memory_diagnostics_summary_line(diagnostics)
-            return CommandExecutionResult(
-                command="memory status",
-                summary=summary,
-                details=(
-                    f"Memory status: {summary}\n"
-                    f"Workspace: {_safe_text(diagnostics.get('workspace_anchor_dir')) or _safe_text(diagnostics.get('workspace_dir'))}"
-                ),
-                status_text="Memory status shown.",
-                payload={"memory_diagnostics": diagnostics},
-            )
-
-        if normalized_action == "show":
-            diagnostics = diagnostics_loader()
-            return CommandExecutionResult(
-                command="memory show" if detail_mode == "full" else f"memory show {detail_mode}",
-                summary=memory_diagnostics_summary_line(diagnostics),
-                details=format_memory_diagnostics(
-                    diagnostics,
-                    include_header=True,
-                    detail_mode=detail_mode,
-                ),
-                status_text="Memory diagnostics shown.",
-                payload={"memory_diagnostics": diagnostics},
-            )
-
-        if normalized_action == "overview":
-            diagnostics = diagnostics_loader()
-            memory = MemoryService(workspace)
-            overview = build_memory_overview_payload(
-                memory=memory,
-                diagnostics=diagnostics,
-                exclude_session_id=session_id,
-            )
-            return CommandExecutionResult(
-                command="memory overview",
-                summary="memory overview shown",
-                details="\n".join(format_memory_overview_details(overview)).strip(),
-                status_text="Memory overview shown.",
-                payload={
-                    "memory_diagnostics": diagnostics,
-                    "overview": overview,
-                },
-            )
-
-        if normalized_action == "export":
-            diagnostics = diagnostics_loader()
-            memory = MemoryService(workspace)
-            export_payload = memory.export_notes(format=normalized_export_format or "jsonl")
-            summary = memory.summary()
-            export_name = normalized_export_format or "jsonl"
-            return CommandExecutionResult(
-                command=f"memory export {export_name}",
-                summary="memory export prepared",
-                details="\n".join(
-                    format_memory_export_details(
-                        export_payload,
-                        workspace_dir=summary.workspace_dir,
-                        memory_root=summary.memory_root,
-                        long_term_file=summary.long_term_file,
-                        daily_dir=summary.daily_dir,
-                    )
-                ).strip(),
-                status_text="Memory export prepared.",
-                payload={
-                    "memory_diagnostics": diagnostics,
-                    "export": export_payload,
-                },
-            )
-
-        if normalized_action == "session_show":
-            diagnostics = diagnostics_loader()
-            if not normalized_engram_id:
-                raise ValueError(
-                    format_runtime_session_selector_help(
-                        diagnostics,
-                        usage_command="/memory show <selector>",
-                    )
-                )
-            resolved_engram_id = resolve_runtime_session_engram_selector(diagnostics, normalized_engram_id)
-            if not resolved_engram_id:
-                raise ValueError(
-                    format_runtime_session_selector_help(
-                        diagnostics,
-                        usage_command="/memory show <selector>",
-                    )
-                )
-            runtime = WorkspaceMemoriaRuntime(workspace)
-            entry = runtime.get_namespace_entry(
-                WorkspaceMemoriaRuntime.session_namespace(session_id),
-                engram_id=resolved_engram_id,
-            )
-            if entry is None:
-                raise ValueError(
-                    format_runtime_session_selector_help(
-                        diagnostics,
-                        usage_command="/memory show <selector>",
-                    )
-                )
-            return CommandExecutionResult(
-                command=f"memory show {normalized_engram_id}",
-                summary="session runtime memory entry shown",
-                details="\n".join(
-                    [
-                        "Session Runtime Memory",
-                        *format_runtime_memory_entry_details(entry),
-                    ]
-                ).strip(),
-                status_text="Runtime memory entry shown.",
-                payload={
-                    "memory_diagnostics": diagnostics,
-                    "engram_id": resolved_engram_id,
-                    "entry": entry,
-                },
-            )
-
-        if normalized_action in {"runtime", "list"}:
-            diagnostics = diagnostics_loader()
-            runtime = diagnostics.get("runtime_task_memory") if isinstance(diagnostics.get("runtime_task_memory"), dict) else {}
-            details_lines = [
-                "Session Runtime Memory" if normalized_action == "list" else "Runtime Task Memory",
-                f"Session namespace: {_safe_text(runtime.get('session_namespace')) or 'n/a'}",
-                f"Session entries: {int(runtime.get('session_count') or 0)}",
-                f"Shared namespace: {_safe_text(runtime.get('workspace_shared_namespace')) or 'n/a'}",
-                f"Shared entries: {int(runtime.get('shared_count') or 0)}",
-            ]
-            session_preview = runtime.get("session_preview") if isinstance(runtime.get("session_preview"), list) else []
-            shared_preview = runtime.get("shared_preview") if isinstance(runtime.get("shared_preview"), list) else []
-            if session_preview:
-                details_lines.append("")
-                details_lines.append("Session Preview")
-                details_lines.extend(
-                    format_runtime_memory_preview_lines(
-                        session_preview,
-                        limit=5,
-                        include_latest_hint=True,
-                        latest_hint_label="session preview entry",
-                    )
-                )
-            if shared_preview:
-                details_lines.append("")
-                details_lines.append("Shared Preview")
-                details_lines.extend(format_runtime_memory_preview_lines(shared_preview, limit=5))
-            return CommandExecutionResult(
-                command=f"memory {normalized_action}",
-                summary=memory_diagnostics_summary_line(diagnostics),
-                details="\n".join(details_lines).strip(),
-                status_text="Runtime memory shown." if normalized_action == "runtime" else "Runtime memory list shown.",
-                payload={"memory_diagnostics": diagnostics},
-            )
-
-        if normalized_action == "shared_list":
-            diagnostics = diagnostics_loader()
-            runtime = diagnostics.get("runtime_task_memory") if isinstance(diagnostics.get("runtime_task_memory"), dict) else {}
-            details_lines = [
-                "Workspace-Shared Runtime Memory",
-                f"Shared namespace: {_safe_text(runtime.get('workspace_shared_namespace')) or 'n/a'}",
-                f"Shared entries: {int(runtime.get('shared_count') or 0)}",
-            ]
-            shared_preview = runtime.get("shared_preview") if isinstance(runtime.get("shared_preview"), list) else []
-            if shared_preview:
-                details_lines.append("")
-                details_lines.append("Shared Preview")
-                details_lines.extend(
-                    format_runtime_memory_preview_lines(
-                        shared_preview,
-                        limit=5,
-                        include_latest_hint=True,
-                        latest_hint_label="shared preview entry",
-                    )
-                )
-            return CommandExecutionResult(
-                command="memory shared list",
-                summary=memory_diagnostics_summary_line(diagnostics),
-                details="\n".join(details_lines).strip(),
-                status_text="Workspace-shared runtime memory list shown.",
-                payload={"memory_diagnostics": diagnostics},
-            )
-
-        if normalized_action == "shared_show":
-            diagnostics = diagnostics_loader()
-            if not normalized_engram_id:
-                raise ValueError(
-                    format_runtime_shared_selector_help(
-                        diagnostics,
-                        usage_command="/memory shared show <selector>",
-                    )
-                )
-            resolved_engram_id = resolve_runtime_shared_engram_selector(diagnostics, normalized_engram_id)
-            if not resolved_engram_id:
-                raise ValueError(
-                    format_runtime_shared_selector_help(
-                        diagnostics,
-                        usage_command="/memory shared show <selector>",
-                    )
-                )
-            runtime = WorkspaceMemoriaRuntime(workspace)
-            entry = runtime.get_workspace_shared_entry(engram_id=resolved_engram_id)
-            if entry is None:
-                raise ValueError(
-                    format_runtime_shared_selector_help(
-                        diagnostics,
-                        usage_command="/memory shared show <selector>",
-                    )
-                )
-            return CommandExecutionResult(
-                command="memory shared show" + (f" {normalized_engram_id}" if normalized_engram_id else ""),
-                summary="workspace-shared runtime memory entry shown",
-                details="\n".join(
-                    [
-                        "Workspace-Shared Runtime Memory",
-                        *format_runtime_memory_entry_details(entry),
-                    ]
-                ).strip(),
-                status_text="Workspace-shared runtime memory entry shown.",
-                payload={
-                    "memory_diagnostics": diagnostics,
-                    "engram_id": resolved_engram_id,
-                    "entry": entry,
-                },
-            )
-
-        if normalized_action == "profile":
-            diagnostics = diagnostics_loader()
-            memory = MemoryService(workspace)
-            profile = memory.profile()
-            matches = memory.search_profile(query=normalized_query, limit=10) if normalized_query else None
-            return CommandExecutionResult(
-                command="memory profile" + (f" {normalized_query}" if normalized_query else ""),
-                summary="global profile matches shown" if normalized_query else "global profile shown",
-                details="\n".join(
-                    format_global_profile_details(
-                        profile,
-                        query=normalized_query,
-                        matches=matches,
-                        limit=20,
-                    )
-                ).strip(),
-                status_text="Global profile shown.",
-                payload={
-                    "memory_diagnostics": diagnostics,
-                    "profile": profile,
-                    "matches": matches or [],
-                    "query": normalized_query,
-                },
-            )
-
-        if normalized_action == "consolidated_show":
-            diagnostics = diagnostics_loader()
-            memory = MemoryService(workspace)
-            refresh_status = memory.consolidated_refresh_status(exclude_session_id=session_id)
-            snapshot = memory.consolidated_snapshot()
-            snapshot["memory_file"] = refresh_status.get("memory_file")
-            return CommandExecutionResult(
-                command="memory consolidated",
-                summary="consolidated memory shown",
-                details="\n".join(
-                    format_consolidated_memory_details(
-                        snapshot,
-                        refresh_status=refresh_status,
-                        limit=20,
-                    )
-                ).strip(),
-                status_text="Consolidated memory shown.",
-                payload={
-                    "memory_diagnostics": diagnostics,
-                    "snapshot": snapshot,
-                },
-            )
-
-        if normalized_action == "consolidated_search":
-            if not normalized_query:
-                raise ValueError("Usage: /memory consolidated search <query>")
-            diagnostics = diagnostics_loader()
-            memory = MemoryService(workspace)
-            refresh_status = memory.consolidated_refresh_status(exclude_session_id=session_id)
-            payload = memory.search_relevant_consolidated_memory(
-                query=normalized_query,
-                top_k=10,
-            )
-            return CommandExecutionResult(
-                command=f"memory consolidated search {normalized_query}",
-                summary="consolidated memory matches shown",
-                details="\n".join(
-                    format_consolidated_memory_search_details(
-                        payload,
-                        refresh_status=refresh_status,
-                        limit=10,
-                    )
-                ).strip(),
-                status_text="Consolidated memory search shown.",
-                payload={
-                    "memory_diagnostics": diagnostics,
-                    "search": payload,
-                    "query": normalized_query,
-                },
-            )
-
-        if normalized_action == "notes":
-            diagnostics = diagnostics_loader()
-            memory = MemoryService(workspace)
-            summary = memory.summary()
-            if normalized_query:
-                ranked = memory.rank_workspace_notes(query=normalized_query)[:10]
-                note_items = [
-                    {
-                        **memory.note_to_dict(note),
-                        "score": score,
-                    }
-                    for note, score in ranked
-                ]
-                details = format_workspace_note_details(
-                    workspace_dir=summary.workspace_dir,
-                    memory_root=summary.memory_root,
-                    long_term_file=summary.long_term_file,
-                    daily_dir=summary.daily_dir,
-                    categories=summary.categories,
-                    notes=note_items,
-                    query=normalized_query,
-                    total=len(note_items),
-                )
-                return CommandExecutionResult(
-                    command=f"memory notes {normalized_query}",
-                    summary="workspace durable note matches shown",
-                    details="\n".join(details).strip(),
-                    status_text="Workspace durable notes shown.",
-                    payload={
-                        "memory_diagnostics": diagnostics,
-                        "items": note_items,
-                        "query": normalized_query,
-                    },
-                )
-            note_items = [memory.note_to_dict(note) for note in memory.search_notes(query="", limit=10)]
-            details = format_workspace_note_details(
-                workspace_dir=summary.workspace_dir,
-                memory_root=summary.memory_root,
-                long_term_file=summary.long_term_file,
-                daily_dir=summary.daily_dir,
-                categories=summary.categories,
-                notes=note_items,
-                total=summary.notes_count,
-            )
-            return CommandExecutionResult(
-                command="memory notes",
-                summary="workspace durable notes shown",
-                details="\n".join(details).strip(),
-                status_text="Workspace durable notes shown.",
-                payload={
-                    "memory_diagnostics": diagnostics,
-                    "items": note_items,
-                },
-            )
-
-        if normalized_action == "daily":
-            if not normalized_day:
-                raise ValueError("Usage: /memory daily <YYYY-MM-DD>")
-            diagnostics = diagnostics_loader()
-            memory = MemoryService(workspace)
-            snapshot = memory.daily_snapshot(day=normalized_day)
-            note_items = [memory.note_to_dict(note) for note in snapshot.notes]
-            return CommandExecutionResult(
-                command=f"memory daily {snapshot.day}",
-                summary="workspace daily memory shown",
-                details="\n".join(
-                    format_workspace_daily_details(
-                        workspace_dir=snapshot.workspace_dir,
-                        day=snapshot.day,
-                        path=snapshot.path,
-                        notes=note_items,
-                        note_count=snapshot.note_count,
-                    )
-                ).strip(),
-                status_text="Workspace daily memory shown.",
-                payload={
-                    "memory_diagnostics": diagnostics,
-                    "day": snapshot.day,
-                    "items": note_items,
-                },
-            )
-
-        if normalized_action == "refresh":
-            refresh = MemoryService(workspace).refresh_consolidated_memory(exclude_session_id=session_id)
-            refreshed_diagnostics = diagnostics_loader()
-            summary = (
-                "memory refreshed"
-                if bool(refresh.get("refreshed"))
-                else f"memory {str(refresh.get('reason') or 'fresh').replace('_', ' ')}"
-            )
-            return CommandExecutionResult(
-                command="memory refresh",
-                summary=summary,
-                details=format_memory_diagnostics(
-                    refreshed_diagnostics,
-                    include_header=True,
-                    detail_mode=detail_mode,
-                ),
-                status_text="Memory refresh completed.",
-                payload={
-                    "memory_diagnostics": refreshed_diagnostics,
-                    "refresh": refresh,
-                },
-            )
-
-        if normalized_action == "shared_clear":
-            runtime = WorkspaceMemoriaRuntime(workspace)
-            cleared = runtime.clear_workspace_shared_namespace()
-            refreshed_diagnostics = diagnostics_loader()
-            summary = (
-                "workspace-shared runtime memory cleared"
-                if cleared
-                else "workspace-shared runtime memory already empty"
-            )
-            details_lines = [
-                "Workspace-Shared Runtime Memory",
-                f"Action: {normalized_action}",
-                f"Cleared: {'yes' if cleared else 'no'}",
-                "",
-                format_memory_diagnostics(
-                    refreshed_diagnostics,
-                    include_header=True,
-                    detail_mode=detail_mode,
-                ),
-            ]
-            return CommandExecutionResult(
-                command="memory shared clear",
-                summary=summary,
-                details="\n".join(line for line in details_lines if line is not None).strip(),
-                status_text="Workspace-shared runtime memory cleared.",
-                payload={
-                    "memory_diagnostics": refreshed_diagnostics,
-                    "cleared": cleared,
-                },
-            )
-
-        if normalized_action in {"promote_shared", "promote_note", "promote_profile"}:
-            diagnostics = diagnostics_loader()
-            if not normalized_engram_id:
-                promote_target = (
-                    "shared"
-                    if normalized_action == "promote_shared"
-                    else "note" if normalized_action == "promote_note" else "profile"
-                )
-                raise ValueError(
-                    format_runtime_session_selector_help(
-                        diagnostics,
-                        usage_command=f"/memory promote {promote_target} <selector>",
-                    )
-                )
-            resolved_engram_id = resolve_runtime_session_engram_selector(diagnostics, normalized_engram_id)
-            if not resolved_engram_id:
-                promote_target = (
-                    "shared"
-                    if normalized_action == "promote_shared"
-                    else "note" if normalized_action == "promote_note" else "profile"
-                )
-                raise ValueError(
-                    format_runtime_session_selector_help(
-                        diagnostics,
-                        usage_command=f"/memory promote {promote_target} <selector>",
-                    )
-                )
-            runtime = WorkspaceMemoriaRuntime(workspace)
-            if normalized_action == "promote_shared":
-                promotion = runtime.promote_session_memory_to_workspace_shared(
-                    session_id=session_id,
-                    engram_id=resolved_engram_id,
-                )
-                summary = "runtime memory promoted to workspace-shared memory"
-                command = "memory promote shared"
-                status_text = "Memory promoted to shared."
-            elif normalized_action == "promote_note":
-                promotion = runtime.promote_session_memory_to_workspace_note(
-                    session_id=session_id,
-                    engram_id=resolved_engram_id,
-                )
-                summary = "runtime memory promoted to workspace note"
-                command = "memory promote note"
-                status_text = "Memory promoted to note."
-            else:
-                promotion = runtime.promote_session_memory_to_global_profile(
-                    session_id=session_id,
-                    engram_id=resolved_engram_id,
-                )
-                summary = "runtime memory promoted to global profile"
-                command = "memory promote profile"
-                status_text = "Memory promoted to profile."
-            refreshed_diagnostics = diagnostics_loader()
-            details_lines = [
-                f"Action: {normalized_action}",
-            ]
-            if normalized_engram_id != resolved_engram_id:
-                details_lines.append(f"Selector: {normalized_engram_id}")
-            details_lines.append(f"Engram: {resolved_engram_id}")
-            if promotion.get("target"):
-                details_lines.append(f"Target: {promotion.get('target')}")
-            if promotion.get("category"):
-                details_lines.append(f"Category: {promotion.get('category')}")
-            if promotion.get("content"):
-                details_lines.append(f"Content: {promotion.get('content')}")
-            details_lines.extend(
-                format_knowledge_base_grounding_lines(
-                    promotion.get("knowledge_base_grounding"),
-                )
-            )
-            details_lines.append("")
-            details_lines.append(
-                format_memory_diagnostics(
-                    refreshed_diagnostics,
-                    include_header=True,
-                    detail_mode=detail_mode,
-                )
-            )
-            return CommandExecutionResult(
-                command=command,
-                summary=summary,
-                details="\n".join(line for line in details_lines if line is not None).strip(),
-                status_text=status_text,
-                payload={
-                    "memory_diagnostics": refreshed_diagnostics,
-                    "promotion": promotion,
-                    "engram_id": resolved_engram_id,
-                    "selector": normalized_engram_id,
-                },
-            )
-
-        if normalized_action in {"save_note", "save_profile"}:
-            if not normalized_content:
-                raise ValueError(
-                    f"Usage: /memory save {'note' if normalized_action == 'save_note' else 'profile'} <text>"
-                )
-            diagnostics = diagnostics_loader()
-            prepared_sources = diagnostics.get("prepared_context_sources")
-            if normalized_action == "save_note":
-                saved = save_operator_workspace_note(
-                    workspace_dir=workspace,
-                    content=normalized_content,
-                    prepared_context_sources=prepared_sources if isinstance(prepared_sources, list) else None,
-                    prepared_context=prepared_context,
-                )
-                summary = "operator note saved to workspace memory"
-                command = "memory save note"
-                status_text = "Memory saved to note."
-            else:
-                saved = save_operator_profile_fact(
-                    workspace_dir=workspace,
-                    content=normalized_content,
-                )
-                summary = (
-                    "operator profile fact saved"
-                    if bool(saved.get("saved"))
-                    else "operator profile fact already present"
-                )
-                command = "memory save profile"
-                status_text = "Memory saved to profile."
-            refreshed_diagnostics = diagnostics_loader()
-            details_lines = [
-                f"Action: {normalized_action}",
-                f"Target: {saved.get('target')}",
-            ]
-            if saved.get("category"):
-                details_lines.append(f"Category: {saved.get('category')}")
-            if saved.get("content"):
-                details_lines.append(f"Content: {saved.get('content')}")
-            details_lines.extend(
-                format_knowledge_base_grounding_lines(
-                    saved.get("knowledge_base_grounding"),
-                )
-            )
-            details_lines.append("")
-            details_lines.append(
-                format_memory_diagnostics(
-                    refreshed_diagnostics,
-                    include_header=True,
-                    detail_mode=detail_mode,
-                )
-            )
-            return CommandExecutionResult(
-                command=command,
-                summary=summary,
-                details="\n".join(line for line in details_lines if line is not None).strip(),
-                status_text=status_text,
-                payload={
-                    "memory_diagnostics": refreshed_diagnostics,
-                    "saved": saved,
-                },
-            )
+        payload = {"memory_diagnostics": outcome.memory_diagnostics}
+        payload.update(outcome.payload)
+        return CommandExecutionResult(
+            command=outcome.command,
+            summary=outcome.summary,
+            details=outcome.details,
+            status_text=outcome.status_text,
+            payload=payload,
+        )
 
         raise ValueError(f"Unsupported session memory action: {action}")
 
@@ -872,36 +972,37 @@ class LocalOperatorCommandService:
         raw_text: str = "",
         agent: Any | None = None,
         config: Any | None = None,
+        parsed_request: SkillCommandRequest | None = None,
     ) -> CommandExecutionResult:
-        normalized_action = _safe_text(action).lower() or "list"
+        prepared_request = parsed_request or self.prepare_skill_request(
+            surface=surface,
+            action=action,
+            args=args,
+            raw_text=raw_text,
+        )
+        if isinstance(prepared_request, CommandExecutionResult):
+            return prepared_request
+
+        normalized_action = _safe_text(prepared_request.action).lower() or "list"
+        parsed_command = prepared_request
+        active_config = config
+        if active_config is None:
+            active_config = self._config_loader()
 
         try:
-            loader = resolve_skill_catalog_loader(
+            prepared = self._skill_commands.prepare(
                 workspace_dir=workspace,
+                command=parsed_command,
                 agent=agent,
-                config=config,
+                config=active_config,
             )
-        except Exception as exc:
-            return CommandExecutionResult(
-                command="skill",
-                summary="catalog unavailable",
-                details=f"Skill catalog unavailable: {exc}",
-                status_text="Skill catalog unavailable.",
-                kind="error",
+        except SkillCommandError as exc:
+            return self._local_skill_error_result(
+                action=normalized_action,
+                command=parsed_command,
+                detail=exc.detail,
+                status_code=exc.status_code,
             )
-
-        if loader is None:
-            return CommandExecutionResult(
-                command="skill",
-                summary="disabled",
-                details="Skill support is disabled in the active configuration.",
-                status_text="Skill support is disabled.",
-                kind="error",
-            )
-
-        try:
-            policy_store = resolve_workspace_skill_policy_store(workspace)
-            policy = load_workspace_skill_policy(workspace)
         except Exception as exc:
             return CommandExecutionResult(
                 command="skill",
@@ -911,428 +1012,330 @@ class LocalOperatorCommandService:
                 kind="error",
             )
 
-        if normalized_action == "list":
-            if len(args) > 1:
-                return CommandExecutionResult(
-                    command="skill list",
-                    summary="usage",
-                    details=build_command_usage_text(surface, "skill", action="list"),
-                    status_text="Skill list usage shown.",
-                    kind="usage",
-                )
-            entries = refresh_skill_catalog_loader(loader)
-            counts = summarize_skill_entries(entries, policy)
+        if prepared.mutation is None:
+            payload = dict(prepared.result or {})
+            payload["policy"] = self._safe_local_skill_policy(
+                workspace,
+                fallback=payload.get("policy"),
+            )
+            return self._local_skill_prepared_result(
+                action=normalized_action,
+                command=parsed_command,
+                status=prepared.status,
+                payload=payload,
+            )
+
+        payload = self._skill_commands.build_mutation_result(
+            workspace_dir=workspace,
+            mutation=prepared.mutation,
+        )
+        payload["policy"] = (
+            prepared.mutation.updated_policy
+            if prepared.mutation.action != "refresh"
+            else self._safe_local_skill_policy(workspace, fallback=payload.get("policy"))
+        )
+        return self._local_skill_mutation_result(
+            command=parsed_command,
+            mutation=prepared.mutation.action,
+            payload=payload,
+        )
+
+    def prepare_skill_request(
+        self,
+        *,
+        surface: str,
+        action: str,
+        args: Sequence[str],
+        raw_text: str = "",
+    ) -> SkillCommandRequest | CommandExecutionResult:
+        normalized_action = _safe_text(action).lower() or "list"
+        if normalized_action not in SUPPORTED_SKILL_ACTIONS:
             return CommandExecutionResult(
-                command="skill list",
-                summary=(
-                    f"{counts['total']} skill(s) | {counts['active']} active | "
-                    f"{counts['ready']} ready | {counts['blocked']} blocked | mode {policy.mode}"
+                command="skill",
+                summary="unknown action",
+                details=build_unknown_action_text(
+                    surface,
+                    "skill",
+                    normalized_action,
+                    fallback=build_command_usage_text(surface, "skill"),
                 ),
-                details=format_skill_entries(entries, policy),
-                status_text="Skill catalog shown.",
-                payload={
-                    "loader": loader,
-                    "entries": entries,
-                    "policy": policy,
-                    "counts": counts,
-                },
+                status_text="Unknown skill action.",
+                kind="error",
             )
 
-        if normalized_action == "active":
-            if len(args) > 1:
-                return CommandExecutionResult(
-                    command="skill active",
-                    summary="usage",
-                    details=build_command_usage_text(surface, "skill", action="active"),
-                    status_text="Skill active usage displayed.",
-                    kind="usage",
-                )
-            entries = refresh_skill_catalog_loader(loader)
-            counts = summarize_skill_entries(entries, policy)
-            return CommandExecutionResult(
-                command="skill active",
-                summary=f"{counts['active']} active skill(s) | mode {policy.mode}",
-                details=format_skill_policy_overview(policy, entries),
-                status_text="Workspace skill policy shown.",
-                payload={
-                    "loader": loader,
-                    "entries": entries,
-                    "policy": policy,
-                    "counts": counts,
-                },
-            )
+        return self._parse_local_skill_request(
+            surface=surface,
+            action=normalized_action,
+            args=args,
+            raw_text=raw_text,
+        )
 
-        if normalized_action == "show":
-            skill_name = " ".join(args[1:]).strip()
+    def format_skill_command_name(
+        self,
+        command: SkillCommandRequest,
+        *,
+        fallback_action: str | None = None,
+    ) -> str:
+        return self._local_skill_command_name(
+            command,
+            fallback_action=_safe_text(fallback_action) or _safe_text(command.action) or "skill",
+        )
+
+    def _parse_local_skill_request(
+        self,
+        *,
+        surface: str,
+        action: str,
+        args: Sequence[str],
+        raw_text: str,
+    ) -> SkillCommandRequest | CommandExecutionResult:
+        normalized_args = list(args or [])
+        if action in {"list", "active", "reset", "refresh"} and len(normalized_args) > 1:
+            return self._local_skill_usage_result(surface=surface, action=action)
+
+        if action == "show":
+            skill_name = " ".join(normalized_args[1:]).strip()
             if not skill_name:
-                return CommandExecutionResult(
-                    command="skill show",
-                    summary="usage",
-                    details=build_command_usage_text(surface, "skill", action="show"),
-                    status_text="Skill show usage displayed.",
-                    kind="usage",
-                )
-            refresh_skill_catalog_loader(loader)
-            entry, details = format_skill_detail(loader, skill_name)
-            if entry is None:
-                return CommandExecutionResult(
-                    command="skill show",
-                    summary="skill not found",
-                    details=details,
-                    status_text="Skill not found.",
-                    kind="error",
-                    payload={"loader": loader, "found": False},
-                )
-            return CommandExecutionResult(
-                command=f"skill show {entry.name}",
-                summary=f"showing {entry.name}",
-                details=details,
-                status_text=f"Showing skill {entry.name}.",
-                payload={
-                    "loader": loader,
-                    "found": True,
-                    "entry": entry,
-                },
-            )
+                return self._local_skill_usage_result(surface=surface, action=action)
+            return SkillCommandRequest(action=action, skill_name=skill_name)
 
-        if normalized_action == "install":
+        if action == "search":
+            query = " ".join(normalized_args[1:]).strip()
+            if not query:
+                return self._local_skill_usage_result(surface=surface, action=action)
+            return SkillCommandRequest(action=action, query=query)
+
+        if action == "install":
             source_path = (
                 raw_text[len("skill install") :].strip()
                 if raw_text.lower().startswith("skill install")
-                else " ".join(args[1:]).strip()
+                else " ".join(normalized_args[1:]).strip()
             )
             if not source_path:
-                return CommandExecutionResult(
-                    command="skill install",
-                    summary="usage",
-                    details=build_command_usage_text(surface, "skill", action="install"),
-                    status_text="Skill install usage displayed.",
-                    kind="usage",
-                )
-            try:
-                install_result = install_workspace_skill_from_path(
-                    workspace_dir=workspace,
-                    source_path=source_path,
-                    loader=loader,
-                    activate=True,
-                )
-            except FileNotFoundError as exc:
-                return CommandExecutionResult(
-                    command="skill install",
-                    summary="source not found",
-                    details=str(exc),
-                    status_text="Skill source not found.",
-                    kind="error",
-                )
-            except FileExistsError as exc:
-                return CommandExecutionResult(
-                    command="skill install",
-                    summary="skill already exists",
-                    details=str(exc),
-                    status_text="Skill already exists.",
-                    kind="error",
-                )
-            except Exception as exc:
-                return CommandExecutionResult(
-                    command="skill install",
-                    summary="install failed",
-                    details=f"Workspace skill install failed: {exc}",
-                    status_text="Workspace skill install failed.",
-                    kind="error",
-                )
-            entries = refresh_skill_catalog_loader(loader)
-            updated_policy = install_result.policy
-            return CommandExecutionResult(
-                command=f"skill install {source_path}",
-                summary=f"installed {install_result.skill_name}",
-                details=format_skill_install_result(install_result, entries, updated_policy),
-                status_text="Workspace skill installed.",
-                payload={
-                    "loader": loader,
-                    "entries": entries,
-                    "policy": updated_policy,
-                    "reload_required": True,
-                    "reload_reason": "workspace skill installed",
-                    "mutation": "install",
-                    "skill_name": install_result.skill_name,
-                    "install_result": install_result,
-                },
-            )
+                return self._local_skill_usage_result(surface=surface, action=action)
+            return SkillCommandRequest(action=action, path=source_path)
 
-        if normalized_action == "uninstall":
-            skill_name = " ".join(args[1:]).strip()
+        if action in {"uninstall", "rollback", "enable", "disable"}:
+            skill_name = " ".join(normalized_args[1:]).strip()
             if not skill_name:
-                return CommandExecutionResult(
-                    command="skill uninstall",
-                    summary="usage",
-                    details=build_command_usage_text(surface, "skill", action="uninstall"),
-                    status_text="Skill uninstall usage displayed.",
-                    kind="usage",
-                )
-            try:
-                uninstall_result = uninstall_workspace_skill(
-                    workspace_dir=workspace,
-                    skill_name=skill_name,
-                    loader=loader,
-                )
-            except FileNotFoundError as exc:
-                return CommandExecutionResult(
-                    command="skill uninstall",
-                    summary="skill not found",
-                    details=str(exc),
-                    status_text="Skill not found.",
-                    kind="error",
-                )
-            except Exception as exc:
-                return CommandExecutionResult(
-                    command="skill uninstall",
-                    summary="uninstall failed",
-                    details=f"Workspace skill uninstall failed: {exc}",
-                    status_text="Workspace skill uninstall failed.",
-                    kind="error",
-                )
-            entries = refresh_skill_catalog_loader(loader)
-            updated_policy = uninstall_result.policy
-            return CommandExecutionResult(
-                command=f"skill uninstall {skill_name}",
-                summary=f"uninstalled {uninstall_result.skill_name}",
-                details=format_skill_uninstall_result(uninstall_result, entries, updated_policy),
-                status_text="Workspace skill uninstalled.",
-                payload={
-                    "loader": loader,
-                    "entries": entries,
-                    "policy": updated_policy,
-                    "reload_required": True,
-                    "reload_reason": "workspace skill uninstalled",
-                    "mutation": "uninstall",
-                    "skill_name": uninstall_result.skill_name,
-                    "uninstall_result": uninstall_result,
-                },
-            )
+                return self._local_skill_usage_result(surface=surface, action=action)
+            return SkillCommandRequest(action=action, skill_name=skill_name)
 
-        if normalized_action == "rollback":
-            skill_name = " ".join(args[1:]).strip()
-            if not skill_name:
-                return CommandExecutionResult(
-                    command="skill rollback",
-                    summary="usage",
-                    details=build_command_usage_text(surface, "skill", action="rollback"),
-                    status_text="Skill rollback usage displayed.",
-                    kind="usage",
-                )
-            try:
-                rollback_result = rollback_workspace_skill(
-                    workspace_dir=workspace,
-                    skill_name=skill_name,
-                    loader=loader,
-                )
-            except FileNotFoundError as exc:
-                return CommandExecutionResult(
-                    command="skill rollback",
-                    summary="rollback unavailable",
-                    details=str(exc),
-                    status_text="Skill rollback unavailable.",
-                    kind="error",
-                )
-            except Exception as exc:
-                return CommandExecutionResult(
-                    command="skill rollback",
-                    summary="rollback failed",
-                    details=f"Workspace skill rollback failed: {exc}",
-                    status_text="Workspace skill rollback failed.",
-                    kind="error",
-                )
-            entries = refresh_skill_catalog_loader(loader)
-            updated_policy = rollback_result.policy
-            return CommandExecutionResult(
-                command=f"skill rollback {skill_name}",
-                summary=f"rolled back {rollback_result.skill_name}",
-                details=format_skill_rollback_result(rollback_result, entries, updated_policy),
-                status_text="Workspace skill rolled back.",
-                payload={
-                    "loader": loader,
-                    "entries": entries,
-                    "policy": updated_policy,
-                    "reload_required": True,
-                    "reload_reason": "workspace skill rolled back",
-                    "mutation": "rollback",
-                    "skill_name": rollback_result.skill_name,
-                    "rollback_result": rollback_result,
-                },
-            )
+        if action == "mode":
+            requested_mode = _safe_text(normalized_args[1]) if len(normalized_args) > 1 else ""
+            if not requested_mode or len(normalized_args) > 2:
+                return self._local_skill_usage_result(surface=surface, action=action)
+            return SkillCommandRequest(action=action, mode=requested_mode)
 
-        if normalized_action == "search":
-            query = " ".join(args[1:]).strip()
-            if not query:
-                return CommandExecutionResult(
-                    command="skill search",
-                    summary="usage",
-                    details=build_command_usage_text(surface, "skill", action="search"),
-                    status_text="Skill search usage displayed.",
-                    kind="usage",
-                )
-            refresh_skill_catalog_loader(loader)
-            hits = search_skill_entries(loader, query)
-            return CommandExecutionResult(
-                command=f"skill search {query}",
-                summary=f"{len(hits)} match(es)" if hits else "no matches",
-                details=format_skill_search_results(query, hits, policy),
-                status_text="Skill search completed.",
-                payload={
-                    "loader": loader,
-                    "policy": policy,
-                    "hits": hits,
-                    "query": query,
-                },
-            )
+        return SkillCommandRequest(action=action)
 
-        if normalized_action == "mode":
-            requested_mode = _safe_text(args[1]) if len(args) > 1 else ""
-            if not requested_mode or len(args) > 2:
-                return CommandExecutionResult(
-                    command="skill mode",
-                    summary="usage",
-                    details=build_command_usage_text(surface, "skill", action="mode"),
-                    status_text="Skill mode usage displayed.",
-                    kind="usage",
-                )
-            try:
-                updated_policy = policy_store.set_mode(requested_mode)
-            except Exception as exc:
-                return CommandExecutionResult(
-                    command="skill mode",
-                    summary="update failed",
-                    details=f"Workspace skill mode update failed: {exc}",
-                    status_text="Workspace skill mode update failed.",
-                    kind="error",
-                )
-            entries = refresh_skill_catalog_loader(loader)
-            return CommandExecutionResult(
-                command=f"skill mode {updated_policy.mode}",
-                summary=f"skill mode set to {updated_policy.mode}",
-                details=format_skill_policy_overview(updated_policy, entries),
-                status_text="Workspace skill mode updated.",
-                payload={
-                    "loader": loader,
-                    "entries": entries,
-                    "policy": updated_policy,
-                    "reload_required": True,
-                    "reload_reason": "workspace skill mode updated",
-                    "mutation": "mode",
-                    "mode": updated_policy.mode,
-                },
-            )
+    def _local_skill_usage_result(
+        self,
+        *,
+        surface: str,
+        action: str,
+    ) -> CommandExecutionResult:
+        status_text = {
+            "list": "Skill list usage shown.",
+            "active": "Skill active usage displayed.",
+            "show": "Skill show usage displayed.",
+            "search": "Skill search usage displayed.",
+            "install": "Skill install usage displayed.",
+            "uninstall": "Skill uninstall usage displayed.",
+            "rollback": "Skill rollback usage displayed.",
+            "mode": "Skill mode usage displayed.",
+            "enable": "Skill enable usage displayed.",
+            "disable": "Skill disable usage displayed.",
+            "reset": "Skill reset usage displayed.",
+            "refresh": "Skill refresh usage displayed.",
+        }.get(action, "Skill usage shown.")
+        command_name = f"skill {action}".strip()
+        return CommandExecutionResult(
+            command=command_name,
+            summary="usage",
+            details=build_command_usage_text(surface, "skill", action=action),
+            status_text=status_text,
+            kind="usage",
+        )
 
-        if normalized_action in {"enable", "disable"}:
-            skill_name = " ".join(args[1:]).strip()
-            if not skill_name:
-                return CommandExecutionResult(
-                    command=f"skill {normalized_action}",
-                    summary="usage",
-                    details=build_command_usage_text(surface, "skill", action=normalized_action),
-                    status_text=f"Skill {normalized_action} usage displayed.",
-                    kind="usage",
-                )
-            entries = refresh_skill_catalog_loader(loader)
-            entry = find_skill_entry(loader, skill_name)
-            if entry is None:
-                return CommandExecutionResult(
-                    command=f"skill {normalized_action}",
-                    summary="skill not found",
-                    details=f"Skill not found: {skill_name}",
-                    status_text="Skill not found.",
-                    kind="error",
-                )
-            updated_policy = (
-                policy_store.enable([entry.name])
-                if normalized_action == "enable"
-                else policy_store.disable([entry.name])
-            )
+    def _local_skill_prepared_result(
+        self,
+        *,
+        action: str,
+        command: SkillCommandRequest,
+        status: str,
+        payload: dict[str, Any],
+    ) -> CommandExecutionResult:
+        summary = str(payload.get("summary") or "")
+        details = str(payload.get("details") or "")
+        if status == "disabled":
             return CommandExecutionResult(
-                command=f"skill {normalized_action} {entry.name}",
-                summary=f"{normalized_action}d {entry.name} in workspace policy",
-                details=format_skill_policy_overview(updated_policy, entries),
-                status_text="Workspace skill policy updated.",
-                payload={
-                    "loader": loader,
-                    "entries": entries,
-                    "policy": updated_policy,
-                    "reload_required": True,
-                    "reload_reason": f"workspace skill policy {normalized_action}d",
-                    "mutation": normalized_action,
-                    "skill_name": entry.name,
-                },
+                command=self._local_skill_command_name(command, fallback_action=action),
+                summary=summary or "disabled",
+                details=details or "Skill support is disabled in the active configuration.",
+                status_text="Skill support is disabled.",
+                kind="error",
+                payload=payload,
             )
-
-        if normalized_action == "reset":
-            if len(args) > 1:
-                return CommandExecutionResult(
-                    command="skill reset",
-                    summary="usage",
-                    details=build_command_usage_text(surface, "skill", action="reset"),
-                    status_text="Skill reset usage displayed.",
-                    kind="usage",
-                )
-            updated_policy = policy_store.reset()
-            entries = refresh_skill_catalog_loader(loader)
+        if status == "unavailable":
             return CommandExecutionResult(
-                command="skill reset",
-                summary="workspace skill policy reset",
-                details=format_skill_policy_overview(updated_policy, entries),
-                status_text="Workspace skill policy reset.",
-                payload={
-                    "loader": loader,
-                    "entries": entries,
-                    "policy": updated_policy,
-                    "reload_required": True,
-                    "reload_reason": "workspace skill policy reset",
-                    "mutation": "reset",
-                },
+                command=self._local_skill_command_name(command, fallback_action=action),
+                summary=summary or "catalog unavailable",
+                details=details or "Skill catalog unavailable.",
+                status_text="Skill catalog unavailable.",
+                kind="error",
+                payload=payload,
             )
-
-        if normalized_action == "refresh":
-            if len(args) > 1:
-                return CommandExecutionResult(
-                    command="skill refresh",
-                    summary="usage",
-                    details=build_command_usage_text(surface, "skill", action="refresh"),
-                    status_text="Skill refresh usage displayed.",
-                    kind="usage",
-                )
-            entries = refresh_skill_catalog_loader(loader)
-            refreshed_policy = load_workspace_skill_policy(workspace)
-            counts = summarize_skill_entries(entries, refreshed_policy)
+        if status == "not_found":
             return CommandExecutionResult(
-                command="skill refresh",
-                summary=(
-                    f"{counts['total']} skill(s) refreshed | {counts['active']} active | "
-                    f"{counts['ready']} ready | {counts['blocked']} blocked"
-                ),
-                details=format_skill_entries(entries, refreshed_policy),
-                status_text="Skill catalog refreshed.",
-                payload={
-                    "loader": loader,
-                    "entries": entries,
-                    "policy": refreshed_policy,
-                    "counts": counts,
-                    "reload_required": True,
-                    "reload_reason": "skill catalog refreshed",
-                    "mutation": "refresh",
-                },
+                command=self._local_skill_command_name(command, fallback_action=action),
+                summary=summary or "skill not found",
+                details=details,
+                status_text="Skill not found.",
+                kind="error",
+                payload=payload,
             )
 
         return CommandExecutionResult(
-            command="skill",
-            summary="unknown action",
-            details=build_unknown_action_text(
-                surface,
-                "skill",
-                normalized_action,
-                fallback=build_command_usage_text(surface, "skill"),
-            ),
-            status_text="Unknown skill action.",
+            command=self._local_skill_command_name(command, fallback_action=action, payload=payload),
+            summary=summary,
+            details=details,
+            status_text=self._local_skill_status_text(action=action, payload=payload),
+            payload=payload,
+        )
+
+    def _local_skill_mutation_result(
+        self,
+        *,
+        command: SkillCommandRequest,
+        mutation: str,
+        payload: dict[str, Any],
+    ) -> CommandExecutionResult:
+        return CommandExecutionResult(
+            command=self._local_skill_command_name(command, fallback_action=mutation, payload=payload),
+            summary=str(payload.get("summary") or ""),
+            details=str(payload.get("details") or ""),
+            status_text=self._local_skill_status_text(action=mutation, payload=payload),
+            payload=payload,
+        )
+
+    def _local_skill_error_result(
+        self,
+        *,
+        action: str,
+        command: SkillCommandRequest,
+        detail: str,
+        status_code: int,
+    ) -> CommandExecutionResult:
+        summary: str
+        status_text: str
+        if action == "install" and status_code == 404:
+            summary = "source not found"
+            status_text = "Skill source not found."
+        elif action == "install" and status_code == 409:
+            summary = "skill already exists"
+            status_text = "Skill already exists."
+        elif action == "install":
+            summary = "install failed"
+            status_text = "Workspace skill install failed."
+            detail = f"Workspace skill install failed: {detail}"
+        elif action == "uninstall" and status_code == 404:
+            summary = "skill not found"
+            status_text = "Skill not found."
+        elif action == "uninstall":
+            summary = "uninstall failed"
+            status_text = "Workspace skill uninstall failed."
+            detail = f"Workspace skill uninstall failed: {detail}"
+        elif action == "rollback" and status_code == 404:
+            summary = "rollback unavailable"
+            status_text = "Skill rollback unavailable."
+        elif action == "rollback":
+            summary = "rollback failed"
+            status_text = "Workspace skill rollback failed."
+            detail = f"Workspace skill rollback failed: {detail}"
+        elif action == "mode":
+            summary = "update failed"
+            status_text = "Workspace skill mode update failed."
+            detail = f"Workspace skill mode update failed: {detail}"
+        elif action in {"enable", "disable"} and status_code == 404:
+            summary = "skill not found"
+            status_text = "Skill not found."
+        else:
+            summary = "command failed"
+            status_text = "Skill command failed."
+        return CommandExecutionResult(
+            command=self._local_skill_command_name(command, fallback_action=action),
+            summary=summary,
+            details=detail,
+            status_text=status_text,
             kind="error",
         )
+
+    def _local_skill_command_name(
+        self,
+        command: SkillCommandRequest,
+        *,
+        fallback_action: str,
+        payload: dict[str, Any] | None = None,
+    ) -> str:
+        if command.action == "show":
+            skill_name = _safe_text(payload.get("entry").name if payload and payload.get("entry") else command.skill_name)
+            return f"skill show {skill_name}".strip()
+        if command.action == "search":
+            return f"skill search {_safe_text(command.query)}".strip()
+        if command.action == "install":
+            return f"skill install {_safe_text(command.path)}".strip()
+        if command.action in {"uninstall", "rollback", "enable", "disable"}:
+            skill_name = _safe_text(payload.get("skill_name") if payload else command.skill_name) or _safe_text(command.skill_name)
+            return f"skill {command.action} {skill_name}".strip()
+        if command.action == "mode":
+            mode = _safe_text(payload.get("mode") if payload else command.mode) or _safe_text(command.mode)
+            return f"skill mode {mode}".strip()
+        resolved_action = _safe_text(command.action) or _safe_text(fallback_action)
+        return f"skill {resolved_action}".strip()
+
+    @staticmethod
+    def _local_skill_status_text(
+        *,
+        action: str,
+        payload: dict[str, Any],
+    ) -> str:
+        if action == "list":
+            return "Skill catalog shown."
+        if action == "active":
+            return "Workspace skill policy shown."
+        if action == "show":
+            entry = payload.get("entry")
+            entry_name = _safe_text(getattr(entry, "name", ""))
+            return f"Showing skill {entry_name}." if entry_name else "Showing skill."
+        if action == "search":
+            return "Skill search completed."
+        if action == "install":
+            return "Workspace skill installed."
+        if action == "uninstall":
+            return "Workspace skill uninstalled."
+        if action == "rollback":
+            return "Workspace skill rolled back."
+        if action == "mode":
+            return "Workspace skill mode updated."
+        if action in {"enable", "disable"}:
+            return "Workspace skill policy updated."
+        if action == "reset":
+            return "Workspace skill policy reset."
+        if action == "refresh":
+            return "Skill catalog refreshed."
+        return "Skill command completed."
+
+    @staticmethod
+    def _safe_local_skill_policy(
+        workspace: Path,
+        *,
+        fallback: Any | None = None,
+    ) -> Any | None:
+        try:
+            return load_workspace_skill_policy(workspace)
+        except Exception:
+            return fallback
 
     def execute_context(
         self,
@@ -1345,7 +1348,7 @@ class LocalOperatorCommandService:
         prepared_context_diagnostics: dict[str, Any] | None = None,
         session_label: str | None = None,
     ) -> CommandExecutionResult:
-        normalized_action = _safe_text(action).lower() or "show"
+        normalized_action = self._context_commands.normalize_action(action) or "show"
         normalized_policy = resolve_turn_context_policy(current_policy or {})
         policy_owner = _safe_text(session_label) or "this session"
 
@@ -1408,11 +1411,14 @@ class LocalOperatorCommandService:
                     status_text="Context source list is required.",
                     kind="usage",
                 )
-            updated_policy = self._set_context_policy_sources(
-                normalized_policy,
-                field_name="include_sources" if normalized_action == "include" else "exclude_sources",
-                sources=args[1:],
+            mutation = self._context_commands.apply_mutation(
+                current_policy=normalized_policy,
+                command=ContextCommandRequest(
+                    action=normalized_action,
+                    sources=tuple(args[1:]),
+                ),
             )
+            updated_policy = mutation.policy
             return CommandExecutionResult(
                 command=f"context {normalized_action}",
                 summary=context_policy_summary_line(updated_policy, include_default=True),
@@ -1420,10 +1426,7 @@ class LocalOperatorCommandService:
                 status_text=f"Context policy updated for {policy_owner}.",
                 payload={
                     "policy": updated_policy,
-                    "remote_request": {
-                        "action": normalized_action,
-                        "sources": list(args[1:]),
-                    },
+                    "remote_request": mutation.remote_request,
                 },
             )
 
@@ -1448,12 +1451,25 @@ class LocalOperatorCommandService:
                     status_text="Context budget values must be integers.",
                     kind="error",
                 )
-            updated_policy = self._set_context_policy_budget(
-                normalized_policy,
-                max_items=max_items,
-                max_total_chars=max_total_chars,
-                max_items_per_source=max_items_per_source,
-            )
+            try:
+                mutation = self._context_commands.apply_mutation(
+                    current_policy=normalized_policy,
+                    command=ContextCommandRequest(
+                        action="budget",
+                        max_items=max_items,
+                        max_total_chars=max_total_chars,
+                        max_items_per_source=max_items_per_source,
+                    ),
+                )
+            except ContextCommandError:
+                return CommandExecutionResult(
+                    command="context budget",
+                    summary="invalid number",
+                    details=build_command_usage_text(surface, "context", action="budget"),
+                    status_text="Context budget values must be integers.",
+                    kind="error",
+                )
+            updated_policy = mutation.policy
             return CommandExecutionResult(
                 command="context budget",
                 summary=context_policy_summary_line(updated_policy, include_default=True),
@@ -1461,17 +1477,16 @@ class LocalOperatorCommandService:
                 status_text=f"Context budget updated for {policy_owner}.",
                 payload={
                     "policy": updated_policy,
-                    "remote_request": {
-                        "action": "budget",
-                        "max_items": max_items,
-                        "max_total_chars": max_total_chars,
-                        "max_items_per_source": max_items_per_source,
-                    },
+                    "remote_request": mutation.remote_request,
                 },
             )
 
         if normalized_action == "reset":
-            updated_policy = resolve_turn_context_policy({})
+            mutation = self._context_commands.apply_mutation(
+                current_policy=normalized_policy,
+                command=ContextCommandRequest(action="reset"),
+            )
+            updated_policy = mutation.policy
             return CommandExecutionResult(
                 command="context reset",
                 summary=context_policy_summary_line(updated_policy, include_default=True),
@@ -1479,9 +1494,7 @@ class LocalOperatorCommandService:
                 status_text=f"Context policy reset for {policy_owner}.",
                 payload={
                     "policy": {},
-                    "remote_request": {
-                        "action": "reset",
-                    },
+                    "remote_request": mutation.remote_request,
                 },
             )
 
@@ -1516,7 +1529,8 @@ class LocalOperatorCommandService:
         normalized_surface = _safe_text(surface).lower() or "tui"
 
         if normalized_action == "status":
-            if current_enabled is None:
+            state = KnowledgeBaseControlService.status(current_enabled=current_enabled)
+            if state.enabled is None:
                 details = (
                     "Knowledge Base: pending default"
                     if normalized_surface == "cli"
@@ -1529,7 +1543,7 @@ class LocalOperatorCommandService:
                     status_text="Knowledge base status is pending.",
                     payload={"enabled": None},
                 )
-            enabled = bool(current_enabled)
+            enabled = bool(state.enabled)
             details = (
                 f"Knowledge Base: {'enabled' if enabled else 'disabled'}"
                 if normalized_surface == "cli"
@@ -1537,7 +1551,7 @@ class LocalOperatorCommandService:
             )
             return CommandExecutionResult(
                 command="kb status",
-                summary=f"knowledge base {'enabled' if enabled else 'disabled'}",
+                summary=state.summary,
                 details=details,
                 status_text=f"Knowledge base is {'enabled' if enabled else 'disabled'}.",
                 payload={"enabled": enabled},
@@ -1577,13 +1591,12 @@ class LocalOperatorCommandService:
             )
 
         desired_enabled = normalized_action == "on"
-        if toggle_callback is None:
-            enabled = desired_enabled
-        else:
-            raw_enabled = await _maybe_await(toggle_callback(desired_enabled))
-            enabled = bool(raw_enabled) if raw_enabled is not None else bool(current_enabled)
-
-        changed = current_enabled != enabled
+        toggle = await KnowledgeBaseControlService.toggle(
+            current_enabled=current_enabled,
+            desired_enabled=desired_enabled,
+            toggle_callback=toggle_callback,
+        )
+        enabled = toggle.effective_enabled
         if enabled == desired_enabled:
             details = (
                 f"Knowledge base {'enabled' if enabled else 'disabled'} for this session"
@@ -1599,10 +1612,9 @@ class LocalOperatorCommandService:
             )
             return CommandExecutionResult(
                 command=f"kb {normalized_action}",
-                summary=(
-                    f"knowledge base {'enabled' if changed else 'already enabled'}"
-                    if enabled
-                    else f"knowledge base {'disabled' if changed else 'already disabled'}"
+                summary=KnowledgeBaseControlService.toggle_summary(
+                    enabled=enabled,
+                    applied=toggle.applied,
                 ),
                 details=details,
                 status_text=f"Knowledge base {'enabled' if enabled else 'disabled'} for {session_label}.",
@@ -1629,7 +1641,7 @@ class LocalOperatorCommandService:
         reload_callback: Callable[[], Awaitable[McpReloadOutcome | tuple[bool, str] | None] | McpReloadOutcome | tuple[bool, str] | None]
         | None = None,
     ) -> CommandExecutionResult:
-        normalized_action = _safe_text(action).lower() or "status"
+        normalized_action = self._mcp_commands.normalize_action(action) or "status"
         if normalized_action not in {"status", "list", "reload"}:
             return CommandExecutionResult(
                 command="mcp",
@@ -1652,94 +1664,58 @@ class LocalOperatorCommandService:
                 status_text=f"MCP {normalized_action} usage displayed.",
                 kind="usage",
             )
-
-        if normalized_action == "reload" and busy:
-            return CommandExecutionResult(
-                command="mcp reload",
-                summary="session busy",
-                details=f"{busy_label} is busy. Wait for the current turn to finish first.",
-                status_text=f"{busy_label} is busy.",
-                kind="error",
-            )
-
         try:
-            config = self._config_loader()
-        except Exception as exc:
+            result = await self._mcp_commands.execute(
+                action=normalized_action,
+                busy=busy,
+                cleanup_connections=self._mcp_cleanup,
+                reload_callback=reload_callback,
+            )
+        except McpCommandError as exc:
+            summary = "command failed"
+            status_text = "MCP command failed."
+            command_name = "mcp"
+            if normalized_action == "reload" and exc.status_code == 409:
+                summary = "session busy"
+                status_text = f"{busy_label} is busy."
+                command_name = "mcp reload"
+                detail = f"{busy_label} is busy. Wait for the current turn to finish first."
+            elif normalized_action == "reload":
+                summary = "reload failed"
+                status_text = "MCP reload failed."
+                command_name = "mcp reload"
+                detail = exc.detail
+            elif "Failed to load config for MCP inspection" in exc.detail:
+                summary = "config unavailable"
+                status_text = "MCP config unavailable."
+                detail = exc.detail
+            else:
+                detail = exc.detail
             return CommandExecutionResult(
-                command="mcp",
-                summary="config unavailable",
-                details=f"Failed to load config for MCP inspection: {exc}",
-                status_text="MCP config unavailable.",
+                command=command_name,
+                summary=summary,
+                details=detail,
+                status_text=status_text,
                 kind="error",
             )
 
-        reload_outcome = McpReloadOutcome()
-        if normalized_action == "reload":
-            try:
-                self._mcp_snapshot_loader(config)
-                await _maybe_await(self._mcp_cleanup())
-                raw_outcome = await _maybe_await(reload_callback()) if reload_callback is not None else None
-                reload_outcome = self._normalize_reload_outcome(raw_outcome)
-            except Exception as exc:
-                return CommandExecutionResult(
-                    command="mcp reload",
-                    summary="reload failed",
-                    details=f"MCP reload failed: {exc}",
-                    status_text="MCP reload failed.",
-                    kind="error",
-                )
-
-        snapshot = self._mcp_snapshot_loader(config)
-        status_details = self._mcp_status_formatter(snapshot)
-        server_list_details = self._mcp_server_list_formatter(snapshot)
-
-        if normalized_action == "status":
-            return CommandExecutionResult(
-                command="mcp status",
-                summary=f"{int(getattr(snapshot, 'active_total', 0) or 0)} active server(s) | {int(getattr(snapshot, 'tool_total', 0) or 0)} tool(s)",
-                details=status_details,
-                status_text="MCP status shown.",
-                payload={"snapshot": snapshot},
-            )
-
-        if normalized_action == "list":
-            return CommandExecutionResult(
-                command="mcp list",
-                summary=f"{int(getattr(snapshot, 'configured_total', 0) or 0)} configured server(s) | {int(getattr(snapshot, 'active_total', 0) or 0)} active",
-                details=f"{status_details}\n\n{server_list_details}",
-                status_text="MCP server list shown.",
-                payload={"snapshot": snapshot},
-            )
-
+        status_text = {
+            "status": "MCP status shown.",
+            "list": "MCP server list shown.",
+            "reload": "MCP bindings reloaded.",
+        }.get(result.action, "MCP status shown.")
+        payload = {
+            "snapshot": result.snapshot,
+            "rebuilt_runtime": bool(result.reload_outcome.rebuilt_runtime),
+            "active_model_label": _safe_text(result.reload_outcome.active_model_label) or None,
+        }
         return CommandExecutionResult(
-            command="mcp reload",
-            summary=f"reloaded MCP | {int(getattr(snapshot, 'active_total', 0) or 0)} active server(s) | {int(getattr(snapshot, 'tool_total', 0) or 0)} tool(s)",
-            details=f"{status_details}\n\n{server_list_details}",
-            status_text="MCP bindings reloaded.",
-            payload={
-                "snapshot": snapshot,
-                "rebuilt_runtime": bool(reload_outcome.rebuilt_runtime),
-                "active_model_label": _safe_text(reload_outcome.active_model_label) or None,
-            },
+            command=f"mcp {result.action}",
+            summary=result.summary,
+            details=result.details,
+            status_text=status_text,
+            payload=payload,
         )
-
-    @staticmethod
-    def _normalize_reload_outcome(raw: Any) -> McpReloadOutcome:
-        if isinstance(raw, McpReloadOutcome):
-            return raw
-        if isinstance(raw, tuple) and raw:
-            rebuilt = bool(raw[0])
-            active_model_label = _safe_text(raw[1]) if len(raw) > 1 else ""
-            return McpReloadOutcome(
-                rebuilt_runtime=rebuilt,
-                active_model_label=active_model_label or None,
-            )
-        if isinstance(raw, dict):
-            return McpReloadOutcome(
-                rebuilt_runtime=bool(raw.get("rebuilt_runtime")),
-                active_model_label=_safe_text(raw.get("active_model_label")) or None,
-            )
-        return McpReloadOutcome()
 
     @staticmethod
     def _parse_context_show_mode(surface: str, parts: list[str]) -> tuple[str, str | None]:
@@ -1753,50 +1729,16 @@ class LocalOperatorCommandService:
             return "full", build_command_usage_text(surface, "context", action="show")
         return mode, None
 
-    @staticmethod
-    def _set_context_policy_sources(
-        current_policy: dict[str, Any],
-        *,
-        field_name: str,
-        sources: list[str],
-    ) -> dict[str, Any]:
-        normalized = resolve_turn_context_policy(current_policy or {})
-        values: list[str] = []
-        seen: set[str] = set()
-        for item in list(sources or []):
-            cleaned = _safe_text(item).lower()
-            if not cleaned or cleaned in seen:
-                continue
-            seen.add(cleaned)
-            values.append(cleaned)
-        normalized[field_name] = values
-        opposite = "exclude_sources" if field_name == "include_sources" else "include_sources"
-        normalized[opposite] = [
-            item for item in list(normalized.get(opposite) or [])
-            if item not in values
-        ]
-        return normalized
-
-    @staticmethod
-    def _set_context_policy_budget(
-        current_policy: dict[str, Any],
-        *,
-        max_items: int,
-        max_total_chars: int | None = None,
-        max_items_per_source: int | None = None,
-    ) -> dict[str, Any]:
-        normalized = resolve_turn_context_policy(current_policy or {})
-        normalized["max_items"] = max(1, int(max_items))
-        if max_total_chars is not None:
-            normalized["max_total_chars"] = max(200, int(max_total_chars))
-        if max_items_per_source is not None:
-            normalized["max_items_per_source"] = max(1, int(max_items_per_source))
-        return normalized
-
-
 __all__ = [
     "CommandExecutionResult",
+    "ContextCommandPlan",
     "LocalOperatorCommandService",
+    "MemoryCommandPlan",
     "McpReloadOutcome",
+    "ModelCommandPlan",
+    "prepare_context_command_plan",
     "parse_memory_show_target",
+    "prepare_memory_command_plan",
+    "prepare_model_command_plan",
+    "resolve_catalog_model_use_request",
 ]

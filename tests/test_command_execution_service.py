@@ -7,9 +7,15 @@ from types import SimpleNamespace
 from mini_agent.commands.execution import (
     CommandExecutionResult,
     CatalogModelUseRequest,
+    ContextCommandPlan,
     LocalOperatorCommandService,
+    MemoryCommandPlan,
     McpReloadOutcome,
+    ModelCommandPlan,
+    prepare_context_command_plan,
     parse_memory_show_target,
+    prepare_memory_command_plan,
+    prepare_model_command_plan,
     resolve_catalog_model_use_request,
 )
 from mini_agent.config import AgentConfig, Config, LLMConfig, ToolsConfig
@@ -246,6 +252,30 @@ def test_local_operator_command_service_reports_kb_busy_and_unknown_actions() ->
     asyncio.run(_run())
 
 
+def test_local_operator_command_service_reports_kb_already_disabled() -> None:
+    service = LocalOperatorCommandService(
+        config_loader=lambda: object(),
+        mcp_cleanup=lambda: None,
+    )
+
+    async def _run() -> None:
+        result = await service.execute_kb(
+            surface="tui",
+            action="off",
+            args=["off"],
+            current_enabled=False,
+            session_label="Session 1",
+            runtime_attached=True,
+            toggle_callback=lambda enabled: enabled,
+        )
+
+        assert result.kind == "info"
+        assert result.summary == "knowledge base already disabled"
+        assert result.payload["enabled"] is False
+
+    asyncio.run(_run())
+
+
 def test_resolve_catalog_model_use_request_builds_identity_and_errors() -> None:
     providers = [
         {
@@ -299,6 +329,141 @@ def test_resolve_catalog_model_use_request_builds_identity_and_errors() -> None:
     assert isinstance(model_missing, CommandExecutionResult)
     assert model_missing.summary == "model not found"
     assert model_missing.details == "Model not found in openai: missing-model"
+
+
+def test_prepare_model_command_plan_is_shared_across_cli_and_tui() -> None:
+    providers = [
+        {
+            "source": "preset",
+            "provider_id": "openai",
+            "models": [
+                {"model_id": "gpt-5.4"},
+                {"model_id": "gpt-5.3"},
+            ],
+        },
+        {
+            "source": "custom",
+            "provider_id": "maas",
+            "models": [
+                {"model_id": "astron-code-latest"},
+            ],
+        },
+    ]
+
+    cli_plan = prepare_model_command_plan(
+        surface="cli",
+        args=["show"],
+        providers=providers,
+        default_action="show",
+        allow_show=True,
+        extended_actions=False,
+        strict_basic_arity=True,
+    )
+    assert isinstance(cli_plan, ModelCommandPlan)
+    assert cli_plan.command == "model show"
+    assert cli_plan.action == "show"
+
+    tui_plan = prepare_model_command_plan(
+        surface="tui",
+        args=["use", "openai", "gpt-5.4"],
+        providers=providers,
+        default_action="list",
+        allow_show=False,
+        extended_actions=True,
+        current_filter="sonnet",
+        strict_basic_arity=False,
+    )
+    assert isinstance(tui_plan, ModelCommandPlan)
+    assert tui_plan.command == "model use"
+    assert tui_plan.action == "use"
+    assert isinstance(tui_plan.request, CatalogModelUseRequest)
+    assert tui_plan.request.identity == ("preset", "openai", "gpt-5.4")
+
+    filter_usage = prepare_model_command_plan(
+        surface="tui",
+        args=["filter"],
+        providers=providers,
+        default_action="list",
+        allow_show=False,
+        extended_actions=True,
+        current_filter="sonnet",
+        strict_basic_arity=False,
+    )
+    assert isinstance(filter_usage, CommandExecutionResult)
+    assert filter_usage.kind == "usage"
+    assert "Current model filter: sonnet" in filter_usage.details
+
+
+def test_prepare_model_command_plan_respects_surface_capabilities() -> None:
+    providers = [
+        {
+            "source": "preset",
+            "provider_id": "openai",
+            "models": [{"model_id": "gpt-5.4"}],
+        }
+    ]
+
+    cli_usage = prepare_model_command_plan(
+        surface="cli",
+        args=["list", "extra"],
+        providers=providers,
+        default_action="show",
+        allow_show=True,
+        extended_actions=False,
+        strict_basic_arity=True,
+    )
+    assert isinstance(cli_usage, CommandExecutionResult)
+    assert cli_usage.kind == "usage"
+    assert cli_usage.details == "Usage: /model list"
+
+    cli_unknown = prepare_model_command_plan(
+        surface="cli",
+        args=["next"],
+        providers=providers,
+        default_action="show",
+        allow_show=True,
+        extended_actions=False,
+        strict_basic_arity=True,
+    )
+    assert isinstance(cli_unknown, CommandExecutionResult)
+    assert cli_unknown.kind == "error"
+    assert cli_unknown.details == "Unknown model action: next.\nUsage: /model [show|list|use]"
+
+    tui_limit = prepare_model_command_plan(
+        surface="tui",
+        args=["limit", "list"],
+        providers=providers,
+        default_action="list",
+        allow_show=False,
+        extended_actions=True,
+        strict_basic_arity=False,
+    )
+    assert isinstance(tui_limit, ModelCommandPlan)
+    assert tui_limit.command == "model limit list"
+    assert tui_limit.action == "limit_list"
+
+
+def test_prepare_context_command_plan_is_shared_across_cli_and_tui() -> None:
+    cli_plan = prepare_context_command_plan(args=["brief"], default_action="show")
+    assert isinstance(cli_plan, ContextCommandPlan)
+    assert cli_plan.action == "show"
+    assert cli_plan.args == ("show", "brief")
+    assert cli_plan.refresh_snapshot is True
+    assert cli_plan.mutate_policy is False
+
+    tui_plan = prepare_context_command_plan(
+        args=["include", "knowledge_base", "workspace_memory"],
+        default_action="show",
+    )
+    assert isinstance(tui_plan, ContextCommandPlan)
+    assert tui_plan.action == "include"
+    assert tui_plan.args == ("include", "knowledge_base", "workspace_memory")
+    assert tui_plan.refresh_snapshot is False
+    assert tui_plan.mutate_policy is True
+
+    empty_plan = prepare_context_command_plan(args=[], default_action="show")
+    assert empty_plan.action == "show"
+    assert empty_plan.args == ()
 
 
 def test_local_operator_command_service_builds_context_show_and_stats_results() -> None:
@@ -469,6 +634,41 @@ def test_local_operator_command_service_lists_and_shows_skills_from_shared_catal
     assert "Workspace-local repo guidance." in show_result.details
 
 
+def test_local_operator_command_service_uses_injected_config_loader_for_skills(
+    tmp_path: Path,
+) -> None:
+    builtin_dir = tmp_path / "builtin-skills"
+    workspace_skill_dir = tmp_path / ".mini-agent" / "skills" / "repo-helper"
+    _write_skill(
+        builtin_dir / "doc-coauthoring",
+        name="doc-coauthoring",
+        description="Draft structured docs with the user.",
+        body="Use this skill for documentation.",
+    )
+    _write_skill(
+        workspace_skill_dir,
+        name="repo-helper",
+        description="Workspace-local repo guidance.",
+        body="Use this skill for the current workspace.",
+    )
+    config = _skill_config(builtin_dir)
+    service = LocalOperatorCommandService(
+        config_loader=lambda: config,
+        mcp_cleanup=lambda: None,
+    )
+
+    result = service.execute_skill(
+        surface="tui",
+        workspace=tmp_path,
+        action="list",
+        args=[],
+    )
+
+    assert result.kind == "info"
+    assert "doc-coauthoring [builtin] active" in result.details
+    assert "repo-helper [workspace] active" in result.details
+
+
 def test_local_operator_command_service_installs_workspace_skill_and_marks_reload_required(
     tmp_path: Path,
 ) -> None:
@@ -536,6 +736,25 @@ def test_local_operator_command_service_updates_skill_mode_through_shared_policy
     assert "- mode allowlist" in result.details
 
 
+def test_local_operator_command_service_prepares_shared_skill_request_and_command_name() -> None:
+    service = LocalOperatorCommandService(
+        config_loader=lambda: object(),
+        mcp_cleanup=lambda: None,
+    )
+
+    prepared = service.prepare_skill_request(
+        surface="tui",
+        action="install",
+        args=["install", "C:/skills/repo-helper"],
+        raw_text="skill install C:/skills/repo-helper",
+    )
+
+    assert not isinstance(prepared, CommandExecutionResult)
+    assert prepared.action == "install"
+    assert prepared.path == "C:/skills/repo-helper"
+    assert service.format_skill_command_name(prepared) == "skill install C:/skills/repo-helper"
+
+
 def _memory_diagnostics_loader(workspace: Path, *, session_id: str) -> dict[str, object]:
     return build_memory_diagnostics(
         workspace_dir=workspace,
@@ -561,6 +780,48 @@ def test_parse_memory_show_target_is_shared_across_surfaces() -> None:
     assert detail_mode == "full"
     assert selector is None
     assert usage_error == "Usage: /memory show [brief|full|<selector>]"
+
+
+def test_prepare_memory_command_plan_is_shared_across_cli_and_tui() -> None:
+    cli_plan = prepare_memory_command_plan(
+        surface="cli",
+        args=["show", "brief"],
+    )
+    assert isinstance(cli_plan, MemoryCommandPlan)
+    assert cli_plan.command == "memory show brief"
+    assert cli_plan.action == "show"
+    assert cli_plan.detail_mode == "brief"
+    assert cli_plan.summary_fallback == "memory diagnostics shown"
+
+    tui_plan = prepare_memory_command_plan(
+        surface="tui",
+        args=["shared", "clear"],
+        memory_summary_resolver=lambda current_session, result: "dynamic summary",  # noqa: ARG005
+    )
+    assert isinstance(tui_plan, MemoryCommandPlan)
+    assert tui_plan.command == "memory shared clear"
+    assert tui_plan.action == "shared_clear"
+    assert tui_plan.requires_idle_local_runtime is True
+    assert tui_plan.is_mutation is True
+
+
+def test_prepare_memory_command_plan_reports_shared_usage_and_unknown_actions() -> None:
+    usage = prepare_memory_command_plan(
+        surface="cli",
+        args=["shared", "list", "extra"],
+    )
+    assert isinstance(usage, CommandExecutionResult)
+    assert usage.kind == "usage"
+    assert usage.details == "Usage: /memory shared [list|show|clear]"
+
+    unknown = prepare_memory_command_plan(
+        surface="tui",
+        args=["consolidated", "invalid"],
+    )
+    assert isinstance(unknown, CommandExecutionResult)
+    assert unknown.kind == "error"
+    assert "Unknown memory action: invalid." in unknown.details
+    assert "Usage: /memory" in unknown.details
 
 
 def test_local_operator_command_service_builds_memory_list_from_runtime_state(tmp_path: Path) -> None:
