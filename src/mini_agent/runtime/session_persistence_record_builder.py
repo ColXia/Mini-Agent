@@ -27,6 +27,28 @@ class RuntimeSessionPersistenceRecordBuilder:
     session_kind: str
     session_token_usage: Callable[["MainAgentSessionState"], int]
     session_token_limit: Callable[["MainAgentSessionState"], int]
+    agent_last_memory_automation: Callable[[Any], dict[str, Any]] | None = None
+    agent_last_runtime_task_memory: Callable[[Any], dict[str, Any]] | None = None
+
+    @staticmethod
+    def _normalize_agent_payload(value: Any) -> dict[str, Any]:
+        return dict(value) if isinstance(value, dict) else {}
+
+    def _read_agent_last_memory_automation(self, agent: Any) -> dict[str, Any]:
+        if callable(self.agent_last_memory_automation):
+            try:
+                return self._normalize_agent_payload(self.agent_last_memory_automation(agent))
+            except Exception:
+                return {}
+        return self._normalize_agent_payload(getattr(agent, "last_memory_automation", {}))
+
+    def _read_agent_last_runtime_task_memory(self, agent: Any) -> dict[str, Any]:
+        if callable(self.agent_last_runtime_task_memory):
+            try:
+                return self._normalize_agent_payload(self.agent_last_runtime_task_memory(agent))
+            except Exception:
+                return {}
+        return self._normalize_agent_payload(getattr(agent, "last_runtime_task_memory", {}))
 
     @staticmethod
     def serialize_transcript_entry(entry: "MainAgentSessionTranscriptEntry") -> dict[str, Any]:
@@ -73,6 +95,7 @@ class RuntimeSessionPersistenceRecordBuilder:
             "origin_surface": _safe_text(session.projection.origin_surface) or "api",
             "active_surface": _safe_text(session.projection.active_surface or session.projection.origin_surface) or "api",
             "reply_enabled": bool(session.projection.reply_enabled),
+            "is_default": bool(session.projection.is_default),
             "busy": bool(session.projection.busy),
             "running_state": _safe_text(session.projection.running_state) or None,
             "channel_type": _safe_text(session.projection.channel_type) or None,
@@ -141,16 +164,8 @@ class RuntimeSessionPersistenceRecordBuilder:
                 else {}
             ),
             "sandbox_diagnostics": dict(sandbox_diagnostics) if isinstance(sandbox_diagnostics, dict) else {},
-            "last_memory_automation": (
-                dict(getattr(session.runtime.agent, "last_memory_automation", {}) or {})
-                if session.runtime.agent is not None
-                else {}
-            ),
-            "last_runtime_task_memory": (
-                dict(getattr(session.runtime.agent, "last_runtime_task_memory", {}) or {})
-                if session.runtime.agent is not None
-                else {}
-            ),
+            "last_memory_automation": self._read_agent_last_memory_automation(session.runtime.agent),
+            "last_runtime_task_memory": self._read_agent_last_runtime_task_memory(session.runtime.agent),
         }
 
 

@@ -1,5 +1,35 @@
 # Findings
 
+## 2026-04-16 P40.4 Runtime Session Data-Shaping Support Landing
+
+- The next useful runtime cut after `P40.3` is not the full `main_agent_runtime_manager.py` rewrite.
+- The honest next cut is the session data-shaping support layer:
+  - diagnostics
+  - hydration payloads
+  - runtime state hydration
+  - persistence metadata shaping
+  - read-model shaping
+  - snapshot export
+- A stricter clean-clone audit surfaced the key constraint for this slice:
+  - committed `main_agent_runtime_manager.py` already instantiates these support classes
+  - but it still uses older constructor signatures and older helper methods
+  - therefore a naive landing of the new support files would silently break committed runtime imports
+- The right correction is compatibility-first support landing, not dragging the whole manager rewrite into this commit.
+- The most important compatibility requirements were:
+  - keep legacy manager wiring valid for diagnostics, state hydrator, persistence builder, and restore handler
+  - keep legacy `RuntimeSessionReadModelBuilder.build_session_snapshot*` behavior valid even after extracting `RuntimeSessionSnapshotBuilder`
+  - tolerate the staged `interaction` package extraction by falling back to `runtime.interaction_surface`
+- This keeps the slice narrow while still solving a real anti-chaos problem:
+  - runtime support code can land independently
+  - the still-large manager/orchestration diff does not have to be mislabeled as part of the same support seam
+- Focused validation is now strong for this cut:
+  - `29 passed`
+  - targeted `ruff` green
+  - default-session regressions still green
+- Practical result:
+  - the runtime support stack is now materially more landable in narrow slices
+  - the next runtime move can be judged on orchestration boundary quality rather than on missing helper substrate
+
 ## 2026-04-16 P40.3 Runtime Support Substrate Landing
 
 - The large `runtime-session-contract` bucket should not be attacked through `main_agent_runtime_manager.py` first.

@@ -21,6 +21,28 @@ class RuntimeSessionDiagnosticsService:
     normalize_memory_diagnostics_payload: Callable[[Any], dict[str, Any]]
     normalize_sandbox_diagnostics_payload: Callable[[Any], dict[str, Any]]
     collect_sandbox_diagnostics: Callable[[Any], dict[str, Any]]
+    agent_last_memory_automation: Callable[[Any], dict[str, Any]] | None = None
+    agent_last_runtime_task_memory: Callable[[Any], dict[str, Any]] | None = None
+
+    @staticmethod
+    def _normalize_agent_payload(value: Any) -> dict[str, Any]:
+        return dict(value) if isinstance(value, dict) else {}
+
+    def _read_agent_last_memory_automation(self, agent: Any) -> dict[str, Any]:
+        if callable(self.agent_last_memory_automation):
+            try:
+                return self._normalize_agent_payload(self.agent_last_memory_automation(agent))
+            except Exception:
+                return {}
+        return self._normalize_agent_payload(getattr(agent, "last_memory_automation", {}))
+
+    def _read_agent_last_runtime_task_memory(self, agent: Any) -> dict[str, Any]:
+        if callable(self.agent_last_runtime_task_memory):
+            try:
+                return self._normalize_agent_payload(self.agent_last_runtime_task_memory(agent))
+            except Exception:
+                return {}
+        return self._normalize_agent_payload(getattr(agent, "last_runtime_task_memory", {}))
 
     def build_memory_diagnostics_for_session(
         self,
@@ -33,8 +55,8 @@ class RuntimeSessionDiagnosticsService:
                 workspace_dir=session.workspace_dir,
                 session_id=session.session_id,
                 last_prepared_context=session.projection.last_prepared_context,
-                last_memory_automation=getattr(session.runtime.agent, "last_memory_automation", {}),
-                last_runtime_task_memory=getattr(session.runtime.agent, "last_runtime_task_memory", {}),
+                last_memory_automation=self._read_agent_last_memory_automation(session.runtime.agent),
+                last_runtime_task_memory=self._read_agent_last_runtime_task_memory(session.runtime.agent),
                 preview_limit=preview_limit,
             )
         except Exception:

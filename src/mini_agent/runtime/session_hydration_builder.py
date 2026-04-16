@@ -8,10 +8,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Sequence
 from uuid import uuid4
 
-from mini_agent.runtime.interaction_surface import normalize_channel_type
+try:
+    from mini_agent.interaction import normalize_channel_type
+except Exception:  # pragma: no cover - compatibility path for staged interaction extraction
+    from mini_agent.runtime.interaction_surface import normalize_channel_type
 
 if TYPE_CHECKING:
-    from mini_agent.agent import Agent
+    from mini_agent.agent_core.engine import Agent
     from mini_agent.agent_core.session import SessionLifecycleState
     from mini_agent.interfaces import MainAgentSessionRecoverySnapshot
     from mini_agent.runtime.session_state import (
@@ -55,6 +58,7 @@ class RuntimeSessionHydrationPayload:
     origin_surface: str
     active_surface: str
     reply_enabled: bool
+    is_default: bool
     channel_type: str | None
     conversation_id: str | None
     sender_id: str | None
@@ -223,6 +227,7 @@ class RuntimeSessionHydrationBuilder:
             origin_surface=self.normalize_surface(record.get("origin_surface")),
             active_surface=self.normalize_surface(record.get("active_surface") or record.get("origin_surface")),
             reply_enabled=bool(record.get("reply_enabled", False)),
+            is_default=bool(record.get("is_default", False)),
             channel_type=normalize_channel_type(record.get("channel_type")),
             conversation_id=_safe_text(record.get("conversation_id")) or None,
             sender_id=_safe_text(record.get("sender_id")) or None,
@@ -256,6 +261,7 @@ class RuntimeSessionHydrationBuilder:
         origin_surface: str | None = None,
         active_surface: str | None = None,
         reply_enabled: bool = False,
+        is_default: bool = False,
         channel_type: str | None = None,
         conversation_id: str | None = None,
         sender_id: str | None = None,
@@ -333,6 +339,7 @@ class RuntimeSessionHydrationBuilder:
             origin_surface=normalized_origin,
             active_surface=normalized_active,
             reply_enabled=bool(reply_enabled),
+            is_default=bool(is_default),
             channel_type=normalize_channel_type(channel_type),
             conversation_id=_safe_text(conversation_id) or None,
             sender_id=_safe_text(sender_id) or None,
@@ -396,6 +403,7 @@ class RuntimeSessionHydrationBuilder:
             origin_surface=inherited_surface,
             active_surface=inherited_surface,
             reply_enabled=False,
+            is_default=False,
             channel_type=channel_type,
             conversation_id=conversation_id,
             sender_id=sender_id,
@@ -448,6 +456,7 @@ class RuntimeSessionHydrationBuilder:
                 origin_surface=payload.origin_surface,
                 active_surface=payload.active_surface,
                 reply_enabled=payload.reply_enabled,
+                is_default=bool(payload.is_default),
                 busy=False,
                 running_state="",
                 channel_type=payload.channel_type,
@@ -493,6 +502,5 @@ class RuntimeSessionHydrationBuilder:
         session.projection.recovery_pending_approvals = [
             item.model_dump() for item in list(stored_recovery.pending_approvals or [])
         ]
-
 
 __all__ = ["RuntimeSessionHydrationBuilder", "RuntimeSessionHydrationPayload"]

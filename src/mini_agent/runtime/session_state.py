@@ -8,8 +8,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from mini_agent.agent import Agent
+from mini_agent.agent_core.engine import Agent
 from mini_agent.agent_core.session import SessionLifecycleState
+from mini_agent.runtime.session_payload_codec import RuntimeSessionPayloadCodec
 
 
 @dataclass(slots=True)
@@ -20,6 +21,7 @@ class MainAgentSessionProjectionState:
     reply_enabled: bool = False
     busy: bool = False
     running_state: str = ""
+    is_default: bool = False
     channel_type: str | None = None
     conversation_id: str | None = None
     sender_id: str | None = None
@@ -86,6 +88,62 @@ class MainAgentSessionState:
 
     def touch(self, *, now_utc: datetime | None = None) -> None:
         self.updated_at = (now_utc or datetime.now(timezone.utc)).astimezone(timezone.utc)
+
+    @property
+    def agent(self) -> Agent:
+        return self.runtime.agent
+
+    @property
+    def cancel_event(self) -> asyncio.Event | None:
+        return self.runtime.cancel_event
+
+    @property
+    def active_surface(self) -> str:
+        return self.projection.active_surface
+
+    @property
+    def origin_surface(self) -> str:
+        return self.projection.origin_surface
+
+    @property
+    def channel_type(self) -> str | None:
+        return self.projection.channel_type
+
+    @property
+    def conversation_id(self) -> str | None:
+        return self.projection.conversation_id
+
+    @property
+    def sender_id(self) -> str | None:
+        return self.projection.sender_id
+
+    @property
+    def context_policy(self) -> dict[str, Any]:
+        return self.projection.context_policy
+
+    @property
+    def busy(self) -> bool:
+        return bool(self.projection.busy)
+
+    @property
+    def running_state(self) -> str:
+        return self.projection.running_state
+
+    @running_state.setter
+    def running_state(self, value: str) -> None:
+        self.projection.running_state = str(value or "")
+
+    @property
+    def pending_approvals(self) -> list[dict[str, Any]]:
+        return list(self.runtime.pending_approvals)
+
+    @property
+    def token_usage(self) -> int:
+        return RuntimeSessionPayloadCodec.agent_token_usage(self.runtime.agent)
+
+    @property
+    def message_count(self) -> int:
+        return RuntimeSessionPayloadCodec.agent_message_count(self.runtime.agent)
 
 
 @dataclass

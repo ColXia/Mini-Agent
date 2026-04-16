@@ -9,8 +9,8 @@ from typing import TYPE_CHECKING, Any, Awaitable, Callable, Sequence
 from mini_agent.runtime.session_hydration_builder import RuntimeSessionHydrationPayload
 
 if TYPE_CHECKING:
-    from mini_agent.agent import Agent
-    from mini_agent.agent_core.session import AgentSessionKey, SessionLifecycleState
+    from mini_agent.agent_core.engine import Agent
+    from mini_agent.agent_core.session import SessionLifecycleState
     from mini_agent.interfaces import MainAgentSessionRecoverySnapshot
     from mini_agent.runtime.session_state import MainAgentSessionState
     from mini_agent.runtime.session_state import MainAgentSessionTranscriptEntry
@@ -38,13 +38,14 @@ class RuntimeSessionRestoreHandler:
     restore_agent_token_state: Callable[..., None]
     agent_knowledge_base_enabled: Callable[[Any], bool]
     apply_agent_knowledge_base_enabled: Callable[[Any, bool], bool]
-    build_session_key: Callable[[str, Any], "AgentSessionKey"]
-    lifecycle_bootstrap: Callable[[Any, datetime], "SessionLifecycleState"]
     build_session_state: Callable[..., "MainAgentSessionState"]
     apply_stored_recovery: Callable[["MainAgentSessionState", "MainAgentSessionRecoverySnapshot | None"], None]
     set_selected_model_identity: Callable[["MainAgentSessionState", tuple[str, str, str] | None], None]
     route_model_identity: Callable[[Any], tuple[str, str, str] | None]
     hydrate_runtime_state: Callable[["MainAgentSessionState", RuntimeSessionHydrationPayload], None]
+    bootstrap_session_lifecycle: Callable[[str, Any, datetime], "SessionLifecycleState"] | None = None
+    build_session_key: Callable[[str, Any], Any] | None = None
+    lifecycle_bootstrap: Callable[[Any, datetime], "SessionLifecycleState"] | None = None
 
     def prepare_restore_payload(
         self,
@@ -103,8 +104,11 @@ class RuntimeSessionRestoreHandler:
             agent,
             effective_knowledge_base_enabled,
         )
-        session_key = self.build_session_key(payload.session_id, payload.workspace_dir)
-        lifecycle_state = self.lifecycle_bootstrap(session_key, now_utc)
+        lifecycle_state = self._bootstrap_lifecycle_state(
+            session_id=payload.session_id,
+            workspace_dir=payload.workspace_dir,
+            now_utc=now_utc,
+        )
         session = self.build_session_state(
             payload,
             lifecycle_state=lifecycle_state,
@@ -120,6 +124,24 @@ class RuntimeSessionRestoreHandler:
             created=True,
             agent_messages_for_persist=payload.agent_messages,
         )
+
+    def _bootstrap_lifecycle_state(
+        self,
+        *,
+        session_id: str,
+        workspace_dir: Any,
+        now_utc: datetime,
+    ) -> "SessionLifecycleState":
+        if callable(self.bootstrap_session_lifecycle):
+            return self.bootstrap_session_lifecycle(
+                session_id,
+                workspace_dir,
+                now_utc,
+            )
+        if callable(self.build_session_key) and callable(self.lifecycle_bootstrap):
+            session_key = self.build_session_key(session_id, workspace_dir)
+            return self.lifecycle_bootstrap(session_key, now_utc)
+        raise TypeError("RuntimeSessionRestoreHandler requires lifecycle bootstrap wiring.")
 
 
 __all__ = [

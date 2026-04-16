@@ -1,5 +1,40 @@
 # Progress
 
+## 2026-04-16 P40.4 Runtime Session Data-Shaping Support Landing
+
+- [completed] re-audited the next runtime seam above `P40.3` instead of jumping directly into the full runtime manager diff
+- [completed] identified the narrowed runtime support layer as the next honest cut:
+  - `session_diagnostics_service.py`
+  - `session_hydration_builder.py`
+  - `session_runtime_state_hydrator.py`
+  - `session_state.py`
+  - `session_persistence_record_builder.py`
+  - `session_read_model_builder.py`
+  - `session_snapshot_builder.py`
+  - `session_restore_handler.py`
+- [completed] found and corrected the clean-clone compatibility risk inside that layer:
+  - committed `main_agent_runtime_manager.py` already instantiates these support services
+  - but it still uses older constructor signatures and older helper methods
+  - the slice therefore landed compatibility shims instead of widening into the full manager rewrite
+- [completed] preserved legacy runtime compatibility while keeping the new support seams available:
+  - diagnostics service now supports explicit support-callables plus legacy agent-attribute fallback
+  - state hydrator now supports explicit support-callables plus legacy prepared-context normalizer wiring
+  - persistence builder now supports support-callables plus legacy agent-attribute fallback
+  - hydration builder restored legacy `apply_stored_recovery(...)`
+  - read-model builder restored legacy snapshot-export methods as wrappers over `RuntimeSessionSnapshotBuilder`
+  - restore handler now supports both new lifecycle bootstrap wiring and the older `build_session_key + lifecycle_bootstrap` path
+  - runtime imports now tolerate the staged `interaction` extraction through fallback imports
+- [completed] added focused compatibility coverage:
+  - `tests/test_runtime_session_read_model_builder.py`
+  - `tests/test_runtime_session_restore_handler.py`
+  - legacy-fallback additions in diagnostics / hydrator / persistence tests
+- [completed] verified the narrowed runtime support slice:
+  - `uv run pytest tests/test_runtime_session_diagnostics_service.py tests/test_runtime_session_state_hydrator.py tests/test_runtime_session_snapshot_builder.py tests/test_runtime_session_persistence_record_builder.py tests/test_runtime_session_read_model_builder.py tests/test_runtime_session_restore_handler.py tests/test_session_projection.py tests/test_interface_dto_contracts.py tests/test_p19_runtime_matrix.py tests/test_main_agent_surface_service.py::test_runtime_manager_single_runtime_falls_back_to_global_default_session tests/test_main_agent_surface_service.py::test_use_case_chat_without_session_id_falls_back_to_default_session tests/test_main_agent_surface_service.py::test_use_case_chat_default_session_ignores_title_hint tests/test_main_agent_surface_service.py::test_runtime_manager_team_mode_without_session_id_uses_global_default_session -q`
+  - result: `29 passed`
+  - `uv run ruff check ...`
+  - result: `All checks passed!`
+- [next] land this runtime session support slice as the next narrow post-`P40.3` runtime commit and then re-run the worktree slice report
+
 ## 2026-04-16 P40.3 Runtime Support Substrate Landing
 
 - [completed] audited the large `runtime-session-contract` residue for a smaller, phase-honest upstream cut

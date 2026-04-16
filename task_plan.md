@@ -1,5 +1,80 @@
 # Task Plan
 
+## Latest Sync: 2026-04-16 P40.4 Runtime Session Data-Shaping Support Landing
+
+## Current Execution Slice: P40.4 Runtime Session Data-Shaping Support Landing (2026-04-16)
+
+### Why This Slice Is Next
+
+- after `P40.3`, the next honest runtime seam is not the full manager/handler convergence
+- the safer cut is the session data-shaping support layer directly above the already-landed runtime substrate:
+  - diagnostics
+  - hydration payloads
+  - runtime state hydration
+  - persistence metadata shaping
+  - read-model shaping
+  - snapshot export compatibility
+- a stricter audit found one important boundary rule for this cut:
+  - these files are already instantiated by committed `main_agent_runtime_manager.py`
+  - but that committed manager still uses older constructor wiring and older helper methods
+  - so this slice must preserve backward compatibility rather than forcing the full manager diff into the same commit
+
+### Scope
+
+- land the narrowed runtime session support files:
+  - `session_diagnostics_service.py`
+  - `session_hydration_builder.py`
+  - `session_runtime_state_hydrator.py`
+  - `session_state.py`
+  - `session_persistence_record_builder.py`
+  - `session_read_model_builder.py`
+  - `session_snapshot_builder.py`
+  - `session_restore_handler.py`
+- keep the broader `main_agent_runtime_manager.py` adoption out of this cut
+- add focused compatibility regressions so old manager wiring and new support seams both remain valid
+
+### Acceptance
+
+- the narrowed runtime session support layer is committed independently of the broader manager rewrite
+- clean-clone compatibility is preserved for the committed runtime manager:
+  - legacy constructor arguments still work
+  - legacy `apply_stored_recovery` and snapshot-export paths still work
+  - staged `interaction` extraction is not required for this slice to import cleanly
+- focused runtime support tests and adjacent default-session regressions are green
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- key compatibility corrections inside this slice:
+  - `RuntimeSessionDiagnosticsService` now supports both explicit support-callables and legacy agent-attribute fallbacks
+  - `RuntimeSessionStateHydrator` now supports both explicit support-callables and legacy payload-normalizer wiring
+  - `RuntimeSessionPersistenceRecordBuilder` now supports both support-callables and legacy agent-attribute fallbacks
+  - `RuntimeSessionReadModelBuilder` keeps legacy snapshot-export methods as compatibility wrappers over the extracted `RuntimeSessionSnapshotBuilder`
+  - `RuntimeSessionRestoreHandler` now accepts both the new `bootstrap_session_lifecycle(...)` seam and the older `build_session_key + lifecycle_bootstrap` wiring
+  - runtime files that reference `normalize_channel_type` now tolerate the staged `interaction` extraction by falling back to `runtime.interaction_surface`
+- focused verification target for this slice:
+  - `tests/test_runtime_session_diagnostics_service.py`
+  - `tests/test_runtime_session_state_hydrator.py`
+  - `tests/test_runtime_session_snapshot_builder.py`
+  - `tests/test_runtime_session_persistence_record_builder.py`
+  - `tests/test_runtime_session_read_model_builder.py`
+  - `tests/test_runtime_session_restore_handler.py`
+  - `tests/test_session_projection.py`
+  - `tests/test_interface_dto_contracts.py`
+  - `tests/test_p19_runtime_matrix.py`
+  - four default-session regression tests in `tests/test_main_agent_surface_service.py`
+
+### Next Likely Seam
+
+- after this support layer lands, reopen the next runtime adoption seam above it:
+  - `session_hydration_coordinator`
+  - `session_registry_handler`
+  - `session_snapshot_handler`
+- if that seam proves mixed again, fall back to the remaining `memory-governance` residue before reopening more runtime orchestration
+
 ## Latest Sync: 2026-04-16 P40.3 Runtime Support Substrate Landing
 
 ## Current Execution Slice: P40.3 Runtime Support Substrate Landing (2026-04-16)

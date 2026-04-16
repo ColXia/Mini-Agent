@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Sequence
 from uuid import uuid4
 
@@ -15,12 +14,16 @@ from mini_agent.interfaces import (
     MainAgentSessionRecoverySnapshot,
     MainAgentSessionSummary,
 )
-from mini_agent.runtime.interaction_surface import normalize_channel_type
-from mini_agent.runtime.session_snapshot import RuntimeSessionImportMessage, RuntimeSessionSnapshot
+try:
+    from mini_agent.interaction import normalize_channel_type
+except Exception:  # pragma: no cover - compatibility path for staged interaction extraction
+    from mini_agent.runtime.interaction_surface import normalize_channel_type
+from mini_agent.runtime.session_snapshot_builder import RuntimeSessionSnapshotBuilder
 from mini_agent.session import (
     SessionDetailProjection,
     SessionMessageProjection,
     SessionPendingApprovalProjection,
+    SessionRecoveryFeedbackService,
     SessionRecoveryProjection,
     SessionSummaryProjection,
 )
@@ -51,15 +54,15 @@ class RuntimeSessionReadModelBuilder:
     build_memory_diagnostics_from_record: Callable[[dict[str, Any]], dict[str, Any]]
     build_sandbox_diagnostics_for_session: Callable[["MainAgentSessionState"], dict[str, Any]]
     build_sandbox_diagnostics_from_record: Callable[[dict[str, Any]], dict[str, Any]]
-    snapshot_runtime_task_memory_payload: Callable[..., dict[str, Any]]
-    snapshot_workspace_shared_runtime_task_memory_payload: Callable[..., dict[str, Any]]
     session_token_usage: Callable[["MainAgentSessionState"], int]
     session_token_limit: Callable[["MainAgentSessionState"], int]
     record_token_usage: Callable[[dict[str, Any]], int]
     record_token_limit: Callable[[dict[str, Any]], int]
     transcript_entries_from_record: Callable[[dict[str, Any]], list["MainAgentSessionTranscriptEntry"]]
     pending_approvals_from_raw: Callable[[Any], list[dict[str, Any]]]
-    serialize_agent_messages: Callable[[Sequence[Any]], list[dict[str, Any]]]
+    snapshot_runtime_task_memory_payload: Callable[..., dict[str, Any]] | None = None
+    snapshot_workspace_shared_runtime_task_memory_payload: Callable[..., dict[str, Any]] | None = None
+    serialize_agent_messages: Callable[[Sequence[Any]], list[dict[str, Any]]] | None = None
 
     def build_session_summary_projection(
         self,
@@ -82,6 +85,16 @@ class RuntimeSessionReadModelBuilder:
         stored_recovery = self.stored_recovery_snapshot_from_session(session)
         if stored_recovery is not None and not session.projection.busy and not pending_approvals:
             recovery = SessionRecoveryProjection.from_payload(stored_recovery)
+        remote_recovery_text = self.build_remote_recovery_text(
+            session_id=session.session_id,
+            origin_surface=session.projection.origin_surface,
+            active_surface=session.projection.active_surface or session.projection.origin_surface,
+            reply_enabled=bool(session.projection.reply_enabled),
+            recovery=recovery,
+            pending_approvals=pending_approvals,
+            pending_skill_reload=bool(session.projection.pending_skill_reload),
+            pending_skill_reload_reason=_safe_text(session.projection.pending_skill_reload_reason) or None,
+        )
         return SessionSummaryProjection(
             session_id=session.session_id,
             workspace_dir=str(session.workspace_dir),
@@ -96,6 +109,7 @@ class RuntimeSessionReadModelBuilder:
             reply_enabled=bool(session.projection.reply_enabled),
             busy=bool(session.projection.busy),
             running_state=_safe_text(session.projection.running_state) or None,
+            is_default=bool(session.projection.is_default),
             channel_type=session.projection.channel_type,
             conversation_id=session.projection.conversation_id,
             sender_id=session.projection.sender_id,
@@ -113,6 +127,7 @@ class RuntimeSessionReadModelBuilder:
             pending_skill_reload_reason=_safe_text(session.projection.pending_skill_reload_reason) or None,
             pending_approvals=pending_approvals,
             recovery=recovery,
+            remote_recovery_text=remote_recovery_text,
             memory_diagnostics=dict(memory_diagnostics),
             sandbox_diagnostics=dict(sandbox_diagnostics),
         )
@@ -163,6 +178,16 @@ class RuntimeSessionReadModelBuilder:
         stored_recovery = self.stored_recovery_snapshot_from_record(record, transcript=transcript)
         if stored_recovery is not None and not bool(record.get("busy", False)) and not pending_approvals:
             recovery = SessionRecoveryProjection.from_payload(stored_recovery)
+        remote_recovery_text = self.build_remote_recovery_text(
+            session_id=_safe_text(record.get("session_id")) or None,
+            origin_surface=record.get("origin_surface"),
+            active_surface=record.get("active_surface") or record.get("origin_surface"),
+            reply_enabled=bool(record.get("reply_enabled", False)),
+            recovery=recovery,
+            pending_approvals=tuple(),
+            pending_skill_reload=bool(record.get("pending_skill_reload", False)),
+            pending_skill_reload_reason=_safe_text(record.get("pending_skill_reload_reason")) or None,
+        )
         return SessionSummaryProjection(
             session_id=_safe_text(record.get("session_id")) or uuid4().hex,
             workspace_dir=str(record.get("workspace_dir", "")),
@@ -175,6 +200,7 @@ class RuntimeSessionReadModelBuilder:
             reply_enabled=bool(record.get("reply_enabled", False)),
             busy=False,
             running_state=None,
+            is_default=bool(record.get("is_default", False)),
             channel_type=normalize_channel_type(record.get("channel_type")),
             conversation_id=_safe_text(record.get("conversation_id")) or None,
             sender_id=_safe_text(record.get("sender_id")) or None,
@@ -192,6 +218,7 @@ class RuntimeSessionReadModelBuilder:
             pending_skill_reload_reason=_safe_text(record.get("pending_skill_reload_reason")) or None,
             pending_approvals=tuple(),
             recovery=recovery,
+            remote_recovery_text=remote_recovery_text,
             memory_diagnostics=dict(memory_diagnostics),
             sandbox_diagnostics=dict(sandbox_diagnostics),
         )
@@ -221,148 +248,17 @@ class RuntimeSessionReadModelBuilder:
             ),
         ).to_transport()
 
-    def build_session_snapshot(self, session: "MainAgentSessionState") -> RuntimeSessionSnapshot:
-        memory_diagnostics = self.build_memory_diagnostics_for_session(session)
-        sandbox_diagnostics = self.build_sandbox_diagnostics_for_session(session)
-        return RuntimeSessionSnapshot(
-            session_id=session.session_id,
-            workspace_dir=str(session.workspace_dir),
-            title=_safe_text(session.projection.title) or None,
-            origin_surface=self.normalize_surface(session.projection.origin_surface),
-            active_surface=self.normalize_surface(
-                session.projection.active_surface or session.projection.origin_surface
-            ),
-            reply_enabled=bool(session.projection.reply_enabled),
-            channel_type=session.projection.channel_type,
-            conversation_id=session.projection.conversation_id,
-            sender_id=session.projection.sender_id,
-            token_usage=self.session_token_usage(session),
-            token_limit=self.session_token_limit(session),
-            shared=bool(session.projection.shared),
-            knowledge_base_enabled=bool(session.projection.knowledge_base_enabled),
-            selected_model_source=session.projection.selected_model_source,
-            selected_provider_id=session.projection.selected_provider_id,
-            selected_model_id=session.projection.selected_model_id,
-            pending_model_source=session.projection.pending_model_source,
-            pending_provider_id=session.projection.pending_provider_id,
-            pending_model_id=session.projection.pending_model_id,
-            lineage_parent_session_id=session.lineage_state.parent_session_id,
-            lineage_root_session_id=_safe_text(session.lineage_state.root_session_id) or session.session_id,
-            lineage_reason=_safe_text(session.lineage_state.reason) or "root",
-            lineage_created_at=_to_utc_iso(session.lineage_state.created_at),
-            lineage_metadata=(
-                dict(session.lineage_state.metadata)
-                if isinstance(session.lineage_state.metadata, dict)
-                else {}
-            ),
-            pending_skill_reload=bool(session.projection.pending_skill_reload),
-            pending_skill_reload_reason=_safe_text(session.projection.pending_skill_reload_reason) or None,
-            context_policy=self.normalize_context_policy_payload(session.projection.context_policy),
-            last_prepared_context=self.normalize_prepared_context_payload(session.projection.last_prepared_context),
-            prepared_context_diagnostics=self.normalize_prepared_context_diagnostics_payload(
-                session.projection.prepared_context_diagnostics
-            ),
-            memory_diagnostics=dict(memory_diagnostics),
-            sandbox_diagnostics=dict(sandbox_diagnostics),
-            runtime_task_memory_payload=self.snapshot_runtime_task_memory_payload(
-                workspace_dir=session.workspace_dir,
-                session_id=session.session_id,
-            ),
-            workspace_shared_runtime_memory_payload=self.snapshot_workspace_shared_runtime_task_memory_payload(
-                workspace_dir=session.workspace_dir,
-            ),
-            agent_messages=self.serialize_agent_messages(getattr(session.runtime.agent, "messages", []) or []),
-            transcript=[
-                RuntimeSessionImportMessage(
-                    role=entry.role,
-                    content=entry.content,
-                    surface=entry.surface,
-                    created_at=_to_utc_iso(entry.created_at),
-                    channel_type=entry.channel_type,
-                    conversation_id=entry.conversation_id,
-                    sender_id=entry.sender_id,
-                    metadata=dict(entry.metadata) if entry.metadata else None,
-                )
-                for entry in session.transcript_state.transcript
-            ],
-        )
-
-    def build_session_snapshot_from_record(self, record: dict[str, Any]) -> RuntimeSessionSnapshot:
-        transcript = self.transcript_entries_from_record(record)
-        raw_messages = record.get("messages")
-        agent_messages = raw_messages if isinstance(raw_messages, list) else []
-        workspace_dir = Path(str(record.get("workspace_dir", "."))).expanduser().resolve()
-        session_id = _safe_text(record.get("session_id")) or None
-        return RuntimeSessionSnapshot(
-            session_id=session_id,
-            workspace_dir=str(record.get("workspace_dir", "")),
-            title=_safe_text(record.get("title")) or None,
-            origin_surface=self.normalize_surface(record.get("origin_surface")),
-            active_surface=self.normalize_surface(record.get("active_surface") or record.get("origin_surface")),
-            reply_enabled=bool(record.get("reply_enabled", False)),
-            channel_type=normalize_channel_type(record.get("channel_type")),
-            conversation_id=_safe_text(record.get("conversation_id")) or None,
-            sender_id=_safe_text(record.get("sender_id")) or None,
-            token_usage=self.record_token_usage(record),
-            token_limit=self.record_token_limit(record),
-            shared=bool(record.get("shared", False)),
-            knowledge_base_enabled=bool(record.get("knowledge_base_enabled", True)),
-            selected_model_source=self.normalize_model_source(record.get("selected_model_source")),
-            selected_provider_id=_safe_text(record.get("selected_provider_id")) or None,
-            selected_model_id=_safe_text(record.get("selected_model_id")) or None,
-            pending_model_source=self.normalize_model_source(record.get("pending_model_source")),
-            pending_provider_id=_safe_text(record.get("pending_provider_id")) or None,
-            pending_model_id=_safe_text(record.get("pending_model_id")) or None,
-            lineage_parent_session_id=_safe_text(record.get("lineage_parent_session_id")) or None,
-            lineage_root_session_id=_safe_text(record.get("lineage_root_session_id")) or session_id,
-            lineage_reason=_safe_text(record.get("lineage_reason")) or "root",
-            lineage_created_at=_safe_text(record.get("lineage_created_at")) or None,
-            lineage_metadata=(
-                dict(record.get("lineage_metadata"))
-                if isinstance(record.get("lineage_metadata"), dict)
-                else {}
-            ),
-            pending_skill_reload=bool(record.get("pending_skill_reload", False)),
-            pending_skill_reload_reason=_safe_text(record.get("pending_skill_reload_reason")) or None,
-            context_policy=self.normalize_context_policy_payload(record.get("context_policy")),
-            last_prepared_context=self.normalize_prepared_context_payload(record.get("last_prepared_context")),
-            prepared_context_diagnostics=self.normalize_prepared_context_diagnostics_payload(
-                record.get("prepared_context_diagnostics")
-            ),
-            memory_diagnostics=self.build_memory_diagnostics_from_record(record),
-            sandbox_diagnostics=self.build_sandbox_diagnostics_from_record(record),
-            runtime_task_memory_payload=(
-                self.snapshot_runtime_task_memory_payload(
-                    workspace_dir=workspace_dir,
-                    session_id=session_id,
-                )
-                if session_id
-                else {}
-            ),
-            workspace_shared_runtime_memory_payload=self.snapshot_workspace_shared_runtime_task_memory_payload(
-                workspace_dir=workspace_dir,
-            ),
-            agent_messages=self.serialize_agent_messages(agent_messages),
-            transcript=[
-                RuntimeSessionImportMessage(
-                    role=entry.role,
-                    content=entry.content,
-                    surface=entry.surface,
-                    created_at=_to_utc_iso(entry.created_at),
-                    channel_type=entry.channel_type,
-                    conversation_id=entry.conversation_id,
-                    sender_id=entry.sender_id,
-                    metadata=dict(entry.metadata) if entry.metadata else None,
-                )
-                for entry in transcript
-            ],
-        )
-
     def build_pending_approval_models(
         self,
         raw_items: Sequence[dict[str, Any]] | None,
     ) -> list[MainAgentSessionPendingApproval]:
         return [item.to_transport() for item in self.build_pending_approval_projections(raw_items)]
+
+    def build_session_snapshot(self, session: "MainAgentSessionState"):
+        return self._snapshot_builder().build_session_snapshot(session)
+
+    def build_session_snapshot_from_record(self, record: dict[str, Any]):
+        return self._snapshot_builder().build_session_snapshot_from_record(record)
 
     def build_pending_approval_projections(
         self,
@@ -473,6 +369,87 @@ class RuntimeSessionReadModelBuilder:
             pending_approvals=pending_approvals,
             persisted_record=persisted_record,
         ).to_transport()
+
+    @staticmethod
+    def build_remote_recovery_text(
+        *,
+        session_id: str | None,
+        origin_surface: str | None,
+        active_surface: str | None,
+        reply_enabled: bool,
+        recovery: SessionRecoveryProjection | None,
+        pending_approvals: Sequence[SessionPendingApprovalProjection] | None,
+        pending_skill_reload: bool,
+        pending_skill_reload_reason: str | None,
+    ) -> str:
+        return SessionRecoveryFeedbackService.build_remote_recovery_text(
+            session_id=session_id,
+            origin_surface=origin_surface,
+            active_surface=active_surface,
+            reply_enabled=reply_enabled,
+            recovery=recovery,
+            pending_approvals=pending_approvals,
+            pending_skill_reload=pending_skill_reload,
+            pending_skill_reload_reason=pending_skill_reload_reason,
+        )
+
+    def _snapshot_builder(self) -> RuntimeSessionSnapshotBuilder:
+        return RuntimeSessionSnapshotBuilder(
+            normalize_surface=self.normalize_surface,
+            normalize_model_source=self.normalize_model_source,
+            normalize_context_policy_payload=self.normalize_context_policy_payload,
+            normalize_prepared_context_payload=self.normalize_prepared_context_payload,
+            normalize_prepared_context_diagnostics_payload=self.normalize_prepared_context_diagnostics_payload,
+            build_memory_diagnostics_for_session=self.build_memory_diagnostics_for_session,
+            build_memory_diagnostics_from_record=self.build_memory_diagnostics_from_record,
+            build_sandbox_diagnostics_for_session=self.build_sandbox_diagnostics_for_session,
+            build_sandbox_diagnostics_from_record=self.build_sandbox_diagnostics_from_record,
+            snapshot_runtime_task_memory_payload=(
+                self.snapshot_runtime_task_memory_payload or self._empty_runtime_memory_payload
+            ),
+            snapshot_workspace_shared_runtime_task_memory_payload=(
+                self.snapshot_workspace_shared_runtime_task_memory_payload or self._empty_runtime_memory_payload
+            ),
+            session_token_usage=self.session_token_usage,
+            session_token_limit=self.session_token_limit,
+            record_token_usage=self.record_token_usage,
+            record_token_limit=self.record_token_limit,
+            transcript_entries_from_record=self.transcript_entries_from_record,
+            agent_messages=self._agent_messages,
+            serialize_agent_messages=self.serialize_agent_messages or self._default_serialize_agent_messages,
+        )
+
+    @staticmethod
+    def _empty_runtime_memory_payload(**_kwargs: Any) -> dict[str, Any]:
+        return {}
+
+    @staticmethod
+    def _agent_messages(agent: Any) -> list[Any]:
+        return list(getattr(agent, "messages", None) or [])
+
+    @staticmethod
+    def _default_serialize_agent_messages(messages: Sequence[Any]) -> list[dict[str, Any]]:
+        serialized: list[dict[str, Any]] = []
+        for item in messages or []:
+            if hasattr(item, "model_dump"):
+                payload = item.model_dump()
+            elif isinstance(item, dict):
+                payload = dict(item)
+            elif hasattr(item, "__dict__"):
+                payload = dict(vars(item))
+            else:
+                payload = {"role": "assistant", "content": str(item)}
+            serialized.append(
+                {
+                    "role": payload.get("role", "assistant"),
+                    "content": payload.get("content", ""),
+                    "thinking": payload.get("thinking"),
+                    "tool_calls": payload.get("tool_calls"),
+                    "tool_call_id": payload.get("tool_call_id"),
+                    "name": payload.get("name"),
+                }
+            )
+        return serialized
 
     @staticmethod
     def build_session_message_projection(entry: "MainAgentSessionTranscriptEntry") -> SessionMessageProjection:
