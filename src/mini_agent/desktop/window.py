@@ -9,7 +9,10 @@ import json
 from typing import Any, Callable
 
 from mini_agent.desktop.gateway_supervisor import DesktopGatewayConnection, DesktopGatewaySupervisor
-from mini_agent.tui.gateway_client import TuiGatewayClient
+from mini_agent.model_manager.session_selection_service import SessionModelSelectionService
+from mini_agent.runtime.session_pending_approval_service import SessionPendingApprovalService
+from mini_agent.session import SessionFeedbackService
+from mini_agent.transport import GatewayClient, RemoteStreamErrorService, extract_gateway_error_info
 
 
 def _compact_text(value: Any) -> str:
@@ -141,6 +144,20 @@ def first_pending_approval(detail: dict[str, Any] | None) -> dict[str, Any] | No
     return item if isinstance(item, dict) else None
 
 
+def desktop_error_detail(exc: Exception) -> str:
+    """Normalize desktop-visible gateway/remote exception detail."""
+    return _compact_text(extract_gateway_error_info(exc).detail) or _compact_text(exc) or "request failed"
+
+
+def format_desktop_approval_failure(exc: Exception) -> tuple[str, str]:
+    """Normalize remote approval failures for desktop activity/status surfaces."""
+    detail = desktop_error_detail(exc) or "Approval failed."
+    summary = SessionPendingApprovalService.error_summary(detail=detail)
+    title = f"Approval failed: {detail}" if summary == "approval failed" else f"Approval {summary}: {detail}"
+    status = SessionPendingApprovalService.error_status_text(detail=detail)
+    return title, status
+
+
 def render_conversation_html(messages: list[dict[str, Any]]) -> str:
     """Render transcript entries as lightweight HTML blocks."""
     if not messages:
@@ -230,7 +247,7 @@ def create_desktop_main_window(
     *,
     qtwidgets: Any,
     qtcore: Any,
-    gateway_client: TuiGatewayClient,
+    gateway_client: GatewayClient,
     supervisor: DesktopGatewaySupervisor,
     connection: DesktopGatewayConnection,
     reconnect_handler: Callable[[], DesktopGatewayConnection],
@@ -249,7 +266,7 @@ def create_desktop_main_window(
         def __init__(
             self,
             *,
-            client: TuiGatewayClient,
+            client: GatewayClient,
             session_id: str,
             message: str,
             workspace_dir: str,
@@ -267,7 +284,7 @@ def create_desktop_main_window(
             try:
                 asyncio.run(self._consume())
             except Exception as exc:
-                self.error_received.emit(str(exc))
+                self.error_received.emit(RemoteStreamErrorService.exception_detail(exc))
             finally:
                 self.finished.emit()
 
@@ -330,13 +347,14 @@ def create_desktop_main_window(
                         )
                         continue
                     if event == "error":
+                        detail = RemoteStreamErrorService.payload_detail(data)
                         self.activity_received.emit(
                             {
                                 "kind": "error",
-                                "title": _compact_text(data.get("message")) or "Remote stream failed.",
+                                "title": detail,
                             }
                         )
-                        raise RuntimeError(_compact_text(data.get("message")) or "Remote stream failed.")
+                        raise RuntimeError(detail)
                     if event == "done":
                         self.done_received.emit(data)
                         return
@@ -567,9 +585,10 @@ def create_desktop_main_window(
                 self._status_value.setText(f"{status} | runtime {active_sessions}/{max_sessions}")
                 self.statusBar().showMessage(f"Gateway healthy: {self._connection.base_url}")
             except Exception as exc:
-                self._status_value.setText(f"unreachable | {exc}")
+                detail = desktop_error_detail(exc)
+                self._status_value.setText(f"unreachable | {detail}")
                 self.statusBar().showMessage("Gateway unreachable.")
-                self._append_activity(f"Health check failed: {exc}", kind="error")
+                self._append_activity(f"Health check failed: {detail}", kind="error")
                 self._append_managed_gateway_excerpt("Gateway health diagnostics")
 
         def _refresh_models(self) -> None:
@@ -581,8 +600,9 @@ def create_desktop_main_window(
                     format_model_catalog_text(self._model_catalog, self._selected_session_detail)
                 )
             except Exception as exc:
-                self._models_view.setPlainText(f"Failed to load model catalog.\n{exc}")
-                self._append_activity(f"Model catalog refresh failed: {exc}", kind="error")
+                detail = desktop_error_detail(exc)
+                self._models_view.setPlainText(f"Failed to load model catalog.\n{detail}")
+                self._append_activity(f"Model catalog refresh failed: {detail}", kind="error")
 
         def _rebuild_model_combo(self) -> None:
             self._model_combo.blockSignals(True)
@@ -612,8 +632,19 @@ def create_desktop_main_window(
             try:
                 sessions = self._client.list_sessions_sync(workspace_dir=str(self._connection.workspace))
             except Exception as exc:
-                self._append_activity(f"Session refresh failed: {exc}", kind="error")
+                self._append_activity(f"Session refresh failed: {desktop_error_detail(exc)}", kind="error")
                 return
+
+            if not sessions:
+                try:
+                    detail = self._client.ensure_default_session_sync(
+                        workspace_dir=str(self._connection.workspace),
+                        surface="desktop",
+                    )
+                except Exception as exc:
+                    self._append_activity(f"Default session ensure failed: {desktop_error_detail(exc)}", kind="error")
+                    detail = {}
+                sessions = [detail] if isinstance(detail, dict) and detail.get("session_id") else []
 
             self._sessions_value.setText(str(len(sessions)))
             self._session_ids_by_row = []
@@ -641,7 +672,14 @@ def create_desktop_main_window(
                 try:
                     target_row = self._session_ids_by_row.index(selected_session_id)
                 except ValueError:
-                    target_row = 0
+                    target_row = next(
+                        (
+                            index
+                            for index, session in enumerate(sessions)
+                            if bool(session.get("is_default"))
+                        ),
+                        0,
+                    )
             self._session_list.setCurrentRow(target_row)
             self._session_list.blockSignals(False)
             self._load_selected_session_detail()
@@ -670,8 +708,9 @@ def create_desktop_main_window(
             try:
                 detail = self._client.get_session_detail_sync(session_id, recent_limit=recent_limit)
             except Exception as exc:
-                self._context_view.setPlainText(f"Failed to load session detail.\n{exc}")
-                self._append_activity(f"Session detail load failed for {session_id}: {exc}", kind="error")
+                resolved = desktop_error_detail(exc)
+                self._context_view.setPlainText(f"Failed to load session detail.\n{resolved}")
+                self._append_activity(f"Session detail load failed for {session_id}: {resolved}", kind="error")
                 return
             self._selected_session_detail = detail
             self._conversation_messages = [
@@ -757,13 +796,18 @@ def create_desktop_main_window(
             try:
                 response = self._client.rename_session_sync(session_id, title=renamed_title)
             except Exception as exc:
-                self._append_activity(f"Rename failed: {exc}", kind="error")
+                self._append_activity(f"Rename failed: {desktop_error_detail(exc)}", kind="error")
                 self.statusBar().showMessage("Rename failed.")
                 return
 
             applied_title = _compact_text(response.get("title")) or renamed_title
-            self._append_activity(f"Renamed session to {applied_title}", kind="session")
-            self.statusBar().showMessage(f"Renamed session to {applied_title}")
+            feedback = SessionFeedbackService.mutation_feedback(
+                status=str(response.get("status") or "renamed"),
+                title=applied_title,
+                shared=response.get("shared") if isinstance(response.get("shared"), bool) else None,
+            )
+            self._append_activity(feedback.status_text, kind="session")
+            self.statusBar().showMessage(feedback.status_text)
             self._refresh_sessions(preferred_session_id=session_id)
 
         def _toggle_share_current_session(self, checked: bool = False) -> None:
@@ -776,15 +820,19 @@ def create_desktop_main_window(
             try:
                 response = self._client.set_session_shared_sync(session_id, shared=next_shared)
             except Exception as exc:
-                self._append_activity(f"Share toggle failed: {exc}", kind="error")
+                self._append_activity(f"Share toggle failed: {desktop_error_detail(exc)}", kind="error")
                 self.statusBar().showMessage("Share toggle failed.")
                 return
 
             shared = bool(response.get("shared"))
             title = _compact_text(response.get("title")) or self._selected_session_title()
-            state = "shared" if shared else "local"
-            self._append_activity(f"{title} is now {state}", kind="session")
-            self.statusBar().showMessage(f"Session marked {state}.")
+            feedback = SessionFeedbackService.mutation_feedback(
+                status=str(response.get("status") or ("shared" if shared else "unshared")),
+                title=title,
+                shared=shared,
+            )
+            self._append_activity(feedback.status_text, kind="session")
+            self.statusBar().showMessage(feedback.status_text)
             self._refresh_sessions(preferred_session_id=session_id)
 
         def _fork_current_session(self, checked: bool = False) -> None:
@@ -809,14 +857,18 @@ def create_desktop_main_window(
                     surface="desktop",
                 )
             except Exception as exc:
-                self._append_activity(f"Fork failed: {exc}", kind="error")
+                self._append_activity(f"Fork failed: {desktop_error_detail(exc)}", kind="error")
                 self.statusBar().showMessage("Fork failed.")
                 return
 
             created_id = _compact_text(response.get("session_id"))
             created_title = _compact_text(response.get("title")) or created_id or "derived session"
-            self._append_activity(f"Forked session: {created_title}", kind="session")
-            self.statusBar().showMessage(f"Created derived session: {created_title}")
+            feedback = SessionFeedbackService.fork_feedback(
+                title=created_title,
+                parent_title=self._selected_session_title(),
+            )
+            self._append_activity(feedback.status_text, kind="session")
+            self.statusBar().showMessage(feedback.status_text)
             self._refresh_sessions(preferred_session_id=created_id or session_id)
 
         def _compact_current_session(self, checked: bool = False) -> None:
@@ -833,7 +885,7 @@ def create_desktop_main_window(
                     surface="desktop",
                 )
             except Exception as exc:
-                self._append_activity(f"Compact failed: {exc}", kind="error")
+                self._append_activity(f"Compact failed: {desktop_error_detail(exc)}", kind="error")
                 self.statusBar().showMessage("Compact failed.")
                 return
 
@@ -874,19 +926,17 @@ def create_desktop_main_window(
                         shared=False,
                     )
             except Exception as exc:
-                self._append_activity(f"Create session failed: {exc}", kind="error")
+                self._append_activity(f"Create session failed: {desktop_error_detail(exc)}", kind="error")
                 self.statusBar().showMessage("Create session failed.")
                 return None
 
             session_id = _compact_text(created.get("session_id"))
             created_title = _compact_text(created.get("title")) or session_id or "unknown"
-            if current_session_id:
-                self._append_activity(
-                    f"Created new branch session: {created_title}",
-                    kind="session",
-                )
-            else:
-                self._append_activity(f"Created desktop session: {created_title}", kind="session")
+            create_feedback = SessionFeedbackService.creation_feedback(
+                title=created_title,
+                derived=bool(current_session_id),
+            )
+            self._append_activity(create_feedback.status_text, kind="session")
             if session_id:
                 self._refresh_health()
                 self._refresh_models()
@@ -918,7 +968,7 @@ def create_desktop_main_window(
                     surface="desktop",
                 )
             except Exception as exc:
-                self._append_activity(f"Model switch failed: {exc}", kind="error")
+                self._append_activity(f"Model switch failed: {desktop_error_detail(exc)}", kind="error")
                 self.statusBar().showMessage("Model switch failed.")
                 return
 
@@ -932,17 +982,25 @@ def create_desktop_main_window(
             queued = bool(response.get("queued"))
             if queued:
                 pending_model = _compact_text(response.get("pending_model_id")) or selected_model
+                feedback = SessionModelSelectionService.queued_feedback(
+                    model_label=f"{selected_provider}/{pending_model}",
+                    session_title=self._selected_session_title(),
+                )
                 self._append_activity(
-                    f"Model queued: {selected_provider}/{pending_model}",
+                    feedback.compact_text,
                     kind="model",
                 )
-                self.statusBar().showMessage(f"Queued model: {selected_provider}/{pending_model}")
+                self.statusBar().showMessage(feedback.compact_text)
             else:
+                feedback = SessionModelSelectionService.applied_feedback(
+                    model_label=f"{selected_provider}/{selected_model}",
+                    session_title=self._selected_session_title(),
+                )
                 self._append_activity(
-                    f"Model applied: {selected_provider}/{selected_model}",
+                    feedback.compact_text,
                     kind="model",
                 )
-                self.statusBar().showMessage(f"Applied model: {selected_provider}/{selected_model}")
+                self.statusBar().showMessage(feedback.compact_text)
             self._load_selected_session_detail()
             self._refresh_models()
             self._append_activity(f"Model response status: {status}", kind="model")
@@ -1012,8 +1070,9 @@ def create_desktop_main_window(
                     surface="desktop",
                 )
             except Exception as exc:
-                self._append_activity(f"Approval response failed: {exc}", kind="error")
-                self.statusBar().showMessage("Approval request failed.")
+                activity_title, status_text = format_desktop_approval_failure(exc)
+                self._append_activity(activity_title, kind="error")
+                self.statusBar().showMessage(status_text)
                 return
 
             decision = _compact_text(response.get("decision")) or ("approved" if approved else "denied")
@@ -1241,7 +1300,7 @@ def create_desktop_main_window(
                 self._append_managed_gateway_excerpt("Reconnect diagnostics")
                 self.refresh_snapshot()
             except Exception as exc:
-                self._append_activity(f"Reconnect failed: {exc}", kind="error")
+                self._append_activity(f"Reconnect failed: {desktop_error_detail(exc)}", kind="error")
                 self.statusBar().showMessage("Reconnect failed.")
 
         def _mode_text(self) -> str:

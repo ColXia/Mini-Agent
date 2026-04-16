@@ -18,13 +18,17 @@ from prompt_toolkit.layout.margins import ScrollbarMargin
 from prompt_toolkit.layout.menus import CompletionsMenu
 from prompt_toolkit.keys import Keys
 
-from mini_agent.agent import TurnStopReason
-from mini_agent.code_agent import InMemoryLoopMessageBus
+from mini_agent.agent_core.runtime_bindings import AgentRuntimeServices
+from mini_agent.agent_core.engine import TurnStopReason
+from mini_agent.agent_core.execution import InMemoryLoopMessageBus
+from mini_agent.commands import CommandExecutionResult
 from mini_agent.config import AgentConfig, Config, LLMConfig, ToolsConfig
 from mini_agent.runtime.session_interrupt_handler import RuntimeSessionInterruptHandler
-from mini_agent.schema import LLMResponse, Message
+from mini_agent.schema import LLMCompletionResult, Message
+from mini_agent.transport import GatewayTransportError
 from mini_agent.tui.app import MiniAgentTuiApp
 from mini_agent.tools.base import Tool, ToolResult
+from tests.runtime_contract_fixtures import RuntimeContractAgentStub
 
 
 class DummyRegistry:
@@ -139,9 +143,32 @@ def _new_app(
     state_path: Path,
     registry: DummyRegistry | None = None,
     gateway_client: Any | None = None,
+    config: Config | None = None,
 ) -> MiniAgentTuiApp:
+    test_config = config or Config(
+        llm=LLMConfig(
+            api_key="sk-test",
+            api_base="https://api.example.com/v1",
+            model="model-default",
+            provider="openai",
+        ),
+        agent=AgentConfig(
+            max_steps=8,
+            max_tool_calls_per_step=2,
+            system_prompt_path="system_prompt.md",
+        ),
+        tools=ToolsConfig(
+            enable_file_tools=False,
+            enable_bash=False,
+            enable_note=False,
+            enable_skills=False,
+            enable_mcp=False,
+            skills_dir=str(tmp_path / "builtin-skills"),
+        ),
+    )
     return MiniAgentTuiApp(
         workspace=tmp_path,
+        config_loader=lambda: test_config,
         registry=registry or DummyRegistry(),
         gateway_client=gateway_client or FakeGatewayClient(profile="local"),
         state_path=state_path,
@@ -160,6 +187,32 @@ def _write_skill(skill_dir: Path, *, name: str, description: str, body: str) -> 
             f"{body}\n"
         ),
         encoding="utf-8",
+    )
+
+
+def _runtime_test_agent(
+    *,
+    model: str = "gpt-test",
+    provider_source: str | None = None,
+    provider_id: str | None = None,
+    messages: list[Any] | None = None,
+    prepared_context: dict[str, Any] | None = None,
+    prepared_context_diagnostics: dict[str, Any] | None = None,
+    include_knowledge_base_tool: bool = False,
+    runtime_services: AgentRuntimeServices | None = None,
+) -> RuntimeContractAgentStub:
+    return RuntimeContractAgentStub(
+        model=model,
+        provider_source=provider_source,
+        provider_id=provider_id,
+        expose_llm=True,
+        messages=messages if messages is not None else [Message(role="system", content="sys")],
+        prepared_context=prepared_context,
+        prepared_context_diagnostics=prepared_context_diagnostics,
+        last_memory_automation={},
+        last_runtime_task_memory={},
+        include_knowledge_base_tool=include_knowledge_base_tool,
+        runtime_services=runtime_services,
     )
 
 
@@ -221,7 +274,7 @@ class FakeTurnAgent:
 
 
 class ApprovalSequenceLLM:
-    def __init__(self, responses: list[LLMResponse]) -> None:
+    def __init__(self, responses: list[LLMCompletionResult]) -> None:
         self._responses = responses
         self.calls = 0
 
@@ -258,12 +311,10 @@ def _fake_kernel_builder():
         model_id = options.requested_model or "gpt-test"
         provider_source = options.requested_provider_source or "preset"
         provider_id = options.requested_provider_id or "openai"
-        runtime_provider_id = (
-            f"preset-{provider_id}" if provider_source == "preset" else provider_id
-        )
-        return SimpleNamespace(
-            llm=SimpleNamespace(model=model_id),
-            runtime_route=SimpleNamespace(provider_id=runtime_provider_id, model=model_id),
+        return _runtime_test_agent(
+            model=model_id,
+            provider_source=provider_source,
+            provider_id=provider_id,
             messages=[Message(role="system", content="sys")],
         )
 
@@ -379,6 +430,20 @@ def test_tui_runtime_model_filter_and_unknown_command_suggestion(tmp_path: Path)
     assert "Did you mean: session?" in app.current_session.view.messages[-1].content
 
 
+def test_tui_model_filter_usage_shows_current_filter(tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    app = _new_app(tmp_path, state_path=state_path)
+
+    asyncio.run(app._run_command("model filter sonnet"))
+    asyncio.run(app._run_command("model filter"))
+
+    last_message = app.current_session.view.messages[-1]
+    assert last_message.metadata["command"] == "model filter"
+    assert last_message.metadata["summary"] == "current=sonnet"
+    assert "Current model filter: sonnet" in str(last_message.content)
+    assert app.status == "Model filter usage shown."
+
+
 def test_tui_runtime_session_numeric_command_switches_current_session(tmp_path: Path) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     gateway = FakeGatewayClient(profile="local")
@@ -395,6 +460,32 @@ def test_tui_runtime_session_numeric_command_switches_current_session(tmp_path: 
     assert app.current_session.session_id == "session-1"
     assert app.current_session.title == "Alpha"
     assert app.status == "Switched to Alpha."
+
+
+def test_tui_session_rename_usage_requires_title(tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    app = _new_app(tmp_path, state_path=state_path)
+
+    asyncio.run(app._run_command("session rename"))
+
+    last_message = app.current_session.view.messages[-1]
+    assert last_message.metadata["command"] == "session rename"
+    assert last_message.metadata["summary"] == "usage"
+    assert "Usage: /session rename [session_id] <new_title>" in str(last_message.content)
+    assert app.status == "Session rename requires a title."
+
+
+def test_tui_session_share_missing_target_reports_error(tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    app = _new_app(tmp_path, state_path=state_path)
+
+    asyncio.run(app._run_command("session share missing-session"))
+
+    last_message = app.current_session.view.messages[-1]
+    assert last_message.metadata["command"] == "session share"
+    assert last_message.metadata["summary"] == "session not found"
+    assert "Session not found: missing-session" in str(last_message.content)
+    assert app.status == "Session not found: missing-session"
 
 
 def test_tui_handle_prompt_prefers_local_runtime_when_agent_is_attached(tmp_path: Path) -> None:
@@ -445,7 +536,7 @@ def test_tui_cancel_prefers_local_runtime_when_agent_is_attached(tmp_path: Path)
     assert app.current_session.runtime.active_task_id is None
 
 
-def test_tui_skill_list_discovers_workspace_local_skills_without_agent_boot(tmp_path: Path, monkeypatch) -> None:
+def test_tui_skill_list_discovers_workspace_local_skills_without_agent_boot(tmp_path: Path) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     builtin_dir = tmp_path / "builtin-skills"
     workspace_dir = tmp_path / ".mini-agent" / "skills"
@@ -483,9 +574,7 @@ def test_tui_skill_list_discovers_workspace_local_skills_without_agent_boot(tmp_
             skills_dir=str(builtin_dir),
         ),
     )
-    monkeypatch.setattr("mini_agent.commands.skill_support.Config.load", lambda allow_interactive_setup=False: config)
-
-    app = _new_app(tmp_path, state_path=state_path)
+    app = _new_app(tmp_path, state_path=state_path, config=config)
 
     asyncio.run(app._run_command("skill list"))
 
@@ -538,27 +627,20 @@ def test_tui_skill_change_notice_prompts_for_refresh_and_clears_after_refresh(
             skills_dir=str(builtin_dir),
         ),
     )
-    monkeypatch.setattr("mini_agent.commands.skill_support.Config.load", lambda allow_interactive_setup=False: config)
-
-    app = _new_app(tmp_path, state_path=state_path)
-    app.current_session.runtime.agent = SimpleNamespace(
-        llm=SimpleNamespace(model="gpt-5.4"),
-        runtime_route=SimpleNamespace(provider_id="preset-openai", model="gpt-5.4"),
-        messages=[Message(role="system", content="sys")],
-        tools={},
+    app = _new_app(tmp_path, state_path=state_path, config=config)
+    app.current_session.runtime.agent = _runtime_test_agent(
+        model="gpt-5.4",
+        provider_source="preset",
+        provider_id="openai",
         prepared_context_diagnostics={},
     )
 
     async def _fake_build_agent_kernel(*, workspace_dir, options):
         _ = workspace_dir
-        return SimpleNamespace(
-            llm=SimpleNamespace(model=options.requested_model or "gpt-5.4"),
-            runtime_route=SimpleNamespace(
-                provider_id="preset-openai",
-                model=options.requested_model or "gpt-5.4",
-            ),
-            messages=[Message(role="system", content="sys")],
-            tools={},
+        return _runtime_test_agent(
+            model=options.requested_model or "gpt-5.4",
+            provider_source="preset",
+            provider_id="openai",
             prepared_context_diagnostics={},
         )
 
@@ -630,6 +712,7 @@ class FakeGatewayClient:
                 "reply_enabled": False,
                 "busy": False,
                 "running_state": None,
+                "is_default": True,
                 "shared": False,
                 "channel_type": None,
                 "conversation_id": None,
@@ -678,6 +761,7 @@ class FakeGatewayClient:
             "reply_enabled": True,
             "busy": False,
             "running_state": None,
+            "is_default": False,
             "shared": True,
             "channel_type": "qq",
             "conversation_id": "group:demo",
@@ -786,6 +870,7 @@ class FakeGatewayClient:
             "title": title or f"Session {self._session_counter}",
             "origin_surface": surface,
             "active_surface": surface,
+            "is_default": False,
             "shared": bool(shared),
             "updated_at": now,
             "created_at": now,
@@ -830,6 +915,7 @@ class FakeGatewayClient:
             "title": title or "Task",
             "origin_surface": origin_surface,
             "active_surface": active_surface,
+            "is_default": False,
             "channel_type": channel_type,
             "conversation_id": conversation_id,
             "sender_id": sender_id,
@@ -855,6 +941,50 @@ class FakeGatewayClient:
         )
         self._sessions[session_id] = detail
         return deepcopy(detail)
+
+    def ensure_default_session_sync(
+        self,
+        *,
+        workspace_dir: str,
+        surface: str = "tui",
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> dict[str, Any]:
+        detail = self._sessions.get("default")
+        if detail is None:
+            detail = {
+                **deepcopy(self._build_initial_detail("local")),
+                "session_id": "default",
+                "workspace_dir": workspace_dir,
+                "title": "Session 1",
+                "origin_surface": surface,
+                "active_surface": surface,
+                "is_default": True,
+                "shared": False,
+                "channel_type": channel_type,
+                "conversation_id": conversation_id,
+                "sender_id": sender_id,
+            }
+            self._sessions["default"] = detail
+        return deepcopy(detail)
+
+    async def ensure_default_session(
+        self,
+        *,
+        workspace_dir: str,
+        surface: str = "tui",
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self.ensure_default_session_sync(
+            workspace_dir=workspace_dir,
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
 
     async def rename_session(self, session_id: str, *, title: str) -> dict[str, Any]:
         detail = self._session(session_id)
@@ -1090,6 +1220,16 @@ class FakeGatewayClient:
             "applied": True,
             "approval_profile": resolved_profile,
             "access_level": resolved_access,
+            "summary": f"runtime {resolved_profile} / {resolved_access}",
+            "details": (
+                "Runtime policy updated.\n"
+                f"- session: {detail.get('title') or session_id}\n"
+                f"- session_id: {session_id}\n"
+                f"- surface: {detail['active_surface']}\n"
+                f"- execution: {resolved_profile}\n"
+                f"- access: {resolved_access}"
+            ),
+            "status_text": f"{detail.get('title') or session_id}: runtime set to {resolved_profile} / {resolved_access}.",
             "sandbox_diagnostics": deepcopy(detail["sandbox_diagnostics"]),
         }
 
@@ -2380,6 +2520,141 @@ def test_tui_remote_tagged_local_runtime_routes_context_commands_locally(monkeyp
     assert "Context diagnostics:" in app.current_session.view.messages[-1].content
 
 
+def test_tui_local_context_show_refreshes_live_runtime_projection(monkeypatch, tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    gateway = FakeGatewayClient(profile="local")
+    app = _new_app(tmp_path, state_path=state_path, gateway_client=gateway)
+    app.current_session.runtime.agent = _runtime_test_agent(
+        messages=[{"role": "system", "content": "sys"}],
+        prepared_context={
+            "item_count": 1,
+            "sources": ["knowledge_base"],
+            "items": [
+                {
+                    "source": "knowledge_base",
+                    "title": "KB note",
+                    "content": "Hybrid retrieval combines BM25 and RRF.",
+                }
+            ],
+            "provider_failures": [],
+        },
+        prepared_context_diagnostics={
+            "turn_count": 2,
+            "turns_with_context": 2,
+            "turns_without_context": 0,
+            "total_items": 2,
+        },
+        include_knowledge_base_tool=True,
+    )
+    app.current_session.projection.last_prepared_context = {}
+    app.current_session.projection.prepared_context_diagnostics = {}
+
+    async def _unexpected_sync(self, session, *, recent_limit: int = 80):  # noqa: ANN001
+        _ = (self, session, recent_limit)
+        raise AssertionError("gateway detail fetch should not run for local runtime sessions")
+
+    monkeypatch.setattr(MiniAgentTuiApp, "_sync_remote_session_detail", _unexpected_sync)
+
+    asyncio.run(app._run_command("context show brief"))
+
+    assert gateway.control_calls == []
+    assert app.current_session.projection.last_prepared_context["item_count"] == 1
+    assert app.current_session.projection.prepared_context_diagnostics["turn_count"] == 2
+    assert "knowledge_base" in str(app.current_session.view.messages[-1].content)
+
+
+def test_tui_local_context_mutation_normalizes_policy_writeback(monkeypatch, tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    app = _new_app(tmp_path, state_path=state_path)
+    app.current_session.runtime.agent = _runtime_test_agent(
+        messages=[],
+        prepared_context={},
+        prepared_context_diagnostics={},
+        include_knowledge_base_tool=True,
+    )
+    calls = {"count": 0}
+
+    async def _fake_run_context_command_result(
+        self,
+        *,
+        session,
+        action: str,
+        args,
+    ) -> CommandExecutionResult:  # noqa: ANN001
+        _ = (self, session, action, args)
+        calls["count"] += 1
+        return CommandExecutionResult(
+            command="context include",
+            summary="context policy updated",
+            details="updated",
+            status_text="Context updated.",
+            payload={
+                "policy": {
+                    "include_sources": [" knowledge_base ", "WORKSPACE_MEMORY", "knowledge_base"],
+                    "exclude_sources": [" MCP_CATALOG ", "knowledge_base"],
+                    "max_items": "6",
+                    "max_total_chars": "4200",
+                    "max_items_per_source": "2",
+                }
+            },
+        )
+
+    monkeypatch.setattr(MiniAgentTuiApp, "_run_context_command_result", _fake_run_context_command_result)
+
+    asyncio.run(app._handle_context_command(["include", "knowledge_base", "workspace_memory"]))
+
+    assert calls["count"] >= 1
+    assert app.current_session.projection.context_policy == {
+        "include_sources": ["knowledge_base", "workspace_memory"],
+        "exclude_sources": ["mcp_catalog"],
+        "max_items": 6,
+        "max_items_per_source": 2,
+        "max_total_chars": 4200,
+        "active": True,
+    }
+
+
+def test_tui_context_brief_alias_routes_to_show_brief(tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    gateway = FakeGatewayClient()
+    gateway._detail["last_prepared_context"] = {
+        "item_count": 1,
+        "sources": ["knowledge_base"],
+        "items": [
+            {
+                "source": "knowledge_base",
+                "title": "KB",
+                "content": "Hybrid retrieval combines BM25 and RRF.",
+            }
+        ],
+    }
+    app = _new_app(tmp_path, state_path=state_path, gateway_client=gateway)
+
+    asyncio.run(app._sync_remote_sessions_once(focus_current=True))
+    remote_index = app._find_session_index("remote-qq-1")
+    assert remote_index is not None
+    app.session_index = remote_index
+
+    asyncio.run(app._run_command("context brief"))
+
+    last_message = app.current_session.view.messages[-1]
+    assert last_message.metadata["command"] == "context show brief"
+    assert "knowledge_base" in str(last_message.content)
+
+
+def test_tui_context_unknown_action_reports_error(tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    app = _new_app(tmp_path, state_path=state_path)
+
+    asyncio.run(app._run_command("context frob"))
+
+    last_message = app.current_session.view.messages[-1]
+    assert last_message.metadata["command"] == "context"
+    assert last_message.metadata["summary"] == "unknown action"
+    assert "Unknown context action: frob." in str(last_message.content)
+    assert app.status == "Unknown context action."
+
+
 def test_tui_remote_session_detail_sync_skips_local_runtime_state(monkeypatch, tmp_path: Path) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     gateway = FakeGatewayClient(profile="local")
@@ -2481,6 +2756,31 @@ def test_tui_remote_tagged_local_runtime_routes_memory_commands_locally(monkeypa
     asyncio.run(app._run_command("memory refresh"))
     assert len(local_calls) == before_calls
     assert "busy" in app.status.lower()
+
+
+def test_tui_local_memory_save_busy_blocks_command(monkeypatch, tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    gateway = FakeGatewayClient(profile="local")
+    app = _new_app(tmp_path, state_path=state_path, gateway_client=gateway)
+    app.current_session.runtime.agent = SimpleNamespace(last_memory_automation={}, last_runtime_task_memory={})
+    app.current_session.projection.busy = True
+
+    async def _unexpected_remote_memory_action(self, session, **kwargs):  # noqa: ANN001
+        _ = (self, session, kwargs)
+        raise AssertionError("gateway memory route should not run when local runtime state is attached")
+
+    def _unexpected_local_memory_action(self, session, **kwargs):  # noqa: ANN001
+        _ = (self, session, kwargs)
+        raise AssertionError("local memory action should not run while session is busy")
+
+    monkeypatch.setattr(MiniAgentTuiApp, "_run_remote_memory_action", _unexpected_remote_memory_action)
+    monkeypatch.setattr(MiniAgentTuiApp, "_run_local_memory_action", _unexpected_local_memory_action)
+
+    asyncio.run(app._run_command("memory save note remember routing guardrails"))
+
+    assert "busy" in app.status.lower()
+    assert app.current_session.view.messages[-1].metadata["command"] == "memory save note"
+    assert "Wait for the current turn to finish first." in app.current_session.view.messages[-1].content
 
 
 def test_tui_remote_memory_command_routes_through_gateway(tmp_path: Path) -> None:
@@ -3015,7 +3315,7 @@ def test_tui_remote_skill_unknown_action_shows_consistent_operator_message(tmp_p
     assert "Unknown skill action: frob." in app.current_session.view.messages[-1].content
 
 
-def test_tui_local_skill_unknown_action_shows_consistent_operator_message(tmp_path: Path, monkeypatch) -> None:
+def test_tui_local_skill_unknown_action_shows_consistent_operator_message(tmp_path: Path) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     builtin_dir = tmp_path / "builtin-skills"
     _write_skill(
@@ -3045,8 +3345,7 @@ def test_tui_local_skill_unknown_action_shows_consistent_operator_message(tmp_pa
             skills_dir=str(builtin_dir),
         ),
     )
-    monkeypatch.setattr("mini_agent.commands.skill_support.Config.load", lambda allow_interactive_setup=False: config)
-    app = _new_app(tmp_path, state_path=state_path)
+    app = _new_app(tmp_path, state_path=state_path, config=config)
 
     asyncio.run(app._run_command("skill frob"))
 
@@ -3152,6 +3451,99 @@ def test_tui_model_use_updates_focus_to_selected_model(monkeypatch, tmp_path: Pa
     assert model["model_id"] == "gpt-5.3"
 
 
+def test_tui_model_use_can_switch_to_ollama_preset(monkeypatch, tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    registry = DummyRegistry()
+    registry.providers.append(
+        {
+            "source": "preset",
+            "provider_id": "ollama",
+            "provider_name": "Ollama Local",
+            "default_model_id": "qwen3-coder",
+            "models": [
+                {
+                    "model_id": "qwen3-coder",
+                    "display_name": "qwen3-coder",
+                    "is_default": True,
+                    "context_window": 131_072,
+                },
+                {
+                    "model_id": "gpt-oss:20b",
+                    "display_name": "gpt-oss:20b",
+                    "is_default": False,
+                    "context_window": 131_072,
+                },
+            ],
+        }
+    )
+    app = _new_app(tmp_path, state_path=state_path, registry=registry)
+    app.current_session.runtime.agent = _runtime_test_agent(
+        model="gpt-5.4",
+        provider_source="preset",
+        provider_id="openai",
+    )
+    monkeypatch.setattr("mini_agent.tui.app.build_agent_kernel", _fake_kernel_builder())
+
+    asyncio.run(app._run_command("model use ollama qwen3-coder"))
+
+    selected = app._selected_provider_and_model()
+    assert selected is not None
+    provider, model = selected
+    assert provider["provider_id"] == "ollama"
+    assert model["model_id"] == "qwen3-coder"
+    assert app._current_model_hint() == "ollama/qwen3-coder"
+
+
+def test_tui_local_model_use_queues_while_busy(tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    app = _new_app(tmp_path, state_path=state_path)
+    app.current_session.projection.selected_model_source = "preset"
+    app.current_session.projection.selected_provider_id = "openai"
+    app.current_session.projection.selected_model_id = "gpt-5.4"
+    app.current_session.projection.busy = True
+    app.current_session.runtime.agent = _runtime_test_agent(
+        model="gpt-5.4",
+        provider_source="preset",
+        provider_id="openai",
+    )
+
+    asyncio.run(app._run_command("model use openai gpt-5.3"))
+
+    assert app.current_session.projection.selected_model_id == "gpt-5.4"
+    assert app.current_session.operator.pending_model_source == "preset"
+    assert app.current_session.operator.pending_provider_id == "openai"
+    assert app.current_session.operator.pending_model_id == "gpt-5.3"
+    assert app.status == "Queued openai/gpt-5.3 for Session 1; it will apply after the current turn."
+
+
+def test_tui_local_model_use_already_selected_clears_stale_pending(tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    app = _new_app(tmp_path, state_path=state_path)
+    app.current_session.projection.selected_model_source = "preset"
+    app.current_session.projection.selected_provider_id = "openai"
+    app.current_session.projection.selected_model_id = "gpt-5.3"
+    app.current_session.operator.pending_model_source = "preset"
+    app.current_session.operator.pending_provider_id = "openai"
+    app.current_session.operator.pending_model_id = "gpt-5.4"
+    app.current_session.runtime.agent = _runtime_test_agent(
+        model="gpt-5.3",
+        provider_source="preset",
+        provider_id="openai",
+    )
+
+    asyncio.run(app._run_command("model use openai gpt-5.3"))
+
+    assert app.current_session.operator.pending_model_source is None
+    assert app.current_session.operator.pending_provider_id is None
+    assert app.current_session.operator.pending_model_id is None
+    assert app.status == "Session 1 is already using openai/gpt-5.3."
+
+    restored = _new_app(tmp_path, state_path=state_path)
+    assert restored.current_session.operator.pending_model_source is None
+    assert restored.current_session.operator.pending_provider_id is None
+    assert restored.current_session.operator.pending_model_id is None
+
+
 def test_tui_model_limit_show_uses_selected_model(tmp_path: Path) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     registry = DummyRegistry()
@@ -3164,6 +3556,19 @@ def test_tui_model_limit_show_uses_selected_model(tmp_path: Path) -> None:
     assert "learned  | 128,000" in str(last_message.content)
     assert "context  | 1,050,000" in str(last_message.content)
     assert "effective| 128,000 (learned_token_limit)" in str(last_message.content)
+
+
+def test_tui_model_limit_show_invalid_target_reports_usage(tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    app = _new_app(tmp_path, state_path=state_path)
+
+    asyncio.run(app._run_command("model limit show openai gpt-5.4 extra"))
+
+    last_message = app.current_session.view.messages[-1]
+    assert last_message.metadata["command"] == "model limit show"
+    assert last_message.metadata["summary"] == "usage"
+    assert "Usage: /model limit [show|clear] [custom|preset] <provider_id> <model_id>" in str(last_message.content)
+    assert app.status == "Model limit show usage displayed."
 
 
 def test_tui_layout_uses_main_column_with_right_sidebar(tmp_path: Path) -> None:
@@ -3638,14 +4043,34 @@ def test_tui_remote_model_use_routes_through_gateway_and_updates_hint(tmp_path: 
     assert app.current_session.projection.supplemental.remote_last_command_summary == "model use | applied openai/gpt-5.3"
 
 
+def test_tui_remote_summary_normalizes_model_identity_payloads(tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    gateway = FakeGatewayClient()
+    gateway._detail["selected_model_source"] = " PRESET "
+    gateway._detail["pending_model_source"] = " CUSTOM "
+    gateway._detail["pending_provider_id"] = "maas"
+    gateway._detail["pending_model_id"] = "astron-code-latest"
+    app = _new_app(tmp_path, state_path=state_path, gateway_client=gateway)
+
+    asyncio.run(app._sync_remote_sessions_once())
+    app.session_index = app._find_session_index("remote-qq-1") or 0
+
+    assert app.current_session.projection.selected_model_source == "preset"
+    assert app.current_session.projection.selected_provider_id == "openai"
+    assert app.current_session.projection.selected_model_id == "gpt-5.4"
+    assert app.current_session.operator.pending_model_source == "custom"
+    assert app.current_session.operator.pending_provider_id == "maas"
+    assert app.current_session.operator.pending_model_id == "astron-code-latest"
+
+
 def test_tui_remote_tagged_local_runtime_routes_model_use_locally(monkeypatch, tmp_path: Path) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     gateway = FakeGatewayClient(profile="local")
     app = _new_app(tmp_path, state_path=state_path, gateway_client=gateway)
-    app.current_session.runtime.agent = SimpleNamespace(
-        llm=SimpleNamespace(model="gpt-5.4"),
-        runtime_route=SimpleNamespace(provider_id="preset-openai", model="gpt-5.4"),
-        messages=[Message(role="system", content="sys")],
+    app.current_session.runtime.agent = _runtime_test_agent(
+        model="gpt-5.4",
+        provider_source="preset",
+        provider_id="openai",
     )
     monkeypatch.setattr("mini_agent.tui.app.build_agent_kernel", _fake_kernel_builder())
 
@@ -3813,6 +4238,50 @@ def test_tui_remote_tagged_local_runtime_routes_kb_and_approval_locally(monkeypa
     assert app.current_session.projection.pending_approvals == []
 
 
+def test_tui_capture_session_agent_snapshot_records_live_prepared_context(tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    app = _new_app(tmp_path, state_path=state_path)
+    app.current_session.runtime.agent = _runtime_test_agent(
+        messages=[
+            Message(role="system", content="sys"),
+            Message(role="assistant", content="done"),
+        ],
+        prepared_context={
+            "item_count": 1,
+            "sources": ["knowledge_base"],
+            "items": [
+                {
+                    "source": "knowledge_base",
+                    "title": "Relevant knowledge base context",
+                    "content": "Hybrid retrieval combines BM25 and RRF.",
+                }
+            ],
+            "provider_failures": [],
+        },
+        prepared_context_diagnostics={
+            "turn_count": 1,
+            "turns_with_context": 1,
+            "turns_without_context": 0,
+            "total_items": 1,
+        },
+        include_knowledge_base_tool=True,
+    )
+
+    app._capture_session_agent_snapshot(app.current_session)
+
+    assert app.current_session.projection.knowledge_base_enabled is True
+    assert app.current_session.projection.last_prepared_context["item_count"] == 1
+    assert app.current_session.projection.prepared_context_diagnostics["turn_count"] == 1
+    assert app.current_session.runtime.restored_agent_messages[-1] == {
+        "role": "assistant",
+        "content": "done",
+        "thinking": None,
+        "tool_calls": None,
+        "tool_call_id": None,
+        "name": None,
+    }
+
+
 def test_tui_remote_kb_command_routes_through_gateway_and_syncs_state(tmp_path: Path) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     gateway = FakeGatewayClient()
@@ -3837,6 +4306,43 @@ def test_tui_remote_kb_command_routes_through_gateway_and_syncs_state(tmp_path: 
     assert app.current_session.projection.knowledge_base_enabled is False
     assert app.current_session.view.messages[-1].metadata["summary"] == "knowledge base disabled"
     assert "Knowledge base disabled" in app.status
+
+
+def test_tui_kb_unknown_action_reports_error(tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    app = _new_app(tmp_path, state_path=state_path)
+
+    asyncio.run(app._run_command("kb frob"))
+
+    last_message = app.current_session.view.messages[-1]
+    assert last_message.metadata["command"] == "kb"
+    assert last_message.metadata["summary"] == "unknown action"
+    assert "Unknown kb action: frob." in str(last_message.content)
+    assert app.status == "Unknown kb action."
+
+
+def test_tui_remote_kb_status_sync_failure_reports_error(tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    gateway = FakeGatewayClient()
+    app = _new_app(tmp_path, state_path=state_path, gateway_client=gateway)
+
+    async def _broken_sync_remote_session_detail(*args: Any, **kwargs: Any) -> None:
+        _ = (args, kwargs)
+        raise GatewayTransportError("Gateway HTTP 503: kb sync unavailable", status_code=503)
+
+    asyncio.run(app._sync_remote_sessions_once())
+    remote_index = app._find_session_index("remote-qq-1")
+    assert remote_index is not None
+    app.session_index = remote_index
+    app._sync_remote_session_detail = _broken_sync_remote_session_detail  # type: ignore[method-assign]
+
+    asyncio.run(app._run_command("kb status"))
+
+    last_message = app.current_session.view.messages[-1]
+    assert last_message.metadata["command"] == "kb status"
+    assert last_message.metadata["summary"] == "status failed"
+    assert "Remote KB status failed: kb sync unavailable" in str(last_message.content)
+    assert app.status == "Remote KB status failed."
 
 
 def test_tui_remote_mcp_status_routes_through_gateway(tmp_path: Path) -> None:
@@ -3923,6 +4429,32 @@ def test_tui_remote_mcp_reload_busy_relies_on_gateway_conflict(tmp_path: Path) -
     assert app.status == "Session is busy. Wait for the current turn to finish."
 
 
+def test_tui_mcp_unknown_action_reports_error(tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    app = _new_app(tmp_path, state_path=state_path)
+
+    asyncio.run(app._run_command("mcp frob"))
+
+    last_message = app.current_session.view.messages[-1]
+    assert last_message.metadata["command"] == "mcp"
+    assert last_message.metadata["summary"] == "unknown action"
+    assert "Unknown mcp action: frob." in str(last_message.content)
+    assert app.status == "Unknown mcp action."
+
+
+def test_tui_mcp_usage_reports_error(tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    app = _new_app(tmp_path, state_path=state_path)
+
+    asyncio.run(app._run_command("mcp status extra"))
+
+    last_message = app.current_session.view.messages[-1]
+    assert last_message.metadata["command"] == "mcp status"
+    assert last_message.metadata["summary"] == "usage"
+    assert "Usage: /mcp status" in str(last_message.content)
+    assert app.status == "MCP status usage displayed."
+
+
 def test_tui_remote_cancel_command_routes_through_gateway(tmp_path: Path) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     gateway = FakeGatewayClient()
@@ -3942,9 +4474,9 @@ def test_tui_remote_cancel_command_routes_through_gateway(tmp_path: Path) -> Non
             "session_id": "remote-qq-1",
             "reason": "user_cancel",
             "surface": "tui",
-            "channel_type": None,
-            "conversation_id": None,
-            "sender_id": None,
+            "channel_type": "qq",
+            "conversation_id": "group:demo",
+            "sender_id": "user-1",
         }
     ]
     assert app.current_session.projection.running_state == "cancellation requested"
@@ -3952,6 +4484,90 @@ def test_tui_remote_cancel_command_routes_through_gateway(tmp_path: Path) -> Non
     assert app.current_session.view.messages[-1].metadata["command"] == "cancel"
     assert app.current_session.view.messages[-1].metadata["summary"] == "cancellation requested"
     assert "Cancelling turn" in app.status
+
+
+def test_tui_remote_cancel_when_idle_uses_shared_cancel_detail(tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    gateway = FakeGatewayClient()
+    app = _new_app(tmp_path, state_path=state_path, gateway_client=gateway)
+
+    asyncio.run(app._sync_remote_sessions_once())
+    remote_index = app._find_session_index("remote-qq-1")
+    assert remote_index is not None
+    app.session_index = remote_index
+
+    asyncio.run(app._run_command("cancel"))
+
+    assert gateway.cancel_calls == []
+    assert app.status == "No running turn to cancel."
+    assert app.current_session.view.messages[-1].metadata["summary"] == "nothing to cancel"
+    assert app.current_session.view.messages[-1].content == "No running turn to cancel."
+
+
+def test_tui_remote_stream_exception_uses_normalized_detail(tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    gateway = FakeGatewayClient()
+    app = _new_app(tmp_path, state_path=state_path, gateway_client=gateway)
+
+    async def _broken_stream_chat_events(*, session_id: str, message: str, workspace_dir: str, surface: str = "tui"):
+        _ = (session_id, message, workspace_dir, surface)
+        if False:
+            yield ("done", {})
+        raise GatewayTransportError("Gateway HTTP 500: upstream stream exploded", status_code=500)
+
+    gateway.stream_chat_events = _broken_stream_chat_events  # type: ignore[method-assign]
+
+    asyncio.run(app._sync_remote_sessions_once())
+    app.session_index = app._find_session_index("remote-qq-1") or 0
+
+    asyncio.run(app._handle_prompt("stream boom"))
+
+    assert app.current_session.view.messages[-1].content == "Remote turn failed: upstream stream exploded"
+    assert app.status == f"Remote turn failed for {app.current_session.title}: upstream stream exploded"
+
+
+def test_tui_session_new_uses_shared_creation_feedback(tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    app = _new_app(tmp_path, state_path=state_path)
+
+    asyncio.run(app._run_command("session new"))
+
+    assert app.current_session.title == "Session 2"
+    assert app.status == "Created Session 2."
+
+
+def test_tui_session_new_failure_uses_normalized_gateway_detail(tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    app = _new_app(tmp_path, state_path=state_path)
+
+    async def _broken_create_session(*args: Any, **kwargs: Any) -> Any:
+        _ = (args, kwargs)
+        raise GatewayTransportError("Gateway HTTP 409: runtime manager busy", status_code=409)
+
+    app.remote_session_service.create_session = _broken_create_session  # type: ignore[method-assign]
+
+    asyncio.run(app._run_command("session new"))
+
+    assert app.status == "Runtime session creation failed: runtime manager busy"
+    assert app.current_session.view.messages[-1].content == "Runtime session creation failed: runtime manager busy"
+    assert app.current_session.view.messages[-1].metadata["summary"] == "create failed"
+
+
+def test_tui_fork_failure_uses_normalized_gateway_detail(tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    app = _new_app(tmp_path, state_path=state_path)
+
+    async def _broken_create_derived_session(*args: Any, **kwargs: Any) -> Any:
+        _ = (args, kwargs)
+        raise GatewayTransportError("Gateway HTTP 503: child session capacity unavailable", status_code=503)
+
+    app.remote_session_service.create_derived_session = _broken_create_derived_session  # type: ignore[method-assign]
+
+    asyncio.run(app._run_command("fork"))
+
+    assert app.status == "Derived session creation failed: child session capacity unavailable"
+    assert app.current_session.view.messages[-1].content == "Derived session creation failed: child session capacity unavailable"
+    assert app.current_session.view.messages[-1].metadata["summary"] == "fork failed"
 
 
 def test_tui_remote_session_prompt_uses_gateway_shared_session(tmp_path: Path) -> None:
@@ -4008,6 +4624,60 @@ def test_tui_remote_session_prompt_consumes_delta_reply_stream(tmp_path: Path, m
     assert app.current_session.view.messages[-1].role == "assistant"
     assert app.current_session.view.messages[-1].content == "remote:stream reply only"
     assert app.current_session.view.messages[-1].metadata.get("streaming") is False
+
+
+def test_tui_remote_stream_approval_roundtrip_opens_and_closes_modal(tmp_path: Path, monkeypatch) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    gateway = FakeGatewayClient()
+    app = _new_app(tmp_path, state_path=state_path, gateway_client=gateway)
+    open_calls: list[bool] = []
+    close_calls: list[bool] = []
+
+    async def _approval_stream_chat_events(*, session_id: str, message: str, workspace_dir: str, surface: str = "tui"):
+        _ = (session_id, message, workspace_dir, surface)
+        yield ("approval_requested", {"token": "approval-stream-1", "tool_name": "shell"})
+        yield ("approval_resolved", {"token": "approval-stream-1"})
+        yield (
+            "done",
+            {
+                "reply": "remote:needs approval",
+                "stop_reason": "end_turn",
+                "message_count": 3,
+                "token_usage": 2048,
+            },
+        )
+
+    async def _no_sync(self, session, *, recent_limit: int = 80):  # noqa: ANN001
+        _ = (self, session, recent_limit)
+        return None
+
+    original_open = MiniAgentTuiApp._open_approval_modal
+    original_close = MiniAgentTuiApp._close_approval_modal
+
+    def _tracked_open(self, *, force: bool = False):  # noqa: ANN001
+        open_calls.append(force)
+        return original_open(self, force=force)
+
+    def _tracked_close(self, *, snooze: bool = False):  # noqa: ANN001
+        close_calls.append(snooze)
+        return original_close(self, snooze=snooze)
+
+    gateway.stream_chat_events = _approval_stream_chat_events  # type: ignore[method-assign]
+    monkeypatch.setattr(MiniAgentTuiApp, "_sync_remote_session_detail", _no_sync)
+    monkeypatch.setattr(MiniAgentTuiApp, "_open_approval_modal", _tracked_open)
+    monkeypatch.setattr(MiniAgentTuiApp, "_close_approval_modal", _tracked_close)
+
+    asyncio.run(app._sync_remote_sessions_once())
+    app.session_index = app._find_session_index("remote-qq-1") or 0
+
+    asyncio.run(app._handle_prompt("needs approval"))
+
+    assert open_calls == [True]
+    assert close_calls == [False]
+    assert app.current_session.projection.pending_approvals == []
+    assert app._approval_modal_visible() is False
+    assert app.current_session.view.messages[-1].content == "remote:needs approval"
+    assert app.status == f"Completed remote turn for {app.current_session.title}."
 
 
 def test_tui_activity_render_assigns_tool_type_styles(tmp_path: Path) -> None:
@@ -4197,8 +4867,9 @@ def test_tui_run_chat_turn_uses_streaming_reply_helper(tmp_path: Path, monkeypat
         session,
         submission_id: str,
         event_start_index: int,
+        stream_state: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        _ = (self, session, submission_id, event_start_index)
+        _ = (self, session, submission_id, event_start_index, stream_state)
         return {
             "state": "completed",
             "stop_reason": "end_turn",
@@ -4242,6 +4913,118 @@ def test_tui_run_chat_turn_uses_streaming_reply_helper(tmp_path: Path, monkeypat
 
     assert streamed == ["stream me"]
     assert app.current_session.view.messages[-1].content == "stream me"
+
+
+def test_tui_handle_submission_bus_event_streams_llm_text_delta(tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    app = _new_app(tmp_path, state_path=state_path)
+    stream_state = {"assistant_message_index": None, "emitted_live_reply": False}
+
+    asyncio.run(
+        app._handle_submission_bus_event(
+            session=app.current_session,
+            submission_id="sub-1",
+            event_type="loop.llm_event",
+            payload={
+                "submission_id": "sub-1",
+                "llm_event_type": "text_delta",
+                "delta": "hello tui",
+            },
+            stream_state=stream_state,
+        )
+    )
+
+    assert stream_state["emitted_live_reply"] is True
+    assert isinstance(stream_state["assistant_message_index"], int)
+    assert app.current_session.view.messages[-1].role == "assistant"
+    assert app.current_session.view.messages[-1].content == "hello tui"
+    assert app.current_session.view.messages[-1].metadata.get("streaming") is True
+
+
+def test_tui_run_chat_turn_prefers_live_llm_stream_over_reply_replay(tmp_path: Path, monkeypatch) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    app = _new_app(tmp_path, state_path=state_path)
+    streamed: list[str] = []
+
+    class _FakeLoop:
+        async def start(self) -> None:
+            return None
+
+        async def submit_user_input(
+            self,
+            _prompt: str,
+            *,
+            policy_overrides=None,
+            metadata=None,
+            start_new_run: bool = True,
+        ) -> str:
+            _ = (policy_overrides, metadata, start_new_run)
+            return "sub-live"
+
+    async def _fake_wait_for_submission_payload(
+        self,
+        *,
+        session,
+        submission_id: str,
+        event_start_index: int,
+        stream_state: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        _ = (event_start_index,)
+        await self._handle_submission_bus_event(
+            session=session,
+            submission_id=submission_id,
+            event_type="loop.llm_event",
+            payload={
+                "submission_id": submission_id,
+                "llm_event_type": "text_delta",
+                "delta": "live reply",
+            },
+            stream_state=stream_state,
+        )
+        return {
+            "state": "completed",
+            "stop_reason": "end_turn",
+            "message": "live reply",
+            "error": "",
+            "prepared_context": {},
+        }
+
+    async def _fake_stream_assistant_reply(
+        self,
+        session,
+        content: str,
+        *,
+        message_index: int | None = None,
+    ) -> int:
+        _ = (session, message_index)
+        streamed.append(content)
+        return 0
+
+    app.current_session.runtime.agent = _runtime_test_agent(
+        model="gpt-test",
+        messages=[{"role": "system", "content": "sys"}],
+    )
+    app.current_session.runtime.agent.max_steps = 3
+    app.current_session.runtime.agent.max_tool_calls_per_step = None
+    app.current_session.runtime.submission_loop = _FakeLoop()
+    app.current_session.runtime.loop_bus = InMemoryLoopMessageBus()
+
+    monkeypatch.setattr(
+        MiniAgentTuiApp,
+        "_wait_for_submission_payload",
+        _fake_wait_for_submission_payload,
+    )
+    monkeypatch.setattr(
+        MiniAgentTuiApp,
+        "_stream_assistant_reply",
+        _fake_stream_assistant_reply,
+    )
+
+    asyncio.run(app._run_chat_turn("prefer live stream"))
+
+    assert streamed == []
+    assert app.current_session.view.messages[-1].content == "live reply"
+    assert app.current_session.view.messages[-1].metadata.get("streaming") is False
 
 
 def test_tui_usage_prefers_learned_token_limit_over_context_window(tmp_path: Path) -> None:
@@ -4506,7 +5289,7 @@ def test_tui_ensure_agent_does_not_append_internal_init_message(monkeypatch, tmp
     app = _new_app(tmp_path, state_path=state_path)
     baseline_count = len(app.current_session.view.messages)
 
-    fake_agent = SimpleNamespace(llm=SimpleNamespace(model="gpt-test"))
+    fake_agent = _runtime_test_agent(model="gpt-test")
 
     async def _fake_build_agent_kernel(*, workspace_dir, options):
         assert options.console_output is False
@@ -4707,6 +5490,33 @@ def test_tui_remote_approve_multiple_pending_relies_on_gateway_token_resolution(
     assert "Multiple approvals pending. Specify a token." in app.current_session.view.messages[-1].content
 
 
+def test_tui_local_approve_multiple_pending_requires_token(tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    app = _new_app(tmp_path, state_path=state_path)
+
+    class _FakeLoop:
+        def __init__(self) -> None:
+            self.calls: list[dict[str, Any]] = []
+
+        async def submit_exec_approval(self, *, approved: bool, token: str) -> None:
+            self.calls.append({"approved": approved, "token": token})
+
+    loop = _FakeLoop()
+    app.current_session.runtime.agent = SimpleNamespace()
+    app.current_session.runtime.submission_loop = loop
+    app.current_session.projection.pending_approvals = [
+        {"token": "approval-local-1", "tool_name": "shell", "kind": "exec"},
+        {"token": "approval-local-2", "tool_name": "bash", "kind": "exec"},
+    ]
+
+    asyncio.run(app._run_command("approve"))
+
+    assert loop.calls == []
+    assert app.status == "Specify approval token."
+    assert "Multiple approvals pending. Specify a token:" in app.current_session.view.messages[-1].content
+    assert "approval-local-1" in app.current_session.view.messages[-1].content
+
+
 def test_tui_run_chat_turn_surfaces_prepared_context(tmp_path: Path, monkeypatch) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     app = _new_app(tmp_path, state_path=state_path)
@@ -4741,8 +5551,9 @@ def test_tui_run_chat_turn_surfaces_prepared_context(tmp_path: Path, monkeypatch
         session,
         submission_id: str,
         event_start_index: int,
+        stream_state: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        _ = (self, session, submission_id, event_start_index)
+        _ = (self, session, submission_id, event_start_index, stream_state)
         return {
             "state": "completed",
             "stop_reason": "end_turn",
@@ -4795,6 +5606,96 @@ def test_tui_run_chat_turn_surfaces_prepared_context(tmp_path: Path, monkeypatch
     assert app._prepared_context_summary(app.current_session) == "1 item(s) from knowledge_base"
 
 
+def test_tui_run_chat_turn_captures_live_prepared_context_diagnostics_when_payload_omits_them(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    app = _new_app(tmp_path, state_path=state_path)
+
+    class _FakeLoop:
+        async def start(self) -> None:
+            return None
+
+        async def submit_user_input(
+            self,
+            _prompt: str,
+            *,
+            policy_overrides=None,
+            metadata=None,
+            start_new_run: bool = True,
+        ) -> str:
+            _ = (policy_overrides, metadata, start_new_run)
+            return "sub-live-prepared-context"
+
+    app.current_session.runtime.agent = _runtime_test_agent(
+        model="gpt-test",
+        messages=[{"role": "system", "content": "sys"}],
+        prepared_context={
+            "item_count": 1,
+            "sources": ["knowledge_base"],
+            "items": [
+                {
+                    "source": "knowledge_base",
+                    "title": "Relevant knowledge base context",
+                    "preview": "Hybrid retrieval combines BM25 and RRF.",
+                }
+            ],
+            "provider_failures": [],
+        },
+        prepared_context_diagnostics={
+            "turn_count": 3,
+            "turns_with_context": 2,
+            "turns_without_context": 1,
+            "total_items": 2,
+        },
+        include_knowledge_base_tool=True,
+    )
+    app.current_session.runtime.agent.max_steps = 3
+    app.current_session.runtime.agent.max_tool_calls_per_step = None
+    app.current_session.runtime.submission_loop = _FakeLoop()
+    app.current_session.runtime.loop_bus = InMemoryLoopMessageBus()
+
+    async def _fake_wait_for_submission_payload(
+        self,
+        *,
+        session,
+        submission_id: str,
+        event_start_index: int,
+        stream_state: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        _ = (self, session, submission_id, event_start_index, stream_state)
+        return {
+            "state": "completed",
+            "stop_reason": "end_turn",
+            "message": "done",
+            "error": "",
+            "prepared_context": {
+                "item_count": 1,
+                "sources": ["knowledge_base"],
+                "items": [
+                    {
+                        "source": "knowledge_base",
+                        "title": "Relevant knowledge base context",
+                        "preview": "Hybrid retrieval combines BM25 and RRF.",
+                    }
+                ],
+                "provider_failures": [],
+            },
+        }
+
+    monkeypatch.setattr(
+        MiniAgentTuiApp,
+        "_wait_for_submission_payload",
+        _fake_wait_for_submission_payload,
+    )
+
+    asyncio.run(app._run_chat_turn("show live prepared context diagnostics"))
+
+    assert app.current_session.projection.last_prepared_context["item_count"] == 1
+    assert app.current_session.projection.prepared_context_diagnostics["turn_count"] == 3
+
+
 def test_tui_run_chat_turn_includes_context_policy_metadata(tmp_path: Path, monkeypatch) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     app = _new_app(tmp_path, state_path=state_path)
@@ -4837,8 +5738,9 @@ def test_tui_run_chat_turn_includes_context_policy_metadata(tmp_path: Path, monk
         session,
         submission_id: str,
         event_start_index: int,
+        stream_state: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        _ = (self, session, submission_id, event_start_index)
+        _ = (self, session, submission_id, event_start_index, stream_state)
         return {
             "state": "completed",
             "stop_reason": "end_turn",
@@ -4874,6 +5776,34 @@ def test_tui_runtime_policy_commands_update_local_session(tmp_path: Path) -> Non
     header_text = "".join(text for _style, text in app._render_header())
     assert "mode=plan" in header_text
     assert "access=full-access" in header_text
+    assert app.status == f"{app.current_session.title}: runtime set to plan / full-access."
+    assert app.current_session.view.messages[-1].metadata["summary"] == "runtime plan / full-access"
+    assert "Runtime policy updated." in str(app.current_session.view.messages[-1].content)
+
+
+def test_tui_runtime_policy_prefers_attached_agent_effective_policy(tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    app = _new_app(tmp_path, state_path=state_path)
+    app.current_session.projection.sandbox_diagnostics = {
+        "approval_profile": "build",
+        "access_level": "default",
+        "sandbox_mode": "workspace",
+    }
+    app.current_session.runtime.agent = _runtime_test_agent(
+        runtime_services=AgentRuntimeServices(
+            runtime_policy_engine=SimpleNamespace(
+                policy=SimpleNamespace(
+                    approval_profile="plan",
+                    access_level="full-access",
+                )
+            )
+        )
+    )
+
+    assert app._session_runtime_policy(app.current_session) == ("plan", "full-access")
+    header_text = "".join(text for _style, text in app._render_header())
+    assert "mode=plan" in header_text
+    assert "access=full-access" in header_text
 
 
 def test_tui_runtime_policy_commands_route_remote_session_through_gateway(tmp_path: Path) -> None:
@@ -4893,6 +5823,9 @@ def test_tui_runtime_policy_commands_route_remote_session_through_gateway(tmp_pa
     assert gateway.policy_calls[-1]["access_level"] == "full-access"
     assert app.current_session.projection.sandbox_diagnostics["approval_profile"] == "plan"
     assert app.current_session.projection.sandbox_diagnostics["access_level"] == "full-access"
+    assert app.status == f"{app.current_session.title}: runtime set to plan / full-access."
+    assert app.current_session.view.messages[-1].metadata["summary"] == "runtime plan / full-access"
+    assert "Runtime policy updated." in str(app.current_session.view.messages[-1].content)
 
 
 def test_tui_remote_tagged_local_runtime_routes_runtime_policy_locally(tmp_path: Path) -> None:
@@ -4949,5 +5882,4 @@ def test_tui_approval_modal_opens_for_current_pending_request(tmp_path: Path) ->
     modal_text = "".join(text for _style, text in app._render_approval_modal_fragments())
     assert "approval-1" in modal_text
     assert "shell_command" in modal_text
-
 

@@ -83,7 +83,7 @@ def test_launch_desktop_ui_uses_desktop_timeout_for_gateway_client(monkeypatch, 
 
     monkeypatch.setattr(app, "_load_qt_modules", lambda: (_FakeQtWidgets, _FakeQtCore))
     monkeypatch.setattr(app, "DesktopGatewaySupervisor", _FakeSupervisor)
-    monkeypatch.setattr(app, "TuiGatewayClient", _FakeClient)
+    monkeypatch.setattr(app, "GatewayClient", _FakeClient)
     monkeypatch.setattr(app, "create_desktop_main_window", lambda **_: _FakeWindow())
 
     exit_code = app.launch_desktop_ui(

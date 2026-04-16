@@ -5,8 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from mini_agent.dev import RuntimeStackManager, RuntimeStackStatus
-from mini_agent.dev.studio_dev_manager import is_port_listening
+from mini_agent.dev.runtime_stack_manager import (
+    RuntimeStackManager,
+    RuntimeStackStatus,
+    is_port_listening,
+)
 
 
 @dataclass(slots=True)

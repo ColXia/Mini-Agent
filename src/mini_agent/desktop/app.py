@@ -9,7 +9,7 @@ from typing import Any
 
 from mini_agent.desktop.gateway_supervisor import DesktopGatewaySupervisor
 from mini_agent.desktop.window import create_desktop_main_window
-from mini_agent.tui.gateway_client import TuiGatewayClient
+from mini_agent.transport import GatewayClient
 
 DESKTOP_GATEWAY_TIMEOUT_SECONDS = 15.0
 
@@ -59,7 +59,7 @@ def launch_desktop_ui(
         )
 
     connection = _ensure_connection()
-    client = TuiGatewayClient(
+    client = GatewayClient(
         base_url=connection.base_url,
         timeout_seconds=DESKTOP_GATEWAY_TIMEOUT_SECONDS,
     )

@@ -5,13 +5,16 @@ from __future__ import annotations
 from mini_agent.desktop.window import (
     _truncate_text,
     collect_model_options,
+    desktop_error_detail,
     first_pending_approval,
+    format_desktop_approval_failure,
     format_model_catalog_text,
     format_session_context_text,
     format_session_row,
     render_activity_html,
     render_conversation_html,
 )
+from mini_agent.transport import GatewayTransportError
 
 
 def test_truncate_text_appends_ellipsis_when_limit_is_exceeded() -> None:
@@ -159,3 +162,24 @@ def test_render_activity_html_renders_cards_with_detail_and_preview() -> None:
     assert "shell needs approval" in html_text
     assert "cmd /c dir" in html_text
     assert "reason: elevated shell" in html_text
+
+
+def test_desktop_error_detail_uses_gateway_detail_without_http_prefix() -> None:
+    detail = desktop_error_detail(
+        GatewayTransportError("Gateway HTTP 500: model registry offline", status_code=500)
+    )
+
+    assert detail == "model registry offline"
+
+
+def test_format_desktop_approval_failure_uses_shared_pending_approval_semantics() -> None:
+    activity_title, status_text = format_desktop_approval_failure(
+        GatewayTransportError(
+            "Gateway HTTP 409: Multiple approvals pending. Specify a token: approval-1, approval-2",
+            status_code=409,
+        )
+    )
+
+    assert activity_title.startswith("Approval token required:")
+    assert "Multiple approvals pending. Specify a token" in activity_title
+    assert status_text == "Specify approval token."
