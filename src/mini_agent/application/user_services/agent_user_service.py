@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from mini_agent.application.ports.agent_runtime_port import AgentRuntimePort
+from mini_agent.application.ports.session_agent_runtime_port import SessionAgentRuntimePort
 from mini_agent.application.use_cases.run_control_application_service import RunControlApplicationService
 
 
@@ -21,33 +22,9 @@ def _require_run_control(service: RunControlApplicationService | None) -> RunCon
     return service
 
 
-def _require_runtime_policy_runtime(runtime: Any | None) -> Any:
+def _require_session_agent_runtime(runtime: SessionAgentRuntimePort | None) -> SessionAgentRuntimePort:
     if runtime is None:
-        raise RuntimeError("Session runtime policy compatibility runtime is not configured.")
-    return runtime
-
-
-def _require_session_memory_runtime(runtime: Any | None) -> Any:
-    if runtime is None:
-        raise RuntimeError("Session memory compatibility runtime is not configured.")
-    return runtime
-
-
-def _require_session_skill_runtime(runtime: Any | None) -> Any:
-    if runtime is None:
-        raise RuntimeError("Session skill compatibility runtime is not configured.")
-    return runtime
-
-
-def _require_session_control_runtime(runtime: Any | None) -> Any:
-    if runtime is None:
-        raise RuntimeError("Session control compatibility runtime is not configured.")
-    return runtime
-
-
-def _require_session_context_runtime(runtime: Any | None) -> Any:
-    if runtime is None:
-        raise RuntimeError("Session context compatibility runtime is not configured.")
+        raise RuntimeError("Session agent compatibility runtime is not configured.")
     return runtime
 
 
@@ -57,11 +34,7 @@ class AgentUserService:
 
     agent_runtime: AgentRuntimePort | None = None
     run_control: RunControlApplicationService | None = None
-    session_runtime_policy_runtime: Any | None = None
-    session_memory_runtime: Any | None = None
-    session_skill_runtime: Any | None = None
-    session_control_runtime: Any | None = None
-    session_context_runtime: Any | None = None
+    session_agent_runtime: SessionAgentRuntimePort | None = None
 
     async def list_agents(self) -> Any:
         return await _require_agent_runtime(self.agent_runtime).list_agents()
@@ -202,7 +175,7 @@ class AgentUserService:
         conversation_id: str | None = None,
         sender_id: str | None = None,
     ) -> Any:
-        return await _require_runtime_policy_runtime(self.session_runtime_policy_runtime).update_session_runtime_policy(
+        return await _require_session_agent_runtime(self.session_agent_runtime).update_session_runtime_policy(
             session_id,
             approval_profile=approval_profile,
             access_level=access_level,
@@ -223,7 +196,7 @@ class AgentUserService:
         conversation_id: str | None = None,
         sender_id: str | None = None,
     ) -> Any:
-        return await _require_session_control_runtime(self.session_control_runtime).control_session_context(
+        return await _require_session_agent_runtime(self.session_agent_runtime).control_session_context(
             session_id,
             action=action,
             reason=reason,
@@ -247,7 +220,7 @@ class AgentUserService:
         conversation_id: str | None = None,
         sender_id: str | None = None,
     ) -> Any:
-        return await _require_session_context_runtime(self.session_context_runtime).update_session_context_policy(
+        return await _require_session_agent_runtime(self.session_agent_runtime).update_session_context_policy(
             session_id,
             action=action,
             sources=sources,
@@ -276,7 +249,7 @@ class AgentUserService:
         conversation_id: str | None = None,
         sender_id: str | None = None,
     ) -> Any:
-        return await _require_session_memory_runtime(self.session_memory_runtime).manage_session_memory(
+        return await _require_session_agent_runtime(self.session_agent_runtime).manage_session_memory(
             session_id,
             action=action,
             engram_id=engram_id,
@@ -305,7 +278,7 @@ class AgentUserService:
         conversation_id: str | None = None,
         sender_id: str | None = None,
     ) -> Any:
-        return await _require_session_skill_runtime(self.session_skill_runtime).manage_session_skills(
+        return await _require_session_agent_runtime(self.session_agent_runtime).manage_session_skills(
             session_id,
             action=action,
             skill_name=skill_name,

@@ -6,6 +6,8 @@ from mini_agent.application.ports import (
     AgentRuntimePort,
     ModelRuntimePort,
     RunRuntimePort,
+    SessionAgentRuntimePort,
+    SessionModelSelectionRuntimePort,
     SessionRuntimePort,
     SessionTaskRuntimePort,
     SessionTaskPort,
@@ -436,7 +438,7 @@ async def test_model_user_service_supports_session_selection_compatibility() -> 
 
 @pytest.mark.asyncio
 async def test_agent_user_service_supports_session_runtime_policy_compatibility() -> None:
-    agent_service = AgentUserService(session_runtime_policy_runtime=SessionRuntimePolicyRuntimeStub())
+    agent_service = AgentUserService(session_agent_runtime=SessionRuntimePolicyRuntimeStub())
 
     assert await agent_service.update_session_runtime_policy(
         "session-4",
@@ -456,7 +458,7 @@ async def test_agent_user_service_supports_session_runtime_policy_compatibility(
 
 @pytest.mark.asyncio
 async def test_agent_user_service_supports_session_control_compatibility() -> None:
-    agent_service = AgentUserService(session_control_runtime=SessionControlRuntimeStub())
+    agent_service = AgentUserService(session_agent_runtime=SessionControlRuntimeStub())
 
     assert await agent_service.control_session(
         "session-4b",
@@ -476,7 +478,7 @@ async def test_agent_user_service_supports_session_control_compatibility() -> No
 
 @pytest.mark.asyncio
 async def test_agent_user_service_supports_session_context_compatibility() -> None:
-    agent_service = AgentUserService(session_context_runtime=SessionContextRuntimeStub())
+    agent_service = AgentUserService(session_agent_runtime=SessionContextRuntimeStub())
 
     assert await agent_service.update_session_context(
         "session-4c",
@@ -500,7 +502,7 @@ async def test_agent_user_service_supports_session_context_compatibility() -> No
 
 @pytest.mark.asyncio
 async def test_agent_user_service_supports_session_memory_compatibility() -> None:
-    agent_service = AgentUserService(session_memory_runtime=SessionMemoryRuntimeStub())
+    agent_service = AgentUserService(session_agent_runtime=SessionMemoryRuntimeStub())
 
     assert await agent_service.manage_session_memory(
         "session-5",
@@ -526,7 +528,7 @@ async def test_agent_user_service_supports_session_memory_compatibility() -> Non
 
 @pytest.mark.asyncio
 async def test_agent_user_service_supports_session_skill_compatibility() -> None:
-    agent_service = AgentUserService(session_skill_runtime=SessionSkillRuntimeStub())
+    agent_service = AgentUserService(session_agent_runtime=SessionSkillRuntimeStub())
 
     assert await agent_service.manage_session_skills(
         "session-6",
@@ -552,6 +554,8 @@ def test_stage1_port_packages_export_expected_contracts() -> None:
     assert AgentRuntimePort is not None
     assert ModelRuntimePort is not None
     assert RunRuntimePort is not None
+    assert SessionAgentRuntimePort is not None
+    assert SessionModelSelectionRuntimePort is not None
     assert SessionRuntimePort is not None
     assert SessionTaskRuntimePort is not None
     assert SessionTaskPort is not None

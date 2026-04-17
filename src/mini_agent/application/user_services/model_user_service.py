@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from mini_agent.application.ports.model_runtime_port import ModelRuntimePort
+from mini_agent.application.ports.session_model_selection_runtime_port import SessionModelSelectionRuntimePort
 
 
 def _require_model_runtime(runtime: ModelRuntimePort | None) -> ModelRuntimePort:
@@ -14,7 +15,7 @@ def _require_model_runtime(runtime: ModelRuntimePort | None) -> ModelRuntimePort
     return runtime
 
 
-def _require_session_model_runtime(runtime: Any | None) -> Any:
+def _require_session_model_runtime(runtime: SessionModelSelectionRuntimePort | None) -> SessionModelSelectionRuntimePort:
     if runtime is None:
         raise RuntimeError("Session model compatibility runtime is not configured.")
     return runtime
@@ -25,7 +26,7 @@ class ModelUserService:
     """Thin user-service facade for model binding and capability views."""
 
     model_runtime: ModelRuntimePort | None = None
-    session_model_runtime: Any | None = None
+    session_model_runtime: SessionModelSelectionRuntimePort | None = None
 
     async def list_model_bindings(self) -> Any:
         return await _require_model_runtime(self.model_runtime).list_model_bindings()

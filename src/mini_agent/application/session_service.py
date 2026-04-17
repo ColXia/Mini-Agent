@@ -198,11 +198,7 @@ class SessionApplicationService:
         )
         self._agent_service = agent_service or AgentUserService(
             run_control=self._run_control_service,
-            session_runtime_policy_runtime=runtime_manager,
-            session_memory_runtime=runtime_manager,
-            session_skill_runtime=runtime_manager,
-            session_control_runtime=runtime_manager,
-            session_context_runtime=runtime_manager,
+            session_agent_runtime=runtime_manager,
         )
         self._model_service = model_service or ModelUserService(
             session_model_runtime=_SessionModelSelectionCompatibilityAdapter(runtime_manager),
