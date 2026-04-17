@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Awaitable, Callable
 from fastapi import HTTPException
 
 from mini_agent.interfaces import MainAgentSessionControlResponse
-from mini_agent.runtime.session_control_models import (
+from mini_agent.runtime.support.session_control_models import (
     RuntimeSessionControlCommand,
     RuntimeSessionControlExecution,
     SESSION_MCP_CONTROL_ACTIONS,

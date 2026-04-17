@@ -25,6 +25,15 @@ from .session_command_coordinator import (
     RuntimeSessionCommandCoordinator,
     RuntimeSessionCommandTranscript,
 )
+from .session_control_error_service import SessionControlErrorService
+from .session_control_models import (
+    RuntimeSessionControlCommand,
+    RuntimeSessionControlExecution,
+    SESSION_AGENT_CONTROL_ACTIONS,
+    SESSION_MCP_CONTROL_ACTIONS,
+    SUPPORTED_SESSION_CONTROL_ACTIONS,
+    normalize_session_control_action,
+)
 from .session_diagnostics_service import RuntimeSessionDiagnosticsService
 from .session_agent_support import (
     BuildAgentFn,
@@ -54,8 +63,14 @@ __all__ = [
     "LoadRuntimeConfigFn",
     "RuntimeSessionCommandCoordinator",
     "RuntimeSessionCommandTranscript",
+    "RuntimeSessionControlCommand",
+    "RuntimeSessionControlExecution",
     "RuntimeSessionDiagnosticsService",
     "RuntimeSessionAgentSupport",
+    "SESSION_AGENT_CONTROL_ACTIONS",
+    "SESSION_MCP_CONTROL_ACTIONS",
+    "SUPPORTED_SESSION_CONTROL_ACTIONS",
+    "SessionControlErrorService",
     "USER_ENTRANCES",
     "add_workspace_tools",
     "apply_runtime_policy_to_agent",
@@ -69,6 +84,7 @@ __all__ = [
     "initialize_shared_tools",
     "normalize_channel_type",
     "normalize_sandbox_diagnostics",
+    "normalize_session_control_action",
     "normalize_surface_label",
     "reconfigure_agent_runtime_policy",
     "resolve_runtime_policy",

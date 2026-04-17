@@ -6,7 +6,7 @@ import inspect
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
-from mini_agent.runtime.session_control_error_service import SessionControlErrorService
+from mini_agent.runtime.support.session_control_error_service import SessionControlErrorService
 
 
 def _safe_text(value: object) -> str:

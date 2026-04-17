@@ -12,8 +12,8 @@ from mini_agent.agent_core.context.control_result_service import (
     SessionContextControlResultService,
 )
 from mini_agent.interfaces import MainAgentSessionControlResponse
-from mini_agent.runtime.session_control_error_service import SessionControlErrorService
-from mini_agent.runtime.session_control_models import (
+from mini_agent.runtime.support.session_control_error_service import SessionControlErrorService
+from mini_agent.runtime.support.session_control_models import (
     RuntimeSessionControlCommand,
     RuntimeSessionControlExecution,
     SESSION_AGENT_CONTROL_ACTIONS,

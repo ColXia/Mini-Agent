@@ -42,7 +42,7 @@ from mini_agent.runtime.support.session_command_coordinator import (
     RuntimeSessionCommandTranscript,
 )
 from mini_agent.runtime.handlers.session_agent_control_handler import RuntimeSessionAgentControlHandler
-from mini_agent.runtime.session_control_models import (
+from mini_agent.runtime.support.session_control_models import (
     RuntimeSessionControlCommand,
     RuntimeSessionControlExecution,
     SESSION_MCP_CONTROL_ACTIONS,
@@ -58,7 +58,7 @@ from mini_agent.runtime.runtime_policy_service import (
     SessionRuntimePolicyExecution,
     SessionRuntimePolicyService,
 )
-from mini_agent.runtime.session_control_error_service import SessionControlErrorService
+from mini_agent.runtime.support.session_control_error_service import SessionControlErrorService
 from mini_agent.runtime.live_control.session_interrupt_handler import RuntimeSessionInterruptHandler
 
 if TYPE_CHECKING:
