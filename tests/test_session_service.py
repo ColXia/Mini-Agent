@@ -14,6 +14,7 @@ from mini_agent.interfaces import (
     MainAgentSessionCreateRequest,
     MainAgentSessionForkRequest,
     MainAgentSessionMemoryRequest,
+    MainAgentSessionMemoryResponse,
     MainAgentSessionModelSelectionRequest,
     MainAgentSessionModelSelectionResponse,
     MainAgentSessionMutationResponse,
@@ -21,6 +22,8 @@ from mini_agent.interfaces import (
     MainAgentSessionRuntimePolicyRequest,
     MainAgentSessionRuntimePolicyResponse,
     MainAgentSessionShareRequest,
+    MainAgentSessionSkillRequest,
+    MainAgentSessionSkillResponse,
 )
 from mini_agent.runtime.main_agent_runtime_manager import MainAgentRuntimeManager
 
@@ -905,6 +908,293 @@ def test_session_service_default_agent_service_falls_back_to_runtime_policy_upda
                 "sess-policy-2",
                 "build",
                 "default",
+                "desktop",
+                None,
+                None,
+                None,
+            )
+        ]
+
+    asyncio.run(_run())
+
+
+def test_session_service_manage_memory_uses_injected_agent_service() -> None:
+    class _AgentServiceStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        async def manage_session_memory(self, session_id: str, **kwargs):
+            self.calls.append(("manage_session_memory", session_id, kwargs))
+            return MainAgentSessionMemoryResponse(
+                status="ok",
+                session_id=session_id,
+                action=str(kwargs.get("action") or ""),
+                active_surface="qq",
+                memory_diagnostics={"runtime_task_memory": {"session_count": 1}},
+                result={"summary": "runtime memory ok"},
+            )
+
+    class _RuntimeStub:
+        def validate_workspace(self, workspace_dir: Path) -> None:
+            _ = workspace_dir
+
+    async def _run() -> None:
+        agent_service = _AgentServiceStub()
+        service = SessionApplicationService(runtime_manager=_RuntimeStub(), agent_service=agent_service)
+
+        response = await service.manage_session_memory(
+            "sess-memory-1",
+            MainAgentSessionMemoryRequest(
+                action=" show ",
+                engram_id=" mem-1 ",
+                query=" recent note ",
+                detail_mode=" brief ",
+                surface=" qq ",
+                channel_type=" qqbot ",
+                conversation_id=" group:demo ",
+                sender_id=" user-1 ",
+            ),
+        )
+
+        assert response.status == "ok"
+        assert response.result["summary"] == "runtime memory ok"
+        assert agent_service.calls == [
+            (
+                "manage_session_memory",
+                "sess-memory-1",
+                {
+                    "action": " show ",
+                    "engram_id": " mem-1 ",
+                    "content": None,
+                    "query": " recent note ",
+                    "day": None,
+                    "export_format": None,
+                    "detail_mode": " brief ",
+                    "surface": "qq",
+                    "channel_type": "qq",
+                    "conversation_id": "group:demo",
+                    "sender_id": "user-1",
+                },
+            )
+        ]
+
+    asyncio.run(_run())
+
+
+def test_session_service_default_agent_service_falls_back_to_runtime_memory_management() -> None:
+    class _RuntimeStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        def validate_workspace(self, workspace_dir: Path) -> None:
+            _ = workspace_dir
+
+        async def manage_session_memory(
+            self,
+            session_id: str,
+            *,
+            action: str,
+            engram_id: str | None = None,
+            content: str | None = None,
+            query: str | None = None,
+            day: str | None = None,
+            export_format: str | None = None,
+            detail_mode: str | None = None,
+            surface: str | None = None,
+            channel_type: str | None = None,
+            conversation_id: str | None = None,
+            sender_id: str | None = None,
+        ):
+            self.calls.append(
+                (
+                    "manage_session_memory",
+                    session_id,
+                    action,
+                    engram_id,
+                    content,
+                    query,
+                    day,
+                    export_format,
+                    detail_mode,
+                    surface,
+                    channel_type,
+                    conversation_id,
+                    sender_id,
+                )
+            )
+            return MainAgentSessionMemoryResponse(
+                status="ok",
+                session_id=session_id,
+                action=action,
+                active_surface=surface,
+                memory_diagnostics={},
+                result={"summary": "fallback memory ok"},
+            )
+
+    async def _run() -> None:
+        runtime = _RuntimeStub()
+        service = SessionApplicationService(runtime_manager=runtime)
+
+        response = await service.manage_session_memory(
+            "sess-memory-2",
+            MainAgentSessionMemoryRequest(
+                action="show",
+                detail_mode="full",
+                surface="desktop",
+            ),
+        )
+
+        assert response.result["summary"] == "fallback memory ok"
+        assert runtime.calls == [
+            (
+                "manage_session_memory",
+                "sess-memory-2",
+                "show",
+                None,
+                None,
+                None,
+                None,
+                None,
+                "full",
+                "desktop",
+                None,
+                None,
+                None,
+            )
+        ]
+
+    asyncio.run(_run())
+
+
+def test_session_service_manage_skills_uses_injected_agent_service() -> None:
+    class _AgentServiceStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        async def manage_session_skills(self, session_id: str, **kwargs):
+            self.calls.append(("manage_session_skills", session_id, kwargs))
+            return MainAgentSessionSkillResponse(
+                status="ok",
+                session_id=session_id,
+                action=str(kwargs.get("action") or ""),
+                active_surface="qq",
+                result={"summary": "skills ok"},
+            )
+
+    class _RuntimeStub:
+        def validate_workspace(self, workspace_dir: Path) -> None:
+            _ = workspace_dir
+
+    async def _run() -> None:
+        agent_service = _AgentServiceStub()
+        service = SessionApplicationService(runtime_manager=_RuntimeStub(), agent_service=agent_service)
+
+        response = await service.manage_session_skills(
+            "sess-skill-1",
+            MainAgentSessionSkillRequest(
+                action=" search ",
+                skill_name=" helper ",
+                path=" C:/skills/helper ",
+                query=" foundry ",
+                mode=" allowlist ",
+                surface=" qq ",
+                channel_type=" qqbot ",
+                conversation_id=" group:demo ",
+                sender_id=" user-1 ",
+            ),
+        )
+
+        assert response.status == "ok"
+        assert response.result["summary"] == "skills ok"
+        assert agent_service.calls == [
+            (
+                "manage_session_skills",
+                "sess-skill-1",
+                {
+                    "action": " search ",
+                    "skill_name": " helper ",
+                    "path": " C:/skills/helper ",
+                    "query": " foundry ",
+                    "mode": " allowlist ",
+                    "surface": "qq",
+                    "channel_type": "qq",
+                    "conversation_id": "group:demo",
+                    "sender_id": "user-1",
+                },
+            )
+        ]
+
+    asyncio.run(_run())
+
+
+def test_session_service_default_agent_service_falls_back_to_runtime_skill_management() -> None:
+    class _RuntimeStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        def validate_workspace(self, workspace_dir: Path) -> None:
+            _ = workspace_dir
+
+        async def manage_session_skills(
+            self,
+            session_id: str,
+            *,
+            action: str,
+            skill_name: str | None = None,
+            path: str | None = None,
+            query: str | None = None,
+            mode: str | None = None,
+            surface: str | None = None,
+            channel_type: str | None = None,
+            conversation_id: str | None = None,
+            sender_id: str | None = None,
+        ):
+            self.calls.append(
+                (
+                    "manage_session_skills",
+                    session_id,
+                    action,
+                    skill_name,
+                    path,
+                    query,
+                    mode,
+                    surface,
+                    channel_type,
+                    conversation_id,
+                    sender_id,
+                )
+            )
+            return MainAgentSessionSkillResponse(
+                status="ok",
+                session_id=session_id,
+                action=action,
+                active_surface=surface,
+                result={"summary": "fallback skills ok"},
+            )
+
+    async def _run() -> None:
+        runtime = _RuntimeStub()
+        service = SessionApplicationService(runtime_manager=runtime)
+
+        response = await service.manage_session_skills(
+            "sess-skill-2",
+            MainAgentSessionSkillRequest(
+                action="list",
+                query="helper",
+                surface="desktop",
+            ),
+        )
+
+        assert response.result["summary"] == "fallback skills ok"
+        assert runtime.calls == [
+            (
+                "manage_session_skills",
+                "sess-skill-2",
+                "list",
+                None,
+                None,
+                "helper",
+                None,
                 "desktop",
                 None,
                 None,

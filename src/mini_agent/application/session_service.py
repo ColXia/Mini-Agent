@@ -196,6 +196,8 @@ class SessionApplicationService:
         self._agent_service = agent_service or AgentUserService(
             run_control=self._run_control_service,
             session_runtime_policy_runtime=runtime_manager,
+            session_memory_runtime=runtime_manager,
+            session_skill_runtime=runtime_manager,
         )
         self._model_service = model_service or ModelUserService(
             session_model_runtime=_SessionModelSelectionCompatibilityAdapter(runtime_manager),
@@ -355,7 +357,7 @@ class SessionApplicationService:
         request: MainAgentSessionMemoryRequest,
     ) -> MainAgentSessionMemoryResponse:
         binding = ApplicationInteractionBinding.from_request(request)
-        return await self._runtime_manager.manage_session_memory(
+        return await self._agent_service.manage_session_memory(
             session_id,
             action=request.action,
             engram_id=request.engram_id,
@@ -373,7 +375,7 @@ class SessionApplicationService:
         request: MainAgentSessionSkillRequest,
     ) -> MainAgentSessionSkillResponse:
         binding = ApplicationInteractionBinding.from_request(request)
-        return await self._runtime_manager.manage_session_skills(
+        return await self._agent_service.manage_session_skills(
             session_id,
             action=request.action,
             skill_name=request.skill_name,

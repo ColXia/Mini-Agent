@@ -197,6 +197,68 @@ class SessionRuntimePolicyRuntimeStub:
         }
 
 
+class SessionMemoryRuntimeStub:
+    async def manage_session_memory(
+        self,
+        session_id: str,
+        *,
+        action: str,
+        engram_id: str | None = None,
+        content: str | None = None,
+        query: str | None = None,
+        day: str | None = None,
+        export_format: str | None = None,
+        detail_mode: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ):
+        return {
+            "session_id": session_id,
+            "action": action,
+            "engram_id": engram_id,
+            "content": content,
+            "query": query,
+            "day": day,
+            "export_format": export_format,
+            "detail_mode": detail_mode,
+            "surface": surface,
+            "channel_type": channel_type,
+            "conversation_id": conversation_id,
+            "sender_id": sender_id,
+        }
+
+
+class SessionSkillRuntimeStub:
+    async def manage_session_skills(
+        self,
+        session_id: str,
+        *,
+        action: str,
+        skill_name: str | None = None,
+        path: str | None = None,
+        query: str | None = None,
+        mode: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ):
+        return {
+            "session_id": session_id,
+            "action": action,
+            "skill_name": skill_name,
+            "path": path,
+            "query": query,
+            "mode": mode,
+            "surface": surface,
+            "channel_type": channel_type,
+            "conversation_id": conversation_id,
+            "sender_id": sender_id,
+        }
+
+
 class CommandRuntimeStub:
     def catalog(self):
         return ["help", "session"]
@@ -332,6 +394,56 @@ async def test_agent_user_service_supports_session_runtime_policy_compatibility(
         "session_id": "session-4",
         "approval_profile": "plan",
         "access_level": "full-access",
+        "surface": "desktop",
+        "channel_type": None,
+        "conversation_id": None,
+        "sender_id": None,
+    }
+
+
+@pytest.mark.asyncio
+async def test_agent_user_service_supports_session_memory_compatibility() -> None:
+    agent_service = AgentUserService(session_memory_runtime=SessionMemoryRuntimeStub())
+
+    assert await agent_service.manage_session_memory(
+        "session-5",
+        action="show",
+        query="recent",
+        detail_mode="brief",
+        surface="desktop",
+    ) == {
+        "session_id": "session-5",
+        "action": "show",
+        "engram_id": None,
+        "content": None,
+        "query": "recent",
+        "day": None,
+        "export_format": None,
+        "detail_mode": "brief",
+        "surface": "desktop",
+        "channel_type": None,
+        "conversation_id": None,
+        "sender_id": None,
+    }
+
+
+@pytest.mark.asyncio
+async def test_agent_user_service_supports_session_skill_compatibility() -> None:
+    agent_service = AgentUserService(session_skill_runtime=SessionSkillRuntimeStub())
+
+    assert await agent_service.manage_session_skills(
+        "session-6",
+        action="search",
+        query="foundry",
+        mode="allowlist",
+        surface="desktop",
+    ) == {
+        "session_id": "session-6",
+        "action": "search",
+        "skill_name": None,
+        "path": None,
+        "query": "foundry",
+        "mode": "allowlist",
         "surface": "desktop",
         "channel_type": None,
         "conversation_id": None,

@@ -209,6 +209,19 @@ class MainAgentSurfaceService:
         session_id: str,
         request: MainAgentSessionMemoryRequest,
     ) -> MainAgentSessionMemoryResponse:
+        if self._agent_service is not None:
+            binding = ApplicationInteractionBinding.from_request(request)
+            return await self._agent_service.manage_session_memory(
+                session_id,
+                action=request.action,
+                engram_id=request.engram_id,
+                content=request.content,
+                query=request.query,
+                day=request.day,
+                export_format=request.export_format,
+                detail_mode=request.detail_mode,
+                **binding.as_kwargs(),
+            )
         return await self._session_service.manage_session_memory(session_id, request)
 
     async def manage_session_skills(
@@ -216,6 +229,17 @@ class MainAgentSurfaceService:
         session_id: str,
         request: MainAgentSessionSkillRequest,
     ) -> MainAgentSessionSkillResponse:
+        if self._agent_service is not None:
+            binding = ApplicationInteractionBinding.from_request(request)
+            return await self._agent_service.manage_session_skills(
+                session_id,
+                action=request.action,
+                skill_name=request.skill_name,
+                path=request.path,
+                query=request.query,
+                mode=request.mode,
+                **binding.as_kwargs(),
+            )
         return await self._session_service.manage_session_skills(session_id, request)
 
     async def update_session_model_selection(

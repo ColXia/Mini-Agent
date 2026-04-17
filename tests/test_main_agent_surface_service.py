@@ -24,6 +24,7 @@ from mini_agent.interfaces import (
     MainAgentSessionContextRequest,
     MainAgentSessionForkRequest,
     MainAgentSessionMemoryRequest,
+    MainAgentSessionMemoryResponse,
     MainAgentSessionModelSelectionRequest,
     MainAgentSessionModelSelectionResponse,
     MainAgentSessionMutationResponse,
@@ -31,6 +32,7 @@ from mini_agent.interfaces import (
     MainAgentSessionRuntimePolicyResponse,
     MainAgentSessionSummary,
     MainAgentSessionSkillRequest,
+    MainAgentSessionSkillResponse,
 )
 from mini_agent.interfaces import MainAgentSessionControlRequest
 from mini_agent.memory.memoria_runtime import WorkspaceMemoriaRuntime
@@ -4073,6 +4075,150 @@ def test_surface_service_prefers_injected_agent_service_for_runtime_policy_entry
                 {
                     "approval_profile": "plan",
                     "access_level": "full-access",
+                    "surface": "qq",
+                    "channel_type": "qq",
+                    "conversation_id": "group:demo",
+                    "sender_id": "user-1",
+                },
+            )
+        ]
+
+    asyncio.run(_run())
+
+
+def test_surface_service_prefers_injected_agent_service_for_memory_entrypoint() -> None:
+    class _FailingSessionService:
+        async def manage_session_memory(self, session_id: str, request):  # noqa: ANN001
+            raise AssertionError(
+                f"session_service.manage_session_memory should not be called for {session_id}: {request}"
+            )
+
+    class _AgentServiceStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        async def manage_session_memory(self, session_id: str, **kwargs):
+            self.calls.append(("manage_session_memory", session_id, kwargs))
+            return MainAgentSessionMemoryResponse(
+                status="ok",
+                session_id=session_id,
+                action=str(kwargs.get("action") or ""),
+                active_surface="qq",
+                memory_diagnostics={"runtime_task_memory": {"session_count": 1}},
+                result={"summary": "memory ok"},
+            )
+
+    async def _run() -> None:
+        agent_service = _AgentServiceStub()
+        use_cases = MainAgentSurfaceService(
+            session_service=_FailingSessionService(),
+            agent_service=agent_service,
+            resolve_workspace_dir=_resolve_workspace_dir,
+            to_utc_iso=_to_utc_iso,
+            sse_event=_sse_event,
+            format_bootstrap_error=_format_bootstrap_error,
+            stream_chunk_size=64,
+        )
+
+        response = await use_cases.manage_session_memory(
+            "sess-memory-service",
+            MainAgentSessionMemoryRequest(
+                action=" show ",
+                engram_id=" mem-1 ",
+                query=" recent note ",
+                detail_mode=" brief ",
+                surface=" qq ",
+                channel_type=" qqbot ",
+                conversation_id=" group:demo ",
+                sender_id=" user-1 ",
+            ),
+        )
+
+        assert response.status == "ok"
+        assert response.result["summary"] == "memory ok"
+        assert agent_service.calls == [
+            (
+                "manage_session_memory",
+                "sess-memory-service",
+                {
+                    "action": " show ",
+                    "engram_id": " mem-1 ",
+                    "content": None,
+                    "query": " recent note ",
+                    "day": None,
+                    "export_format": None,
+                    "detail_mode": " brief ",
+                    "surface": "qq",
+                    "channel_type": "qq",
+                    "conversation_id": "group:demo",
+                    "sender_id": "user-1",
+                },
+            )
+        ]
+
+    asyncio.run(_run())
+
+
+def test_surface_service_prefers_injected_agent_service_for_skill_entrypoint() -> None:
+    class _FailingSessionService:
+        async def manage_session_skills(self, session_id: str, request):  # noqa: ANN001
+            raise AssertionError(
+                f"session_service.manage_session_skills should not be called for {session_id}: {request}"
+            )
+
+    class _AgentServiceStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        async def manage_session_skills(self, session_id: str, **kwargs):
+            self.calls.append(("manage_session_skills", session_id, kwargs))
+            return MainAgentSessionSkillResponse(
+                status="ok",
+                session_id=session_id,
+                action=str(kwargs.get("action") or ""),
+                active_surface="qq",
+                result={"summary": "skills ok"},
+            )
+
+    async def _run() -> None:
+        agent_service = _AgentServiceStub()
+        use_cases = MainAgentSurfaceService(
+            session_service=_FailingSessionService(),
+            agent_service=agent_service,
+            resolve_workspace_dir=_resolve_workspace_dir,
+            to_utc_iso=_to_utc_iso,
+            sse_event=_sse_event,
+            format_bootstrap_error=_format_bootstrap_error,
+            stream_chunk_size=64,
+        )
+
+        response = await use_cases.manage_session_skills(
+            "sess-skill-service",
+            MainAgentSessionSkillRequest(
+                action=" search ",
+                skill_name=" helper ",
+                path=" C:/skills/helper ",
+                query=" foundry ",
+                mode=" allowlist ",
+                surface=" qq ",
+                channel_type=" qqbot ",
+                conversation_id=" group:demo ",
+                sender_id=" user-1 ",
+            ),
+        )
+
+        assert response.status == "ok"
+        assert response.result["summary"] == "skills ok"
+        assert agent_service.calls == [
+            (
+                "manage_session_skills",
+                "sess-skill-service",
+                {
+                    "action": " search ",
+                    "skill_name": " helper ",
+                    "path": " C:/skills/helper ",
+                    "query": " foundry ",
+                    "mode": " allowlist ",
                     "surface": "qq",
                     "channel_type": "qq",
                     "conversation_id": "group:demo",

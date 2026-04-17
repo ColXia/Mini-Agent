@@ -27,6 +27,18 @@ def _require_runtime_policy_runtime(runtime: Any | None) -> Any:
     return runtime
 
 
+def _require_session_memory_runtime(runtime: Any | None) -> Any:
+    if runtime is None:
+        raise RuntimeError("Session memory compatibility runtime is not configured.")
+    return runtime
+
+
+def _require_session_skill_runtime(runtime: Any | None) -> Any:
+    if runtime is None:
+        raise RuntimeError("Session skill compatibility runtime is not configured.")
+    return runtime
+
+
 @dataclass(slots=True)
 class AgentUserService:
     """Thin user-service facade for agent and run-facing actions."""
@@ -34,6 +46,8 @@ class AgentUserService:
     agent_runtime: AgentRuntimePort | None = None
     run_control: RunControlApplicationService | None = None
     session_runtime_policy_runtime: Any | None = None
+    session_memory_runtime: Any | None = None
+    session_skill_runtime: Any | None = None
 
     async def list_agents(self) -> Any:
         return await _require_agent_runtime(self.agent_runtime).list_agents()
@@ -178,6 +192,64 @@ class AgentUserService:
             session_id,
             approval_profile=approval_profile,
             access_level=access_level,
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
+
+    async def manage_session_memory(
+        self,
+        session_id: str,
+        *,
+        action: str,
+        engram_id: str | None = None,
+        content: str | None = None,
+        query: str | None = None,
+        day: str | None = None,
+        export_format: str | None = None,
+        detail_mode: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> Any:
+        return await _require_session_memory_runtime(self.session_memory_runtime).manage_session_memory(
+            session_id,
+            action=action,
+            engram_id=engram_id,
+            content=content,
+            query=query,
+            day=day,
+            export_format=export_format,
+            detail_mode=detail_mode,
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
+
+    async def manage_session_skills(
+        self,
+        session_id: str,
+        *,
+        action: str,
+        skill_name: str | None = None,
+        path: str | None = None,
+        query: str | None = None,
+        mode: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> Any:
+        return await _require_session_skill_runtime(self.session_skill_runtime).manage_session_skills(
+            session_id,
+            action=action,
+            skill_name=skill_name,
+            path=path,
+            query=query,
+            mode=mode,
             surface=surface,
             channel_type=channel_type,
             conversation_id=conversation_id,
