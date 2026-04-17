@@ -6,15 +6,13 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from mini_agent.agent_core.engine import Agent
-from mini_agent.application.session_runtime_port import (
-    ManagedRuntimeSessionPort,
-    SessionTurnScopePort,
-)
 from mini_agent.interfaces import (
     MainAgentSessionDetail,
     MainAgentSessionMessage,
     MainAgentSessionSummary,
 )
+
+from .session_runtime_port import ManagedRuntimeSessionPort, SessionTurnScopePort
 
 
 class SessionTaskRuntimePort(Protocol):

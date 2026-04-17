@@ -1,10 +1,6 @@
 """Application port exports for staged runtime separation."""
 
-from mini_agent.application.session_runtime_port import (
-    ManagedRuntimeSessionPort,
-    SessionRuntimePort,
-    SessionTurnScopePort,
-)
+from .session_runtime_port import ManagedRuntimeSessionPort, SessionRuntimePort, SessionTurnScopePort
 
 from .agent_runtime_port import AgentRuntimePort
 from .model_runtime_port import ModelRuntimePort

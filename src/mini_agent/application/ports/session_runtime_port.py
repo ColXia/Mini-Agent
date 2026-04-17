@@ -1,0 +1,344 @@
+"""Application-facing ports for managed session runtime interaction."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any, Protocol
+
+from mini_agent.agent_core.engine import Agent
+from mini_agent.interfaces import (
+    MainAgentSessionApprovalResponse,
+    MainAgentSessionContextResponse,
+    MainAgentSessionControlResponse,
+    MainAgentSessionDetail,
+    MainAgentSessionMemoryResponse,
+    MainAgentSessionMessage,
+    MainAgentSessionModelSelectionResponse,
+    MainAgentSessionSkillResponse,
+    MainAgentSessionSummary,
+)
+
+
+class ManagedRuntimeSessionPort(Protocol):
+    """Minimal managed-session view exposed to the application layer."""
+
+    @property
+    def session_id(self) -> str: ...
+
+    @property
+    def workspace_dir(self) -> Path: ...
+
+    @property
+    def agent(self) -> Agent: ...
+
+    @property
+    def active_surface(self) -> str: ...
+
+    @property
+    def origin_surface(self) -> str: ...
+
+    @property
+    def channel_type(self) -> str | None: ...
+
+    @property
+    def conversation_id(self) -> str | None: ...
+
+    @property
+    def sender_id(self) -> str | None: ...
+
+    @property
+    def context_policy(self) -> dict[str, Any]: ...
+
+    @property
+    def cancel_event(self) -> Any: ...
+
+    @property
+    def busy(self) -> bool: ...
+
+    @property
+    def running_state(self) -> str: ...
+
+    @running_state.setter
+    def running_state(self, value: str) -> None: ...
+
+    @property
+    def pending_approvals(self) -> list[dict[str, Any]]: ...
+
+    @property
+    def updated_at(self) -> Any: ...
+
+    @property
+    def token_usage(self) -> int: ...
+
+    @property
+    def message_count(self) -> int: ...
+
+    def touch(self) -> None: ...
+
+
+class SessionTurnScopePort(Protocol):
+    """Turn-scope lifecycle hooks exposed to the application layer."""
+
+    async def enter(
+        self,
+        session: Any,
+        *,
+        surface: str | None,
+        channel_type: str | None,
+        conversation_id: str | None,
+        sender_id: str | None,
+        user_message: str,
+        running_detail: str,
+    ) -> dict[str, Any] | None: ...
+
+    async def exit(self, session: Any) -> None: ...
+
+    def touch(self, session: Any) -> None: ...
+
+    def restore_prepared_context_state(self, session: Any) -> None: ...
+
+    def capture_prepared_context_state(self, session: Any) -> None: ...
+
+    def clear_recovery_context(self, session: Any) -> None: ...
+
+    def record_message(
+        self,
+        session: Any,
+        *,
+        role: str,
+        content: str,
+        surface: str | None,
+        metadata: dict[str, Any] | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> None: ...
+
+    def record_activity(
+        self,
+        session: Any,
+        *,
+        label: str,
+        detail: str,
+        surface: str | None,
+        activity_id: str | None = None,
+        preview: str = "",
+        output_text: str = "",
+        state: str = "",
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> dict[str, Any]: ...
+
+    def record_pending_approval(
+        self,
+        session: Any,
+        *,
+        payload: dict[str, Any],
+        future: Any,
+    ) -> dict[str, Any]: ...
+
+    def clear_pending_approval(
+        self,
+        session: Any,
+        *,
+        token: str | None = None,
+    ) -> None: ...
+
+
+class SessionRuntimePort(Protocol):
+    """Application-facing contract for managed session runtime services."""
+
+    @property
+    def turn_scope_handler(self) -> SessionTurnScopePort: ...
+
+    def validate_workspace(self, workspace_dir: Path) -> None: ...
+
+    async def list_sessions(
+        self,
+        *,
+        workspace_dir: Path | None = None,
+        shared_only: bool = False,
+    ) -> list[MainAgentSessionSummary]: ...
+
+    async def ensure_default_session(
+        self,
+        workspace_dir: Path,
+        *,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> ManagedRuntimeSessionPort: ...
+
+    async def create_session(
+        self,
+        *,
+        workspace_dir: Path,
+        title: str | None = None,
+        surface: str | None = None,
+        shared: bool = False,
+    ) -> ManagedRuntimeSessionPort: ...
+
+    async def create_derived_session(
+        self,
+        *,
+        parent_session_id: str,
+        title: str | None = None,
+        reason: str = "fork",
+        metadata: dict[str, Any] | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> ManagedRuntimeSessionPort: ...
+
+    async def get_session_detail(self, session_id: str, *, recent_limit: int = 50) -> MainAgentSessionDetail: ...
+
+    async def get_recent_messages(self, session_id: str, *, limit: int = 10) -> list[MainAgentSessionMessage]: ...
+
+    async def delete_session(self, session_id: str) -> None: ...
+
+    async def rename_session(self, session_id: str, *, title: str) -> MainAgentSessionSummary: ...
+
+    async def set_session_shared(self, session_id: str, *, shared: bool) -> MainAgentSessionSummary: ...
+
+    async def reset_session(self, session_id: str) -> None: ...
+
+    async def cancel_session_turn(
+        self,
+        session_id: str,
+        *,
+        reason: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> Any: ...
+
+    async def control_session_context(
+        self,
+        session_id: str,
+        *,
+        action: str,
+        reason: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> MainAgentSessionControlResponse: ...
+
+    async def update_session_context_policy(
+        self,
+        session_id: str,
+        *,
+        action: str,
+        sources: list[str] | None = None,
+        max_items: int | None = None,
+        max_total_chars: int | None = None,
+        max_items_per_source: int | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> MainAgentSessionContextResponse: ...
+
+    async def manage_session_memory(
+        self,
+        session_id: str,
+        *,
+        action: str,
+        engram_id: str | None = None,
+        content: str | None = None,
+        query: str | None = None,
+        day: str | None = None,
+        export_format: str | None = None,
+        detail_mode: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> MainAgentSessionMemoryResponse: ...
+
+    async def manage_session_skills(
+        self,
+        session_id: str,
+        *,
+        action: str,
+        skill_name: str | None = None,
+        path: str | None = None,
+        query: str | None = None,
+        mode: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> MainAgentSessionSkillResponse: ...
+
+    async def update_session_model_selection(
+        self,
+        session_id: str,
+        *,
+        provider_source: str | None = None,
+        provider_id: str | None = None,
+        model_id: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> MainAgentSessionModelSelectionResponse: ...
+
+    async def resolve_pending_approval(
+        self,
+        session_id: str,
+        *,
+        approved: bool,
+        token: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> MainAgentSessionApprovalResponse: ...
+
+    async def update_session_runtime_policy(
+        self,
+        session_id: str,
+        *,
+        approval_profile: str | None = None,
+        access_level: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> Any: ...
+
+    async def build_ephemeral_agent(self, workspace_dir: Path) -> Agent: ...
+
+    async def get_or_create_session(
+        self,
+        session_id: str | None,
+        workspace_dir: Path,
+        *,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+        session_title_hint: str | None = None,
+    ) -> ManagedRuntimeSessionPort: ...
+
+    async def ensure_session_runtime_policy_ready_for_turn(
+        self,
+        session: ManagedRuntimeSessionPort,
+        *,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> Any: ...
+
+
+__all__ = [
+    "ManagedRuntimeSessionPort",
+    "SessionRuntimePort",
+    "SessionTurnScopePort",
+]

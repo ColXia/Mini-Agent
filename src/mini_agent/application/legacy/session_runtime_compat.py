@@ -6,8 +6,8 @@ from typing import Any
 
 from mini_agent.application.ports.session_agent_runtime_port import SessionAgentRuntimePort
 from mini_agent.application.ports.session_model_selection_runtime_port import SessionModelSelectionRuntimePort
+from mini_agent.application.ports.session_runtime_port import SessionRuntimePort
 from mini_agent.application.ports.session_task_port import SessionTaskPort
-from mini_agent.application.session_runtime_port import SessionRuntimePort
 from mini_agent.interfaces import (
     MainAgentSessionApprovalResponse,
     MainAgentSessionContextResponse,

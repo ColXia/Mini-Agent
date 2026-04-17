@@ -7,12 +7,9 @@ from pathlib import Path
 from typing import Any
 
 from mini_agent.agent_core.engine import Agent
-from mini_agent.application.session_runtime_port import (
-    ManagedRuntimeSessionPort,
-    SessionTurnScopePort,
-)
 
 from .interaction_request_adapter import ApplicationInteractionBinding
+from ..ports.session_runtime_port import ManagedRuntimeSessionPort, SessionTurnScopePort
 
 
 class ManagedSessionTurn(AbstractAsyncContextManager["ManagedSessionTurn"]):

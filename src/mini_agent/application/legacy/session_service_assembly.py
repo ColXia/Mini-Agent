@@ -7,9 +7,9 @@ from typing import TYPE_CHECKING
 
 from mini_agent.application.ports.session_agent_runtime_port import SessionAgentRuntimePort
 from mini_agent.application.ports.session_model_selection_runtime_port import SessionModelSelectionRuntimePort
+from mini_agent.application.ports.session_runtime_port import SessionRuntimePort
 from mini_agent.application.ports.session_task_port import SessionTaskPort
 from mini_agent.application.ports.session_task_runtime_port import SessionTaskRuntimePort
-from mini_agent.application.session_runtime_port import SessionRuntimePort
 from mini_agent.application.use_cases.run_control_application_service import RunControlApplicationService
 from mini_agent.application.use_cases.session_task_service import SessionTaskService
 from mini_agent.application.user_services.agent_user_service import AgentUserService

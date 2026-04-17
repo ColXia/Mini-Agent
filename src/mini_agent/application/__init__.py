@@ -21,7 +21,6 @@ from .ports import (
     SessionTaskPort,
     WorkspaceRuntimePort,
 )
-from .session_runtime_port import ManagedRuntimeSessionPort, SessionRuntimePort, SessionTurnScopePort
 from .support import ApplicationInteractionBinding, ManagedSessionTurn
 from .use_cases import (
     ChannelIngressUseCases,
@@ -32,6 +31,7 @@ from .use_cases import (
     SessionTaskService,
 )
 from .user_services import AgentUserService, CommandUserService, ModelUserService, WorkspaceUserService
+from .ports import ManagedRuntimeSessionPort, SessionRuntimePort, SessionTurnScopePort
 
 __all__ = [
     "AgentDelegationExecutionHandler",
