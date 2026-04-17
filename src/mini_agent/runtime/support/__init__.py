@@ -49,6 +49,8 @@ from .session_local_mcp_runtime_service import LocalSessionMcpRuntimeService
 from .session_persistence_loader import RuntimeSessionPersistenceLoader
 from .session_persistence_metadata_registry import RuntimeSessionPersistenceMetadataRegistry
 from .session_persistence_record_builder import RuntimeSessionPersistenceRecordBuilder
+from .session_runtime_persistence import MainAgentRuntimePersistence
+from .session_shared_transcript_store import RuntimeSessionSharedTranscriptStore
 from .tooling import (
     add_workspace_tools,
     apply_runtime_policy_to_agent,
@@ -72,6 +74,7 @@ __all__ = [
     "LocalSessionAgentRuntimeHandler",
     "LocalSessionMcpRuntimeService",
     "LoadRuntimeConfigFn",
+    "MainAgentRuntimePersistence",
     "RuntimeSessionCommandCoordinator",
     "RuntimeSessionCommandTranscript",
     "RuntimeSessionControlCommand",
@@ -81,6 +84,7 @@ __all__ = [
     "RuntimeSessionPersistenceLoader",
     "RuntimeSessionPersistenceMetadataRegistry",
     "RuntimeSessionPersistenceRecordBuilder",
+    "RuntimeSessionSharedTranscriptStore",
     "SESSION_AGENT_CONTROL_ACTIONS",
     "SESSION_MCP_CONTROL_ACTIONS",
     "SUPPORTED_SESSION_CONTROL_ACTIONS",

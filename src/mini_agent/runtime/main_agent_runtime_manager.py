@@ -98,7 +98,7 @@ from mini_agent.runtime.handlers.session_agent_control_handler import RuntimeSes
 from mini_agent.runtime.handlers.session_mcp_control_handler import RuntimeSessionMcpControlHandler
 from mini_agent.runtime.handlers.session_operator_handler import RuntimeSessionOperatorHandler
 from mini_agent.runtime.runtime_policy_service import SessionRuntimePolicyService
-from mini_agent.runtime.session_runtime_persistence import MainAgentRuntimePersistence
+from mini_agent.runtime.support.session_runtime_persistence import MainAgentRuntimePersistence
 from mini_agent.runtime.session_state import MainAgentSessionState
 from mini_agent.runtime.orchestration.session_turn_scope_handler import RuntimeSessionTurnScopeHandler
 from mini_agent.runtime.orchestration.session_snapshot_handler import (
