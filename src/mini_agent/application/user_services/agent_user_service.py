@@ -39,6 +39,18 @@ def _require_session_skill_runtime(runtime: Any | None) -> Any:
     return runtime
 
 
+def _require_session_control_runtime(runtime: Any | None) -> Any:
+    if runtime is None:
+        raise RuntimeError("Session control compatibility runtime is not configured.")
+    return runtime
+
+
+def _require_session_context_runtime(runtime: Any | None) -> Any:
+    if runtime is None:
+        raise RuntimeError("Session context compatibility runtime is not configured.")
+    return runtime
+
+
 @dataclass(slots=True)
 class AgentUserService:
     """Thin user-service facade for agent and run-facing actions."""
@@ -48,6 +60,8 @@ class AgentUserService:
     session_runtime_policy_runtime: Any | None = None
     session_memory_runtime: Any | None = None
     session_skill_runtime: Any | None = None
+    session_control_runtime: Any | None = None
+    session_context_runtime: Any | None = None
 
     async def list_agents(self) -> Any:
         return await _require_agent_runtime(self.agent_runtime).list_agents()
@@ -192,6 +206,54 @@ class AgentUserService:
             session_id,
             approval_profile=approval_profile,
             access_level=access_level,
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
+
+    async def control_session(
+        self,
+        session_id: str,
+        *,
+        action: str,
+        reason: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> Any:
+        return await _require_session_control_runtime(self.session_control_runtime).control_session_context(
+            session_id,
+            action=action,
+            reason=reason,
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
+
+    async def update_session_context(
+        self,
+        session_id: str,
+        *,
+        action: str,
+        sources: list[str] | None = None,
+        max_items: int | None = None,
+        max_total_chars: int | None = None,
+        max_items_per_source: int | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> Any:
+        return await _require_session_context_runtime(self.session_context_runtime).update_session_context_policy(
+            session_id,
+            action=action,
+            sources=sources,
+            max_items=max_items,
+            max_total_chars=max_total_chars,
+            max_items_per_source=max_items_per_source,
             surface=surface,
             channel_type=channel_type,
             conversation_id=conversation_id,

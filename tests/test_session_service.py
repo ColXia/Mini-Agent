@@ -11,6 +11,10 @@ from mini_agent.interfaces import (
     MainAgentSessionApprovalRequest,
     MainAgentSessionApprovalResponse,
     MainAgentSessionCancelRequest,
+    MainAgentSessionContextRequest,
+    MainAgentSessionContextResponse,
+    MainAgentSessionControlRequest,
+    MainAgentSessionControlResponse,
     MainAgentSessionCreateRequest,
     MainAgentSessionForkRequest,
     MainAgentSessionMemoryRequest,
@@ -908,6 +912,270 @@ def test_session_service_default_agent_service_falls_back_to_runtime_policy_upda
                 "sess-policy-2",
                 "build",
                 "default",
+                "desktop",
+                None,
+                None,
+                None,
+            )
+        ]
+
+    asyncio.run(_run())
+
+
+def test_session_service_control_session_uses_injected_agent_service() -> None:
+    class _AgentServiceStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        async def control_session(self, session_id: str, **kwargs):
+            self.calls.append(("control_session", session_id, kwargs))
+            return MainAgentSessionControlResponse(
+                status="controlled",
+                session_id=session_id,
+                action=str(kwargs.get("action") or ""),
+                applied=True,
+                active_surface="qq",
+            )
+
+    class _RuntimeStub:
+        def validate_workspace(self, workspace_dir: Path) -> None:
+            _ = workspace_dir
+
+    async def _run() -> None:
+        agent_service = _AgentServiceStub()
+        service = SessionApplicationService(runtime_manager=_RuntimeStub(), agent_service=agent_service)
+
+        response = await service.control_session(
+            "sess-control-1",
+            MainAgentSessionControlRequest(
+                action=" compact ",
+                reason=" trim history ",
+                surface=" qq ",
+                channel_type=" qqbot ",
+                conversation_id=" group:demo ",
+                sender_id=" user-1 ",
+            ),
+        )
+
+        assert response.status == "controlled"
+        assert response.action == " compact "
+        assert agent_service.calls == [
+            (
+                "control_session",
+                "sess-control-1",
+                {
+                    "action": " compact ",
+                    "reason": " trim history ",
+                    "surface": "qq",
+                    "channel_type": "qq",
+                    "conversation_id": "group:demo",
+                    "sender_id": "user-1",
+                },
+            )
+        ]
+
+    asyncio.run(_run())
+
+
+def test_session_service_default_agent_service_falls_back_to_runtime_control_session() -> None:
+    class _RuntimeStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        def validate_workspace(self, workspace_dir: Path) -> None:
+            _ = workspace_dir
+
+        async def control_session_context(
+            self,
+            session_id: str,
+            *,
+            action: str,
+            reason: str | None = None,
+            surface: str | None = None,
+            channel_type: str | None = None,
+            conversation_id: str | None = None,
+            sender_id: str | None = None,
+        ):
+            self.calls.append(
+                (
+                    "control_session_context",
+                    session_id,
+                    action,
+                    reason,
+                    surface,
+                    channel_type,
+                    conversation_id,
+                    sender_id,
+                )
+            )
+            return MainAgentSessionControlResponse(
+                status="controlled",
+                session_id=session_id,
+                action=action,
+                applied=True,
+                active_surface=surface,
+            )
+
+    async def _run() -> None:
+        runtime = _RuntimeStub()
+        service = SessionApplicationService(runtime_manager=runtime)
+
+        response = await service.control_session(
+            "sess-control-2",
+            MainAgentSessionControlRequest(
+                action="compact",
+                reason="trim",
+                surface="desktop",
+            ),
+        )
+
+        assert response.action == "compact"
+        assert runtime.calls == [
+            (
+                "control_session_context",
+                "sess-control-2",
+                "compact",
+                "trim",
+                "desktop",
+                None,
+                None,
+                None,
+            )
+        ]
+
+    asyncio.run(_run())
+
+
+def test_session_service_update_context_uses_injected_agent_service() -> None:
+    class _AgentServiceStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        async def update_session_context(self, session_id: str, **kwargs):
+            self.calls.append(("update_session_context", session_id, kwargs))
+            return MainAgentSessionContextResponse(
+                status="updated",
+                session_id=session_id,
+                action=str(kwargs.get("action") or ""),
+                active_surface="qq",
+                context_policy={"include_sources": kwargs.get("sources") or []},
+            )
+
+    class _RuntimeStub:
+        def validate_workspace(self, workspace_dir: Path) -> None:
+            _ = workspace_dir
+
+    async def _run() -> None:
+        agent_service = _AgentServiceStub()
+        service = SessionApplicationService(runtime_manager=_RuntimeStub(), agent_service=agent_service)
+
+        response = await service.update_session_context(
+            "sess-context-1",
+            MainAgentSessionContextRequest(
+                action=" include ",
+                sources=["knowledge_base", "workspace_memory"],
+                max_items=4,
+                max_total_chars=2400,
+                max_items_per_source=1,
+                surface=" qq ",
+                channel_type=" qqbot ",
+                conversation_id=" group:demo ",
+                sender_id=" user-1 ",
+            ),
+        )
+
+        assert response.status == "updated"
+        assert response.context_policy["include_sources"] == ["knowledge_base", "workspace_memory"]
+        assert agent_service.calls == [
+            (
+                "update_session_context",
+                "sess-context-1",
+                {
+                    "action": " include ",
+                    "sources": ["knowledge_base", "workspace_memory"],
+                    "max_items": 4,
+                    "max_total_chars": 2400,
+                    "max_items_per_source": 1,
+                    "surface": "qq",
+                    "channel_type": "qq",
+                    "conversation_id": "group:demo",
+                    "sender_id": "user-1",
+                },
+            )
+        ]
+
+    asyncio.run(_run())
+
+
+def test_session_service_default_agent_service_falls_back_to_runtime_context_update() -> None:
+    class _RuntimeStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        def validate_workspace(self, workspace_dir: Path) -> None:
+            _ = workspace_dir
+
+        async def update_session_context_policy(
+            self,
+            session_id: str,
+            *,
+            action: str,
+            sources: list[str] | None = None,
+            max_items: int | None = None,
+            max_total_chars: int | None = None,
+            max_items_per_source: int | None = None,
+            surface: str | None = None,
+            channel_type: str | None = None,
+            conversation_id: str | None = None,
+            sender_id: str | None = None,
+        ):
+            self.calls.append(
+                (
+                    "update_session_context_policy",
+                    session_id,
+                    action,
+                    sources,
+                    max_items,
+                    max_total_chars,
+                    max_items_per_source,
+                    surface,
+                    channel_type,
+                    conversation_id,
+                    sender_id,
+                )
+            )
+            return MainAgentSessionContextResponse(
+                status="updated",
+                session_id=session_id,
+                action=action,
+                active_surface=surface,
+                context_policy={"include_sources": list(sources or [])},
+            )
+
+    async def _run() -> None:
+        runtime = _RuntimeStub()
+        service = SessionApplicationService(runtime_manager=runtime)
+
+        response = await service.update_session_context(
+            "sess-context-2",
+            MainAgentSessionContextRequest(
+                action="include",
+                sources=["workspace_memory"],
+                max_items=2,
+                surface="desktop",
+            ),
+        )
+
+        assert response.context_policy["include_sources"] == ["workspace_memory"]
+        assert runtime.calls == [
+            (
+                "update_session_context_policy",
+                "sess-context-2",
+                "include",
+                ["workspace_memory"],
+                2,
+                None,
+                None,
                 "desktop",
                 None,
                 None,

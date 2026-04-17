@@ -22,6 +22,7 @@ from mini_agent.interfaces import (
     MainAgentSessionApprovalResponse,
     MainAgentSessionCancelRequest,
     MainAgentSessionContextRequest,
+    MainAgentSessionContextResponse,
     MainAgentSessionForkRequest,
     MainAgentSessionMemoryRequest,
     MainAgentSessionMemoryResponse,
@@ -34,7 +35,7 @@ from mini_agent.interfaces import (
     MainAgentSessionSkillRequest,
     MainAgentSessionSkillResponse,
 )
-from mini_agent.interfaces import MainAgentSessionControlRequest
+from mini_agent.interfaces import MainAgentSessionControlRequest, MainAgentSessionControlResponse
 from mini_agent.memory.memoria_runtime import WorkspaceMemoriaRuntime
 from mini_agent.memory.service import MemoryService
 from mini_agent.runtime.main_agent_runtime_contracts import (
@@ -3941,6 +3942,140 @@ def test_surface_service_prefers_injected_agent_service_for_run_control_entrypoi
                     "sender_id": None,
                 },
             ),
+        ]
+
+    asyncio.run(_run())
+
+
+def test_surface_service_prefers_injected_agent_service_for_control_entrypoint() -> None:
+    class _FailingSessionService:
+        async def control_session(self, session_id: str, request):  # noqa: ANN001
+            raise AssertionError(f"session_service.control_session should not be called for {session_id}: {request}")
+
+    class _AgentServiceStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        async def control_session(self, session_id: str, **kwargs):
+            self.calls.append(("control_session", session_id, kwargs))
+            return MainAgentSessionControlResponse(
+                status="controlled",
+                session_id=session_id,
+                action=str(kwargs.get("action") or ""),
+                applied=True,
+                active_surface="qq",
+            )
+
+    async def _run() -> None:
+        agent_service = _AgentServiceStub()
+        use_cases = MainAgentSurfaceService(
+            session_service=_FailingSessionService(),
+            agent_service=agent_service,
+            resolve_workspace_dir=_resolve_workspace_dir,
+            to_utc_iso=_to_utc_iso,
+            sse_event=_sse_event,
+            format_bootstrap_error=_format_bootstrap_error,
+            stream_chunk_size=64,
+        )
+
+        response = await use_cases.control_session(
+            "sess-control-service",
+            MainAgentSessionControlRequest(
+                action=" compact ",
+                reason=" trim history ",
+                surface=" qq ",
+                channel_type=" qqbot ",
+                conversation_id=" group:demo ",
+                sender_id=" user-1 ",
+            ),
+        )
+
+        assert response.status == "controlled"
+        assert response.action == " compact "
+        assert agent_service.calls == [
+            (
+                "control_session",
+                "sess-control-service",
+                {
+                    "action": " compact ",
+                    "reason": " trim history ",
+                    "surface": "qq",
+                    "channel_type": "qq",
+                    "conversation_id": "group:demo",
+                    "sender_id": "user-1",
+                },
+            )
+        ]
+
+    asyncio.run(_run())
+
+
+def test_surface_service_prefers_injected_agent_service_for_context_entrypoint() -> None:
+    class _FailingSessionService:
+        async def update_session_context(self, session_id: str, request):  # noqa: ANN001
+            raise AssertionError(
+                f"session_service.update_session_context should not be called for {session_id}: {request}"
+            )
+
+    class _AgentServiceStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        async def update_session_context(self, session_id: str, **kwargs):
+            self.calls.append(("update_session_context", session_id, kwargs))
+            return MainAgentSessionContextResponse(
+                status="updated",
+                session_id=session_id,
+                action=str(kwargs.get("action") or ""),
+                active_surface="qq",
+                context_policy={"include_sources": kwargs.get("sources") or []},
+            )
+
+    async def _run() -> None:
+        agent_service = _AgentServiceStub()
+        use_cases = MainAgentSurfaceService(
+            session_service=_FailingSessionService(),
+            agent_service=agent_service,
+            resolve_workspace_dir=_resolve_workspace_dir,
+            to_utc_iso=_to_utc_iso,
+            sse_event=_sse_event,
+            format_bootstrap_error=_format_bootstrap_error,
+            stream_chunk_size=64,
+        )
+
+        response = await use_cases.update_session_context(
+            "sess-context-service",
+            MainAgentSessionContextRequest(
+                action=" include ",
+                sources=["knowledge_base", "workspace_memory"],
+                max_items=4,
+                max_total_chars=2400,
+                max_items_per_source=1,
+                surface=" qq ",
+                channel_type=" qqbot ",
+                conversation_id=" group:demo ",
+                sender_id=" user-1 ",
+            ),
+        )
+
+        assert response.status == "updated"
+        assert response.context_policy["include_sources"] == ["knowledge_base", "workspace_memory"]
+        assert agent_service.calls == [
+            (
+                "update_session_context",
+                "sess-context-service",
+                {
+                    "action": " include ",
+                    "sources": ["knowledge_base", "workspace_memory"],
+                    "max_items": 4,
+                    "max_total_chars": 2400,
+                    "max_items_per_source": 1,
+                    "surface": "qq",
+                    "channel_type": "qq",
+                    "conversation_id": "group:demo",
+                    "sender_id": "user-1",
+                },
+            )
         ]
 
     asyncio.run(_run())

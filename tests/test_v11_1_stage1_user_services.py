@@ -197,6 +197,58 @@ class SessionRuntimePolicyRuntimeStub:
         }
 
 
+class SessionControlRuntimeStub:
+    async def control_session_context(
+        self,
+        session_id: str,
+        *,
+        action: str,
+        reason: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ):
+        return {
+            "session_id": session_id,
+            "action": action,
+            "reason": reason,
+            "surface": surface,
+            "channel_type": channel_type,
+            "conversation_id": conversation_id,
+            "sender_id": sender_id,
+        }
+
+
+class SessionContextRuntimeStub:
+    async def update_session_context_policy(
+        self,
+        session_id: str,
+        *,
+        action: str,
+        sources: list[str] | None = None,
+        max_items: int | None = None,
+        max_total_chars: int | None = None,
+        max_items_per_source: int | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ):
+        return {
+            "session_id": session_id,
+            "action": action,
+            "sources": sources,
+            "max_items": max_items,
+            "max_total_chars": max_total_chars,
+            "max_items_per_source": max_items_per_source,
+            "surface": surface,
+            "channel_type": channel_type,
+            "conversation_id": conversation_id,
+            "sender_id": sender_id,
+        }
+
+
 class SessionMemoryRuntimeStub:
     async def manage_session_memory(
         self,
@@ -394,6 +446,50 @@ async def test_agent_user_service_supports_session_runtime_policy_compatibility(
         "session_id": "session-4",
         "approval_profile": "plan",
         "access_level": "full-access",
+        "surface": "desktop",
+        "channel_type": None,
+        "conversation_id": None,
+        "sender_id": None,
+    }
+
+
+@pytest.mark.asyncio
+async def test_agent_user_service_supports_session_control_compatibility() -> None:
+    agent_service = AgentUserService(session_control_runtime=SessionControlRuntimeStub())
+
+    assert await agent_service.control_session(
+        "session-4b",
+        action="compact",
+        reason="trim",
+        surface="desktop",
+    ) == {
+        "session_id": "session-4b",
+        "action": "compact",
+        "reason": "trim",
+        "surface": "desktop",
+        "channel_type": None,
+        "conversation_id": None,
+        "sender_id": None,
+    }
+
+
+@pytest.mark.asyncio
+async def test_agent_user_service_supports_session_context_compatibility() -> None:
+    agent_service = AgentUserService(session_context_runtime=SessionContextRuntimeStub())
+
+    assert await agent_service.update_session_context(
+        "session-4c",
+        action="include",
+        sources=["workspace_memory"],
+        max_items=2,
+        surface="desktop",
+    ) == {
+        "session_id": "session-4c",
+        "action": "include",
+        "sources": ["workspace_memory"],
+        "max_items": 2,
+        "max_total_chars": None,
+        "max_items_per_source": None,
         "surface": "desktop",
         "channel_type": None,
         "conversation_id": None,

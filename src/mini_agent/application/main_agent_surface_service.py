@@ -195,6 +195,14 @@ class MainAgentSurfaceService:
         session_id: str,
         request: MainAgentSessionControlRequest,
     ) -> MainAgentSessionControlResponse:
+        if self._agent_service is not None:
+            binding = ApplicationInteractionBinding.from_request(request)
+            return await self._agent_service.control_session(
+                session_id,
+                action=request.action,
+                reason=request.reason,
+                **binding.as_kwargs(),
+            )
         return await self._session_service.control_session(session_id, request)
 
     async def update_session_context(
@@ -202,6 +210,17 @@ class MainAgentSurfaceService:
         session_id: str,
         request: MainAgentSessionContextRequest,
     ) -> MainAgentSessionContextResponse:
+        if self._agent_service is not None:
+            binding = ApplicationInteractionBinding.from_request(request)
+            return await self._agent_service.update_session_context(
+                session_id,
+                action=request.action,
+                sources=request.sources,
+                max_items=request.max_items,
+                max_total_chars=request.max_total_chars,
+                max_items_per_source=request.max_items_per_source,
+                **binding.as_kwargs(),
+            )
         return await self._session_service.update_session_context(session_id, request)
 
     async def manage_session_memory(

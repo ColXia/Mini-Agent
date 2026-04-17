@@ -198,6 +198,8 @@ class SessionApplicationService:
             session_runtime_policy_runtime=runtime_manager,
             session_memory_runtime=runtime_manager,
             session_skill_runtime=runtime_manager,
+            session_control_runtime=runtime_manager,
+            session_context_runtime=runtime_manager,
         )
         self._model_service = model_service or ModelUserService(
             session_model_runtime=_SessionModelSelectionCompatibilityAdapter(runtime_manager),
@@ -328,7 +330,7 @@ class SessionApplicationService:
         request: MainAgentSessionControlRequest,
     ) -> MainAgentSessionControlResponse:
         binding = ApplicationInteractionBinding.from_request(request)
-        return await self._runtime_manager.control_session_context(
+        return await self._agent_service.control_session(
             session_id,
             action=request.action,
             reason=request.reason,
@@ -341,7 +343,7 @@ class SessionApplicationService:
         request: MainAgentSessionContextRequest,
     ) -> MainAgentSessionContextResponse:
         binding = ApplicationInteractionBinding.from_request(request)
-        return await self._runtime_manager.update_session_context_policy(
+        return await self._agent_service.update_session_context(
             session_id,
             action=request.action,
             sources=request.sources,
