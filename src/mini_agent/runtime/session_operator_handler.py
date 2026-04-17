@@ -63,7 +63,7 @@ from mini_agent.runtime.live_control.session_interrupt_handler import RuntimeSes
 
 if TYPE_CHECKING:
     from mini_agent.runtime.session_state import MainAgentSessionState
-    from mini_agent.runtime.session_agent_runtime_handler import RuntimeSessionAgentRuntimeHandler
+    from mini_agent.runtime.handlers.session_agent_runtime_handler import RuntimeSessionAgentRuntimeHandler
     from mini_agent.runtime.live_control.session_live_state_handler import RuntimeSessionLiveStateHandler
 
 

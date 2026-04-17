@@ -60,7 +60,7 @@ from mini_agent.runtime.handlers.session_catalog_handler import RuntimeSessionCa
 from mini_agent.runtime.handlers.session_access_handler import (
     RuntimeSessionAccessHandler,
 )
-from mini_agent.runtime.session_agent_runtime_handler import RuntimeSessionAgentRuntimeHandler
+from mini_agent.runtime.handlers.session_agent_runtime_handler import RuntimeSessionAgentRuntimeHandler
 from mini_agent.runtime.handlers.session_creation_handler import (
     RuntimeSessionCreationHandler,
 )
