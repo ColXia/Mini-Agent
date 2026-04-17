@@ -41,6 +41,9 @@ from .session_agent_support import (
     LoadRuntimeConfigFn,
     RuntimeSessionAgentSupport,
 )
+from .session_persistence_loader import RuntimeSessionPersistenceLoader
+from .session_persistence_metadata_registry import RuntimeSessionPersistenceMetadataRegistry
+from .session_persistence_record_builder import RuntimeSessionPersistenceRecordBuilder
 from .tooling import (
     add_workspace_tools,
     apply_runtime_policy_to_agent,
@@ -67,6 +70,9 @@ __all__ = [
     "RuntimeSessionControlExecution",
     "RuntimeSessionDiagnosticsService",
     "RuntimeSessionAgentSupport",
+    "RuntimeSessionPersistenceLoader",
+    "RuntimeSessionPersistenceMetadataRegistry",
+    "RuntimeSessionPersistenceRecordBuilder",
     "SESSION_AGENT_CONTROL_ACTIONS",
     "SESSION_MCP_CONTROL_ACTIONS",
     "SUPPORTED_SESSION_CONTROL_ACTIONS",

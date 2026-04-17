@@ -78,16 +78,18 @@ from mini_agent.runtime.orchestration.session_runtime_state_hydrator import (
     RuntimeSessionStateHydrator,
 )
 from mini_agent.runtime.support.session_diagnostics_service import RuntimeSessionDiagnosticsService
-from mini_agent.runtime.session_persistence_loader import RuntimeSessionPersistenceLoader
-from mini_agent.runtime.session_persistence_record_builder import RuntimeSessionPersistenceRecordBuilder
+from mini_agent.runtime.support.session_persistence_loader import RuntimeSessionPersistenceLoader
+from mini_agent.runtime.support.session_persistence_record_builder import RuntimeSessionPersistenceRecordBuilder
 from mini_agent.runtime.handlers.session_registry_handler import RuntimeSessionRegistryHandler
 from mini_agent.runtime.live_control.session_interrupt_handler import RuntimeSessionInterruptHandler
 from mini_agent.runtime.live_control.session_live_state_handler import RuntimeSessionLiveStateHandler
 from mini_agent.runtime.live_control.session_recovery_reset_handler import (
     RuntimeSessionRecoveryResetHandler,
 )
+from mini_agent.runtime.orchestration.session_managed_store_handler import (
+    RuntimeManagedSessionStoreHandler,
+)
 from mini_agent.runtime.session_lineage_registry import RuntimeSessionLineageRegistry
-from mini_agent.runtime.session_managed_store_handler import RuntimeManagedSessionStoreHandler
 from mini_agent.runtime.handlers.session_memory_command_handler import RuntimeSessionMemoryCommandHandler
 from mini_agent.runtime.live_control.session_pending_approval_state_handler import (
     RuntimeSessionPendingApprovalStateHandler,

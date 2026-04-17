@@ -7,6 +7,7 @@ from .session_snapshot_handler import (
     RuntimeSessionSnapshotImportCommand,
     RuntimeSessionSnapshotImportPlan,
 )
+from .session_managed_store_handler import RuntimeManagedSessionStoreHandler
 from .session_restore_handler import RuntimeSessionRestoreExecution, RuntimeSessionRestoreHandler
 from .session_runtime_lifecycle_handler import RuntimeSessionLifecycleHandler
 from .session_runtime_policy_coordinator import RuntimeSessionPolicyCoordinator
@@ -17,6 +18,7 @@ __all__ = [
     "RuntimeSessionHydrationCoordinator",
     "RuntimeSessionHydrationBuilder",
     "RuntimeSessionHydrationPayload",
+    "RuntimeManagedSessionStoreHandler",
     "RuntimeSessionSnapshotHandler",
     "RuntimeSessionSnapshotImportCommand",
     "RuntimeSessionSnapshotImportPlan",
