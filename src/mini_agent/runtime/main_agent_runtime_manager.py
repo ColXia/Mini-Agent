@@ -94,7 +94,7 @@ from mini_agent.runtime.runtime_policy_service import SessionRuntimePolicyServic
 from mini_agent.runtime.session_runtime_persistence import MainAgentRuntimePersistence
 from mini_agent.runtime.session_state import MainAgentSessionState
 from mini_agent.runtime.session_runtime_state_hydrator import RuntimeSessionStateHydrator
-from mini_agent.runtime.session_turn_scope_handler import RuntimeSessionTurnScopeHandler
+from mini_agent.runtime.orchestration.session_turn_scope_handler import RuntimeSessionTurnScopeHandler
 from mini_agent.runtime.session_snapshot_handler import (
     RuntimeSessionSnapshotHandler,
     RuntimeSessionSnapshotImportCommand,
