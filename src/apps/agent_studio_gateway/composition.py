@@ -7,16 +7,21 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fastapi import HTTPException
 
 from mini_agent.agent_core.engine import Agent
 from mini_agent.agent_core.kernel import AgentKernelBuildOptions, build_agent_kernel
-from mini_agent.application.channel_ingress_use_cases import ChannelIngressUseCases
 from mini_agent.application.channel_novel_action_handler import ChannelNovelActionHandler
-from mini_agent.application.main_agent_surface_service import MainAgentSurfaceService
-from mini_agent.application.session_service import SessionApplicationService
+from mini_agent.application.facades import MainAgentSurfaceService
+from mini_agent.application.legacy import (
+    RuntimeBackedSessionApplicationAssembly,
+    assemble_runtime_backed_session_application,
+    build_runtime_backed_session_service,
+)
+from mini_agent.application.use_cases import ChannelIngressUseCases
+from mini_agent.application.use_cases.run_control_application_service import RunControlApplicationService
 from mini_agent.application.use_cases.session_task_service import SessionTaskService
 from mini_agent.application.user_services.agent_user_service import AgentUserService
 from mini_agent.application.user_services.model_user_service import ModelUserService
@@ -31,6 +36,9 @@ from mini_agent.tools.mcp_loader import cleanup_mcp_connections
 from gateway.security.instance_lock import GatewayInstanceLock, GatewayInstanceLockError
 
 from .main_agent_router import MainAgentRouterDependencies
+
+if TYPE_CHECKING:
+    from mini_agent.application.legacy import SessionApplicationService
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,7 +65,10 @@ class GatewayComposition:
         self._instance_lock: GatewayInstanceLock | None = None
         self._runtime_manager: MainAgentRuntimeManager | None = None
         self._session_task_service: SessionTaskService | None = None
+        self._session_application_assembly: RuntimeBackedSessionApplicationAssembly | None = None
+        # Legacy/transitional facade: surfaces now assemble from explicit owners directly.
         self._session_service: SessionApplicationService | None = None
+        self._run_control_service: RunControlApplicationService | None = None
         self._agent_service: AgentUserService | None = None
         self._model_service: ModelUserService | None = None
         self._surface_service: MainAgentSurfaceService | Any | None = None
@@ -142,29 +153,49 @@ class GatewayComposition:
             self._session_task_service = SessionTaskService(runtime_manager=self.get_runtime_manager())
         return self._session_task_service
 
-    def get_session_service(self) -> SessionApplicationService:
-        if self._session_service is None:
-            self._session_service = SessionApplicationService(
+    def _ensure_session_application_assembly(self) -> RuntimeBackedSessionApplicationAssembly:
+        if self._session_application_assembly is None:
+            self._session_application_assembly = assemble_runtime_backed_session_application(
                 runtime_manager=self.get_runtime_manager(),
                 session_task_service=self.get_session_task_service(),
             )
+            self._run_control_service = self._session_application_assembly.run_control_service
+            self._agent_service = self._session_application_assembly.agent_service
+            self._model_service = self._session_application_assembly.model_service
+        return self._session_application_assembly
+
+    def get_session_service(self) -> SessionApplicationService:
+        if self._session_service is None:
+            assembly = self._ensure_session_application_assembly()
+            self._session_service = build_runtime_backed_session_service(
+                runtime_manager=self.get_runtime_manager(),
+                session_task_service=assembly.session_task_service,
+                run_control_service=assembly.run_control_service,
+                agent_service=assembly.agent_service,
+                model_service=assembly.model_service,
+            )
         return self._session_service
+
+    def get_run_control_service(self) -> RunControlApplicationService:
+        if self._run_control_service is None:
+            self._run_control_service = self._ensure_session_application_assembly().run_control_service
+        return self._run_control_service
 
     def get_agent_service(self) -> AgentUserService:
         if self._agent_service is None:
-            self._agent_service = self.get_session_service().agent_service
+            self._agent_service = self._ensure_session_application_assembly().agent_service
         return self._agent_service
 
     def get_model_service(self) -> ModelUserService:
         if self._model_service is None:
-            self._model_service = self.get_session_service().model_service
+            self._model_service = self._ensure_session_application_assembly().model_service
         return self._model_service
 
     def get_surface_service(self) -> MainAgentSurfaceService:
         if self._surface_service is None:
             self._surface_service = MainAgentSurfaceService(
-                session_service=self.get_session_service(),
                 session_task_service=self.get_session_task_service(),
+                run_control_service=self.get_run_control_service(),
                 agent_service=self.get_agent_service(),
                 model_service=self.get_model_service(),
                 resolve_workspace_dir=self.resolve_workspace_dir,
@@ -230,7 +261,9 @@ class GatewayComposition:
                     await self._runtime_manager.clear()
                 self._runtime_manager = None
                 self._session_task_service = None
+                self._session_application_assembly = None
                 self._session_service = None
+                self._run_control_service = None
                 self._agent_service = None
                 self._model_service = None
                 self._surface_service = None

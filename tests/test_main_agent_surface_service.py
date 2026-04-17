@@ -13,8 +13,8 @@ from mini_agent.agent_core.engine import ToolApprovalRequest, TurnExecutionResul
 from mini_agent.agent_core.runtime_bindings import get_agent_runtime_services
 from mini_agent.agent_core.session import SessionLifecyclePolicy, SessionLifecycleState, SessionResetMode
 from mini_agent.agent_core.skills.policy import WorkspaceSkillPolicyStore
-from mini_agent.application.main_agent_surface_service import MainAgentSurfaceService
-from mini_agent.application.session_service import SessionApplicationService
+from mini_agent.application.facades import MainAgentSurfaceService
+from mini_agent.application.legacy import SessionApplicationService, build_runtime_backed_session_service
 from mini_agent.config import AgentConfig, Config, LLMConfig, ToolsConfig
 from mini_agent.interfaces import (
     MainAgentChatRequest,
@@ -96,6 +96,10 @@ def _runtime_manager(**kwargs):
     if "load_runtime_config" not in kwargs:
         kwargs["load_runtime_config"] = lambda: _test_runtime_config()
     return MainAgentRuntimeManager(**kwargs)
+
+
+def _session_service(runtime_manager, **kwargs):  # noqa: ANN001
+    return build_runtime_backed_session_service(runtime_manager=runtime_manager, **kwargs)
 
 
 def test_main_agent_surface_service_is_exported_from_application_package() -> None:
@@ -420,15 +424,15 @@ def _format_bootstrap_error(exc: Exception):
 
 
 async def _import_runtime_session(
-    use_cases: MainAgentSurfaceService,
+    runtime: MainAgentRuntimeManager,
     *,
     workspace_dir: str | None,
     session_id: str | None = None,
     **kwargs: object,
 ):
-    resolved_workspace = use_cases._resolve_workspace_dir(workspace_dir)
-    use_cases._session_service._runtime_manager.validate_workspace(resolved_workspace)
-    session = await use_cases._session_service._runtime_manager.import_session_snapshot(
+    resolved_workspace = _resolve_workspace_dir(workspace_dir)
+    runtime.validate_workspace(resolved_workspace)
+    session = await runtime.import_session_snapshot(
         RuntimeSessionSnapshotImportCommand(
             session_id=session_id,
             workspace_dir=resolved_workspace,
@@ -437,20 +441,20 @@ async def _import_runtime_session(
     )
     transcript = kwargs.get("transcript")
     recent_limit = max(50, len(transcript) if isinstance(transcript, list) else 0)
-    return await use_cases._session_service._runtime_manager.get_session_detail(session.session_id, recent_limit=recent_limit)
+    return await runtime.get_session_detail(session.session_id, recent_limit=recent_limit)
 
 
-async def _export_runtime_session(use_cases: MainAgentSurfaceService, session_id: str):
-    return await use_cases._session_service._runtime_manager.export_session_snapshot(session_id)
+async def _export_runtime_session(runtime: MainAgentRuntimeManager, session_id: str):
+    return await runtime.export_session_snapshot(session_id)
 
 
 async def _activate_runtime_surface(
-    use_cases: MainAgentSurfaceService,
+    runtime: MainAgentRuntimeManager,
     session_id: str,
     *,
     surface: str,
 ) -> MainAgentSessionSummary:
-    return await use_cases._session_service._runtime_manager.set_active_surface(session_id, surface=surface)
+    return await runtime.set_active_surface(session_id, surface=surface)
 
 
 def test_use_case_chat_session_lifecycle(monkeypatch, tmp_path: Path) -> None:
@@ -462,7 +466,7 @@ def test_use_case_chat_session_lifecycle(monkeypatch, tmp_path: Path) -> None:
 
         runtime = _runtime_manager(ttl_seconds=3600, build_agent=_build_agent)
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -501,7 +505,7 @@ def test_use_case_tracks_shared_session_metadata_and_recent_messages() -> None:
 
         runtime = _runtime_manager(ttl_seconds=3600, build_agent=_build_agent)
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -541,7 +545,7 @@ def test_use_case_tracks_shared_session_metadata_and_recent_messages() -> None:
         assert latest[0].role == "assistant"
         assert latest[0].content == "mock:hello from qq"
 
-        activated = await _activate_runtime_surface(use_cases, "sess-qq", surface="tui")
+        activated = await _activate_runtime_surface(runtime, "sess-qq", surface="tui")
         assert activated.active_surface == "tui"
 
         second = await use_cases.run_chat(
@@ -578,7 +582,7 @@ def test_use_case_can_import_local_session_snapshot(tmp_path: Path) -> None:
             storage_dir=tmp_path / "import-session-store",
         )
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -587,7 +591,7 @@ def test_use_case_can_import_local_session_snapshot(tmp_path: Path) -> None:
         )
 
         detail = await _import_runtime_session(
-            use_cases,
+            runtime,
                 workspace_dir=".",
                 title="Local Draft",
                 origin_surface="tui",
@@ -646,7 +650,7 @@ def test_use_case_import_session_restores_runtime_task_memory_payload(
             storage_dir=tmp_path / "import-session-store-rtm",
         )
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=lambda workspace_dir: Path(str(workspace_dir or workspace)).resolve(),
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -655,7 +659,7 @@ def test_use_case_import_session_restores_runtime_task_memory_payload(
         )
 
         detail = await _import_runtime_session(
-            use_cases,
+            runtime,
                 workspace_dir=str(workspace),
                 title="Local Draft",
                 origin_surface="tui",
@@ -703,7 +707,7 @@ def test_use_case_import_session_merges_workspace_shared_runtime_task_memory_pay
             storage_dir=tmp_path / "import-session-store-shared-rtm",
         )
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=lambda workspace_dir: Path(str(workspace_dir or workspace)).resolve(),
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -712,7 +716,7 @@ def test_use_case_import_session_merges_workspace_shared_runtime_task_memory_pay
         )
 
         detail = await _import_runtime_session(
-            use_cases,
+            runtime,
                 workspace_dir=str(workspace),
                 title="Local Draft",
                 origin_surface="tui",
@@ -742,7 +746,7 @@ def test_use_case_can_export_shared_session_snapshot(tmp_path: Path) -> None:
             storage_dir=tmp_path / "export-session-store",
         )
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -751,7 +755,7 @@ def test_use_case_can_export_shared_session_snapshot(tmp_path: Path) -> None:
         )
 
         detail = await _import_runtime_session(
-            use_cases,
+            runtime,
                 workspace_dir=".",
                 title="Local Draft",
                 origin_surface="tui",
@@ -769,7 +773,7 @@ def test_use_case_can_export_shared_session_snapshot(tmp_path: Path) -> None:
                 ],
         )
 
-        snapshot = await _export_runtime_session(use_cases, detail.session_id)
+        snapshot = await _export_runtime_session(runtime, detail.session_id)
         assert snapshot.title == "Local Draft"
         assert snapshot.origin_surface == "tui"
         assert snapshot.token_usage == 2048
@@ -855,7 +859,7 @@ def test_use_case_export_session_includes_runtime_task_memory_payload(
             storage_dir=tmp_path / "export-session-store-rtm",
         )
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=lambda workspace_dir: Path(str(workspace_dir or workspace)).resolve(),
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -864,7 +868,7 @@ def test_use_case_export_session_includes_runtime_task_memory_payload(
         )
 
         detail = await _import_runtime_session(
-            use_cases,
+            runtime,
                 workspace_dir=str(workspace),
                 title="Local Draft",
                 origin_surface="tui",
@@ -877,7 +881,7 @@ def test_use_case_export_session_includes_runtime_task_memory_payload(
             content="exported shared session snapshots should include runtime task memory payload",
         )
 
-        snapshot = await _export_runtime_session(use_cases, detail.session_id)
+        snapshot = await _export_runtime_session(runtime, detail.session_id)
 
         assert snapshot.runtime_task_memory_payload["entry_count"] >= 1
         engine_payload = snapshot.runtime_task_memory_payload.get("engine")
@@ -905,7 +909,7 @@ def test_use_case_export_session_includes_workspace_shared_runtime_task_memory_p
             storage_dir=tmp_path / "export-session-store-shared-rtm",
         )
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=lambda workspace_dir: Path(str(workspace_dir or workspace)).resolve(),
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -914,7 +918,7 @@ def test_use_case_export_session_includes_workspace_shared_runtime_task_memory_p
         )
 
         detail = await _import_runtime_session(
-            use_cases,
+            runtime,
                 workspace_dir=str(workspace),
                 title="Local Draft",
                 origin_surface="tui",
@@ -926,7 +930,7 @@ def test_use_case_export_session_includes_workspace_shared_runtime_task_memory_p
             content="exported shared session snapshots should include workspace-shared runtime task memory payload",
         )
 
-        snapshot = await _export_runtime_session(use_cases, detail.session_id)
+        snapshot = await _export_runtime_session(runtime, detail.session_id)
 
         assert snapshot.workspace_shared_runtime_memory_payload["entry_count"] >= 1
         engine_payload = snapshot.workspace_shared_runtime_memory_payload.get("engine")
@@ -1151,7 +1155,7 @@ def test_use_case_can_list_and_refresh_shared_session_skills(tmp_path: Path) -> 
             storage_dir=tmp_path / "skill-selection-store",
         )
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=lambda value: Path(str(value or workspace_dir)).resolve(),
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -1160,7 +1164,7 @@ def test_use_case_can_list_and_refresh_shared_session_skills(tmp_path: Path) -> 
         )
 
         detail = await _import_runtime_session(
-            use_cases,
+            runtime,
                 workspace_dir=str(workspace_dir),
                 title="Remote Skill Test",
                 origin_surface="qq",
@@ -1266,7 +1270,7 @@ def test_use_case_can_manage_shared_session_skill_policy(tmp_path: Path) -> None
             storage_dir=tmp_path / "skill-policy-store",
         )
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=lambda value: Path(str(value or workspace_dir)).resolve(),
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -1275,7 +1279,7 @@ def test_use_case_can_manage_shared_session_skill_policy(tmp_path: Path) -> None
         )
 
         detail = await _import_runtime_session(
-            use_cases,
+            runtime,
                 workspace_dir=str(workspace_dir),
                 title="Remote Skill Policy Test",
                 origin_surface="qq",
@@ -1399,7 +1403,7 @@ def test_use_case_can_install_workspace_skill_for_shared_session(tmp_path: Path)
             storage_dir=tmp_path / "skill-install-store",
         )
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=lambda value: Path(str(value or workspace_dir)).resolve(),
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -1408,7 +1412,7 @@ def test_use_case_can_install_workspace_skill_for_shared_session(tmp_path: Path)
         )
 
         detail = await _import_runtime_session(
-            use_cases,
+            runtime,
                 workspace_dir=str(workspace_dir),
                 title="Remote Skill Install Test",
                 origin_surface="qq",
@@ -1508,7 +1512,7 @@ def test_use_case_can_uninstall_and_rollback_workspace_skill_for_shared_session(
             storage_dir=tmp_path / "skill-uninstall-rollback-store",
         )
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=lambda value: Path(str(value or workspace_dir)).resolve(),
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -1517,7 +1521,7 @@ def test_use_case_can_uninstall_and_rollback_workspace_skill_for_shared_session(
         )
 
         detail = await _import_runtime_session(
-            use_cases,
+            runtime,
                 workspace_dir=str(workspace_dir),
                 title="Remote Skill Uninstall Test",
                 origin_surface="qq",
@@ -1641,7 +1645,7 @@ def test_use_case_updates_shared_session_skill_policy_while_busy_without_rebuild
             storage_dir=tmp_path / "skill-policy-busy-store",
         )
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=lambda value: Path(str(value or workspace_dir)).resolve(),
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -1650,7 +1654,7 @@ def test_use_case_updates_shared_session_skill_policy_while_busy_without_rebuild
         )
 
         detail = await _import_runtime_session(
-            use_cases,
+            runtime,
                 workspace_dir=str(workspace_dir),
                 title="Remote Busy Skill Policy Test",
                 origin_surface="qq",
@@ -1667,7 +1671,7 @@ def test_use_case_updates_shared_session_skill_policy_while_busy_without_rebuild
                 ],
         )
         sibling = await _import_runtime_session(
-            use_cases,
+            runtime,
                 workspace_dir=str(workspace_dir),
                 title="Sibling Skill Policy Test",
                 origin_surface="qq",
@@ -1746,7 +1750,7 @@ def test_use_case_returns_not_found_for_missing_shared_session_skill(tmp_path: P
             load_runtime_config=lambda: config,
         )
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=lambda value: Path(str(value or workspace_dir)).resolve(),
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -1755,7 +1759,7 @@ def test_use_case_returns_not_found_for_missing_shared_session_skill(tmp_path: P
         )
 
         detail = await _import_runtime_session(
-            use_cases,
+            runtime,
                 workspace_dir=str(workspace_dir),
                 title="Remote Missing Skill Test",
                 origin_surface="qq",
@@ -1807,7 +1811,7 @@ def test_use_case_rejects_invalid_shared_session_skill_mode(tmp_path: Path) -> N
             load_runtime_config=lambda: config,
         )
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=lambda value: Path(str(value or workspace_dir)).resolve(),
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -1816,7 +1820,7 @@ def test_use_case_rejects_invalid_shared_session_skill_mode(tmp_path: Path) -> N
         )
 
         detail = await _import_runtime_session(
-            use_cases,
+            runtime,
                 workspace_dir=str(workspace_dir),
                 title="Remote Invalid Skill Mode Test",
                 origin_surface="qq",
@@ -1859,7 +1863,7 @@ def test_use_case_reports_shared_session_skill_support_disabled(tmp_path: Path) 
             load_runtime_config=lambda: config,
         )
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=lambda value: Path(str(value or workspace_dir)).resolve(),
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -1868,7 +1872,7 @@ def test_use_case_reports_shared_session_skill_support_disabled(tmp_path: Path) 
         )
 
         detail = await _import_runtime_session(
-            use_cases,
+            runtime,
                 workspace_dir=str(workspace_dir),
                 title="Remote Disabled Skill Test",
                 origin_surface="qq",
@@ -1899,7 +1903,7 @@ def test_use_case_reports_shared_session_skill_catalog_unavailable(tmp_path: Pat
             build_agent=lambda _workspace: asyncio.sleep(0, result=_SelectableAgent(provider_source="preset", provider_id="openai", model_id="gpt-5.4")),
         )
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=lambda value: Path(str(value or workspace_dir)).resolve(),
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -1908,7 +1912,7 @@ def test_use_case_reports_shared_session_skill_catalog_unavailable(tmp_path: Pat
         )
 
         detail = await _import_runtime_session(
-            use_cases,
+            runtime,
                 workspace_dir=str(workspace_dir),
                 title="Remote Unavailable Skill Test",
                 origin_surface="qq",
@@ -1962,7 +1966,7 @@ def test_use_case_can_update_shared_session_model_selection(tmp_path: Path) -> N
             storage_dir=tmp_path / "model-selection-store",
         )
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -1971,7 +1975,7 @@ def test_use_case_can_update_shared_session_model_selection(tmp_path: Path) -> N
         )
 
         detail = await _import_runtime_session(
-            use_cases,
+            runtime,
                 workspace_dir=".",
                 title="Remote Model Test",
                 origin_surface="qq",
@@ -2055,7 +2059,7 @@ def test_use_case_can_update_shared_session_model_selection_without_provider_sou
             storage_dir=tmp_path / "shared-model-selection-inferred-store",
         )
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -2064,7 +2068,7 @@ def test_use_case_can_update_shared_session_model_selection_without_provider_sou
         )
 
         detail = await _import_runtime_session(
-            use_cases,
+            runtime,
             workspace_dir=str(tmp_path / "workspace"),
             title="Remote Model Selection Inferred Source Test",
             origin_surface="qq",
@@ -2130,7 +2134,7 @@ def test_use_case_queued_shared_session_model_applies_on_next_turn(tmp_path: Pat
             storage_dir=tmp_path / "queued-model-selection-store",
         )
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -2188,7 +2192,7 @@ def test_use_case_can_update_shared_session_runtime_policy(tmp_path: Path, monke
             storage_dir=tmp_path / "runtime-policy-store",
         )
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -2260,7 +2264,7 @@ def test_use_case_rejects_runtime_policy_change_while_busy_without_pending_appro
             storage_dir=tmp_path / "runtime-policy-busy-store",
         )
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -2297,7 +2301,7 @@ def test_use_case_persisted_interrupted_session_exposes_recovery_snapshot_after_
             storage_dir=tmp_path / "recovery-store",
         )
         _use_cases_first = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime_first),
+            session_service=_session_service(runtime_first),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -2342,7 +2346,7 @@ def test_use_case_persisted_interrupted_session_exposes_recovery_snapshot_after_
             storage_dir=tmp_path / "recovery-store",
         )
         use_cases_second = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime_second),
+            session_service=_session_service(runtime_second),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -2430,7 +2434,7 @@ def test_use_case_restarted_shared_session_keeps_recovery_until_next_turn_consum
             storage_dir=store_dir,
         )
         use_cases_second = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime_second),
+            session_service=_session_service(runtime_second),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -2443,7 +2447,7 @@ def test_use_case_restarted_shared_session_keeps_recovery_until_next_turn_consum
         assert detail.recovery.state == "interrupted"
         assert detail.recovery.pending_approvals[0].token == "approval-restart-1"
 
-        activated = await _activate_runtime_surface(use_cases_second, "sess-recovery-continue", surface="tui")
+        activated = await _activate_runtime_surface(runtime_second, "sess-recovery-continue", surface="tui")
         assert activated.active_surface == "tui"
         detail_after_takeover = await use_cases_second.get_session_detail("sess-recovery-continue", recent_limit=10)
         assert detail_after_takeover.recovery is not None
@@ -2531,7 +2535,7 @@ def test_use_case_records_activity_transcript_for_shared_sessions() -> None:
             load_runtime_config=lambda: object(),
         )
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -2577,7 +2581,7 @@ def test_use_case_control_session_compact_keeps_existing_surface_and_records_com
 
         runtime = _runtime_manager(ttl_seconds=3600, build_agent=_build_agent)
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -2636,7 +2640,7 @@ def test_use_case_control_session_drop_memories_routes_to_agent_method() -> None
 
         runtime = _runtime_manager(ttl_seconds=3600, build_agent=_build_agent)
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -2685,7 +2689,7 @@ def test_use_case_control_session_can_toggle_knowledge_base() -> None:
 
         runtime = _runtime_manager(ttl_seconds=3600, build_agent=_build_agent)
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -2734,7 +2738,7 @@ def test_use_case_control_session_mcp_list_records_operator_snapshot(monkeypatch
 
         runtime = _runtime_manager(ttl_seconds=3600, build_agent=_build_agent)
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -2825,7 +2829,7 @@ def test_use_case_control_session_mcp_reload_rebuilds_session_agent(monkeypatch,
             storage_dir=tmp_path / "mcp-reload-store",
         )
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -2910,7 +2914,7 @@ def test_use_case_control_session_rejects_busy_shared_session() -> None:
 
         runtime = _runtime_manager(ttl_seconds=3600, build_agent=_build_agent)
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -2940,7 +2944,7 @@ def test_use_case_update_session_context_persists_and_applies_on_next_turn() -> 
 
         runtime = _runtime_manager(ttl_seconds=3600, build_agent=_build_agent)
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -3005,7 +3009,7 @@ def test_use_case_update_session_context_budget_and_reset() -> None:
 
         runtime = _runtime_manager(ttl_seconds=3600, build_agent=_build_agent)
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -3061,7 +3065,7 @@ def test_use_case_rejects_context_update_while_busy() -> None:
 
         runtime = _runtime_manager(ttl_seconds=3600, build_agent=_build_agent)
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -3101,7 +3105,7 @@ def test_use_case_manage_session_memory_reports_runtime_entries_and_can_promote_
             storage_dir=tmp_path / "memory-session-store",
         )
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=lambda workspace_dir: workspace if workspace_dir else workspace,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -3273,7 +3277,7 @@ def test_use_case_manage_session_memory_can_save_distilled_note_and_profile(
             storage_dir=tmp_path / "memory-save-store",
         )
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=lambda workspace_dir: workspace if workspace_dir else workspace,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -3377,7 +3381,7 @@ def test_use_case_manage_session_memory_can_view_durable_profile_notes_and_daily
             storage_dir=tmp_path / "memory-view-store",
         )
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=lambda workspace_dir: workspace if workspace_dir else workspace,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -3464,7 +3468,7 @@ def test_use_case_manage_session_memory_can_view_consolidated_memory(
             storage_dir=tmp_path / "memory-consolidated-store",
         )
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=lambda workspace_dir: workspace if workspace_dir else workspace,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -3542,7 +3546,7 @@ def test_use_case_manage_session_memory_can_view_memory_overview_and_export(
             storage_dir=tmp_path / "memory-overview-store",
         )
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=lambda workspace_dir: workspace if workspace_dir else workspace,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -3686,7 +3690,7 @@ def test_use_case_cancel_session_requests_running_turn_without_waiting_for_turn_
 
         runtime = _runtime_manager(ttl_seconds=3600, build_agent=_build_agent)
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -3754,7 +3758,7 @@ def test_use_case_remote_approval_resolves_pending_shared_session_turn() -> None
 
         runtime = _runtime_manager(ttl_seconds=3600, build_agent=_build_agent)
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -3942,6 +3946,199 @@ def test_surface_service_prefers_injected_session_task_service_for_session_entry
     asyncio.run(_run())
 
 
+def test_surface_service_can_run_with_explicit_services_without_session_facade() -> None:
+    class _SessionTaskServiceStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        def validate_workspace(self, workspace_dir: Path) -> None:
+            self.calls.append(("validate_workspace", workspace_dir))
+
+        async def list_sessions(self, *, workspace_dir=None, shared_only=False):  # noqa: ANN001, ANN003
+            self.calls.append(("list_sessions", workspace_dir, shared_only))
+            now = datetime.now(timezone.utc).isoformat()
+            return [
+                MainAgentSessionSummary(
+                    session_id="sess-explicit-1",
+                    title="Explicit Session",
+                    workspace_dir=str(workspace_dir),
+                    created_at=now,
+                    updated_at=now,
+                    message_count=0,
+                    token_usage=0,
+                    token_limit=0,
+                    active_surface="desktop",
+                    origin_surface="desktop",
+                    shared=False,
+                )
+            ]
+
+    class _RunControlServiceStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        async def cancel_session_run(self, session_id: str, **kwargs):
+            self.calls.append(("cancel_session_run", session_id, kwargs))
+            return MainAgentSessionMutationResponse(status="cancel_requested", session_id=session_id)
+
+        async def approve_session_wait(self, session_id: str, **kwargs):
+            self.calls.append(("approve_session_wait", session_id, kwargs))
+            return MainAgentSessionApprovalResponse(
+                status="resolved",
+                session_id=session_id,
+                token=str(kwargs.get("token") or ""),
+                tool_name="shell",
+                decision="approved",
+            )
+
+        async def deny_session_wait(self, session_id: str, **kwargs):
+            self.calls.append(("deny_session_wait", session_id, kwargs))
+            return MainAgentSessionApprovalResponse(
+                status="resolved",
+                session_id=session_id,
+                token=str(kwargs.get("token") or ""),
+                tool_name="shell",
+                decision="denied",
+            )
+
+    class _AgentServiceStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        async def control_session(self, session_id: str, **kwargs):
+            self.calls.append(("control_session", session_id, kwargs))
+            return MainAgentSessionControlResponse(
+                status="controlled",
+                session_id=session_id,
+                action=str(kwargs.get("action") or ""),
+                applied=True,
+                active_surface="desktop",
+            )
+
+    class _ModelServiceStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        async def update_session_model_selection(self, session_id: str, **kwargs):
+            self.calls.append(("update_session_model_selection", session_id, kwargs))
+            return MainAgentSessionModelSelectionResponse(
+                status="selected",
+                session_id=session_id,
+                active_surface="desktop",
+                applied=True,
+                queued=False,
+                selected_model_source=str(kwargs.get("provider_source") or ""),
+                selected_provider_id=str(kwargs.get("provider_id") or ""),
+                selected_model_id=str(kwargs.get("model_id") or ""),
+            )
+
+    async def _run() -> None:
+        session_task_service = _SessionTaskServiceStub()
+        run_control_service = _RunControlServiceStub()
+        agent_service = _AgentServiceStub()
+        model_service = _ModelServiceStub()
+        use_cases = MainAgentSurfaceService(
+            session_task_service=session_task_service,
+            run_control_service=run_control_service,
+            agent_service=agent_service,
+            model_service=model_service,
+            resolve_workspace_dir=_resolve_workspace_dir,
+            to_utc_iso=_to_utc_iso,
+            sse_event=_sse_event,
+            format_bootstrap_error=_format_bootstrap_error,
+            stream_chunk_size=64,
+        )
+
+        sessions = await use_cases.list_sessions(workspace_dir=".", shared_only=True)
+        cancelled = await use_cases.cancel_session(
+            "sess-explicit-1",
+            MainAgentSessionCancelRequest(reason="stop", surface="desktop"),
+        )
+        controlled = await use_cases.control_session(
+            "sess-explicit-1",
+            MainAgentSessionControlRequest(action="compact", surface="desktop"),
+        )
+        selected = await use_cases.update_session_model_selection(
+            "sess-explicit-1",
+            MainAgentSessionModelSelectionRequest(
+                provider_source="preset",
+                provider_id="openai",
+                model_id="gpt-5.4",
+                surface="desktop",
+            ),
+        )
+        approved = await use_cases.respond_to_approval(
+            "sess-explicit-1",
+            MainAgentSessionApprovalRequest(approved=True, token="approval-1", surface="desktop"),
+        )
+
+        assert [item.session_id for item in sessions] == ["sess-explicit-1"]
+        assert cancelled.status == "cancel_requested"
+        assert controlled.action == "compact"
+        assert selected.selected_model_id == "gpt-5.4"
+        assert approved.decision == "approved"
+        assert session_task_service.calls == [
+            ("list_sessions", Path(".").resolve(), True),
+        ]
+        assert run_control_service.calls == [
+            (
+                "cancel_session_run",
+                "sess-explicit-1",
+                {
+                    "reason": "stop",
+                    "source": "desktop",
+                    "surface": "desktop",
+                    "channel_type": None,
+                    "conversation_id": None,
+                    "sender_id": None,
+                },
+            ),
+            (
+                "approve_session_wait",
+                "sess-explicit-1",
+                {
+                    "token": "approval-1",
+                    "source": "desktop",
+                    "surface": "desktop",
+                    "channel_type": None,
+                    "conversation_id": None,
+                    "sender_id": None,
+                },
+            ),
+        ]
+        assert agent_service.calls == [
+            (
+                "control_session",
+                "sess-explicit-1",
+                {
+                    "action": "compact",
+                    "reason": None,
+                    "surface": "desktop",
+                    "channel_type": None,
+                    "conversation_id": None,
+                    "sender_id": None,
+                },
+            )
+        ]
+        assert model_service.calls == [
+            (
+                "update_session_model_selection",
+                "sess-explicit-1",
+                {
+                    "provider_source": "preset",
+                    "provider_id": "openai",
+                    "model_id": "gpt-5.4",
+                    "surface": "desktop",
+                    "channel_type": None,
+                    "conversation_id": None,
+                    "sender_id": None,
+                },
+            )
+        ]
+
+    asyncio.run(_run())
+
+
 def test_surface_service_prefers_injected_agent_service_for_run_control_entrypoints() -> None:
     class _FailingSessionService:
         async def cancel_session(self, session_id: str, request):  # noqa: ANN001
@@ -3952,7 +4149,7 @@ def test_surface_service_prefers_injected_agent_service_for_run_control_entrypoi
                 f"session_service.respond_to_approval should not be called for {session_id}: {request}"
             )
 
-    class _AgentServiceStub:
+    class _RunControlServiceStub:
         def __init__(self) -> None:
             self.calls: list[tuple[str, object]] = []
 
@@ -3987,10 +4184,10 @@ def test_surface_service_prefers_injected_agent_service_for_run_control_entrypoi
             )
 
     async def _run() -> None:
-        agent_service = _AgentServiceStub()
+        run_control_service = _RunControlServiceStub()
         use_cases = MainAgentSurfaceService(
             session_service=_FailingSessionService(),
-            agent_service=agent_service,
+            run_control_service=run_control_service,
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -4028,7 +4225,7 @@ def test_surface_service_prefers_injected_agent_service_for_run_control_entrypoi
         assert cancel.status == "cancel_requested"
         assert approved.decision == "approved"
         assert denied.decision == "denied"
-        assert agent_service.calls == [
+        assert run_control_service.calls == [
             (
                 "cancel_session_run",
                 "sess-agent-service",
@@ -4056,6 +4253,116 @@ def test_surface_service_prefers_injected_agent_service_for_run_control_entrypoi
             (
                 "deny_session_wait",
                 "sess-agent-service",
+                {
+                    "token": "approval-2",
+                    "source": "desktop",
+                    "surface": "desktop",
+                    "channel_type": None,
+                    "conversation_id": None,
+                    "sender_id": None,
+                },
+            ),
+        ]
+
+    asyncio.run(_run())
+
+
+def test_surface_service_prefers_session_service_run_control_owner_when_available() -> None:
+    class _RunControlServiceStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        async def cancel_session_run(self, session_id: str, **kwargs):
+            self.calls.append(("cancel_session_run", session_id, kwargs))
+            return MainAgentSessionMutationResponse(status="cancel_requested", session_id=session_id)
+
+        async def approve_session_wait(self, session_id: str, **kwargs):
+            self.calls.append(("approve_session_wait", session_id, kwargs))
+            return MainAgentSessionApprovalResponse(
+                status="resolved",
+                session_id=session_id,
+                token=str(kwargs.get("token") or ""),
+                tool_name="shell",
+                decision="approved",
+            )
+
+        async def deny_session_wait(self, session_id: str, **kwargs):
+            self.calls.append(("deny_session_wait", session_id, kwargs))
+            return MainAgentSessionApprovalResponse(
+                status="resolved",
+                session_id=session_id,
+                token=str(kwargs.get("token") or ""),
+                tool_name="shell",
+                decision="denied",
+            )
+
+    class _SessionServiceStub:
+        def __init__(self) -> None:
+            self.run_control_service = _RunControlServiceStub()
+
+        async def cancel_session(self, session_id: str, request):  # noqa: ANN001
+            raise AssertionError(f"legacy session_service.cancel_session should not be called for {session_id}: {request}")
+
+        async def respond_to_approval(self, session_id: str, request):  # noqa: ANN001
+            raise AssertionError(
+                f"legacy session_service.respond_to_approval should not be called for {session_id}: {request}"
+            )
+
+    async def _run() -> None:
+        session_service = _SessionServiceStub()
+        use_cases = MainAgentSurfaceService(
+            session_service=session_service,
+            resolve_workspace_dir=_resolve_workspace_dir,
+            to_utc_iso=_to_utc_iso,
+            sse_event=_sse_event,
+            format_bootstrap_error=_format_bootstrap_error,
+            stream_chunk_size=64,
+        )
+
+        cancel = await use_cases.cancel_session(
+            "sess-run-owner",
+            MainAgentSessionCancelRequest(reason="stop", surface="desktop"),
+        )
+        approved = await use_cases.respond_to_approval(
+            "sess-run-owner",
+            MainAgentSessionApprovalRequest(approved=True, token="approval-1", surface="desktop"),
+        )
+        denied = await use_cases.respond_to_approval(
+            "sess-run-owner",
+            MainAgentSessionApprovalRequest(approved=False, token="approval-2", surface="desktop"),
+        )
+
+        assert cancel.status == "cancel_requested"
+        assert approved.decision == "approved"
+        assert denied.decision == "denied"
+        assert session_service.run_control_service.calls == [
+            (
+                "cancel_session_run",
+                "sess-run-owner",
+                {
+                    "reason": "stop",
+                    "source": "desktop",
+                    "surface": "desktop",
+                    "channel_type": None,
+                    "conversation_id": None,
+                    "sender_id": None,
+                },
+            ),
+            (
+                "approve_session_wait",
+                "sess-run-owner",
+                {
+                    "token": "approval-1",
+                    "source": "desktop",
+                    "surface": "desktop",
+                    "channel_type": None,
+                    "conversation_id": None,
+                    "sender_id": None,
+                },
+            ),
+            (
+                "deny_session_wait",
+                "sess-run-owner",
                 {
                     "token": "approval-2",
                     "source": "desktop",
@@ -4500,7 +4807,7 @@ def test_use_case_shared_session_survives_runtime_restart(tmp_path: Path) -> Non
             storage_dir=storage_dir,
         )
         use_cases_first = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime_first),
+            session_service=_session_service(runtime_first),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -4527,7 +4834,7 @@ def test_use_case_shared_session_survives_runtime_restart(tmp_path: Path) -> Non
             storage_dir=storage_dir,
         )
         use_cases_second = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime_second),
+            session_service=_session_service(runtime_second),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -4546,7 +4853,7 @@ def test_use_case_shared_session_survives_runtime_restart(tmp_path: Path) -> Non
             "mock:hello from qq",
         ]
 
-        activated = await _activate_runtime_surface(use_cases_second, "sess-persist", surface="tui")
+        activated = await _activate_runtime_surface(runtime_second, "sess-persist", surface="tui")
         assert activated.active_surface == "tui"
 
         second = await use_cases_second.run_chat(
@@ -4577,7 +4884,7 @@ def test_use_case_stream_dry_run_emits_done() -> None:
 
         runtime = _runtime_manager(ttl_seconds=3600, build_agent=_build_agent)
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -4777,7 +5084,7 @@ def test_use_case_dry_run_also_enforces_single_main_workspace() -> None:
             ),
         )
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -4862,7 +5169,7 @@ def test_use_case_chat_without_session_id_falls_back_to_default_session(tmp_path
             policy=MainAgentRuntimePolicy(mode=MainAgentRuntimeMode.SINGLE_MAIN),
         )
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -4902,7 +5209,7 @@ def test_use_case_chat_default_session_ignores_title_hint(tmp_path: Path) -> Non
             storage_dir=tmp_path / "title-hint-store",
         )
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -5113,7 +5420,7 @@ def test_use_case_stream_emits_activity_events_for_main_route() -> None:
 
         runtime = _runtime_manager(ttl_seconds=3600, build_agent=_build_agent)
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -5141,7 +5448,7 @@ def test_use_case_stream_prefers_live_llm_delta_events_without_replay_duplicatio
             return _StreamingAgent()
 
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=_runtime_manager(ttl_seconds=3600, build_agent=_build_agent)),
+            session_service=_session_service(_runtime_manager(ttl_seconds=3600, build_agent=_build_agent)),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=lambda event, data: f"event: {event}\ndata: {data}\n\n",
@@ -5260,7 +5567,7 @@ def test_use_case_chat_delegation_success_runs_sub_agent() -> None:
 
         runtime = _runtime_manager(ttl_seconds=3600, build_agent=_build_agent)
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -5305,7 +5612,7 @@ def test_use_case_can_create_explicit_derived_session() -> None:
 
         runtime = _runtime_manager(ttl_seconds=3600, build_agent=_build_agent)
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -5345,7 +5652,7 @@ def test_use_case_chat_delegation_requires_objective() -> None:
 
         runtime = _runtime_manager(ttl_seconds=3600, build_agent=_build_agent)
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -5379,7 +5686,7 @@ def test_use_case_chat_delegation_failure_falls_back_to_main_agent() -> None:
 
         runtime = _runtime_manager(ttl_seconds=3600, build_agent=_build_agent)
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -5426,7 +5733,7 @@ def test_use_case_stream_delegation_emits_started_failed_and_completed_events() 
 
         runtime = _runtime_manager(ttl_seconds=3600, build_agent=_build_agent)
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=lambda event, data: f"event: {event}\ndata: {data}\n\n",
@@ -5497,7 +5804,7 @@ def test_use_case_routing_diagnostics_tracks_hits_cache_and_fallback(monkeypatch
 
         runtime = _runtime_manager(ttl_seconds=3600, build_agent=_build_agent)
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -5539,7 +5846,7 @@ def test_use_case_chat_long_session_stability() -> None:
 
         runtime = _runtime_manager(ttl_seconds=3600, build_agent=_build_agent)
         use_cases = MainAgentSurfaceService(
-            session_service=SessionApplicationService(runtime_manager=runtime),
+            session_service=_session_service(runtime),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -5565,3 +5872,4 @@ def test_use_case_chat_long_session_stability() -> None:
         assert last.reply == f"mock:long-session-{total_turns - 1}"
 
     asyncio.run(_run())
+

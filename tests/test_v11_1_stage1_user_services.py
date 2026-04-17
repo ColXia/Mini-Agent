@@ -2,6 +2,12 @@ from __future__ import annotations
 
 import pytest
 
+from mini_agent.application.facades import MainAgentSurfaceService as FacadeMainAgentSurfaceService
+from mini_agent.application.legacy import (
+    SessionApplicationService as LegacySessionApplicationService,
+    SessionTaskCompatibilityAdapter as LegacySessionTaskCompatibilityAdapter,
+    build_runtime_backed_session_service as legacy_build_runtime_backed_session_service,
+)
 from mini_agent.application.ports import (
     AgentRuntimePort,
     ModelRuntimePort,
@@ -13,6 +19,14 @@ from mini_agent.application.ports import (
     SessionTaskPort,
     WorkspaceRuntimePort,
 )
+from mini_agent.application.support import (
+    ApplicationInteractionBinding,
+    FormatBootstrapErrorFn,
+    ManagedSessionTurn,
+    ResolveWorkspaceDirFn,
+    SseEventFn,
+    ToUtcIsoFn,
+)
 from mini_agent.application.use_cases import RunControlApplicationService
 from mini_agent.application.user_services import (
     AgentUserService,
@@ -20,6 +34,10 @@ from mini_agent.application.user_services import (
     ModelUserService,
     WorkspaceUserService,
 )
+from mini_agent.application.main_agent_surface_service import MainAgentSurfaceService
+from mini_agent.application.session_runtime_compat import SessionTaskCompatibilityAdapter
+from mini_agent.application.session_service import SessionApplicationService
+from mini_agent.application.session_service_assembly import build_runtime_backed_session_service
 
 
 class RunRuntimeStub:
@@ -560,3 +578,16 @@ def test_stage1_port_packages_export_expected_contracts() -> None:
     assert SessionTaskRuntimePort is not None
     assert SessionTaskPort is not None
     assert WorkspaceRuntimePort is not None
+
+
+def test_stage1_namespace_packages_reexport_transitional_modules() -> None:
+    assert FacadeMainAgentSurfaceService is MainAgentSurfaceService
+    assert LegacySessionApplicationService is SessionApplicationService
+    assert LegacySessionTaskCompatibilityAdapter is SessionTaskCompatibilityAdapter
+    assert legacy_build_runtime_backed_session_service is build_runtime_backed_session_service
+    assert ApplicationInteractionBinding is not None
+    assert ManagedSessionTurn is not None
+    assert ResolveWorkspaceDirFn is not None
+    assert ToUtcIsoFn is not None
+    assert SseEventFn is not None
+    assert FormatBootstrapErrorFn is not None

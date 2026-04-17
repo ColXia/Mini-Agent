@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from mini_agent.application.interaction_request_adapter import ApplicationInteractionBinding
+from mini_agent.application.support import ApplicationInteractionBinding
 from mini_agent.interfaces import ChannelMessageRequest, MainAgentChatRequest, MainAgentSessionApprovalRequest
 
 

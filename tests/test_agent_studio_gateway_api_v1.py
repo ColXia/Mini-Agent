@@ -10,8 +10,8 @@ from uuid import uuid4
 
 import apps.agent_studio_gateway.main as gateway_main
 from apps.agent_studio_gateway.main import app
-from mini_agent.application.channel_ingress_use_cases import ChannelIngressUseCases
 from mini_agent.application.channel_novel_action_handler import ChannelNovelActionHandler
+from mini_agent.application.use_cases import ChannelIngressUseCases
 from mini_agent.interfaces import (
     MainAgentChatRequest,
     MainAgentChatResponse,

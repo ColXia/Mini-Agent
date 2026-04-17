@@ -7,8 +7,7 @@ from typing import Any
 
 from mini_agent.agent_core.engine import Agent
 from mini_agent.application.ports.session_task_runtime_port import SessionTaskRuntimePort
-from mini_agent.application.interaction_request_adapter import ApplicationInteractionBinding
-from mini_agent.application.managed_session_turn import ManagedSessionTurn
+from mini_agent.application.support import ApplicationInteractionBinding, ManagedSessionTurn
 from mini_agent.interfaces import (
     MainAgentDefaultSessionRequest,
     MainAgentSessionCreateRequest,

@@ -30,7 +30,7 @@ from mini_agent.application.surface_chat_flow_handler import (
     SurfaceChatExecutionResult,
     SurfaceChatStreamEvent,
 )
-from mini_agent.application.managed_session_turn import ManagedSessionTurn
+from mini_agent.application.support import ManagedSessionTurn
 from mini_agent.interfaces import MainAgentRoutingDiagnostics
 from mini_agent.model_manager.runtime import get_model_route_diagnostics_state
 

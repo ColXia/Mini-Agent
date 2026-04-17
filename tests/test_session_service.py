@@ -4,8 +4,12 @@ import asyncio
 from pathlib import Path
 from types import SimpleNamespace
 
-from mini_agent.application.interaction_request_adapter import ApplicationInteractionBinding
-from mini_agent.application.session_service import SessionApplicationService
+from mini_agent.application.legacy import (
+    SessionApplicationService,
+    build_runtime_backed_session_service,
+    build_typed_session_service,
+)
+from mini_agent.application.support import ApplicationInteractionBinding
 from mini_agent.config import AgentConfig, Config, LLMConfig, ToolsConfig
 from mini_agent.interfaces import (
     MainAgentSessionApprovalRequest,
@@ -59,6 +63,10 @@ def _runtime_manager(**kwargs):
     if "load_runtime_config" not in kwargs:
         kwargs["load_runtime_config"] = lambda: _test_runtime_config()
     return MainAgentRuntimeManager(**kwargs)
+
+
+def _session_service(runtime_manager, **kwargs):  # noqa: ANN001
+    return build_runtime_backed_session_service(runtime_manager=runtime_manager, **kwargs)
 
 
 class _DummyAgent:
@@ -195,7 +203,7 @@ def test_session_service_prepare_chat_turn_scopes_runtime_lifecycle(tmp_path: Pa
             build_agent=_build_agent,
             storage_dir=tmp_path / "store",
         )
-        service = SessionApplicationService(runtime_manager=runtime)
+        service = _session_service(runtime)
 
         turn = await service.prepare_chat_turn(
             workspace_dir=workspace,
@@ -241,7 +249,7 @@ def test_session_service_prepare_chat_turn_prefers_remote_channel_when_surface_m
             build_agent=_build_agent,
             storage_dir=tmp_path / "store-remote-binding",
         )
-        service = SessionApplicationService(runtime_manager=runtime)
+        service = _session_service(runtime)
 
         turn = await service.prepare_chat_turn(
             workspace_dir=workspace,
@@ -289,7 +297,7 @@ def test_session_service_mutation_wrappers_shape_session_responses(tmp_path: Pat
             build_agent=_build_agent,
             storage_dir=tmp_path / "store-mutations",
         )
-        service = SessionApplicationService(runtime_manager=runtime)
+        service = _session_service(runtime)
 
         detail = await service.create_session(
             MainAgentSessionCreateRequest(
@@ -344,7 +352,7 @@ def test_session_service_prepare_chat_turn_accepts_structural_runtime_port(tmp_p
         workspace.mkdir(parents=True, exist_ok=True)
         session = _FakeManagedSession(session_id="sess-port", workspace_dir=workspace)
         runtime_port = _FakeRuntimePort(session)
-        service = SessionApplicationService(runtime_manager=runtime_port)
+        service = _session_service(runtime_port)
 
         turn = await service.prepare_chat_turn(
             workspace_dir=workspace,
@@ -409,7 +417,6 @@ def test_session_service_uses_injected_session_task_service_for_session_crud() -
     async def _run() -> None:
         session_task_service = _SessionTaskServiceStub()
         service = SessionApplicationService(
-            runtime_manager=_RuntimeStub(),
             session_task_service=session_task_service,
         )
 
@@ -463,7 +470,6 @@ def test_session_service_uses_injected_session_task_service_for_turn_preparation
     async def _run() -> None:
         session_task_service = _SessionTaskServiceStub()
         service = SessionApplicationService(
-            runtime_manager=_RuntimeStub(),
             session_task_service=session_task_service,
         )
 
@@ -518,6 +524,158 @@ def test_session_service_uses_injected_session_task_service_for_turn_preparation
     asyncio.run(_run())
 
 
+def test_session_service_can_compose_defaults_from_explicit_typed_ports() -> None:
+    class _SessionTaskRuntimeStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        def validate_workspace(self, workspace_dir: Path) -> None:
+            self.calls.append(("validate_workspace", workspace_dir))
+
+        async def list_sessions(self, *, workspace_dir=None, shared_only=False):  # noqa: ANN001, ANN003
+            self.calls.append(("list_sessions", workspace_dir, shared_only))
+            return ["listed"]
+
+    class _SessionTaskPortStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        async def get_session_task(self, session_id: str):
+            self.calls.append(("get_session_task", session_id))
+            return {"session_id": session_id}
+
+        async def resolve_run_id_for_session(self, session_id: str) -> str | None:
+            self.calls.append(("resolve_run_id_for_session", session_id))
+            return None
+
+        async def cancel_session_turn(self, session_id: str, **kwargs):
+            self.calls.append(("cancel_session_turn", session_id, kwargs))
+            return {"kind": "cancelled", "session_id": session_id}
+
+        async def resolve_pending_approval(self, session_id: str, **kwargs):
+            self.calls.append(("resolve_pending_approval", session_id, kwargs))
+            return {"kind": "approval", "session_id": session_id}
+
+    class _SessionAgentRuntimeStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        async def update_session_runtime_policy(self, session_id: str, **kwargs):
+            self.calls.append(("update_session_runtime_policy", session_id, kwargs))
+            return {"kind": "policy", "session_id": session_id}
+
+        async def control_session_context(self, session_id: str, **kwargs):
+            self.calls.append(("control_session_context", session_id, kwargs))
+            return {"kind": "control", "session_id": session_id, "action": kwargs.get("action")}
+
+        async def update_session_context_policy(self, session_id: str, **kwargs):
+            self.calls.append(("update_session_context_policy", session_id, kwargs))
+            return {"kind": "context", "session_id": session_id}
+
+        async def manage_session_memory(self, session_id: str, **kwargs):
+            self.calls.append(("manage_session_memory", session_id, kwargs))
+            return {"kind": "memory", "session_id": session_id}
+
+        async def manage_session_skills(self, session_id: str, **kwargs):
+            self.calls.append(("manage_session_skills", session_id, kwargs))
+            return {"kind": "skills", "session_id": session_id}
+
+    class _SessionModelRuntimeStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        async def update_session_model_selection(self, session_id: str, **kwargs):
+            self.calls.append(("update_session_model_selection", session_id, kwargs))
+            return {"kind": "model", "session_id": session_id, "model_id": kwargs.get("model_id")}
+
+    async def _run() -> None:
+        task_runtime = _SessionTaskRuntimeStub()
+        task_port = _SessionTaskPortStub()
+        agent_runtime = _SessionAgentRuntimeStub()
+        model_runtime = _SessionModelRuntimeStub()
+        workspace = Path("D:/workspace/typed-seams")
+        service = build_typed_session_service(
+            session_task_runtime=task_runtime,
+            session_task_port=task_port,
+            session_agent_runtime=agent_runtime,
+            session_model_runtime=model_runtime,
+        )
+
+        service.validate_workspace(workspace)
+        listed = await service.list_sessions(workspace_dir=workspace, shared_only=True)
+        controlled = await service.control_session(
+            "sess-typed-1",
+            MainAgentSessionControlRequest(action="compact", surface="desktop"),
+        )
+        model_updated = await service.update_session_model_selection(
+            "sess-typed-1",
+            MainAgentSessionModelSelectionRequest(
+                provider_source="preset",
+                provider_id="openai",
+                model_id="gpt-5.4",
+                surface="desktop",
+            ),
+        )
+        cancelled = await service.cancel_session(
+            "sess-typed-1",
+            MainAgentSessionCancelRequest(reason="stop", surface="desktop"),
+        )
+
+        assert listed == ["listed"]
+        assert controlled == {"kind": "control", "session_id": "sess-typed-1", "action": "compact"}
+        assert model_updated == {"kind": "model", "session_id": "sess-typed-1", "model_id": "gpt-5.4"}
+        assert cancelled == {"kind": "cancelled", "session_id": "sess-typed-1"}
+        assert task_runtime.calls == [
+            ("validate_workspace", workspace),
+            ("list_sessions", workspace, True),
+        ]
+        assert agent_runtime.calls == [
+            (
+                "control_session_context",
+                "sess-typed-1",
+                {
+                    "action": "compact",
+                    "reason": None,
+                    "surface": "desktop",
+                    "channel_type": None,
+                    "conversation_id": None,
+                    "sender_id": None,
+                },
+            )
+        ]
+        assert model_runtime.calls == [
+            (
+                "update_session_model_selection",
+                "sess-typed-1",
+                {
+                    "provider_source": "preset",
+                    "provider_id": "openai",
+                    "model_id": "gpt-5.4",
+                    "surface": "desktop",
+                    "channel_type": None,
+                    "conversation_id": None,
+                    "sender_id": None,
+                },
+            )
+        ]
+        assert task_port.calls == [
+            ("resolve_run_id_for_session", "sess-typed-1"),
+            (
+                "cancel_session_turn",
+                "sess-typed-1",
+                {
+                    "reason": "stop",
+                    "surface": "desktop",
+                    "channel_type": None,
+                    "conversation_id": None,
+                    "sender_id": None,
+                },
+            ),
+        ]
+
+    asyncio.run(_run())
+
+
 def test_session_service_prepare_chat_turn_normalizes_private_desktop_plan_session(tmp_path: Path) -> None:
     async def _run() -> None:
         async def _build_agent(_workspace: Path):
@@ -530,7 +688,7 @@ def test_session_service_prepare_chat_turn_normalizes_private_desktop_plan_sessi
             build_agent=_build_agent,
             storage_dir=tmp_path / "store-desktop-autofix",
         )
-        service = SessionApplicationService(runtime_manager=runtime)
+        service = _session_service(runtime)
 
         created = await service.create_session(
             MainAgentSessionCreateRequest(title="Desktop Session", surface="desktop", shared=False),
@@ -623,7 +781,7 @@ def test_session_service_cancel_and_approval_use_injected_run_control_service() 
 
     async def _run() -> None:
         run_control = _RunControlStub()
-        service = SessionApplicationService(runtime_manager=_RuntimeStub(), run_control_service=run_control)
+        service = _session_service(_RuntimeStub(), run_control_service=run_control)
 
         cancel = await service.cancel_session(
             "sess-1",
@@ -762,7 +920,7 @@ def test_session_service_default_run_control_falls_back_to_runtime_session_opera
 
     async def _run() -> None:
         runtime = _RuntimeStub()
-        service = SessionApplicationService(runtime_manager=runtime)
+        service = _session_service(runtime)
 
         cancel = await service.cancel_session(
             "sess-2",
@@ -815,7 +973,7 @@ def test_session_service_update_model_selection_uses_injected_model_service() ->
 
     async def _run() -> None:
         model_service = _ModelServiceStub()
-        service = SessionApplicationService(runtime_manager=_RuntimeStub(), model_service=model_service)
+        service = _session_service(_RuntimeStub(), model_service=model_service)
 
         response = await service.update_session_model_selection(
             "sess-model-1",
@@ -897,7 +1055,7 @@ def test_session_service_default_model_service_falls_back_to_runtime_session_mod
 
     async def _run() -> None:
         runtime = _RuntimeStub()
-        service = SessionApplicationService(runtime_manager=runtime)
+        service = _session_service(runtime)
 
         response = await service.update_session_model_selection(
             "sess-model-2",
@@ -953,7 +1111,7 @@ def test_session_service_update_runtime_policy_uses_injected_agent_service() -> 
 
     async def _run() -> None:
         agent_service = _AgentServiceStub()
-        service = SessionApplicationService(runtime_manager=_RuntimeStub(), agent_service=agent_service)
+        service = _session_service(_RuntimeStub(), agent_service=agent_service)
 
         response = await service.update_session_runtime_policy(
             "sess-policy-1",
@@ -1033,7 +1191,7 @@ def test_session_service_default_agent_service_falls_back_to_runtime_policy_upda
 
     async def _run() -> None:
         runtime = _RuntimeStub()
-        service = SessionApplicationService(runtime_manager=runtime)
+        service = _session_service(runtime)
 
         response = await service.update_session_runtime_policy(
             "sess-policy-2",
@@ -1083,7 +1241,7 @@ def test_session_service_control_session_uses_injected_agent_service() -> None:
 
     async def _run() -> None:
         agent_service = _AgentServiceStub()
-        service = SessionApplicationService(runtime_manager=_RuntimeStub(), agent_service=agent_service)
+        service = _session_service(_RuntimeStub(), agent_service=agent_service)
 
         response = await service.control_session(
             "sess-control-1",
@@ -1158,7 +1316,7 @@ def test_session_service_default_agent_service_falls_back_to_runtime_control_ses
 
     async def _run() -> None:
         runtime = _RuntimeStub()
-        service = SessionApplicationService(runtime_manager=runtime)
+        service = _session_service(runtime)
 
         response = await service.control_session(
             "sess-control-2",
@@ -1207,7 +1365,7 @@ def test_session_service_update_context_uses_injected_agent_service() -> None:
 
     async def _run() -> None:
         agent_service = _AgentServiceStub()
-        service = SessionApplicationService(runtime_manager=_RuntimeStub(), agent_service=agent_service)
+        service = _session_service(_RuntimeStub(), agent_service=agent_service)
 
         response = await service.update_session_context(
             "sess-context-1",
@@ -1294,7 +1452,7 @@ def test_session_service_default_agent_service_falls_back_to_runtime_context_upd
 
     async def _run() -> None:
         runtime = _RuntimeStub()
-        service = SessionApplicationService(runtime_manager=runtime)
+        service = _session_service(runtime)
 
         response = await service.update_session_context(
             "sess-context-2",
@@ -1348,7 +1506,7 @@ def test_session_service_manage_memory_uses_injected_agent_service() -> None:
 
     async def _run() -> None:
         agent_service = _AgentServiceStub()
-        service = SessionApplicationService(runtime_manager=_RuntimeStub(), agent_service=agent_service)
+        service = _session_service(_RuntimeStub(), agent_service=agent_service)
 
         response = await service.manage_session_memory(
             "sess-memory-1",
@@ -1441,7 +1599,7 @@ def test_session_service_default_agent_service_falls_back_to_runtime_memory_mana
 
     async def _run() -> None:
         runtime = _RuntimeStub()
-        service = SessionApplicationService(runtime_manager=runtime)
+        service = _session_service(runtime)
 
         response = await service.manage_session_memory(
             "sess-memory-2",
@@ -1495,7 +1653,7 @@ def test_session_service_manage_skills_uses_injected_agent_service() -> None:
 
     async def _run() -> None:
         agent_service = _AgentServiceStub()
-        service = SessionApplicationService(runtime_manager=_RuntimeStub(), agent_service=agent_service)
+        service = _session_service(_RuntimeStub(), agent_service=agent_service)
 
         response = await service.manage_session_skills(
             "sess-skill-1",
@@ -1582,7 +1740,7 @@ def test_session_service_default_agent_service_falls_back_to_runtime_skill_manag
 
     async def _run() -> None:
         runtime = _RuntimeStub()
-        service = SessionApplicationService(runtime_manager=runtime)
+        service = _session_service(runtime)
 
         response = await service.manage_session_skills(
             "sess-skill-2",
@@ -1611,3 +1769,4 @@ def test_session_service_default_agent_service_falls_back_to_runtime_skill_manag
         ]
 
     asyncio.run(_run())
+

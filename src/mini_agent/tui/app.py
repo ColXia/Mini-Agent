@@ -30,7 +30,7 @@ from prompt_toolkit.styles import Style
 from prompt_toolkit.widgets import Frame, TextArea
 
 from mini_agent.agent_core.engine import Agent, PlannerExecutorHooks, TurnStopReason
-from mini_agent.application.interaction_request_adapter import ApplicationInteractionBinding
+from mini_agent.application.support import ApplicationInteractionBinding
 from mini_agent.agent_core.session import SessionLifecyclePolicy
 from mini_agent.agent_core.kernel import AgentKernelBuildOptions, build_agent_kernel
 from mini_agent.agent_core.execution import (

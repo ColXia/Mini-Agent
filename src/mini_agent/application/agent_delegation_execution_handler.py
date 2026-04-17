@@ -10,7 +10,7 @@ from mini_agent.application.agent_turn_execution_handler import (
     AgentTurnExecutionHandler,
     SurfaceAgentExecutionRequest,
 )
-from mini_agent.application.managed_session_turn import ManagedSessionTurn
+from mini_agent.application.support import ManagedSessionTurn
 
 
 class SessionTaskDelegationPort(Protocol):

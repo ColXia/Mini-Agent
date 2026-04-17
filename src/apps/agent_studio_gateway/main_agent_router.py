@@ -8,8 +8,8 @@ from typing import Any, Awaitable, Callable
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 
-from mini_agent.application.channel_ingress_use_cases import ChannelIngressUseCases
-from mini_agent.application.main_agent_surface_service import MainAgentSurfaceService
+from mini_agent.application.facades import MainAgentSurfaceService
+from mini_agent.application.use_cases import ChannelIngressUseCases
 from mini_agent.interfaces import (
     ApiEnvelope,
     ChannelMessageRequest,
