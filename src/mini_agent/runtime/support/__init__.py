@@ -21,6 +21,10 @@ from .sandbox_state import (
     sandbox_network_summary,
     sandbox_policy_summary,
 )
+from .session_command_coordinator import (
+    RuntimeSessionCommandCoordinator,
+    RuntimeSessionCommandTranscript,
+)
 from .session_diagnostics_service import RuntimeSessionDiagnosticsService
 from .session_agent_support import (
     BuildAgentFn,
@@ -48,6 +52,8 @@ __all__ = [
     "InteractionBinding",
     "InteractionSurface",
     "LoadRuntimeConfigFn",
+    "RuntimeSessionCommandCoordinator",
+    "RuntimeSessionCommandTranscript",
     "RuntimeSessionDiagnosticsService",
     "RuntimeSessionAgentSupport",
     "USER_ENTRANCES",

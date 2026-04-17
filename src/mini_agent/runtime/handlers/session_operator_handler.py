@@ -37,7 +37,7 @@ from mini_agent.model_manager.session_selection_service import (
     SessionModelSelectionPlan,
     SessionModelSelectionService,
 )
-from mini_agent.runtime.session_command_coordinator import (
+from mini_agent.runtime.support.session_command_coordinator import (
     RuntimeSessionCommandCoordinator,
     RuntimeSessionCommandTranscript,
 )
