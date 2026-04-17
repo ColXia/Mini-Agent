@@ -174,6 +174,29 @@ class SessionModelRuntimeStub:
         }
 
 
+class SessionRuntimePolicyRuntimeStub:
+    async def update_session_runtime_policy(
+        self,
+        session_id: str,
+        *,
+        approval_profile: str | None = None,
+        access_level: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ):
+        return {
+            "session_id": session_id,
+            "approval_profile": approval_profile,
+            "access_level": access_level,
+            "surface": surface,
+            "channel_type": channel_type,
+            "conversation_id": conversation_id,
+            "sender_id": sender_id,
+        }
+
+
 class CommandRuntimeStub:
     def catalog(self):
         return ["help", "session"]
@@ -289,6 +312,26 @@ async def test_model_user_service_supports_session_selection_compatibility() -> 
         "provider_source": "preset",
         "provider_id": "openai",
         "model_id": "gpt-5.4",
+        "surface": "desktop",
+        "channel_type": None,
+        "conversation_id": None,
+        "sender_id": None,
+    }
+
+
+@pytest.mark.asyncio
+async def test_agent_user_service_supports_session_runtime_policy_compatibility() -> None:
+    agent_service = AgentUserService(session_runtime_policy_runtime=SessionRuntimePolicyRuntimeStub())
+
+    assert await agent_service.update_session_runtime_policy(
+        "session-4",
+        approval_profile="plan",
+        access_level="full-access",
+        surface="desktop",
+    ) == {
+        "session_id": "session-4",
+        "approval_profile": "plan",
+        "access_level": "full-access",
         "surface": "desktop",
         "channel_type": None,
         "conversation_id": None,

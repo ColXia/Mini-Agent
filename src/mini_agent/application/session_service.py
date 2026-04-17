@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from mini_agent.agent_core.engine import Agent
+from mini_agent.application.user_services.agent_user_service import AgentUserService
 from mini_agent.application.interaction_request_adapter import ApplicationInteractionBinding
 from mini_agent.application.managed_session_turn import ManagedSessionTurn
 from mini_agent.application.use_cases.run_control_application_service import RunControlApplicationService
@@ -184,12 +185,17 @@ class SessionApplicationService:
         *,
         runtime_manager: SessionRuntimePort,
         run_control_service: RunControlApplicationService | None = None,
+        agent_service: AgentUserService | None = None,
         model_service: ModelUserService | None = None,
     ) -> None:
         self._runtime_manager = runtime_manager
         self._run_control_service = run_control_service or RunControlApplicationService(
             run_runtime=_UnavailableRunRuntimeAdapter(),
             session_tasks=_SessionTaskCompatibilityAdapter(runtime_manager),
+        )
+        self._agent_service = agent_service or AgentUserService(
+            run_control=self._run_control_service,
+            session_runtime_policy_runtime=runtime_manager,
         )
         self._model_service = model_service or ModelUserService(
             session_model_runtime=_SessionModelSelectionCompatibilityAdapter(runtime_manager),
@@ -201,6 +207,10 @@ class SessionApplicationService:
     @property
     def run_control_service(self) -> RunControlApplicationService:
         return self._run_control_service
+
+    @property
+    def agent_service(self) -> AgentUserService:
+        return self._agent_service
 
     @property
     def model_service(self) -> ModelUserService:
@@ -413,7 +423,7 @@ class SessionApplicationService:
         request: MainAgentSessionRuntimePolicyRequest,
     ) -> MainAgentSessionRuntimePolicyResponse:
         binding = ApplicationInteractionBinding.from_request(request)
-        return await self._runtime_manager.update_session_runtime_policy(
+        return await self._agent_service.update_session_runtime_policy(
             session_id,
             approval_profile=request.approval_profile,
             access_level=request.access_level,

@@ -19,6 +19,7 @@ from mini_agent.interfaces import (
     MainAgentSessionMutationResponse,
     MainAgentSessionRenameRequest,
     MainAgentSessionRuntimePolicyRequest,
+    MainAgentSessionRuntimePolicyResponse,
     MainAgentSessionShareRequest,
 )
 from mini_agent.runtime.main_agent_runtime_manager import MainAgentRuntimeManager
@@ -769,6 +770,141 @@ def test_session_service_default_model_service_falls_back_to_runtime_session_mod
                 "preset",
                 "openai",
                 "gpt-5.4",
+                "desktop",
+                None,
+                None,
+                None,
+            )
+        ]
+
+    asyncio.run(_run())
+
+
+def test_session_service_update_runtime_policy_uses_injected_agent_service() -> None:
+    class _AgentServiceStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        async def update_session_runtime_policy(self, session_id: str, **kwargs):
+            self.calls.append(("update_session_runtime_policy", session_id, kwargs))
+            return MainAgentSessionRuntimePolicyResponse(
+                status="updated",
+                session_id=session_id,
+                active_surface="qq",
+                applied=True,
+                approval_profile="plan",
+                access_level="full-access",
+                summary="runtime plan / full-access",
+                details="Runtime policy updated.",
+                status_text="Runtime set to plan / full-access.",
+                sandbox_diagnostics={"sandbox_mode": "unrestricted"},
+            )
+
+    class _RuntimeStub:
+        def validate_workspace(self, workspace_dir: Path) -> None:
+            _ = workspace_dir
+
+    async def _run() -> None:
+        agent_service = _AgentServiceStub()
+        service = SessionApplicationService(runtime_manager=_RuntimeStub(), agent_service=agent_service)
+
+        response = await service.update_session_runtime_policy(
+            "sess-policy-1",
+            MainAgentSessionRuntimePolicyRequest(
+                approval_profile="plan",
+                access_level="full-access",
+                surface=" qq ",
+                channel_type=" qqbot ",
+                conversation_id=" group:demo ",
+                sender_id=" user-1 ",
+            ),
+        )
+
+        assert response.status == "updated"
+        assert response.access_level == "full-access"
+        assert agent_service.calls == [
+            (
+                "update_session_runtime_policy",
+                "sess-policy-1",
+                {
+                    "approval_profile": "plan",
+                    "access_level": "full-access",
+                    "surface": "qq",
+                    "channel_type": "qq",
+                    "conversation_id": "group:demo",
+                    "sender_id": "user-1",
+                },
+            )
+        ]
+
+    asyncio.run(_run())
+
+
+def test_session_service_default_agent_service_falls_back_to_runtime_policy_update() -> None:
+    class _RuntimeStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        def validate_workspace(self, workspace_dir: Path) -> None:
+            _ = workspace_dir
+
+        async def update_session_runtime_policy(
+            self,
+            session_id: str,
+            *,
+            approval_profile: str | None = None,
+            access_level: str | None = None,
+            surface: str | None = None,
+            channel_type: str | None = None,
+            conversation_id: str | None = None,
+            sender_id: str | None = None,
+        ):
+            self.calls.append(
+                (
+                    "update_session_runtime_policy",
+                    session_id,
+                    approval_profile,
+                    access_level,
+                    surface,
+                    channel_type,
+                    conversation_id,
+                    sender_id,
+                )
+            )
+            return MainAgentSessionRuntimePolicyResponse(
+                status="updated",
+                session_id=session_id,
+                active_surface=surface,
+                applied=True,
+                approval_profile=str(approval_profile or ""),
+                access_level=str(access_level or ""),
+                summary="runtime build / default",
+                details="Runtime policy updated.",
+                status_text="Runtime set to build / default.",
+                sandbox_diagnostics={"sandbox_mode": "workspace"},
+            )
+
+    async def _run() -> None:
+        runtime = _RuntimeStub()
+        service = SessionApplicationService(runtime_manager=runtime)
+
+        response = await service.update_session_runtime_policy(
+            "sess-policy-2",
+            MainAgentSessionRuntimePolicyRequest(
+                approval_profile="build",
+                access_level="default",
+                surface="desktop",
+            ),
+        )
+
+        assert response.status == "updated"
+        assert response.approval_profile == "build"
+        assert runtime.calls == [
+            (
+                "update_session_runtime_policy",
+                "sess-policy-2",
+                "build",
+                "default",
                 "desktop",
                 None,
                 None,

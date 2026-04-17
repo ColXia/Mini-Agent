@@ -142,9 +142,7 @@ class GatewayComposition:
 
     def get_agent_service(self) -> AgentUserService:
         if self._agent_service is None:
-            self._agent_service = AgentUserService(
-                run_control=self.get_session_service().run_control_service,
-            )
+            self._agent_service = self.get_session_service().agent_service
         return self._agent_service
 
     def get_model_service(self) -> ModelUserService:

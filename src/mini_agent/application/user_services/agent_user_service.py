@@ -21,12 +21,19 @@ def _require_run_control(service: RunControlApplicationService | None) -> RunCon
     return service
 
 
+def _require_runtime_policy_runtime(runtime: Any | None) -> Any:
+    if runtime is None:
+        raise RuntimeError("Session runtime policy compatibility runtime is not configured.")
+    return runtime
+
+
 @dataclass(slots=True)
 class AgentUserService:
     """Thin user-service facade for agent and run-facing actions."""
 
     agent_runtime: AgentRuntimePort | None = None
     run_control: RunControlApplicationService | None = None
+    session_runtime_policy_runtime: Any | None = None
 
     async def list_agents(self) -> Any:
         return await _require_agent_runtime(self.agent_runtime).list_agents()
@@ -150,6 +157,27 @@ class AgentUserService:
             token=token,
             source=source,
             reason=reason,
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
+
+    async def update_session_runtime_policy(
+        self,
+        session_id: str,
+        *,
+        approval_profile: str | None = None,
+        access_level: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> Any:
+        return await _require_runtime_policy_runtime(self.session_runtime_policy_runtime).update_session_runtime_policy(
+            session_id,
+            approval_profile=approval_profile,
+            access_level=access_level,
             surface=surface,
             channel_type=channel_type,
             conversation_id=conversation_id,

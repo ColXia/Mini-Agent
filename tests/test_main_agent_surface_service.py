@@ -28,6 +28,7 @@ from mini_agent.interfaces import (
     MainAgentSessionModelSelectionResponse,
     MainAgentSessionMutationResponse,
     MainAgentSessionRuntimePolicyRequest,
+    MainAgentSessionRuntimePolicyResponse,
     MainAgentSessionSummary,
     MainAgentSessionSkillRequest,
 )
@@ -4002,6 +4003,76 @@ def test_surface_service_prefers_injected_model_service_for_model_selection_entr
                     "provider_source": " preset ",
                     "provider_id": " openai ",
                     "model_id": " gpt-5.3 ",
+                    "surface": "qq",
+                    "channel_type": "qq",
+                    "conversation_id": "group:demo",
+                    "sender_id": "user-1",
+                },
+            )
+        ]
+
+    asyncio.run(_run())
+
+
+def test_surface_service_prefers_injected_agent_service_for_runtime_policy_entrypoint() -> None:
+    class _FailingSessionService:
+        async def update_session_runtime_policy(self, session_id: str, request):  # noqa: ANN001
+            raise AssertionError(
+                f"session_service.update_session_runtime_policy should not be called for {session_id}: {request}"
+            )
+
+    class _AgentServiceStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        async def update_session_runtime_policy(self, session_id: str, **kwargs):
+            self.calls.append(("update_session_runtime_policy", session_id, kwargs))
+            return MainAgentSessionRuntimePolicyResponse(
+                status="updated",
+                session_id=session_id,
+                active_surface="qq",
+                applied=True,
+                approval_profile="plan",
+                access_level="full-access",
+                summary="runtime plan / full-access",
+                details="Runtime policy updated.",
+                status_text="Runtime set to plan / full-access.",
+                sandbox_diagnostics={"sandbox_mode": "unrestricted"},
+            )
+
+    async def _run() -> None:
+        agent_service = _AgentServiceStub()
+        use_cases = MainAgentSurfaceService(
+            session_service=_FailingSessionService(),
+            agent_service=agent_service,
+            resolve_workspace_dir=_resolve_workspace_dir,
+            to_utc_iso=_to_utc_iso,
+            sse_event=_sse_event,
+            format_bootstrap_error=_format_bootstrap_error,
+            stream_chunk_size=64,
+        )
+
+        response = await use_cases.update_session_runtime_policy(
+            "sess-policy-service",
+            MainAgentSessionRuntimePolicyRequest(
+                approval_profile="plan",
+                access_level="full-access",
+                surface=" qq ",
+                channel_type=" qqbot ",
+                conversation_id=" group:demo ",
+                sender_id=" user-1 ",
+            ),
+        )
+
+        assert response.status == "updated"
+        assert response.status_text == "Runtime set to plan / full-access."
+        assert agent_service.calls == [
+            (
+                "update_session_runtime_policy",
+                "sess-policy-service",
+                {
+                    "approval_profile": "plan",
+                    "access_level": "full-access",
                     "surface": "qq",
                     "channel_type": "qq",
                     "conversation_id": "group:demo",

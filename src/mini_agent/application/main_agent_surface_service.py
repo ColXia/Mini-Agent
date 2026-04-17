@@ -261,6 +261,14 @@ class MainAgentSurfaceService:
         session_id: str,
         request: MainAgentSessionRuntimePolicyRequest,
     ) -> MainAgentSessionRuntimePolicyResponse:
+        if self._agent_service is not None:
+            binding = ApplicationInteractionBinding.from_request(request)
+            return await self._agent_service.update_session_runtime_policy(
+                session_id,
+                approval_profile=request.approval_profile,
+                access_level=request.access_level,
+                **binding.as_kwargs(),
+            )
         return await self._session_service.update_session_runtime_policy(session_id, request)
 
     async def stream_chat_events(
