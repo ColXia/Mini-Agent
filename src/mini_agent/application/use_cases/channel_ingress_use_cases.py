@@ -14,7 +14,7 @@ from mini_agent.interfaces import (
 )
 from mini_agent.session.conversation_binding_port import ConversationBindingPort
 
-from ..channel_novel_action_handler import ChannelNovelActionHandler
+from .channel_novel_action_handler import ChannelNovelActionHandler
 
 
 RunMainAgentChatFn = Callable[[MainAgentChatRequest], Awaitable[MainAgentChatResponse]]

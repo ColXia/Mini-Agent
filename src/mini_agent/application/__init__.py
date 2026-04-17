@@ -1,8 +1,6 @@
 """Application-layer orchestration use cases."""
 
-from .agent_delegation_execution_handler import AgentDelegationExecutionHandler
-from .channel_novel_action_handler import ChannelNovelActionHandler
-from .facades import MainAgentSurfaceService
+from .facades import AgentDelegationExecutionHandler, MainAgentSurfaceService
 from .legacy import (
     RuntimeBackedSessionApplicationAssembly,
     SessionApplicationService,
@@ -24,6 +22,7 @@ from .ports import (
 from .support import ApplicationInteractionBinding, ManagedSessionTurn
 from .use_cases import (
     ChannelIngressUseCases,
+    ChannelNovelActionHandler,
     MemoryOperationsUseCases,
     OperationsPathPolicy,
     ProviderOperationsUseCases,

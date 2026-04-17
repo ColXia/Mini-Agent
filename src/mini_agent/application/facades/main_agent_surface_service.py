@@ -4,13 +4,6 @@ from __future__ import annotations
 
 from typing import AsyncIterator, Awaitable, Callable
 
-from mini_agent.application.agent_delegation_execution_handler import AgentDelegationExecutionHandler
-from mini_agent.application.surface_chat_flow_handler import (
-    SurfaceChatExecutionRequest,
-    SurfaceChatFlowHandler,
-)
-from mini_agent.application.agent_turn_execution_handler import AgentTurnExecutionHandler
-from mini_agent.application.agent_route_execution_handler import AgentRouteExecutionHandler
 from mini_agent.application.support import (
     ApplicationInteractionBinding,
     FormatBootstrapErrorFn,
@@ -52,6 +45,11 @@ from mini_agent.interfaces import (
     MainAgentSessionSkillResponse,
     MainAgentSessionSummary,
 )
+
+from .agent_delegation_execution_handler import AgentDelegationExecutionHandler
+from .agent_route_execution_handler import AgentRouteExecutionHandler
+from .agent_turn_execution_handler import AgentTurnExecutionHandler
+from .surface_chat_flow_handler import SurfaceChatExecutionRequest, SurfaceChatFlowHandler
 
 
 class _LegacySurfaceRunControlAdapter:

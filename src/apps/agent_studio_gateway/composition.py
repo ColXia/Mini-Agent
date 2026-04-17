@@ -13,14 +13,13 @@ from fastapi import HTTPException
 
 from mini_agent.agent_core.engine import Agent
 from mini_agent.agent_core.kernel import AgentKernelBuildOptions, build_agent_kernel
-from mini_agent.application.channel_novel_action_handler import ChannelNovelActionHandler
 from mini_agent.application.facades import MainAgentSurfaceService
 from mini_agent.application.legacy import (
     RuntimeBackedSessionApplicationAssembly,
     assemble_runtime_backed_session_application,
     build_runtime_backed_session_service,
 )
-from mini_agent.application.use_cases import ChannelIngressUseCases
+from mini_agent.application.use_cases import ChannelIngressUseCases, ChannelNovelActionHandler
 from mini_agent.application.use_cases.run_control_application_service import RunControlApplicationService
 from mini_agent.application.use_cases.session_task_service import SessionTaskService
 from mini_agent.application.user_services.agent_user_service import AgentUserService

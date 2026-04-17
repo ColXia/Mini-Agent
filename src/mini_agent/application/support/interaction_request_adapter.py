@@ -10,7 +10,7 @@ from mini_agent.interaction import resolve_interaction_binding
 from mini_agent.interfaces import ChannelMessageRequest, MainAgentChatRequest
 
 if TYPE_CHECKING:
-    from ..surface_chat_flow_handler import SurfaceChatExecutionRequest
+    from ..facades.surface_chat_flow_handler import SurfaceChatExecutionRequest
 
 
 @dataclass(frozen=True)
@@ -123,7 +123,7 @@ class ApplicationInteractionBinding:
         dry_run: bool = False,
         running_detail: str = "",
     ) -> "SurfaceChatExecutionRequest":
-        from ..surface_chat_flow_handler import SurfaceChatExecutionRequest
+        from ..facades.surface_chat_flow_handler import SurfaceChatExecutionRequest
 
         return SurfaceChatExecutionRequest(
             message=message,
