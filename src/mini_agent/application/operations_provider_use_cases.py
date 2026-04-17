@@ -29,6 +29,8 @@ from mini_agent.interfaces import (
     StudioProviderModelSummary,
     StudioProviderSummary,
     StudioProviderUpsertRequest,
+    StudioProviderValidationRequest,
+    StudioProviderValidationResponse,
 )
 from mini_agent.model_manager import (
     get_circuit_breaker_registry,
@@ -46,6 +48,9 @@ from mini_agent.model_manager.model_discovery import (
 from mini_agent.model_manager.model_registry_service import ModelRegistryService
 
 from .operations_path_policy import OperationsPathPolicy
+
+
+_OLLAMA_SENTINEL_API_KEY = "ollama"
 
 
 class ProviderOperationsUseCases:
@@ -201,16 +206,86 @@ class ProviderOperationsUseCases:
             raise HTTPException(status_code=400, detail=f"failed to clear feature model binding: {exc}") from exc
         return StudioFeatureModelBindingClearResponse.model_validate(item)
 
+    def validate_provider_connection(
+        self,
+        *,
+        payload: StudioProviderValidationRequest,
+    ) -> StudioProviderValidationResponse:
+        api_base = self._path_policy.normalize_text(payload.api_base)
+        if not api_base:
+            raise HTTPException(status_code=400, detail="api_base is required")
+        api_type = str(payload.api_type)
+        provider_type = self._to_discovery_provider_type(api_type, api_base)
+        api_key = self._effective_provider_api_key(
+            api_type=api_type,
+            api_base=api_base,
+            api_key=payload.api_key,
+        )
+        if not api_key and provider_type != ProviderType.OLLAMA:
+            raise HTTPException(status_code=400, detail="api_key is required")
+
+        try:
+            discovered, latest = self._discover_models_for_provider_payload(
+                api_type=api_type,
+                api_base=api_base,
+                api_key=api_key,
+            )
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(
+                status_code=400,
+                detail=f"failed to validate provider connection: {exc}",
+            ) from exc
+
+        status = "reachable" if discovered else "reachable_no_models"
+        if discovered:
+            message = (
+                f"Connection ok. Discovered {len(discovered)} model(s). "
+                "Use Discover Models to import them into the draft."
+            )
+        else:
+            message = (
+                "Connection ok, but the provider returned no models. "
+                "Enter a model id manually if this supplier requires explicit onboarding."
+            )
+        return StudioProviderValidationResponse(
+            status=status,
+            api_type=str(payload.api_type),
+            api_base=api_base,
+            resolved_provider_type=provider_type.value,
+            connection_ok=True,
+            model_count=len(discovered),
+            latest_model_id=latest,
+            message=message,
+            models=[
+                StudioProviderModelSummary(
+                    model_id=model_id,
+                    display_name=model_id,
+                    is_default=bool(latest and model_id == latest),
+                )
+                for model_id in discovered
+            ],
+        )
+
     def discover_provider_models(
         self,
         *,
         payload: StudioProviderModelDiscoveryRequest,
     ) -> StudioProviderModelDiscoveryResponse:
+        api_base = self._path_policy.normalize_text(payload.api_base)
+        if not api_base:
+            raise HTTPException(status_code=400, detail="api_base is required")
+        api_key = self._effective_provider_api_key(
+            api_type=str(payload.api_type),
+            api_base=api_base,
+            api_key=payload.api_key,
+        )
+        if not api_key and self._to_discovery_provider_type(str(payload.api_type), api_base) != ProviderType.OLLAMA:
+            raise HTTPException(status_code=400, detail="api_key is required")
         try:
             discovered, latest = self._discover_models_for_provider_payload(
                 api_type=str(payload.api_type),
-                api_base=str(payload.api_base),
-                api_key=str(payload.api_key),
+                api_base=api_base,
+                api_key=api_key,
             )
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(
@@ -431,6 +506,20 @@ class ProviderOperationsUseCases:
             return f"{base}/v1/models"
         return f"{base}/models"
 
+    def _effective_provider_api_key(
+        self,
+        *,
+        api_type: str,
+        api_base: str,
+        api_key: str | None,
+    ) -> str:
+        normalized_key = self._path_policy.normalize_text(api_key)
+        if normalized_key:
+            return normalized_key
+        if self._to_discovery_provider_type(api_type, api_base) == ProviderType.OLLAMA:
+            return _OLLAMA_SENTINEL_API_KEY
+        return ""
+
     def _discover_models_for_provider_payload(
         self,
         *,
@@ -473,6 +562,11 @@ class ProviderOperationsUseCases:
     def _prepare_provider_payload(self, payload: StudioProviderUpsertRequest) -> dict[str, Any]:
         prepared = payload.model_dump()
         prepared["api_type"] = normalize_provider_api_type(prepared.get("api_type")).value
+        prepared["api_key"] = self._effective_provider_api_key(
+            api_type=str(prepared.get("api_type") or ""),
+            api_base=str(prepared.get("api_base") or ""),
+            api_key=prepared.get("api_key"),
+        )
         model_id = self._path_policy.normalize_text(payload.model_id)
         model_display_name = self._path_policy.normalize_text(payload.model_display_name)
         model_role = self._path_policy.normalize_text(payload.model_role)
@@ -513,7 +607,7 @@ class ProviderOperationsUseCases:
             discovered, latest = self._discover_models_for_provider_payload(
                 api_type=str(payload.api_type),
                 api_base=str(payload.api_base),
-                api_key=str(payload.api_key),
+                api_key=str(prepared.get("api_key") or ""),
             )
             if not discovered:
                 raise HTTPException(

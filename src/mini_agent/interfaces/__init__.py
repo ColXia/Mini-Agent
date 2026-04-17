@@ -67,6 +67,8 @@ from .ops import (
     StudioProviderModelDiscoveryResponse,
     StudioProviderSummary,
     StudioProviderUpsertRequest,
+    StudioProviderValidationRequest,
+    StudioProviderValidationResponse,
 )
 from .system import (
     MainAgentRoutingDiagnostics,
@@ -141,6 +143,8 @@ __all__ = [
     "StudioProviderModelDiscoveryResponse",
     "StudioProviderSummary",
     "StudioProviderUpsertRequest",
+    "StudioProviderValidationRequest",
+    "StudioProviderValidationResponse",
     "MainAgentRoutingDiagnostics",
     "MainAgentRuntimeDiagnostics",
     "ModelRouteCandidateDiagnostics",

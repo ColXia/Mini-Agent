@@ -1,5 +1,170 @@
 # Progress
 
+## 2026-04-17 P42.5 Desktop Provider-Model Shortcut Workflow
+
+- [completed] extended the desktop `Providers` page with an in-context model shortcut panel:
+  - current provider-draft model list
+  - saved vs. draft state
+  - role / capability / feature-binding projection
+  - default-model highlight
+- [completed] added provider-page shortcut actions for the current draft models:
+  - `Use As Default`
+  - `Apply Role`
+  - `Bind Feature`
+- [completed] kept the shortcut workflow honest with the real registry boundary:
+  - `Use As Default` edits the draft immediately
+  - role and feature writes require the provider and model to already exist in the saved registry
+  - unsaved draft models are surfaced clearly as `draft`
+- [completed] added focused helper regression coverage for the new provider-draft model projection:
+  - `collect_provider_draft_model_entries(...)`
+  - default/feature/saved-state label shaping
+- [completed] verified the landing with targeted checks:
+  - `.\\.venv\\Scripts\\python.exe -m py_compile src/mini_agent/desktop/window.py tests/test_desktop_window_helpers.py`
+  - `.\\.venv\\Scripts\\python.exe -m pytest tests/test_desktop_window_helpers.py tests/test_transport_gateway_client.py tests/test_operations_provider_use_cases.py tests/test_agent_studio_gateway_ops_router.py tests/test_desktop_app.py -q`
+  - result: `78 passed`
+- [completed] ran a real Qt smoke for the provider shortcut workflow in `.venv`
+  - result: `desktop-provider-shortcuts-smoke ok`
+- [next] continue `P42` into the next practical depth seam:
+  - denser desktop visual hierarchy and polish
+  - stronger cross-page selection handoff between `Providers`, `Models`, and `Chat`
+  - broader real-use smoke against the actual gateway/runtime path
+
+## 2026-04-17 P42.4 Desktop Provider Validation and Save Flow Hardening
+
+- [completed] added a supported provider-validation path on the shared ops surface:
+  - new gateway route for provider connection validation
+  - validation can now distinguish:
+    - reachable with models
+    - reachable with no listed models
+    - true validation failure
+- [completed] hardened the supported provider setup contract for local `Ollama`:
+  - ops DTOs now accept `ollama` as an alias on the setup surface and normalize it into the maintained protocol family
+  - blank API key on local `11434` endpoints now resolves to the maintained local sentinel instead of failing the draft
+- [completed] upgraded the desktop `Providers` page workflow:
+  - added `Test Connection`
+  - added inline validation feedback text for the current draft
+  - normalized local `Ollama` base URLs to `/v1` in the desktop flow
+  - improved save-time validation so empty model lists fail early with clearer guidance
+- [completed] aligned desktop provider presentation with the real backend contract:
+  - local OpenAI-compatible `11434` providers are surfaced as `ollama` in the desktop page
+  - provider detail text now preserves that local-family view without changing runtime storage truth
+- [completed] expanded focused regression coverage for:
+  - desktop provider validation formatting
+  - gateway client provider validation transport
+  - ops use-case validation and `ollama` alias handling
+  - gateway router validation and `ollama` alias acceptance
+- [completed] verified the landing with targeted checks:
+  - `.\\.venv\\Scripts\\python.exe -m py_compile src/mini_agent/interfaces/ops.py src/mini_agent/interfaces/__init__.py src/apps/agent_studio_gateway/ops_router.py src/mini_agent/application/operations_provider_use_cases.py src/mini_agent/transport/gateway_client.py src/mini_agent/desktop/window.py tests/test_desktop_window_helpers.py tests/test_transport_gateway_client.py tests/test_operations_provider_use_cases.py tests/test_agent_studio_gateway_ops_router.py`
+  - `.\\.venv\\Scripts\\python.exe -m pytest tests/test_transport_gateway_client.py tests/test_desktop_window_helpers.py tests/test_operations_provider_use_cases.py tests/test_agent_studio_gateway_ops_router.py tests/test_desktop_app.py -q`
+  - result: `77 passed`
+- [completed] ran a real Qt smoke for provider validation in `.venv`
+  - result: `desktop-provider-validation-smoke ok`
+- [next] continue `P42` from the now-hardened provider workflow into:
+  - model-role / binding shortcuts from the provider page
+  - denser visual hierarchy and desktop polish
+  - deeper real-use testing against the actual gateway/runtime path
+
+## 2026-04-17 P42.3 Desktop Provider Presets and Settings Controls
+
+- [completed] upgraded the `Providers` workspace with quick-fill onboarding presets:
+  - `OpenAI`
+  - `Anthropic`
+  - `MiniMax` as an anthropic-family sub-preset
+  - `Ollama`
+- [completed] added preset-aware provider draft ergonomics:
+  - dynamic endpoint / API-key / model placeholders
+  - preset guidance text
+  - safe existing-provider edit behavior that still requires re-entering the API key
+- [completed] upgraded the `Settings` workspace from a summary page to a control surface:
+  - auto refresh enable / pause
+  - live refresh interval adjustment
+  - workspace / gateway readout
+  - quick actions for refresh, reconnect, and page navigation
+- [completed] expanded desktop helper coverage for the new preset/config surfaces:
+  - provider preset metadata
+  - settings summary auto-refresh state
+- [completed] verified the landing with targeted checks:
+  - `python -m py_compile src/mini_agent/desktop/window.py tests/test_desktop_window_helpers.py`
+  - `.\\.venv\\Scripts\\python.exe -m pytest tests/test_desktop_window_helpers.py tests/test_desktop_app.py tests/test_transport_gateway_client.py -q`
+  - result: `46 passed`
+- [completed] ran a real Qt smoke for provider presets and settings controls in `.venv`
+  - result: `desktop-provider-settings-smoke ok`
+- [next] continue `P42` with richer configuration productivity:
+  - provider validation / test-connection feedback
+  - model-role shortcuts directly from provider draft
+  - denser desktop visual polish and usage flow tightening
+
+## 2026-04-17 P42.2 Desktop Sessions and Memory Workspace Upgrade
+
+- [completed] upgraded the `Sessions` workspace from a simple detail box to a usable history surface:
+  - dedicated refresh/open actions
+  - transcript preview pane
+  - jump-to-chat flow that reuses the canonical selected session
+- [completed] upgraded the `Memory` workspace into a real editor surface:
+  - memory summary panel
+  - searchable workspace notes
+  - file explorer for long-term and daily memory files
+  - editable content area with reload/save actions
+  - open-today flow for the daily file
+- [completed] extended shared gateway transport for desktop memory operations:
+  - ops memory summary
+  - ops memory search
+  - ops daily memory fetch
+- [completed] added focused helper/transport coverage for the new desktop memory surfaces:
+  - `tests/test_desktop_window_helpers.py`
+  - `tests/test_transport_gateway_client.py`
+- [completed] verified the landing with targeted checks:
+  - `python -m py_compile src/mini_agent/desktop/window.py src/mini_agent/transport/gateway_client.py tests/test_desktop_window_helpers.py tests/test_transport_gateway_client.py`
+  - `.\\.venv\\Scripts\\python.exe -m pytest tests/test_transport_gateway_client.py tests/test_desktop_window_helpers.py tests/test_desktop_app.py -q`
+  - result: `45 passed`
+- [completed] ran a real Qt event-loop smoke in `.venv` with `PySide6 6.11.0`
+  - result: `desktop-event-loop-smoke ok`
+- [next] continue `P42` with richer configuration ergonomics and visual polish:
+  - provider presets / quick-fill
+  - model/settings workflow depth
+  - stronger live desktop smoke against the real gateway/runtime path
+
+## 2026-04-17 P42.1 Desktop Product Shell and Model Supply Workspaces
+
+- [completed] converted DesktopUI from a monolithic chat window into a multi-page product shell:
+  - left navigation rail
+  - stacked workspaces for `Chat`, `Models`, `Providers`, `Settings`, `Sessions`, and `Memory`
+  - page header layer with product-style desktop chrome
+- [completed] preserved the TUI-shaped core chat anatomy inside the dedicated `Chat` page:
+  - session rail
+  - conversation/composer center workspace
+  - runtime models, session context, and activity rail
+- [completed] landed first-wave `Models` workspace operations on top of the existing ops backend:
+  - registry list with filtering
+  - model inspector
+  - model role assignment
+  - capability probe trigger
+  - feature-model bind / clear actions
+- [completed] landed first-wave `Providers` workspace operations:
+  - provider list and detail inspector
+  - provider health refresh
+  - provider draft form for create / update / delete
+  - provider model discovery from entered base URL and API key
+- [completed] landed supporting overview workspaces:
+  - `Settings` summary of gateway/session/model-supply state
+  - `Sessions` read-only ledger synced with the chat session selection
+  - `Memory` read-only diagnostics placeholder for the next editor slice
+- [completed] extended shared gateway transport support for desktop ops flows:
+  - provider model discovery
+  - provider update
+- [completed] added focused regression coverage for the new helper and transport surfaces:
+  - `tests/test_desktop_window_helpers.py`
+  - `tests/test_transport_gateway_client.py`
+- [completed] verified the landing with targeted checks:
+  - `python -m py_compile src/mini_agent/desktop/window.py src/mini_agent/transport/gateway_client.py tests/test_desktop_window_helpers.py tests/test_transport_gateway_client.py`
+  - `python -m pytest tests/test_transport_gateway_client.py tests/test_desktop_window_helpers.py -q`
+  - result: `38 passed`
+- [next] continue `P42` with second-wave desktop refinement:
+  - better provider editing ergonomics and presets
+  - richer session history workspace
+  - real memory file editor
+  - live desktop smoke once `PySide6` is installed in the environment
+
 ## 2026-04-16 P40.27-P40.31 Repo Hygiene Closure
 
 - [completed] landed the remaining five narrow repo-hygiene slices after `P40.26` instead of mixing them into one opaque cleanup commit:
@@ -8934,3 +9099,48 @@
     - MiniMax via anthropic-protocol-family preset
     - Ollama via local discovery + manual role/binding
   - remaining work moves back to normal product iteration instead of foundation cleanup
+
+## 2026-04-16 P42 Planning Session
+
+- [completed] started `P42` as a planning-only reboot for DesktopUI front-end work
+- [completed] applied the relevant skills for this turn:
+  - `planning-with-files`
+  - `frontend-design`
+- [completed] audited the current desktop surface implementation:
+  - `src/mini_agent/desktop/app.py`
+  - `src/mini_agent/desktop/window.py`
+  - `src/apps/desktop_ui/main.py`
+  - desktop bootstrap / helper tests
+- [completed] confirmed the current desktop foundation:
+  - desktop UI is built on `PySide6`
+  - the current app is a real native window shell, not a browser wrapper
+  - the maintained graphical direction still matches the `P31` decision
+- [completed] assessed componentization feasibility:
+  - current stack can support componentized design
+  - current implementation is still monolithic and not yet structured as a component system
+  - the current `Qt Widgets` path is strong enough for a polished productivity desktop shell if refactored correctly
+  - a full `QML` migration is possible later, but is not the recommended first move for `P42`
+- [completed] wrote the initial `P42` plan into planning memory with these slices:
+  - `P42.1` desktop anatomy and boundary freeze
+  - `P42.2` design-token and theming foundation
+  - `P42.3` reusable desktop component library
+  - `P42.4` layout rewrite for product quality
+  - `P42.5` motion and premium interaction pass
+  - `P42.6` readiness validation and follow-up decision
+- [completed] recorded one planning caveat:
+  - `PySide6` is declared in the project extras but is not installed in the current shell, so this turn could inspect structure and contracts but could not run the live desktop surface locally
+- [completed] expanded `P42` from a generic frontend reboot into a concrete product-page plan:
+  - required surfaces now explicitly include:
+    - `Chat`
+    - `Models`
+    - `Providers`
+    - `Settings`
+    - `Sessions`
+    - `Memory`
+  - first shipping priority is locked to:
+    - provider/model configuration
+    - model settings and management
+    - TUI-shaped rich conversation workspace
+  - second-wave follow-up is:
+    - session history
+    - memory-file editor

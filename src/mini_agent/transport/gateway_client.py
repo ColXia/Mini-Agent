@@ -160,6 +160,246 @@ class GatewayClient:
         )
         return data if isinstance(data, dict) else {}
 
+    def list_ops_providers_sync(self, *, catalog_path: str | None = None) -> dict[str, Any]:
+        data = self._request_json(
+            "GET",
+            "/api/v1/ops/providers",
+            query={"catalog_path": _safe_text(catalog_path) or None},
+        )
+        return data if isinstance(data, dict) else {}
+
+    def list_ops_models_sync(self, *, catalog_path: str | None = None) -> dict[str, Any]:
+        data = self._request_json(
+            "GET",
+            "/api/v1/ops/models",
+            query={"catalog_path": _safe_text(catalog_path) or None},
+        )
+        return data if isinstance(data, dict) else {}
+
+    def list_feature_model_bindings_sync(self, *, catalog_path: str | None = None) -> dict[str, Any]:
+        data = self._request_json(
+            "GET",
+            "/api/v1/ops/models/bindings",
+            query={"catalog_path": _safe_text(catalog_path) or None},
+        )
+        return data if isinstance(data, dict) else {}
+
+    def set_model_role_sync(
+        self,
+        *,
+        source: str,
+        provider_id: str,
+        model_id: str,
+        model_role: str,
+        catalog_path: str | None = None,
+    ) -> dict[str, Any]:
+        data = self._request_json(
+            "PATCH",
+            "/api/v1/ops/models/role",
+            query={"catalog_path": _safe_text(catalog_path) or None},
+            payload={
+                "source": _safe_text(source),
+                "provider_id": _safe_text(provider_id),
+                "model_id": _safe_text(model_id),
+                "model_role": _safe_text(model_role),
+            },
+        )
+        return data if isinstance(data, dict) else {}
+
+    def probe_model_capabilities_sync(
+        self,
+        *,
+        source: str,
+        provider_id: str,
+        model_id: str,
+        catalog_path: str | None = None,
+    ) -> dict[str, Any]:
+        data = self._request_json(
+            "POST",
+            "/api/v1/ops/models/probe",
+            query={"catalog_path": _safe_text(catalog_path) or None},
+            payload={
+                "source": _safe_text(source),
+                "provider_id": _safe_text(provider_id),
+                "model_id": _safe_text(model_id),
+            },
+        )
+        return data if isinstance(data, dict) else {}
+
+    def bind_feature_model_sync(
+        self,
+        *,
+        feature_role: str,
+        source: str,
+        provider_id: str,
+        model_id: str,
+        catalog_path: str | None = None,
+    ) -> dict[str, Any]:
+        data = self._request_json(
+            "PUT",
+            "/api/v1/ops/models/bindings",
+            query={"catalog_path": _safe_text(catalog_path) or None},
+            payload={
+                "feature_role": _safe_text(feature_role),
+                "source": _safe_text(source),
+                "provider_id": _safe_text(provider_id),
+                "model_id": _safe_text(model_id),
+            },
+        )
+        return data if isinstance(data, dict) else {}
+
+    def clear_feature_model_binding_sync(
+        self,
+        *,
+        feature_role: str,
+        catalog_path: str | None = None,
+    ) -> dict[str, Any]:
+        safe_role = quote(_safe_text(feature_role), safe="")
+        data = self._request_json(
+            "DELETE",
+            f"/api/v1/ops/models/bindings/{safe_role}",
+            query={"catalog_path": _safe_text(catalog_path) or None},
+        )
+        return data if isinstance(data, dict) else {}
+
+    def discover_provider_models_sync(
+        self,
+        *,
+        api_type: str,
+        api_base: str,
+        api_key: str,
+    ) -> dict[str, Any]:
+        data = self._request_json(
+            "POST",
+            "/api/v1/ops/providers/model-discovery",
+            payload={
+                "api_type": _safe_text(api_type) or "openai",
+                "api_base": _safe_text(api_base),
+                "api_key": _safe_text(api_key),
+            },
+        )
+        return data if isinstance(data, dict) else {}
+
+    def validate_provider_connection_sync(
+        self,
+        *,
+        api_type: str,
+        api_base: str,
+        api_key: str | None = None,
+    ) -> dict[str, Any]:
+        data = self._request_json(
+            "POST",
+            "/api/v1/ops/providers/validate",
+            payload={
+                "api_type": _safe_text(api_type) or "openai",
+                "api_base": _safe_text(api_base),
+                "api_key": _safe_text(api_key) or None,
+            },
+        )
+        return data if isinstance(data, dict) else {}
+
+    def create_provider_sync(
+        self,
+        *,
+        payload: dict[str, Any],
+        catalog_path: str | None = None,
+    ) -> dict[str, Any]:
+        data = self._request_json(
+            "POST",
+            "/api/v1/ops/providers",
+            query={"catalog_path": _safe_text(catalog_path) or None},
+            payload=dict(payload or {}),
+        )
+        return data if isinstance(data, dict) else {}
+
+    def update_provider_sync(
+        self,
+        *,
+        provider_id: str,
+        payload: dict[str, Any],
+        catalog_path: str | None = None,
+    ) -> dict[str, Any]:
+        safe_id = quote(_safe_text(provider_id), safe="")
+        data = self._request_json(
+            "PUT",
+            f"/api/v1/ops/providers/{safe_id}",
+            query={"catalog_path": _safe_text(catalog_path) or None},
+            payload=dict(payload or {}),
+        )
+        return data if isinstance(data, dict) else {}
+
+    def delete_provider_sync(
+        self,
+        *,
+        provider_id: str,
+        catalog_path: str | None = None,
+    ) -> dict[str, Any]:
+        safe_id = quote(_safe_text(provider_id), safe="")
+        data = self._request_json(
+            "DELETE",
+            f"/api/v1/ops/providers/{safe_id}",
+            query={"catalog_path": _safe_text(catalog_path) or None},
+        )
+        return data if isinstance(data, dict) else {}
+
+    def get_provider_health_sync(
+        self,
+        *,
+        provider_id: str,
+        catalog_path: str | None = None,
+    ) -> dict[str, Any]:
+        safe_id = quote(_safe_text(provider_id), safe="")
+        data = self._request_json(
+            "GET",
+            f"/api/v1/ops/providers/{safe_id}/health",
+            query={"catalog_path": _safe_text(catalog_path) or None},
+        )
+        return data if isinstance(data, dict) else {}
+
+    def get_ops_memory_summary_sync(
+        self,
+        *,
+        workspace_dir: str | None = None,
+    ) -> dict[str, Any]:
+        data = self._request_json(
+            "GET",
+            "/api/v1/ops/memory/summary",
+            query={"workspace_dir": _safe_text(workspace_dir) or None},
+        )
+        return data if isinstance(data, dict) else {}
+
+    def search_ops_memory_sync(
+        self,
+        *,
+        query: str = "",
+        limit: int = 20,
+        workspace_dir: str | None = None,
+    ) -> dict[str, Any]:
+        data = self._request_json(
+            "GET",
+            "/api/v1/ops/memory/search",
+            query={
+                "query": _safe_text(query),
+                "limit": max(1, int(limit)),
+                "workspace_dir": _safe_text(workspace_dir) or None,
+            },
+        )
+        return data if isinstance(data, dict) else {}
+
+    def get_ops_memory_daily_sync(
+        self,
+        *,
+        day: str,
+        workspace_dir: str | None = None,
+    ) -> dict[str, Any]:
+        safe_day = quote(_safe_text(day), safe="")
+        data = self._request_json(
+            "GET",
+            f"/api/v1/ops/memory/daily/{safe_day}",
+            query={"workspace_dir": _safe_text(workspace_dir) or None},
+        )
+        return data if isinstance(data, dict) else {}
+
     def ensure_default_session_sync(
         self,
         *,
@@ -665,6 +905,36 @@ class GatewayClient:
             f"/api/v1/agent/sessions/{safe_id}/policy",
             payload=payload,
         )
+
+    def update_session_runtime_policy_sync(
+        self,
+        session_id: str,
+        *,
+        approval_profile: str | None = None,
+        access_level: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> dict[str, Any]:
+        safe_id = quote(_safe_text(session_id), safe="")
+        binding = self._binding_payload(
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
+        payload = {
+            "approval_profile": _safe_text(approval_profile) or None,
+            "access_level": _safe_text(access_level) or None,
+            **binding,
+        }
+        data = self._request_json(
+            "POST",
+            f"/api/v1/agent/sessions/{safe_id}/policy",
+            payload=payload,
+        )
+        return data if isinstance(data, dict) else {}
 
     async def respond_to_approval(
         self,

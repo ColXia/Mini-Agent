@@ -132,6 +132,30 @@ def test_ops_provider_contract_rejects_removed_custom_api_type(_catalog_path):
         assert "api_type 'custom' was removed" in bad.text
 
 
+def test_ops_provider_contract_accepts_ollama_alias_and_blank_api_key(_catalog_path):
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/ops/providers",
+            json={
+                "name": "Ollama Local",
+                "api_type": "ollama",
+                "api_base": "http://127.0.0.1:11434/v1",
+                "api_key": "",
+                "models": ["qwen3.5:9b"],
+                "enabled": True,
+                "priority": 5,
+                "timeout": 45,
+                "headers": {},
+            },
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["id"] == "ollama-local"
+        assert payload["api_type"] == "openai"
+        assert payload["models"] == ["qwen3.5:9b"]
+
+
 def test_ops_models_contract_merges_custom_and_preset(monkeypatch, _catalog_path):
     monkeypatch.setenv("OPENAI_API_KEY", "sk-openai-test")
 
@@ -359,6 +383,44 @@ def test_ops_provider_model_discovery_contract(monkeypatch):
         payload = response.json()
         assert payload["latest_model_id"] == "model-b"
         assert [item["model_id"] for item in payload["models"]] == ["model-a", "model-b"]
+
+
+def test_ops_provider_validation_contract(monkeypatch):
+    class _OpsStub:
+        def validate_provider_connection(self, *, payload):
+            _ = payload
+            return {
+                "status": "reachable_no_models",
+                "api_type": "openai",
+                "api_base": "https://maas.example.com/v2",
+                "resolved_provider_type": "openai",
+                "connection_ok": True,
+                "model_count": 0,
+                "latest_model_id": None,
+                "message": "Connection ok, but the provider returned no models.",
+                "models": [],
+            }
+
+    monkeypatch.setattr(
+        gateway_main,
+        "GATEWAY_PROVIDER_OPERATIONS_USE_CASES",
+        _OpsStub(),
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/ops/providers/validate",
+            json={
+                "api_type": "openai",
+                "api_base": "https://maas.example.com/v2",
+                "api_key": "sk-maas-test",
+            },
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["status"] == "reachable_no_models"
+        assert payload["connection_ok"] is True
+        assert payload["model_count"] == 0
 
 
 def test_ops_provider_model_discovery_contract_rejects_removed_custom_api_type():

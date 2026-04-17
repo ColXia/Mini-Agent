@@ -109,6 +109,38 @@ def test_gateway_client_get_system_health_sync_uses_health_endpoint() -> None:
     assert captured["payload"] is None
 
 
+def test_gateway_client_update_session_runtime_policy_sync_normalizes_binding_payload() -> None:
+    client = GatewayClient(base_url="http://127.0.0.1:8008")
+    captured: dict[str, object] = {}
+
+    def _fake_request_json(method: str, path: str, *, query=None, payload=None):  # noqa: ANN001
+        captured["method"] = method
+        captured["path"] = path
+        captured["query"] = query
+        captured["payload"] = payload
+        return {"approval_profile": "build", "access_level": "default"}
+
+    client._request_json = _fake_request_json  # type: ignore[method-assign]
+    payload = client.update_session_runtime_policy_sync(
+        " sess-1 ",
+        approval_profile=" build ",
+        access_level=" default ",
+        surface=" desktop ",
+    )
+
+    assert payload == {"approval_profile": "build", "access_level": "default"}
+    assert captured["method"] == "POST"
+    assert captured["path"] == "/api/v1/agent/sessions/sess-1/policy"
+    assert captured["payload"] == {
+        "approval_profile": "build",
+        "access_level": "default",
+        "surface": "desktop",
+        "channel_type": None,
+        "conversation_id": None,
+        "sender_id": None,
+    }
+
+
 def test_gateway_client_list_agent_models_sync_uses_models_endpoint() -> None:
     client = GatewayClient(base_url="http://127.0.0.1:8008")
     captured: dict[str, object] = {}
@@ -127,6 +159,341 @@ def test_gateway_client_list_agent_models_sync_uses_models_endpoint() -> None:
     assert captured["method"] == "GET"
     assert captured["path"] == "/api/v1/agent/models"
     assert captured["query"] is None
+    assert captured["payload"] is None
+
+
+def test_gateway_client_list_ops_models_sync_uses_ops_models_endpoint() -> None:
+    client = GatewayClient(base_url="http://127.0.0.1:8008")
+    captured: dict[str, object] = {}
+
+    def _fake_request_json(method: str, path: str, *, query=None, payload=None):  # noqa: ANN001
+        captured["method"] = method
+        captured["path"] = path
+        captured["query"] = query
+        captured["payload"] = payload
+        return {"items": []}
+
+    client._request_json = _fake_request_json  # type: ignore[method-assign]
+    payload = client.list_ops_models_sync(catalog_path=" D:/file/Mini-Agent/providers.json ")
+
+    assert payload == {"items": []}
+    assert captured["method"] == "GET"
+    assert captured["path"] == "/api/v1/ops/models"
+    assert captured["query"] == {"catalog_path": "D:/file/Mini-Agent/providers.json"}
+    assert captured["payload"] is None
+
+
+def test_gateway_client_list_ops_providers_sync_uses_ops_providers_endpoint() -> None:
+    client = GatewayClient(base_url="http://127.0.0.1:8008")
+    captured: dict[str, object] = {}
+
+    def _fake_request_json(method: str, path: str, *, query=None, payload=None):  # noqa: ANN001
+        captured["method"] = method
+        captured["path"] = path
+        captured["query"] = query
+        captured["payload"] = payload
+        return {"items": []}
+
+    client._request_json = _fake_request_json  # type: ignore[method-assign]
+    payload = client.list_ops_providers_sync()
+
+    assert payload == {"items": []}
+    assert captured["method"] == "GET"
+    assert captured["path"] == "/api/v1/ops/providers"
+    assert captured["query"] == {"catalog_path": None}
+    assert captured["payload"] is None
+
+
+def test_gateway_client_set_model_role_sync_uses_ops_role_endpoint() -> None:
+    client = GatewayClient(base_url="http://127.0.0.1:8008")
+    captured: dict[str, object] = {}
+
+    def _fake_request_json(method: str, path: str, *, query=None, payload=None):  # noqa: ANN001
+        captured["method"] = method
+        captured["path"] = path
+        captured["query"] = query
+        captured["payload"] = payload
+        return {"provider_id": "maas"}
+
+    client._request_json = _fake_request_json  # type: ignore[method-assign]
+    payload = client.set_model_role_sync(
+        source=" custom ",
+        provider_id=" maas ",
+        model_id=" astron-code-latest ",
+        model_role=" chat ",
+    )
+
+    assert payload == {"provider_id": "maas"}
+    assert captured["method"] == "PATCH"
+    assert captured["path"] == "/api/v1/ops/models/role"
+    assert captured["payload"] == {
+        "source": "custom",
+        "provider_id": "maas",
+        "model_id": "astron-code-latest",
+        "model_role": "chat",
+    }
+
+
+def test_gateway_client_probe_model_capabilities_sync_uses_ops_probe_endpoint() -> None:
+    client = GatewayClient(base_url="http://127.0.0.1:8008")
+    captured: dict[str, object] = {}
+
+    def _fake_request_json(method: str, path: str, *, query=None, payload=None):  # noqa: ANN001
+        captured["method"] = method
+        captured["path"] = path
+        captured["query"] = query
+        captured["payload"] = payload
+        return {"model_id": "astron-code-latest"}
+
+    client._request_json = _fake_request_json  # type: ignore[method-assign]
+    payload = client.probe_model_capabilities_sync(
+        source="preset",
+        provider_id="minimax",
+        model_id="MiniMax-M2.7",
+    )
+
+    assert payload == {"model_id": "astron-code-latest"}
+    assert captured["method"] == "POST"
+    assert captured["path"] == "/api/v1/ops/models/probe"
+    assert captured["payload"] == {
+        "source": "preset",
+        "provider_id": "minimax",
+        "model_id": "MiniMax-M2.7",
+    }
+
+
+def test_gateway_client_bind_feature_model_sync_uses_ops_bindings_endpoint() -> None:
+    client = GatewayClient(base_url="http://127.0.0.1:8008")
+    captured: dict[str, object] = {}
+
+    def _fake_request_json(method: str, path: str, *, query=None, payload=None):  # noqa: ANN001
+        captured["method"] = method
+        captured["path"] = path
+        captured["query"] = query
+        captured["payload"] = payload
+        return {"feature_role": "embedding"}
+
+    client._request_json = _fake_request_json  # type: ignore[method-assign]
+    payload = client.bind_feature_model_sync(
+        feature_role=" embedding ",
+        source=" custom ",
+        provider_id=" ollama ",
+        model_id=" qwen3-embedding:0.6b ",
+    )
+
+    assert payload == {"feature_role": "embedding"}
+    assert captured["method"] == "PUT"
+    assert captured["path"] == "/api/v1/ops/models/bindings"
+    assert captured["payload"] == {
+        "feature_role": "embedding",
+        "source": "custom",
+        "provider_id": "ollama",
+        "model_id": "qwen3-embedding:0.6b",
+    }
+
+
+def test_gateway_client_discover_provider_models_sync_uses_discovery_endpoint() -> None:
+    client = GatewayClient(base_url="http://127.0.0.1:8008")
+    captured: dict[str, object] = {}
+
+    def _fake_request_json(method: str, path: str, *, query=None, payload=None):  # noqa: ANN001
+        captured["method"] = method
+        captured["path"] = path
+        captured["query"] = query
+        captured["payload"] = payload
+        return {"latest_model_id": "astron-code-latest", "models": []}
+
+    client._request_json = _fake_request_json  # type: ignore[method-assign]
+    payload = client.discover_provider_models_sync(
+        api_type=" openai ",
+        api_base=" https://example.com/v2 ",
+        api_key=" test-key ",
+    )
+
+    assert payload == {"latest_model_id": "astron-code-latest", "models": []}
+    assert captured["method"] == "POST"
+    assert captured["path"] == "/api/v1/ops/providers/model-discovery"
+    assert captured["query"] is None
+    assert captured["payload"] == {
+        "api_type": "openai",
+        "api_base": "https://example.com/v2",
+        "api_key": "test-key",
+    }
+
+
+def test_gateway_client_validate_provider_connection_sync_uses_validation_endpoint() -> None:
+    client = GatewayClient(base_url="http://127.0.0.1:8008")
+    captured: dict[str, object] = {}
+
+    def _fake_request_json(method: str, path: str, *, query=None, payload=None):  # noqa: ANN001
+        captured["method"] = method
+        captured["path"] = path
+        captured["query"] = query
+        captured["payload"] = payload
+        return {"status": "reachable_no_models", "message": "Connection ok."}
+
+    client._request_json = _fake_request_json  # type: ignore[method-assign]
+    payload = client.validate_provider_connection_sync(
+        api_type=" ollama ",
+        api_base=" http://127.0.0.1:11434/v1 ",
+        api_key=" ",
+    )
+
+    assert payload == {"status": "reachable_no_models", "message": "Connection ok."}
+    assert captured["method"] == "POST"
+    assert captured["path"] == "/api/v1/ops/providers/validate"
+    assert captured["query"] is None
+    assert captured["payload"] == {
+        "api_type": "ollama",
+        "api_base": "http://127.0.0.1:11434/v1",
+        "api_key": None,
+    }
+
+
+def test_gateway_client_create_provider_sync_uses_ops_provider_create_endpoint() -> None:
+    client = GatewayClient(base_url="http://127.0.0.1:8008")
+    captured: dict[str, object] = {}
+
+    def _fake_request_json(method: str, path: str, *, query=None, payload=None):  # noqa: ANN001
+        captured["method"] = method
+        captured["path"] = path
+        captured["query"] = query
+        captured["payload"] = payload
+        return {"id": "maas-smoke"}
+
+    client._request_json = _fake_request_json  # type: ignore[method-assign]
+    payload = client.create_provider_sync(
+        payload={
+            "id": "maas-smoke",
+            "name": "MaaS Smoke",
+            "api_type": "openai",
+            "api_base": "https://example.com/v2",
+            "api_key": "secret",
+            "models": ["astron-code-latest"],
+        }
+    )
+
+    assert payload == {"id": "maas-smoke"}
+    assert captured["method"] == "POST"
+    assert captured["path"] == "/api/v1/ops/providers"
+    assert captured["payload"] == {
+        "id": "maas-smoke",
+        "name": "MaaS Smoke",
+        "api_type": "openai",
+        "api_base": "https://example.com/v2",
+        "api_key": "secret",
+        "models": ["astron-code-latest"],
+    }
+
+
+def test_gateway_client_update_provider_sync_uses_ops_provider_update_endpoint() -> None:
+    client = GatewayClient(base_url="http://127.0.0.1:8008")
+    captured: dict[str, object] = {}
+
+    def _fake_request_json(method: str, path: str, *, query=None, payload=None):  # noqa: ANN001
+        captured["method"] = method
+        captured["path"] = path
+        captured["query"] = query
+        captured["payload"] = payload
+        return {"id": "ollama-local"}
+
+    client._request_json = _fake_request_json  # type: ignore[method-assign]
+    payload = client.update_provider_sync(
+        provider_id=" ollama-local ",
+        payload={
+            "name": "Ollama Local",
+            "api_type": "ollama",
+            "api_base": "http://127.0.0.1:11434",
+            "api_key": "unused",
+            "models": ["qwen3.5:9b"],
+        },
+        catalog_path=" D:/file/Mini-Agent/providers.json ",
+    )
+
+    assert payload == {"id": "ollama-local"}
+    assert captured["method"] == "PUT"
+    assert captured["path"] == "/api/v1/ops/providers/ollama-local"
+    assert captured["query"] == {"catalog_path": "D:/file/Mini-Agent/providers.json"}
+    assert captured["payload"] == {
+        "name": "Ollama Local",
+        "api_type": "ollama",
+        "api_base": "http://127.0.0.1:11434",
+        "api_key": "unused",
+        "models": ["qwen3.5:9b"],
+    }
+
+
+def test_gateway_client_get_ops_memory_summary_sync_uses_memory_summary_endpoint() -> None:
+    client = GatewayClient(base_url="http://127.0.0.1:8008")
+    captured: dict[str, object] = {}
+
+    def _fake_request_json(method: str, path: str, *, query=None, payload=None):  # noqa: ANN001
+        captured["method"] = method
+        captured["path"] = path
+        captured["query"] = query
+        captured["payload"] = payload
+        return {"workspace_dir": "D:/file/Mini-Agent"}
+
+    client._request_json = _fake_request_json  # type: ignore[method-assign]
+    payload = client.get_ops_memory_summary_sync(workspace_dir=" D:/file/Mini-Agent ")
+
+    assert payload == {"workspace_dir": "D:/file/Mini-Agent"}
+    assert captured["method"] == "GET"
+    assert captured["path"] == "/api/v1/ops/memory/summary"
+    assert captured["query"] == {"workspace_dir": "D:/file/Mini-Agent"}
+    assert captured["payload"] is None
+
+
+def test_gateway_client_search_ops_memory_sync_uses_memory_search_endpoint() -> None:
+    client = GatewayClient(base_url="http://127.0.0.1:8008")
+    captured: dict[str, object] = {}
+
+    def _fake_request_json(method: str, path: str, *, query=None, payload=None):  # noqa: ANN001
+        captured["method"] = method
+        captured["path"] = path
+        captured["query"] = query
+        captured["payload"] = payload
+        return {"items": [], "total": 0}
+
+    client._request_json = _fake_request_json  # type: ignore[method-assign]
+    payload = client.search_ops_memory_sync(
+        query=" routing facts ",
+        limit=12,
+        workspace_dir=" D:/file/Mini-Agent ",
+    )
+
+    assert payload == {"items": [], "total": 0}
+    assert captured["method"] == "GET"
+    assert captured["path"] == "/api/v1/ops/memory/search"
+    assert captured["query"] == {
+        "query": "routing facts",
+        "limit": 12,
+        "workspace_dir": "D:/file/Mini-Agent",
+    }
+    assert captured["payload"] is None
+
+
+def test_gateway_client_get_ops_memory_daily_sync_uses_memory_daily_endpoint() -> None:
+    client = GatewayClient(base_url="http://127.0.0.1:8008")
+    captured: dict[str, object] = {}
+
+    def _fake_request_json(method: str, path: str, *, query=None, payload=None):  # noqa: ANN001
+        captured["method"] = method
+        captured["path"] = path
+        captured["query"] = query
+        captured["payload"] = payload
+        return {"day": "2026-04-17"}
+
+    client._request_json = _fake_request_json  # type: ignore[method-assign]
+    payload = client.get_ops_memory_daily_sync(
+        day=" 2026-04-17 ",
+        workspace_dir=" D:/file/Mini-Agent ",
+    )
+
+    assert payload == {"day": "2026-04-17"}
+    assert captured["method"] == "GET"
+    assert captured["path"] == "/api/v1/ops/memory/daily/2026-04-17"
+    assert captured["query"] == {"workspace_dir": "D:/file/Mini-Agent"}
     assert captured["payload"] is None
 
 

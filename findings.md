@@ -1,5 +1,118 @@
 # Findings
 
+## 2026-04-17 P42.5 Desktop Provider-Model Shortcut Workflow Findings
+
+- After `P42.4`, the provider setup flow was truthful, but it still taught a split operator habit:
+  - configure provider here
+  - classify and bind models somewhere else
+- That split is survivable, but it is also exactly how desktop surfaces drift back toward “lots of pages, no one page feels complete”.
+- The useful follow-up was not more backend expansion.
+- It was to tighten the first mile of model organization inside the `Providers` page itself.
+- The important boundary here is that not every action should ignore persistence truth:
+  - changing the default model is naturally a draft-form edit
+  - changing model role or feature binding is a registry write and should only happen once the provider is actually saved
+- Keeping that distinction visible matters.
+- It avoids a common desktop anti-pattern where the UI appears to mutate real state even though the underlying object has not yet been persisted.
+- This slice also reinforces a healthier product shape:
+  - `Providers` owns onboarding and first-pass organization
+  - `Models` still owns the broader registry-wide inspection and operations view
+- That is a better division of responsibility than forcing the provider page to become a second registry browser or leaving it as a dead-end setup form.
+- Practical result:
+  - provider onboarding now feels much closer to a complete guided workflow
+  - the next desktop iterations can focus more on cross-page polish and real-use integration instead of basic setup ergonomics
+
+## 2026-04-17 P42.4 Desktop Provider Validation and Save Flow Hardening Findings
+
+- This slice exposed a real contract drift between the desktop surface and the supported model-supply backend:
+  - the desktop page presented `ollama` as a first-class draft type
+  - the maintained provider contract underneath only persisted `openai` / `anthropic`
+- That kind of drift is exactly the sort of thing that makes later feature work look finished while remaining operationally brittle.
+- The healthy fix was not to hide `Ollama` from the UI.
+- It was to make the supported setup path honest:
+  - accept `ollama` as a setup alias where operators interact
+  - normalize it into the maintained runtime contract before persistence
+  - preserve the local-family presentation back in the desktop page
+- Another important reality surfaced clearly:
+  - using model discovery alone as a connection test is not enough
+  - some real suppliers can be reachable and usable while still returning an empty inventory from `/models`
+  - the current `MaaS` behavior is exactly that kind of case
+- That is why the validation route now needs an explicit `reachable_no_models` state instead of collapsing everything into success vs. failure.
+- This keeps the desktop product truthful:
+  - connectivity truth
+  - inventory truth
+  - manual model-onboarding truth
+- A smaller but still important usability correction also landed:
+  - local `Ollama` should not force users to invent a fake secret just to get through the GUI
+  - the supported surface can safely fill the maintained sentinel for local `11434` endpoints instead of burdening the user with that implementation detail
+- Practical effect:
+  - the `Providers` page is now much closer to a real operational entrance instead of a mostly-correct editor form
+  - later desktop iterations can build on a cleaner provider workflow rather than patching around silent setup mismatches
+
+## 2026-04-17 P42.2 Desktop Sessions and Memory Workspace Upgrade Findings
+
+- The first `P42` landing solved desktop shell structure, but it still left an important practical gap:
+  - users could configure model supply visually
+  - but they still could not inspect session history or edit durable memory in the same desktop entrance
+- That matters because session review and memory editing are not side tools.
+- They are part of the anti-chaos workflow:
+  - inspect what happened
+  - correct the durable record
+  - continue iterating from a cleaner state
+- The most important design choice in this slice was to keep the `Memory` page grounded in real workspace files instead of inventing a desktop-only abstraction.
+- That means the page now reflects the actual project truth:
+  - `MEMORY.md`
+  - daily memory files
+  - workspace note search results
+- Another useful constraint surfaced clearly:
+  - the gateway already had read/search memory ops routes
+  - but not a write route for arbitrary file editing
+  - therefore the honest desktop implementation is hybrid:
+    - gateway for summary/search/day discovery
+    - local file IO for editor save/reload
+- This is a good boundary for now because the desktop app is local-first and shares the same workspace.
+- The `Sessions` page also benefited from not creating a second session state model:
+  - it reuses the canonical selected session
+  - transcript/detail/chat jump all stay aligned
+  - that avoids another future sync source of truth problem
+- Validation quality improved materially in this slice:
+  - earlier desktop work was mostly helper-contract strong
+  - after `.venv` gained `PySide6`, a real Qt event-loop smoke could finally run
+  - that moves the desktop track from “structurally likely” closer to “locally runnable”
+
+## 2026-04-17 P42.1 Desktop Product Shell and Model Supply Workspaces Findings
+
+- The biggest desktop truth gap after `P41` was no longer backend capability.
+- It was that the desktop surface still taught a single-window chat mental model while the project already had:
+  - provider CRUD
+  - model registry introspection
+  - capability probing
+  - feature-model binding
+  - runtime/session diagnostics
+- That mismatch is exactly how later feature work turns back into chaos:
+  - backend contracts grow
+  - users can only reach them through CLI or ad-hoc testing
+  - desktop becomes a misleading shell instead of the canonical graphical entrance
+- The healthy first `P42` move was therefore structural and operational at the same time:
+  - separate the desktop into distinct workspaces
+  - wire those workspaces to the real ops transport immediately
+  - avoid shipping a pretty shell that still cannot operate the model supply layer
+- Two practical design decisions mattered here:
+  - keep `PySide6` and refactor the existing desktop shell instead of changing stacks midstream
+  - preserve the TUI-shaped chat anatomy as one dedicated page so desktop gains product structure without losing the current workflow muscle memory
+- Another important finding is that provider editing needs special care around secrets:
+  - ops list/detail surfaces do not expose raw API keys
+  - therefore editing an existing provider in desktop must require re-entering the API key on save
+  - that constraint is real product behavior, not just a temporary UI omission
+- This slice also exposed an operator experience risk with periodic refresh:
+  - background refresh can easily clobber draft provider edits
+  - draft-preservation behavior is therefore part of correctness, not cosmetic polish
+- Practical result:
+  - desktop is now capable of operating the current model supply substrate instead of merely observing runtime chat state
+  - follow-up desktop work can iterate page depth and polish rather than first fighting monolithic shell structure
+- Remaining honest gap:
+  - live GUI validation still depends on having `PySide6` available in the execution environment
+  - current verification is code-contract strong, but not yet live-render strong
+
 ## 2026-04-16 P40.27-P40.31 Repo Hygiene Closure Findings
 
 - The remaining anti-chaos work after `P40.26` was not one last giant cleanup.
@@ -7311,6 +7424,101 @@
   - `minimax` is implemented and validated as an Anthropic-protocol-family preset, so that live smoke already covers the required anthropic-family route for this slice
   - official Claude/Anthropic preset smoke remains a valid future verification task, but it is not required to close `P41`
   - `translategemma:12b` is treated as a chat-specialized LLM rather than a feature-role model, so leaving it in the chat-visible set does not block `P41`
+
+## 2026-04-16 P42 DesktopUI Frontend Audit Findings
+
+- The desktop stack is real `PySide6`, not a fake browser wrapper:
+  - `src/mini_agent/desktop/app.py` lazy-loads `PySide6`
+  - `src/apps/desktop_ui/main.py` is the dedicated desktop bootstrap entry
+  - `pyproject.toml` exposes `desktop = ["PySide6>=6.8"]`
+
+- The current desktop frontend is technically viable for componentized design, but it is not yet architected that way.
+  - `src/mini_agent/desktop/window.py` currently holds the overwhelming majority of the UI composition
+  - the file is ~1349 lines
+  - `ChatStreamWorker` and `DesktopMainWindow` are nested inside one factory function:
+    - `create_desktop_main_window(...)`
+  - this is workable for a first shell, but it is the wrong shape for a long-lived design system
+
+- The current UI layer is `Qt Widgets`-first, not `Qt Quick / QML`.
+  - visible composition relies on:
+    - `QMainWindow`
+    - `QGroupBox`
+    - `QListWidget`
+    - `QTextBrowser`
+    - `QPlainTextEdit`
+    - `QComboBox`
+    - `QPushButton`
+  - this is enough for a strong native productivity UI
+  - but it does not automatically produce Apple/Google-grade finish
+
+- No real desktop design-system layer is visible yet.
+  - no centralized theme token module was found
+  - no reusable desktop component directory was found
+  - no desktop-wide QSS/style system was found
+  - no animation/elevation/material policy was found
+
+- The practical conclusion is:
+  - current stack can support componentization
+  - current implementation does not yet support premium componentized design cleanly without refactor first
+
+- A literal Apple/Google visual target is risky if interpreted as cloning.
+  - the better target is:
+    - Apple-like restraint, polish, hierarchy, and motion discipline
+    - Google-like clarity, productivity, and systemized affordances
+
+- The strongest low-risk `P42` route is:
+  - keep `PySide6`
+  - keep the existing shared runtime/gateway architecture
+  - refactor the current `Qt Widgets` shell into:
+    - theme tokens
+    - reusable components
+    - panel modules
+    - composition-root window
+  - defer any full `QML` migration until the information architecture and component anatomy are stable
+
+- Runtime verification caveat:
+  - the repository declares `PySide6` as an optional dependency
+  - but `PySide6` is not installed in the current shell, so this planning pass could audit code structure but could not run live desktop rendering locally in this session
+
+- The user's requested product target is more specific than "make DesktopUI prettier".
+  - required dedicated surfaces:
+    - model configuration
+    - model settings
+    - model library
+    - session history
+    - memory-file editor
+    - rich chat workspace
+  - immediate implementation priority is:
+    - model configuration / settings / management
+    - TUI-shaped conversation workspace
+
+- Existing backend capability is already strong enough for the first desktop management pages.
+  - current gateway/application seams already expose operations for:
+    - provider CRUD
+    - provider health
+    - model discovery
+    - model selection
+    - model role assignment
+    - capability probing
+    - feature-model binding
+  - this means the first `P42` wave is primarily a desktop productization and UI-composition problem, not a backend capability gap
+
+- `CC-Switch` and the new Ollama app suggest two useful reference patterns for `P42`.
+  - From the CC-Switch integration guide:
+    - visual provider management
+    - one-click provider switching
+    - unified configuration over multiple tool/provider targets
+    - provider-management-first UX
+  - From Ollama’s new app:
+    - direct model download/chat flow
+    - file-aware chat
+    - settings-visible context-length control
+    - a simpler local-chat-first experience
+  - Inference:
+    - `P42` should combine:
+      - CC-Switch-like provider/model control surfaces
+      - Ollama-like rich chat workspace
+      - Mini-Agent’s existing TUI-style operator information density
 
 - Real supplier follow-up finding: MaaS OpenAI-compatible inventory discovery is not sufficient as an onboarding contract.
   - Reproduction:

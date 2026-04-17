@@ -9,6 +9,13 @@ from pydantic import BaseModel, Field, field_validator
 from mini_agent.model_manager.provider import normalize_model_role, normalize_provider_api_type
 
 
+def _normalize_ops_api_type(value: str) -> str:
+    normalized = " ".join(str(value or "").strip().split()).lower()
+    if normalized == "ollama":
+        return "openai"
+    return normalize_provider_api_type(value).value
+
+
 class StudioProviderSummary(BaseModel):
     id: str
     name: str
@@ -40,7 +47,7 @@ class StudioProviderUpsertRequest(BaseModel):
     name: str
     api_type: str = "openai"
     api_base: str
-    api_key: str
+    api_key: str | None = None
     models: list[str] = Field(default_factory=list)
     model_display_names: dict[str, str] = Field(default_factory=dict)
     model_id: str | None = None
@@ -64,7 +71,7 @@ class StudioProviderUpsertRequest(BaseModel):
     @field_validator("api_type")
     @classmethod
     def _validate_api_type(cls, value: str) -> str:
-        return normalize_provider_api_type(value).value
+        return _normalize_ops_api_type(value)
 
     @field_validator("model_role")
     @classmethod
@@ -268,12 +275,35 @@ class StudioFeatureModelBindingClearResponse(BaseModel):
 class StudioProviderModelDiscoveryRequest(BaseModel):
     api_type: str = "openai"
     api_base: str
-    api_key: str
+    api_key: str | None = None
 
     @field_validator("api_type")
     @classmethod
     def _validate_api_type(cls, value: str) -> str:
-        return normalize_provider_api_type(value).value
+        return _normalize_ops_api_type(value)
+
+
+class StudioProviderValidationRequest(BaseModel):
+    api_type: str = "openai"
+    api_base: str
+    api_key: str | None = None
+
+    @field_validator("api_type")
+    @classmethod
+    def _validate_api_type(cls, value: str) -> str:
+        return _normalize_ops_api_type(value)
+
+
+class StudioProviderValidationResponse(BaseModel):
+    status: str
+    api_type: str
+    api_base: str
+    resolved_provider_type: str
+    connection_ok: bool = True
+    model_count: int = 0
+    latest_model_id: str | None = None
+    message: str
+    models: list[StudioProviderModelSummary] = Field(default_factory=list)
 
 
 class StudioProviderModelDiscoveryResponse(BaseModel):

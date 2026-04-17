@@ -14,6 +14,7 @@ from mini_agent.interfaces import (
     StudioModelRoleRequest,
     StudioProviderModelDiscoveryRequest,
     StudioProviderUpsertRequest,
+    StudioProviderValidationRequest,
 )
 
 
@@ -200,6 +201,41 @@ def test_discover_provider_models_for_local_ollama_uses_ollama_discovery_type(
     assert [item.model_id for item in payload.models] == ["qwen3.5:9b", "qwen3-embedding:0.6b"]
 
 
+def test_validate_provider_connection_reports_reachable_no_models_for_empty_inventory(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    repo_root = (tmp_path / "repo").resolve()
+    workspace_root = (tmp_path / "workspace").resolve()
+    use_cases = _build_use_cases(repo_root=repo_root, workspace_root=workspace_root)
+
+    async def _fake_discover_models(self, provider, api_key, api_base=None, use_cache=True):
+        _ = (self, provider, api_key, api_base, use_cache)
+        return type("_Result", (), {"available_models": []})()
+
+    monkeypatch.setattr(
+        "mini_agent.application.operations_provider_use_cases.ModelDiscoveryService.discover_models",
+        _fake_discover_models,
+    )
+    monkeypatch.setattr(
+        "mini_agent.application.operations_provider_use_cases.recommend_discovered_model",
+        lambda provider_type, result, curated_order=None, official_default=None: None,
+    )
+
+    payload = use_cases.validate_provider_connection(
+        payload=StudioProviderValidationRequest(
+            api_type="openai",
+            api_base="https://maas.example.com/v2",
+            api_key="sk-maas",
+        )
+    )
+
+    assert payload.status == "reachable_no_models"
+    assert payload.connection_ok is True
+    assert payload.model_count == 0
+    assert "returned no models" in payload.message
+
+
 def test_discover_provider_models_request_rejects_removed_custom_api_type() -> None:
     with pytest.raises(ValidationError, match="api_type 'custom' was removed"):
         StudioProviderModelDiscoveryRequest(
@@ -248,6 +284,35 @@ def test_create_provider_persists_advanced_model_metadata(tmp_path: Path) -> Non
     assert provider["model_metadata"]["astron-code-latest"]["model_role"] == "chat"
     assert provider["model_metadata"]["astron-code-latest"]["supports_tools"] is True
     assert provider["model_metadata"]["astron-code-latest"]["supports_thinking"] is True
+
+
+def test_create_provider_accepts_ollama_alias_and_blank_api_key(tmp_path: Path) -> None:
+    repo_root = (tmp_path / "repo").resolve()
+    workspace_root = (tmp_path / "workspace").resolve()
+    catalog_path = (workspace_root / "providers.json").resolve()
+    use_cases = _build_use_cases(repo_root=repo_root, workspace_root=workspace_root)
+
+    created = use_cases.create_provider(
+        payload=StudioProviderUpsertRequest(
+            name="Ollama Local",
+            api_type="ollama",
+            api_base="http://127.0.0.1:11434/v1",
+            api_key="",
+            models=["qwen3.5:9b"],
+            enabled=True,
+            priority=5,
+            timeout=45,
+            headers={},
+        ),
+        catalog_path=str(catalog_path),
+    )
+
+    assert created.id == "ollama-local"
+
+    payload = json.loads(catalog_path.read_text(encoding="utf-8"))
+    provider = payload["providers"][0]
+    assert provider["api_type"] == "openai"
+    assert provider["api_key"] == "ollama"
 
 
 def test_provider_use_cases_set_model_role_and_bind_feature_model(tmp_path: Path) -> None:

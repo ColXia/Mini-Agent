@@ -1,5 +1,231 @@
 # Task Plan
 
+## Latest Sync: 2026-04-17 P42.5 Desktop Provider-Model Shortcut Workflow
+
+## Current Execution Slice: P42.5 Desktop Provider-Model Shortcut Workflow (2026-04-17)
+
+### Why This Slice Is Next
+
+- `P42.4` made provider setup honest and testable, but one workflow gap still remained in the desktop entrance:
+  - discover or enter provider models in `Providers`
+  - then switch to `Models` to classify them or bind feature roles
+- that jump is not catastrophic, but it keeps provider onboarding feeling like two half-finished workspaces instead of one coherent operator flow
+- the next practical tightening was therefore to let operators do the first round of model organization directly inside the provider draft context
+
+### Scope
+
+- add a provider-draft model shortcut panel inside the `Providers` page
+- surface the current draft models as actionable entries with:
+  - saved vs. draft state
+  - model role
+  - basic capability truth
+  - feature-binding hint
+  - default-model hint
+- add direct provider-page actions for:
+  - `Use As Default`
+  - `Apply Role`
+  - `Bind Feature`
+- keep role/binding writes honest:
+  - draft-only models still require provider save before registry writes
+  - only the default-model action edits the unsaved form directly
+
+### Acceptance
+
+- after discovering models in `Providers`, the user can set the default model without leaving the page
+- saved provider models can be role-classified and feature-bound directly from `Providers`
+- draft-only models are clearly marked and blocked from registry writes until saved
+- targeted desktop helper tests stay green
+- a real Qt smoke confirms the provider shortcut workflow in `.venv`
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-17 P42.4 Desktop Provider Validation and Save Flow Hardening
+
+## Current Execution Slice: P42.4 Desktop Provider Validation and Save Flow Hardening (2026-04-17)
+
+### Why This Slice Is Next
+
+- `P42.3` improved provider onboarding speed, but the provider draft still had two real-use gaps:
+  - no explicit pre-save connection test
+  - a silent contract mismatch around local `Ollama`
+- that mismatch mattered because the desktop page visually treated `ollama` as a first-class provider family while the supported ops contract underneath still normalized into `openai` / `anthropic`
+- leaving that drift in place would make the desktop surface look more capable than it really was and reintroduce model-supply chaos through the main GUI entrance
+
+### Scope
+
+- add an ops/provider validation route that can report:
+  - reachable with discovered models
+  - reachable with no listed models
+  - failed validation through normal gateway errors
+- harden the supported provider setup path for local `Ollama`:
+  - accept the `ollama` alias on the ops surface
+  - allow blank API key on local `11434` endpoints by filling the maintained sentinel
+- upgrade the desktop `Providers` page with:
+  - `Test Connection`
+  - live validation feedback text
+  - friendlier save-time draft validation
+  - local `Ollama` base normalization to `/v1`
+
+### Acceptance
+
+- desktop can test a provider draft before saving it
+- `MaaS`-style routes that return an empty `/models` inventory are reported honestly as reachable instead of being misclassified as failed
+- local `Ollama` setup works through the supported gateway path without forcing the user to invent an API key
+- targeted transport/ops/desktop tests stay green
+- a real Qt smoke confirms the provider validation action works in `.venv`
+
+### Status
+
+- completed
+
+## Latest Sync: 2026-04-17 P42.3 Desktop Provider Presets and Settings Controls
+
+## Current Execution Slice: P42.3 Desktop Provider Presets and Settings Controls (2026-04-17)
+
+### Why This Slice Is Next
+
+- `P42.2` made `Sessions` and `Memory` usable, but provider onboarding still depended on manual form filling
+- that friction is exactly what slows the real workflow the desktop surface is meant to support:
+  - paste endpoint
+  - classify supplier family
+  - discover models
+  - save and iterate
+- the next practical improvement was therefore to shorten supplier setup and make desktop runtime preferences directly controllable
+
+### Scope
+
+- add desktop provider quick-fill presets for:
+  - `OpenAI`
+  - `Anthropic`
+  - `MiniMax` as an anthropic-family sub-preset
+  - `Ollama`
+- add dynamic input placeholders and preset notes to the provider draft form
+- add desktop settings controls for:
+  - auto refresh enable / pause
+  - refresh interval update
+  - quick page navigation
+  - refresh / reconnect actions
+- validate the new provider/settings interactions in the real Qt event loop
+
+### Acceptance
+
+- provider onboarding is no longer only a blank form
+- settings controls can change desktop refresh behavior without code edits
+- the settings page acts as a real control surface, not just a summary page
+- targeted tests stay green
+- a short real Qt smoke succeeds for provider preset and settings controls
+
+### Status
+
+- in_progress
+
+## Latest Sync: 2026-04-17 P42.2 Desktop Sessions and Memory Workspace Upgrade
+
+## Current Execution Slice: P42.2 Desktop Sessions and Memory Workspace Upgrade (2026-04-17)
+
+### Why This Slice Is Next
+
+- `P42.1` gave DesktopUI a real product shell and first-wave model/provider workspaces
+- the next missing user-facing truth was that `Sessions` and `Memory` were still mostly placeholders
+- for the desktop surface to become a real iteration entrance, users need:
+  - session history inspection outside the live chat page
+  - actual memory file browsing and editing instead of diagnostics-only text
+
+### Scope
+
+- upgrade `Sessions` from a read-only detail box to a history workspace with:
+  - ledger actions
+  - transcript preview
+  - jump-to-chat behavior
+- upgrade `Memory` into a real workspace with:
+  - memory summary
+  - workspace note search
+  - file explorer for `MEMORY.md` and daily files
+  - editable file content and save/reload actions
+  - open-today flow
+- extend shared gateway transport with the ops memory sync routes the desktop page needs
+- validate the desktop surface with a real Qt event-loop smoke now that `.venv` has `PySide6`
+
+### Acceptance
+
+- `Sessions` shows transcript plus detail instead of only diagnostics text
+- `Memory` can browse and edit real workspace memory files
+- desktop memory search and summary work through the ops transport
+- targeted tests stay green
+- a short real Qt event-loop smoke succeeds in the repository virtual environment
+
+### Status
+
+- in_progress
+
+## Latest Sync: 2026-04-17 P42.1 Desktop Product Shell and Model Supply Workspaces
+
+## Current Execution Slice: P42.1 Desktop Product Shell and Model Supply Workspaces (2026-04-17)
+
+### Why This Slice Is Next
+
+- `P41` closed the model-supply backend path, but the desktop surface was still a single monolithic chat window
+- that meant the project was technically more capable than the primary graphical entrance exposed
+- the next honest move was therefore not more backend expansion first
+- it was to give DesktopUI a real product shell so model/provider/runtime workflows can actually be operated visually
+
+### Scope
+
+- turn the current desktop window into a multi-page product shell:
+  - `Chat`
+  - `Models`
+  - `Providers`
+  - `Settings`
+  - `Sessions`
+  - `Memory`
+- keep the existing TUI-shaped chat anatomy intact as the `Chat` page
+- land first-wave real functionality for:
+  - model registry inspection
+  - model role assignment
+  - capability probing
+  - feature-model binding / clearing
+  - provider listing
+  - provider draft create / update / delete
+  - provider model discovery
+  - desktop settings overview
+- add focused transport/helper regression coverage for the new desktop and gateway surfaces
+
+### Acceptance
+
+- DesktopUI is no longer a single chat pane; it has a stable left navigation and stacked workspaces
+- `Models` and `Providers` pages can operate the existing ops backend instead of only showing placeholders
+- `Settings` reflects current gateway/session/model-supply state
+- targeted desktop helper and gateway-client tests stay green
+
+### Status
+
+- in_progress
+
+### Implementation Notes
+
+- first landing completed in working tree:
+  - `src/mini_agent/desktop/window.py`
+  - `src/mini_agent/transport/gateway_client.py`
+  - `tests/test_desktop_window_helpers.py`
+  - `tests/test_transport_gateway_client.py`
+- targeted verification completed:
+  - `python -m py_compile src/mini_agent/desktop/window.py src/mini_agent/transport/gateway_client.py tests/test_desktop_window_helpers.py tests/test_transport_gateway_client.py`
+  - `python -m pytest tests/test_transport_gateway_client.py tests/test_desktop_window_helpers.py -q`
+  - result: `38 passed`
+- current known limit:
+  - this environment does not have `PySide6`, so live desktop rendering was not executed in-session
+  - the slice is therefore verified by code-path and helper-contract tests, not by live GUI boot
+
+### Next Likely Seam
+
+- `P42.2` desktop second wave:
+  - richer provider editing ergonomics
+  - sessions/history workspace depth
+  - memory file editor
+  - live desktop smoke validation once `PySide6` is available
+
 ## Latest Sync: 2026-04-16 P40.31 Developer Tooling Legacy Tail Closure
 
 ## Current Execution Slice: P40.31 Developer Tooling Legacy Tail Closure (2026-04-16)
@@ -12484,3 +12710,231 @@ Primary doc:
       - Anthropic-protocol-family preset path via MiniMax
       - local Ollama discovery + manual role/binding path
     - the remaining work returns to future supplier expansion or normal feature development, not `P41` foundation hardening
+
+## 2026-04-16 P42 DesktopUI Frontend Reboot Plan
+
+- goal:
+  - restart desktop-front-end work as a real product surface instead of a thin operational shell
+  - make the desktop entrance structurally componentizable
+  - move the visual direction toward:
+    - Apple-like calm, hierarchy, density control, and finish quality
+    - Google-like clarity, productivity affordances, and information architecture
+- current-reality audit:
+  - the maintained desktop path is `PySide6 DesktopUI`, not browser `WebUI`
+  - current desktop shell is technically real, but still thin:
+    - `src/mini_agent/desktop/app.py`
+    - `src/mini_agent/desktop/window.py`
+    - `src/apps/desktop_ui/main.py`
+  - current main window composition lives in one large builder file:
+    - `src/mini_agent/desktop/window.py` is ~1349 lines
+    - `ChatStreamWorker` and `DesktopMainWindow` are nested inside `create_desktop_main_window(...)`
+  - current UI composition is widget-first:
+    - `QMainWindow`
+    - `QGroupBox`
+    - `QListWidget`
+    - `QTextBrowser`
+    - `QPlainTextEdit`
+    - `QComboBox`
+    - `QPushButton`
+  - current shell does not yet expose a real design-system layer:
+    - no desktop-specific token system
+    - no component library split
+    - no centralized style/QSS theme module
+    - no motion/elevation/material definitions
+- technical decision:
+  - yes, the current desktop stack can support componentized design
+  - but the practical upper bound depends on which presentation layer we standardize on:
+    - `Qt Widgets` path:
+      - lower migration risk
+      - faster reuse of the current shell
+      - enough for a strong polished productivity app if we add tokens, reusable widgets, QSS, and selective custom painting
+      - weaker for high-fidelity Apple/Google motion, translucency, and expressive composition
+    - `Qt Quick / QML` path:
+      - stronger fit for a premium visual system and animated component architecture
+      - better for Apple/Google-grade motion, depth, blur, and adaptive layout
+      - materially higher rewrite cost right now
+  - recommended `P42` route:
+    - keep `PySide6` as the desktop foundation
+    - do not fork logic away from shared runtime/gateway contracts
+    - keep `P42` on `Qt Widgets` but refactor it into a real desktop design system
+    - defer any full `QML` migration decision until after the componentized widget shell proves its layout and product anatomy
+- visual-direction rule:
+  - do not literally clone Apple or Google UI
+  - target a blended direction:
+    - calm, premium, restrained surfaces
+    - precise spacing and typography
+    - strong panel hierarchy
+    - subtle depth and motion
+    - clear operator productivity affordances
+- requested product surfaces for this reboot:
+  - dedicated model configuration page
+  - dedicated model settings page
+  - dedicated model library page
+  - dedicated session history page
+  - dedicated memory-file editor page
+  - rich conversation page with a TUI-shaped information layout
+- `P42` delivery priority:
+  - first priority:
+    - model configuration
+    - model settings
+    - model management / model library
+    - conversation workspace aligned to the current TUI information layout
+  - second priority:
+    - session history
+    - memory-file editor
+- recommended desktop information architecture:
+  - global shell:
+    - left navigation rail
+    - top command/runtime strip
+    - central page workspace
+    - contextual right drawer / inspector when needed
+  - primary nav items:
+    - `Chat`
+    - `Models`
+    - `Providers`
+    - `Settings`
+    - `Sessions`
+    - `Memory`
+  - page semantics:
+    - `Chat`
+      - primary operator workspace
+      - should preserve the current TUI-style three-part information hierarchy:
+        - left session rail
+        - center conversation canvas
+        - right context/activity/models stack
+    - `Models`
+      - library-style inventory of all known models across preset/custom/local providers
+      - search, filter, capability facts, role assignment, feature-role visibility
+    - `Providers`
+      - visual provider onboarding/editing surface
+      - quick add for supported providers
+      - advanced custom configuration surface
+    - `Settings`
+      - app-level and model-runtime-level settings
+      - default provider/model preferences
+      - timeout / headers / context-window / learned-token hints / tool-thinking hints
+    - `Sessions`
+      - historical session list and detail inspector
+      - rename/share/fork/compact/reopen affordances
+    - `Memory`
+      - memory root browser
+      - note list
+      - structured or raw file editor for durable note memory
+- page-level implementation guidance:
+  - `Providers` page should be split into two tabs:
+    - `Quick Connect`
+      - preset provider cards
+      - custom provider quick-add form
+    - `Advanced`
+      - full payload editor over the existing upsert contract
+      - headers / priority / timeout / model metadata maps
+  - `Models` page should be split into three zones:
+    - inventory table/grid
+    - selected-model detail inspector
+    - role/binding operations
+  - `Settings` page should separate:
+    - desktop app settings
+    - runtime/model defaults
+    - provider behavior overrides
+  - `Chat` page should not be a generic messenger clone:
+    - it should preserve the TUI operator shape while translating it into a premium desktop layout
+    - the center pane must remain the main conversation surface
+    - the right pane should hold:
+      - model
+      - session context
+      - activity timeline
+    - the left pane should remain session-first, not app-marketing chrome
+- backend leverage rule:
+  - the first `P42` slices should reuse already-landed provider/model operations instead of inventing new desktop-only logic
+  - the existing gateway/application seams already cover the first desktop management pages for:
+    - provider CRUD
+    - provider health
+    - model discovery
+    - model selection
+    - model role assignment
+    - capability probing
+    - feature-model binding
+- first-shippable milestone definition:
+  - `P42-M1` should deliver four usable desktop pages:
+    - `Chat`
+    - `Providers`
+    - `Models`
+    - `Settings`
+  - these four pages together should make the desktop surface genuinely usable for model configuration, model management, and daily chat
+- execution slices:
+  - `P42.1` desktop anatomy and boundary freeze
+    - freeze information architecture for:
+      - shell frame
+      - session rail
+      - main conversation canvas
+      - right context utility stack
+      - top command/runtime strip
+    - extract view-state/render responsibilities from the monolithic window builder
+    - acceptance:
+      - each major pane has an explicit owner module
+      - `window.py` stops being the only view-composition owner
+  - `P42.2` design-token and theming foundation
+    - introduce desktop theme tokens for:
+      - color roles
+      - spacing scale
+      - radii
+      - typography
+      - border/elevation states
+      - motion timing
+    - add one centralized desktop styling layer
+    - acceptance:
+      - widgets no longer carry ad-hoc visual values inline
+      - one theme switch can restyle the shell coherently
+  - `P42.3` reusable desktop component library
+    - extract reusable widgets such as:
+      - top status strip
+      - sidebar session row
+      - conversation bubble/card
+      - activity card
+      - section panel shell
+      - command palette / approval sheet
+      - model picker row
+    - acceptance:
+      - repeated UI patterns are implemented once and reused
+      - visual behavior becomes testable at the component seam
+  - `P42.4` layout rewrite for product quality
+    - replace the current utilitarian panel composition with a higher-finish layout
+    - tune density, spacing, column rhythm, empty states, and resize behavior
+    - acceptance:
+      - desktop shell looks intentionally designed rather than debug-tool shaped
+      - the shell remains usable at both compact and wide window sizes
+  - `P42.5` motion and premium interaction pass
+    - add focused transitions for:
+      - pane refresh
+      - session switching
+      - streaming arrival emphasis
+      - approval surfacing
+      - command-palette invocation
+    - acceptance:
+      - motion improves clarity and quality without turning noisy
+  - `P42.6` readiness validation and follow-up decision
+    - validate:
+      - command path
+      - session path
+      - model switching
+      - approval handling
+      - long transcript rendering
+    - make an explicit follow-up call:
+      - continue on componentized widgets
+      - or open a later `QML` migration slice if the visual ceiling is still too low
+  - `P42.7` history and memory follow-up
+    - land:
+      - session history workspace
+      - memory-file editor
+    - acceptance:
+      - the desktop product exposes the core long-lived artifacts around conversations and memory, not only live chat
+- first implementation target:
+  - split current desktop surface into:
+    - `src/mini_agent/desktop/theme/`
+    - `src/mini_agent/desktop/components/`
+    - `src/mini_agent/desktop/panels/`
+    - keep `src/mini_agent/desktop/window.py` as composition root only
+- risks:
+  - pushing Apple/Google-level finish too hard inside the current monolithic widget file will create visual hacks without true component boundaries
+  - a premature full `QML` rewrite would slow product progress before the desktop IA and interaction model are stable
+  - using raw Qt defaults will keep the app functional but visually capped far below the desired product bar

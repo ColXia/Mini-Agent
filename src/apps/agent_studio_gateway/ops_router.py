@@ -31,6 +31,8 @@ from mini_agent.interfaces import (
     StudioProviderModelDiscoveryResponse,
     StudioProviderSummary,
     StudioProviderUpsertRequest,
+    StudioProviderValidationRequest,
+    StudioProviderValidationResponse,
 )
 
 
@@ -129,6 +131,12 @@ def create_ops_router(deps: OpsRouterDependencies) -> APIRouter:
         payload: StudioProviderModelDiscoveryRequest,
     ) -> StudioProviderModelDiscoveryResponse:
         return deps.get_provider_operations_use_cases().discover_provider_models(payload=payload)
+
+    @router.post("/providers/validate", response_model=StudioProviderValidationResponse)
+    async def validate_provider_connection_for_setup(
+        payload: StudioProviderValidationRequest,
+    ) -> StudioProviderValidationResponse:
+        return deps.get_provider_operations_use_cases().validate_provider_connection(payload=payload)
 
     @router.post("/providers", response_model=StudioProviderSummary)
     async def create_ops_provider(
