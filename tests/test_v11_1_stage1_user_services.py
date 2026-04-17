@@ -149,6 +149,31 @@ class ModelRuntimeStub:
         return {"agent_id": agent_id, "supports_tools": True}
 
 
+class SessionModelRuntimeStub:
+    async def update_session_model_selection(
+        self,
+        session_id: str,
+        *,
+        provider_source: str | None = None,
+        provider_id: str | None = None,
+        model_id: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ):
+        return {
+            "session_id": session_id,
+            "provider_source": provider_source,
+            "provider_id": provider_id,
+            "model_id": model_id,
+            "surface": surface,
+            "channel_type": channel_type,
+            "conversation_id": conversation_id,
+            "sender_id": sender_id,
+        }
+
+
 class CommandRuntimeStub:
     def catalog(self):
         return ["help", "session"]
@@ -246,6 +271,28 @@ async def test_stage1_user_services_delegate_to_runtime_ports() -> None:
     assert await command_service.dispatch_command("/help", surface="desktop") == {
         "command": "/help",
         "kwargs": {"surface": "desktop"},
+    }
+
+
+@pytest.mark.asyncio
+async def test_model_user_service_supports_session_selection_compatibility() -> None:
+    model_service = ModelUserService(session_model_runtime=SessionModelRuntimeStub())
+
+    assert await model_service.update_session_model_selection(
+        "session-3",
+        provider_source="preset",
+        provider_id="openai",
+        model_id="gpt-5.4",
+        surface="desktop",
+    ) == {
+        "session_id": "session-3",
+        "provider_source": "preset",
+        "provider_id": "openai",
+        "model_id": "gpt-5.4",
+        "surface": "desktop",
+        "channel_type": None,
+        "conversation_id": None,
+        "sender_id": None,
     }
 
 

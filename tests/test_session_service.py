@@ -14,6 +14,8 @@ from mini_agent.interfaces import (
     MainAgentSessionCreateRequest,
     MainAgentSessionForkRequest,
     MainAgentSessionMemoryRequest,
+    MainAgentSessionModelSelectionRequest,
+    MainAgentSessionModelSelectionResponse,
     MainAgentSessionMutationResponse,
     MainAgentSessionRenameRequest,
     MainAgentSessionRuntimePolicyRequest,
@@ -636,6 +638,142 @@ def test_session_service_default_run_control_falls_back_to_runtime_session_opera
         assert runtime.calls == [
             ("cancel_session_turn", "sess-2", "stop now", "desktop", "desktop", None, None),
             ("resolve_pending_approval", "sess-2", True, "approval-9", "desktop", None, None, None),
+        ]
+
+    asyncio.run(_run())
+
+
+def test_session_service_update_model_selection_uses_injected_model_service() -> None:
+    class _ModelServiceStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        async def update_session_model_selection(self, session_id: str, **kwargs):
+            self.calls.append(("update_session_model_selection", session_id, kwargs))
+            return MainAgentSessionModelSelectionResponse(
+                status="selected",
+                session_id=session_id,
+                active_surface="qq",
+                applied=True,
+                queued=False,
+                selected_model_source="preset",
+                selected_provider_id="openai",
+                selected_model_id="gpt-5.3",
+            )
+
+    class _RuntimeStub:
+        def validate_workspace(self, workspace_dir: Path) -> None:
+            _ = workspace_dir
+
+    async def _run() -> None:
+        model_service = _ModelServiceStub()
+        service = SessionApplicationService(runtime_manager=_RuntimeStub(), model_service=model_service)
+
+        response = await service.update_session_model_selection(
+            "sess-model-1",
+            MainAgentSessionModelSelectionRequest(
+                provider_source=" preset ",
+                provider_id=" openai ",
+                model_id=" gpt-5.3 ",
+                surface=" qq ",
+                channel_type=" qqbot ",
+                conversation_id=" group:demo ",
+                sender_id=" user-1 ",
+            ),
+        )
+
+        assert response.status == "selected"
+        assert response.selected_model_id == "gpt-5.3"
+        assert model_service.calls == [
+            (
+                "update_session_model_selection",
+                "sess-model-1",
+                {
+                    "provider_source": " preset ",
+                    "provider_id": " openai ",
+                    "model_id": " gpt-5.3 ",
+                    "surface": "qq",
+                    "channel_type": "qq",
+                    "conversation_id": "group:demo",
+                    "sender_id": "user-1",
+                },
+            )
+        ]
+
+    asyncio.run(_run())
+
+
+def test_session_service_default_model_service_falls_back_to_runtime_session_model_selection() -> None:
+    class _RuntimeStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        def validate_workspace(self, workspace_dir: Path) -> None:
+            _ = workspace_dir
+
+        async def update_session_model_selection(
+            self,
+            session_id: str,
+            *,
+            provider_source: str | None = None,
+            provider_id: str | None = None,
+            model_id: str | None = None,
+            surface: str | None = None,
+            channel_type: str | None = None,
+            conversation_id: str | None = None,
+            sender_id: str | None = None,
+        ):
+            self.calls.append(
+                (
+                    "update_session_model_selection",
+                    session_id,
+                    provider_source,
+                    provider_id,
+                    model_id,
+                    surface,
+                    channel_type,
+                    conversation_id,
+                    sender_id,
+                )
+            )
+            return MainAgentSessionModelSelectionResponse(
+                status="selected",
+                session_id=session_id,
+                active_surface=surface,
+                applied=True,
+                queued=False,
+                selected_model_source=provider_source,
+                selected_provider_id=provider_id,
+                selected_model_id=model_id,
+            )
+
+    async def _run() -> None:
+        runtime = _RuntimeStub()
+        service = SessionApplicationService(runtime_manager=runtime)
+
+        response = await service.update_session_model_selection(
+            "sess-model-2",
+            MainAgentSessionModelSelectionRequest(
+                provider_source="preset",
+                provider_id="openai",
+                model_id="gpt-5.4",
+                surface="desktop",
+            ),
+        )
+
+        assert response.selected_model_id == "gpt-5.4"
+        assert runtime.calls == [
+            (
+                "update_session_model_selection",
+                "sess-model-2",
+                "preset",
+                "openai",
+                "gpt-5.4",
+                "desktop",
+                None,
+                None,
+                None,
+            )
         ]
 
     asyncio.run(_run())

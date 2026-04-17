@@ -21,6 +21,7 @@ from mini_agent.application.surface_service_types import (
     ToUtcIsoFn,
 )
 from mini_agent.application.user_services.agent_user_service import AgentUserService
+from mini_agent.application.user_services.model_user_service import ModelUserService
 from mini_agent.interfaces import (
     MainAgentChatRequest,
     MainAgentChatResponse,
@@ -65,6 +66,7 @@ class MainAgentSurfaceService:
         *,
         session_service: SessionApplicationService,
         agent_service: AgentUserService | None = None,
+        model_service: ModelUserService | None = None,
         resolve_workspace_dir: ResolveWorkspaceDirFn,
         to_utc_iso: ToUtcIsoFn,
         sse_event: SseEventFn,
@@ -73,6 +75,7 @@ class MainAgentSurfaceService:
     ) -> None:
         self._session_service = session_service
         self._agent_service = agent_service
+        self._model_service = model_service
         self._resolve_workspace_dir = resolve_workspace_dir
         self._to_utc_iso = to_utc_iso
         self._sse_event = sse_event
@@ -220,6 +223,15 @@ class MainAgentSurfaceService:
         session_id: str,
         request: MainAgentSessionModelSelectionRequest,
     ) -> MainAgentSessionModelSelectionResponse:
+        if self._model_service is not None:
+            binding = ApplicationInteractionBinding.from_request(request)
+            return await self._model_service.update_session_model_selection(
+                session_id,
+                provider_source=request.provider_source,
+                provider_id=request.provider_id,
+                model_id=request.model_id,
+                **binding.as_kwargs(),
+            )
         return await self._session_service.update_session_model_selection(session_id, request)
 
     async def respond_to_approval(

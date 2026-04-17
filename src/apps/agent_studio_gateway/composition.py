@@ -18,6 +18,7 @@ from mini_agent.application.channel_novel_action_handler import ChannelNovelActi
 from mini_agent.application.main_agent_surface_service import MainAgentSurfaceService
 from mini_agent.application.session_service import SessionApplicationService
 from mini_agent.application.user_services.agent_user_service import AgentUserService
+from mini_agent.application.user_services.model_user_service import ModelUserService
 from mini_agent.config_bootstrap import load_entry_config, load_noninteractive_config
 from mini_agent.interfaces import MainAgentChatRequest, MainAgentChatResponse, MainAgentRuntimeDiagnostics, SystemHealthResponse
 from mini_agent.novel.runtime import get_novel_use_cases, reset_novel_runtime_state
@@ -56,6 +57,7 @@ class GatewayComposition:
         self._runtime_manager: MainAgentRuntimeManager | None = None
         self._session_service: SessionApplicationService | None = None
         self._agent_service: AgentUserService | None = None
+        self._model_service: ModelUserService | None = None
         self._surface_service: MainAgentSurfaceService | Any | None = None
         self._channel_ingress_use_cases: ChannelIngressUseCases | Any | None = None
 
@@ -145,11 +147,17 @@ class GatewayComposition:
             )
         return self._agent_service
 
+    def get_model_service(self) -> ModelUserService:
+        if self._model_service is None:
+            self._model_service = self.get_session_service().model_service
+        return self._model_service
+
     def get_surface_service(self) -> MainAgentSurfaceService:
         if self._surface_service is None:
             self._surface_service = MainAgentSurfaceService(
                 session_service=self.get_session_service(),
                 agent_service=self.get_agent_service(),
+                model_service=self.get_model_service(),
                 resolve_workspace_dir=self.resolve_workspace_dir,
                 to_utc_iso=self.to_utc_iso,
                 sse_event=self.sse_event,
@@ -214,6 +222,7 @@ class GatewayComposition:
                 self._runtime_manager = None
                 self._session_service = None
                 self._agent_service = None
+                self._model_service = None
                 self._surface_service = None
                 self._channel_ingress_use_cases = None
                 reset_novel_runtime_state()

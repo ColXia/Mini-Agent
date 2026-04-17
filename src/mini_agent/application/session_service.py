@@ -9,6 +9,7 @@ from mini_agent.agent_core.engine import Agent
 from mini_agent.application.interaction_request_adapter import ApplicationInteractionBinding
 from mini_agent.application.managed_session_turn import ManagedSessionTurn
 from mini_agent.application.use_cases.run_control_application_service import RunControlApplicationService
+from mini_agent.application.user_services.model_user_service import ModelUserService
 from mini_agent.interfaces import (
     MainAgentSessionApprovalRequest,
     MainAgentSessionApprovalResponse,
@@ -145,6 +146,36 @@ class _SessionTaskCompatibilityAdapter:
         )
 
 
+class _SessionModelSelectionCompatibilityAdapter:
+    """Bridge session-era model selection operations into the model user service."""
+
+    def __init__(self, runtime_manager: SessionRuntimePort) -> None:
+        self._runtime_manager = runtime_manager
+
+    async def update_session_model_selection(
+        self,
+        session_id: str,
+        *,
+        provider_source: str | None = None,
+        provider_id: str | None = None,
+        model_id: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> MainAgentSessionModelSelectionResponse:
+        return await self._runtime_manager.update_session_model_selection(
+            session_id,
+            provider_source=provider_source,
+            provider_id=provider_id,
+            model_id=model_id,
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
+
+
 class SessionApplicationService:
     """Shared application-facing session operations and turn scoping."""
 
@@ -153,11 +184,15 @@ class SessionApplicationService:
         *,
         runtime_manager: SessionRuntimePort,
         run_control_service: RunControlApplicationService | None = None,
+        model_service: ModelUserService | None = None,
     ) -> None:
         self._runtime_manager = runtime_manager
         self._run_control_service = run_control_service or RunControlApplicationService(
             run_runtime=_UnavailableRunRuntimeAdapter(),
             session_tasks=_SessionTaskCompatibilityAdapter(runtime_manager),
+        )
+        self._model_service = model_service or ModelUserService(
+            session_model_runtime=_SessionModelSelectionCompatibilityAdapter(runtime_manager),
         )
 
     def validate_workspace(self, workspace_dir: Path) -> None:
@@ -166,6 +201,10 @@ class SessionApplicationService:
     @property
     def run_control_service(self) -> RunControlApplicationService:
         return self._run_control_service
+
+    @property
+    def model_service(self) -> ModelUserService:
+        return self._model_service
 
     async def list_sessions(
         self,
@@ -340,7 +379,7 @@ class SessionApplicationService:
         request: MainAgentSessionModelSelectionRequest,
     ) -> MainAgentSessionModelSelectionResponse:
         binding = ApplicationInteractionBinding.from_request(request)
-        return await self._runtime_manager.update_session_model_selection(
+        return await self._model_service.update_session_model_selection(
             session_id,
             provider_source=request.provider_source,
             provider_id=request.provider_id,
