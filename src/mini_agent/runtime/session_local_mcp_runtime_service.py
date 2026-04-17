@@ -1,33 +1,5 @@
-"""Local-session MCP reload semantics built on shared local agent runtime rebuilds."""
+"""Compatibility re-export for local-session MCP runtime helpers."""
 
-from __future__ import annotations
-
-from dataclasses import dataclass
-from typing import Any
-
-from mini_agent.runtime.session_local_agent_runtime_handler import LocalSessionAgentRuntimeHandler
-from mini_agent.tools.mcp.command_service import McpReloadOutcome, build_mcp_reload_warm_prefix
-
-
-def _safe_text(value: object) -> str:
-    return " ".join(str(value or "").split())
-
-
-@dataclass(slots=True)
-class LocalSessionMcpRuntimeService:
-    """Own local MCP reload runtime rebuild flow independent of any single surface."""
-
-    agent_runtime: LocalSessionAgentRuntimeHandler
-
-    async def reload_bindings(self, session: Any) -> McpReloadOutcome:
-        outcome = await self.agent_runtime.rebuild_current_identity(
-            session,
-            warm_prefix=build_mcp_reload_warm_prefix(_safe_text(getattr(session, "title", ""))),
-        )
-        return McpReloadOutcome(
-            rebuilt_runtime=True,
-            active_model_label=outcome.active_model_label,
-        )
-
+from .support.session_local_mcp_runtime_service import LocalSessionMcpRuntimeService
 
 __all__ = ["LocalSessionMcpRuntimeService"]

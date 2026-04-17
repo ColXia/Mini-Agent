@@ -41,6 +41,11 @@ from .session_agent_support import (
     LoadRuntimeConfigFn,
     RuntimeSessionAgentSupport,
 )
+from .session_local_agent_runtime_handler import (
+    LocalSessionAgentRebuildOutcome,
+    LocalSessionAgentRuntimeHandler,
+)
+from .session_local_mcp_runtime_service import LocalSessionMcpRuntimeService
 from .session_persistence_loader import RuntimeSessionPersistenceLoader
 from .session_persistence_metadata_registry import RuntimeSessionPersistenceMetadataRegistry
 from .session_persistence_record_builder import RuntimeSessionPersistenceRecordBuilder
@@ -63,6 +68,9 @@ __all__ = [
     "BuildSelectedAgentFn",
     "InteractionBinding",
     "InteractionSurface",
+    "LocalSessionAgentRebuildOutcome",
+    "LocalSessionAgentRuntimeHandler",
+    "LocalSessionMcpRuntimeService",
     "LoadRuntimeConfigFn",
     "RuntimeSessionCommandCoordinator",
     "RuntimeSessionCommandTranscript",
