@@ -66,6 +66,11 @@ from .session_persistence_metadata_registry import RuntimeSessionPersistenceMeta
 from .session_persistence_record_builder import RuntimeSessionPersistenceRecordBuilder
 from .session_runtime_persistence import MainAgentRuntimePersistence
 from .session_shared_transcript_store import RuntimeSessionSharedTranscriptStore
+from .session_snapshot import (
+    RuntimeSessionImportMessage,
+    RuntimeSessionImportRequest,
+    RuntimeSessionSnapshot,
+)
 from .runtime_policy_service import (
     SessionRuntimePolicyAutofixRequest,
     SessionRuntimePolicyExecution,
@@ -118,6 +123,9 @@ __all__ = [
     "RuntimeSessionPersistenceMetadataRegistry",
     "RuntimeSessionPersistenceRecordBuilder",
     "RuntimeSessionSharedTranscriptStore",
+    "RuntimeSessionImportMessage",
+    "RuntimeSessionImportRequest",
+    "RuntimeSessionSnapshot",
     "SESSION_AGENT_CONTROL_ACTIONS",
     "SESSION_MCP_CONTROL_ACTIONS",
     "SUPPORTED_SESSION_CONTROL_ACTIONS",

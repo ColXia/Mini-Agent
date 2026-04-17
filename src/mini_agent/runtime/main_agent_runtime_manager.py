@@ -50,7 +50,7 @@ from mini_agent.runtime.read_models.session_model_identity_codec import RuntimeS
 from mini_agent.runtime.read_models.session_payload_codec import RuntimeSessionPayloadCodec
 from mini_agent.runtime.read_models.session_read_model_builder import RuntimeSessionReadModelBuilder
 from mini_agent.runtime.read_models.session_snapshot_builder import RuntimeSessionSnapshotBuilder
-from mini_agent.runtime.session_snapshot import RuntimeSessionSnapshot
+from mini_agent.runtime.support.session_snapshot import RuntimeSessionSnapshot
 from mini_agent.runtime.handlers.session_admin_handler import RuntimeSessionAdminHandler
 from mini_agent.runtime.support.session_command_coordinator import (
     RuntimeSessionCommandCoordinator,

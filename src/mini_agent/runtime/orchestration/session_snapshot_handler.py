@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Callable, Sequence
 from fastapi import HTTPException
 
 from mini_agent.runtime.orchestration.session_hydration_builder import RuntimeSessionHydrationPayload
-from mini_agent.runtime.session_snapshot import RuntimeSessionSnapshot
+from mini_agent.runtime.support.session_snapshot import RuntimeSessionSnapshot
 
 if TYPE_CHECKING:
     from mini_agent.runtime.session_state import MainAgentSessionState
