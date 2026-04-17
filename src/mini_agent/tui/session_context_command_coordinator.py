@@ -32,9 +32,9 @@ class TuiSessionContextCommandCoordinator:
             await self.refresh_context_snapshot_if_gateway_bound(session)
 
         initial_result = await self.run_context_command_result(
-            session,
-            plan.action,
-            plan.args,
+            session=session,
+            action=plan.action,
+            args=plan.args,
         )
         if not plan.mutate_policy:
             self.execute_context_result(initial_result)
@@ -61,9 +61,9 @@ class TuiSessionContextCommandCoordinator:
                 self.persist_session_state()
 
         final_result = await self.run_context_command_result(
-            session,
-            plan.action,
-            plan.args,
+            session=session,
+            action=plan.action,
+            args=plan.args,
         )
         self.execute_context_result(final_result)
         self.render_all()

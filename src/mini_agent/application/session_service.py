@@ -315,6 +315,10 @@ class SessionApplicationService:
             **binding.as_kwargs(),
             session_title_hint=session_title_hint,
         )
+        await self._runtime_manager.ensure_session_runtime_policy_ready_for_turn(
+            session,
+            **binding.as_kwargs(),
+        )
         return ManagedSessionTurn(
             turn_scope=self._runtime_manager.turn_scope_handler,
             session=session,

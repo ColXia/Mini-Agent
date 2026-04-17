@@ -55,6 +55,7 @@ from mini_agent.runtime.session_memory_command_handler import (
 )
 from mini_agent.runtime.runtime_policy_service import (
     SessionRuntimePolicyPlan,
+    SessionRuntimePolicyExecution,
     SessionRuntimePolicyService,
 )
 from mini_agent.runtime.session_control_error_service import SessionControlErrorService
@@ -68,12 +69,6 @@ if TYPE_CHECKING:
 
 def _safe_text(value: object) -> str:
     return " ".join(str(value or "").split())
-
-
-@dataclass(frozen=True, slots=True)
-class RuntimeSessionRuntimePolicyExecution:
-    plan: SessionRuntimePolicyPlan
-    diagnostics: dict[str, Any]
 
 
 @dataclass(frozen=True, slots=True)
@@ -568,6 +563,42 @@ class RuntimeSessionOperatorHandler:
             diagnostics=execution.diagnostics,
         )
 
+    async def ensure_runtime_policy_ready_for_turn(
+        self,
+        session: "MainAgentSessionState",
+        *,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> RuntimeSessionRuntimePolicyExecution | None:
+        current_profile, current_access = self.session_runtime_policy.current_runtime_policy(
+            agent=session.runtime.agent,
+            sandbox_diagnostics=session.projection.sandbox_diagnostics,
+        )
+        autofix = self.session_runtime_policy.build_pre_turn_autofix_request(
+            requested_surface=surface,
+            origin_surface=session.projection.origin_surface,
+            active_surface=session.projection.active_surface,
+            shared=bool(session.projection.shared),
+            current_approval_profile=current_profile,
+            current_access_level=current_access,
+        )
+        if autofix is None:
+            return None
+        return await self.session_commands.execute_locked(
+            session,
+            operation=lambda: self._execute_runtime_policy_update(
+                session,
+                approval_profile=autofix.approval_profile,
+                access_level=autofix.access_level,
+                surface=surface,
+                channel_type=channel_type,
+                conversation_id=conversation_id,
+                sender_id=sender_id,
+            ),
+        )
+
     def _build_session_memory_response(
         self,
         *,
@@ -691,12 +722,12 @@ class RuntimeSessionOperatorHandler:
         channel_type: str | None,
         conversation_id: str | None,
         sender_id: str | None,
-    ) -> RuntimeSessionRuntimePolicyExecution:
+    ) -> SessionRuntimePolicyExecution:
         current_profile, current_access = self.session_runtime_policy.current_runtime_policy(
             agent=session.runtime.agent,
             sandbox_diagnostics=session.projection.sandbox_diagnostics,
         )
-        plan = self.session_runtime_policy.build_plan(
+        execution = self.session_runtime_policy.execute_update(
             current_approval_profile=current_profile,
             current_access_level=current_access,
             requested_approval_profile=approval_profile,
@@ -705,16 +736,19 @@ class RuntimeSessionOperatorHandler:
             waiting_on_approval=bool(session.runtime.pending_approvals),
             runtime_attached=session.runtime.agent is not None,
             sandbox_diagnostics=session.projection.sandbox_diagnostics,
-        )
-        if session.runtime.agent is not None:
-            diagnostics = self.session_agent_runtime.reconfigure_runtime_policy(
-                session,
-                approval_profile=plan.approval_profile,
-                access_level=plan.access_level,
+            normalize_sandbox_diagnostics_payload=self.normalize_sandbox_diagnostics_payload,
+            reconfigure_attached_runtime=(
+                lambda resolved_profile, resolved_access: self.session_agent_runtime.reconfigure_runtime_policy(
+                    session,
+                    approval_profile=resolved_profile,
+                    access_level=resolved_access,
+                )
             )
-        else:
-            diagnostics = self.normalize_sandbox_diagnostics_payload(plan.local_sandbox_diagnostics)
-            session.projection.sandbox_diagnostics = dict(diagnostics)
+            if session.runtime.agent is not None
+            else None,
+        )
+        if session.runtime.agent is None:
+            session.projection.sandbox_diagnostics = dict(execution.diagnostics)
 
         self.session_live_state.bind_surface(
             session,
@@ -723,10 +757,7 @@ class RuntimeSessionOperatorHandler:
             conversation_id=conversation_id,
             sender_id=sender_id,
         )
-        return RuntimeSessionRuntimePolicyExecution(
-            plan=plan,
-            diagnostics=dict(diagnostics),
-        )
+        return execution
 
     async def _execute_skill_mutation(
         self,

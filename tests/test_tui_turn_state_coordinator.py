@@ -55,7 +55,7 @@ def test_tui_turn_state_coordinator_manages_resume_and_remote_turn_state() -> No
     coordinator.begin_remote_turn(session, task_id="task-remote")
     assert session.projection.busy is True
     assert session.runtime.active_task_id == "task-remote"
-    assert session.projection.active_surface == "tui"
+    assert session.projection.active_surface == "remote"
     assert session.projection.reply_enabled is False
     assert session.projection.running_state == "gateway request running"
     assert session.projection.pending_approvals == []

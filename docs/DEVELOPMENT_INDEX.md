@@ -55,6 +55,7 @@
 - TUI surface orchestration convergence plan (2026-04-15): `docs/P37_TUI_SURFACE_ORCHESTRATION_CONVERGENCE_PLAN_2026-04-15.md`
 - Post-P36 runtime/surface evaluation (2026-04-15): `docs/POST_P36_RUNTIME_SURFACE_EVALUATION_2026-04-15.md`
 - Post-P37 TUI/surface evaluation (2026-04-16): `docs/POST_P37_TUI_SURFACE_EVALUATION_2026-04-16.md`
+- Architecture execution guardrails (2026-04-17): `docs/ARCHITECTURE_EXECUTION_GUARDRAILS_2026-04-17.md`
 - Historical transformation plan (source-study only): `docs/TRANSFORMATION_PLAN.md`
 - Transformation plan (mini guardrails): `docs/TRANSFORMATION_PLAN_LITE_ADDENDUM.md`
 - OSS mapping index: `docs/OSS_REFERENCE_INDEX.md`
@@ -111,6 +112,7 @@ Latest stage sync:
 - `2026-04-15`: `P36` session/runtime contract consolidation is materially complete.
 - `2026-04-16`: `P37` TUI surface orchestration convergence is materially complete.
 - `2026-04-16`: active execution focus moves to `P32b` repo hygiene, commit slicing, and active-doc alignment.
+- `2026-04-17`: architecture execution is explicitly tightened again: surfaces must stay presentation-only plus local ephemeral UI state, while shared interaction/runtime corrections belong in `application/` or `runtime/`; use `docs/ARCHITECTURE_EXECUTION_GUARDRAILS_2026-04-17.md` as the current boundary checklist.
 
 ## 3. Active Plan: P22 Core Agent Minimal (Started 2026-04-07)
 

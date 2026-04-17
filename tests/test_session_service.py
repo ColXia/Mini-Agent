@@ -12,6 +12,7 @@ from mini_agent.interfaces import (
     MainAgentSessionForkRequest,
     MainAgentSessionMemoryRequest,
     MainAgentSessionRenameRequest,
+    MainAgentSessionRuntimePolicyRequest,
     MainAgentSessionShareRequest,
 )
 from mini_agent.runtime.main_agent_runtime_manager import MainAgentRuntimeManager
@@ -140,6 +141,7 @@ class _FakeRuntimePort:
     def __init__(self, session: _FakeManagedSession) -> None:
         self._session = session
         self.turn_scope_handler = _FakeTurnScope()
+        self.runtime_policy_ready_calls: list[dict[str, object | None]] = []
 
     def validate_workspace(self, workspace_dir: Path) -> None:
         assert workspace_dir == self._session.workspace_dir
@@ -153,6 +155,18 @@ class _FakeRuntimePort:
         self._session.conversation_id = kwargs.get("conversation_id")
         self._session.sender_id = kwargs.get("sender_id")
         return self._session
+
+    async def ensure_session_runtime_policy_ready_for_turn(self, session, **kwargs):  # noqa: ANN001, ANN003
+        assert session is self._session
+        self.runtime_policy_ready_calls.append(
+            {
+                "surface": kwargs.get("surface"),
+                "channel_type": kwargs.get("channel_type"),
+                "conversation_id": kwargs.get("conversation_id"),
+                "sender_id": kwargs.get("sender_id"),
+            }
+        )
+        return None
 
 
 def test_session_service_prepare_chat_turn_scopes_runtime_lifecycle(tmp_path: Path) -> None:
@@ -315,7 +329,8 @@ def test_session_service_prepare_chat_turn_accepts_structural_runtime_port(tmp_p
         workspace = tmp_path / "workspace-port"
         workspace.mkdir(parents=True, exist_ok=True)
         session = _FakeManagedSession(session_id="sess-port", workspace_dir=workspace)
-        service = SessionApplicationService(runtime_manager=_FakeRuntimePort(session))
+        runtime_port = _FakeRuntimePort(session)
+        service = SessionApplicationService(runtime_manager=runtime_port)
 
         turn = await service.prepare_chat_turn(
             workspace_dir=workspace,
@@ -337,6 +352,60 @@ def test_session_service_prepare_chat_turn_accepts_structural_runtime_port(tmp_p
         assert turn.busy is False
         assert [item.role for item in session.agent.messages] == ["assistant"]
         assert [item.content for item in session.agent.messages] == ["ack"]
+        assert runtime_port.runtime_policy_ready_calls == [
+            {
+                "surface": "cli",
+                "channel_type": "terminal",
+                "conversation_id": "local:1",
+                "sender_id": "operator",
+            }
+        ]
+
+    asyncio.run(_run())
+
+
+def test_session_service_prepare_chat_turn_normalizes_private_desktop_plan_session(tmp_path: Path) -> None:
+    async def _run() -> None:
+        async def _build_agent(_workspace: Path):
+            return _DummyAgent()
+
+        workspace = tmp_path / "workspace-desktop-autofix"
+        workspace.mkdir(parents=True, exist_ok=True)
+        runtime = _runtime_manager(
+            ttl_seconds=3600,
+            build_agent=_build_agent,
+            storage_dir=tmp_path / "store-desktop-autofix",
+        )
+        service = SessionApplicationService(runtime_manager=runtime)
+
+        created = await service.create_session(
+            MainAgentSessionCreateRequest(title="Desktop Session", surface="desktop", shared=False),
+            workspace_dir=workspace,
+        )
+        await service.update_session_runtime_policy(
+            created.session_id,
+            MainAgentSessionRuntimePolicyRequest(
+                approval_profile="plan",
+                access_level="default",
+                surface="desktop",
+            ),
+        )
+
+        before = await service.get_session_detail(created.session_id, recent_limit=5)
+        assert before.sandbox_diagnostics["approval_profile"] == "plan"
+
+        _turn = await service.prepare_chat_turn(
+            workspace_dir=workspace,
+            session_id=created.session_id,
+            message="hello desktop",
+            surface="desktop",
+            running_detail="desktop request running",
+        )
+
+        after = await service.get_session_detail(created.session_id, recent_limit=5)
+        assert after.sandbox_diagnostics["approval_profile"] == "build"
+        assert after.sandbox_diagnostics["access_level"] == "default"
+        assert after.active_surface == "desktop"
 
     asyncio.run(_run())
 

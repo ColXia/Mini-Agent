@@ -17,9 +17,10 @@ class TuiSessionSkillCommandCoordinator:
     resolve_skill_command_plan: Callable[[Any], Any]
     runs_via_gateway: Callable[[Any], bool]
     resolve_remote_skill_command_plan: Callable[[Any], Any]
-    run_remote_skill_action: Callable[[Any, Any], Awaitable[dict[str, Any]]]
+    run_remote_skill_action: Callable[..., Awaitable[dict[str, Any]]]
     apply_remote_skill_response: Callable[[Any, Any, dict[str, Any]], None]
-    run_local_skill_command_result: Callable[[Any, Any], CommandExecutionResult]
+    workspace: Any
+    execute_local_skill_command: Callable[..., CommandExecutionResult]
     apply_local_skill_command_result: Callable[[Any, CommandExecutionResult], Awaitable[None]]
     append_command_feedback: Callable[..., None]
     set_status: Callable[[str], None]
@@ -42,7 +43,11 @@ class TuiSessionSkillCommandCoordinator:
         if self.runs_via_gateway(session):
             remote_plan = self.resolve_remote_skill_command_plan(plan)
             try:
-                response = await self.run_remote_skill_action(session, remote_plan)
+                response = await self.run_remote_skill_action(
+                    session,
+                    action=remote_plan.action,
+                    **dict(remote_plan.request_kwargs),
+                )
                 self.apply_remote_skill_response(session, remote_plan, response)
             except Exception as exc:
                 detail = extract_gateway_error_info(exc).detail
@@ -57,7 +62,15 @@ class TuiSessionSkillCommandCoordinator:
             self.render_all()
             return
 
-        result = self.run_local_skill_command_result(session, plan)
+        result = self.execute_local_skill_command(
+            surface="tui",
+            workspace=self.workspace,
+            action=plan.action,
+            args=list(plan.args),
+            raw_text=plan.raw_text,
+            agent=session.runtime.agent,
+            parsed_request=plan.request,
+        )
         await self.apply_local_skill_command_result(session, result)
         self.render_all()
 

@@ -2575,13 +2575,12 @@ def test_tui_local_context_mutation_normalizes_policy_writeback(monkeypatch, tmp
     calls = {"count": 0}
 
     async def _fake_run_context_command_result(
-        self,
         *,
         session,
         action: str,
         args,
     ) -> CommandExecutionResult:  # noqa: ANN001
-        _ = (self, session, action, args)
+        _ = (session, action, args)
         calls["count"] += 1
         return CommandExecutionResult(
             command="context include",
@@ -2599,7 +2598,7 @@ def test_tui_local_context_mutation_normalizes_policy_writeback(monkeypatch, tmp
             },
         )
 
-    monkeypatch.setattr(MiniAgentTuiApp, "_run_context_command_result", _fake_run_context_command_result)
+    monkeypatch.setattr(app._context_commands, "run_context_command_result", _fake_run_context_command_result)
 
     asyncio.run(app._handle_context_command(["include", "knowledge_base", "workspace_memory"]))
 

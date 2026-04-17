@@ -49,8 +49,12 @@ Mini-Agent 当前仍然遵守四入口产品模型：
 - `Session` 是唯一真相源
 - 各 surface 只是操作 session
 - 渠道不是 session owner
+- surface 只拥有展示逻辑和本地临时 UI 状态
+- 共享交互行为默认落在 `application/` 或 `runtime/`，不能先堆进 surface 文件
+- 只要同一条规则未来会被多个入口复用，就不要先写进 `tui/`、`desktop/` 或渠道 handler
 
 详见 [`P30_SURFACE_SESSION_ARCHITECTURE_CORRECTION_2026-04-12.md`](./P30_SURFACE_SESSION_ARCHITECTURE_CORRECTION_2026-04-12.md)。
+执行边界细则与当前泄漏样本见 [`ARCHITECTURE_EXECUTION_GUARDRAILS_2026-04-17.md`](./ARCHITECTURE_EXECUTION_GUARDRAILS_2026-04-17.md)。
 当前这轮仓库卫生与结构收口见 [`P32B_REPO_HYGIENE_AND_STRUCTURE_ALIGNMENT_PLAN_2026-04-16.md`](./P32B_REPO_HYGIENE_AND_STRUCTURE_ALIGNMENT_PLAN_2026-04-16.md)。
 
 ## 3. 仓库结构

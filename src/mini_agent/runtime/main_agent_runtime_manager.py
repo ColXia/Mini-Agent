@@ -586,6 +586,23 @@ class MainAgentRuntimeManager:
                 session_title_hint=session_title_hint,
             )
 
+    async def ensure_session_runtime_policy_ready_for_turn(
+        self,
+        session: MainAgentSessionState,
+        *,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ):
+        return await self._session_operator.ensure_runtime_policy_ready_for_turn(
+            session,
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
+
     async def ensure_default_session(
         self,
         workspace_dir: Path,

@@ -33,9 +33,10 @@ def test_tui_skill_command_coordinator_handles_plan_error() -> None:
         ),
         runs_via_gateway=lambda _session: False,
         resolve_remote_skill_command_plan=lambda plan: plan,
-        run_remote_skill_action=lambda _session, _plan: asyncio.sleep(0, result={}),
+        run_remote_skill_action=lambda _session, **kwargs: asyncio.sleep(0, result={}),
         apply_remote_skill_response=lambda _session, _plan, _response: None,
-        run_local_skill_command_result=lambda _session, _plan: CommandExecutionResult(
+        workspace="D:/workspace",
+        execute_local_skill_command=lambda **kwargs: CommandExecutionResult(
             command="skill list",
             summary="skill catalog shown",
             details="details",
@@ -68,8 +69,9 @@ def test_tui_skill_command_coordinator_handles_remote_success() -> None:
     remote_runs: list[str] = []
     applied: list[tuple[Any, Any, dict[str, Any]]] = []
 
-    async def _run_remote(_session: Any, remote_plan: Any) -> dict[str, Any]:
-        remote_runs.append(remote_plan.action)
+    async def _run_remote(_session: Any, *, action: str, **kwargs: Any) -> dict[str, Any]:
+        remote_runs.append(action)
+        assert kwargs == {"path": "C:/skills/repo-helper"}
         return {"status": "ok", "result": {"summary": "installed repo-helper"}}
 
     coordinator = TuiSessionSkillCommandCoordinator(
@@ -84,7 +86,8 @@ def test_tui_skill_command_coordinator_handles_remote_success() -> None:
         apply_remote_skill_response=lambda _session, remote_plan, response: applied.append(
             (_session, remote_plan, response)
         ),
-        run_local_skill_command_result=lambda _session, _plan: CommandExecutionResult(
+        workspace="D:/workspace",
+        execute_local_skill_command=lambda **kwargs: CommandExecutionResult(
             command="skill list",
             summary="skill catalog shown",
             details="details",
@@ -112,8 +115,8 @@ def test_tui_skill_command_coordinator_handles_remote_error() -> None:
     status_calls: list[str] = []
     render_calls: list[str] = []
 
-    async def _run_remote(_session: Any, remote_plan: Any) -> dict[str, Any]:
-        _ = remote_plan
+    async def _run_remote(_session: Any, *, action: str, **kwargs: Any) -> dict[str, Any]:
+        _ = (action, kwargs)
         raise GatewayTransportError("Gateway HTTP 503: skill gateway unavailable", status_code=503)
 
     coordinator = TuiSessionSkillCommandCoordinator(
@@ -126,7 +129,8 @@ def test_tui_skill_command_coordinator_handles_remote_error() -> None:
         ),
         run_remote_skill_action=_run_remote,
         apply_remote_skill_response=lambda _session, _plan, _response: None,
-        run_local_skill_command_result=lambda _session, _plan: CommandExecutionResult(
+        workspace="D:/workspace",
+        execute_local_skill_command=lambda **kwargs: CommandExecutionResult(
             command="skill list",
             summary="skill catalog shown",
             details="details",
@@ -155,12 +159,12 @@ def test_tui_skill_command_coordinator_handles_remote_error() -> None:
 
 def test_tui_skill_command_coordinator_runs_local_flow() -> None:
     session = _session()
-    local_runs: list[tuple[Any, str]] = []
+    local_runs: list[dict[str, Any]] = []
     applied_results: list[CommandExecutionResult] = []
     render_calls: list[str] = []
 
-    def _run_local(target_session: Any, plan: Any) -> CommandExecutionResult:
-        local_runs.append((target_session, plan.action))
+    def _run_local(**kwargs: Any) -> CommandExecutionResult:
+        local_runs.append(dict(kwargs))
         return CommandExecutionResult(
             command="skill list",
             summary="skill catalog shown",
@@ -172,12 +176,19 @@ def test_tui_skill_command_coordinator_runs_local_flow() -> None:
         applied_results.append(result)
 
     coordinator = TuiSessionSkillCommandCoordinator(
-        resolve_skill_command_plan=lambda inv: SimpleNamespace(command="skill list", action="list"),
+        resolve_skill_command_plan=lambda inv: SimpleNamespace(
+            command="skill list",
+            action="list",
+            args=("list",),
+            raw_text="skill list",
+            request=SimpleNamespace(),
+        ),
         runs_via_gateway=lambda _session: False,
         resolve_remote_skill_command_plan=lambda plan: plan,
-        run_remote_skill_action=lambda _session, _plan: asyncio.sleep(0, result={}),
+        run_remote_skill_action=lambda _session, **kwargs: asyncio.sleep(0, result={}),
         apply_remote_skill_response=lambda _session, _plan, _response: None,
-        run_local_skill_command_result=_run_local,
+        workspace="D:/workspace",
+        execute_local_skill_command=_run_local,
         apply_local_skill_command_result=_apply_local,
         append_command_feedback=lambda command, **kwargs: None,
         set_status=lambda text: None,
@@ -186,7 +197,10 @@ def test_tui_skill_command_coordinator_runs_local_flow() -> None:
 
     asyncio.run(coordinator.handle(session, ["list"]))
 
-    assert local_runs == [(session, "list")]
+    assert len(local_runs) == 1
+    assert local_runs[0]["workspace"] == "D:/workspace"
+    assert local_runs[0]["action"] == "list"
+    assert local_runs[0]["agent"] is None
     assert len(applied_results) == 1
     assert applied_results[0].command == "skill list"
     assert render_calls == ["rendered"]

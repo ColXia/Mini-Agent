@@ -72,15 +72,15 @@ class TuiSessionRuntimePolicyCommandCoordinator:
             if self.runs_via_gateway(session):
                 remote_response = await self.apply_remote_session_runtime_policy(
                     session,
-                    resolved_profile,
-                    resolved_access,
+                    approval_profile=resolved_profile,
+                    access_level=resolved_access,
                 )
                 diagnostics = _response_value(remote_response, "sandbox_diagnostics")
             else:
                 diagnostics = await self.apply_local_session_runtime_policy(
                     session,
-                    resolved_profile,
-                    resolved_access,
+                    approval_profile=resolved_profile,
+                    access_level=resolved_access,
                 )
         except Exception as exc:
             message = SessionRuntimePolicyService.failure_details(str(exc))

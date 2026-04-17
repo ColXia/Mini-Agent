@@ -17,9 +17,12 @@ class TuiSessionKbCommandCoordinator:
     resolve_kb_command_plan: Callable[[Sequence[str]], Any]
     runs_via_gateway: Callable[[Any], bool]
     sync_remote_session_detail: Callable[[Any], Awaitable[None]]
-    run_kb_status_result: Callable[[Any, Sequence[str]], Awaitable[CommandExecutionResult]]
     execute_remote_kb_command: Callable[[Any, Any], Awaitable[None]]
-    run_local_kb_command_result: Callable[[Any, Sequence[str], Any], Awaitable[CommandExecutionResult]]
+    execute_local_kb_command: Callable[..., Awaitable[CommandExecutionResult]]
+    session_knowledge_base_enabled: Callable[[Any], bool | None]
+    apply_agent_knowledge_base_enabled: Callable[[Any, bool], bool]
+    refresh_local_runtime_projection: Callable[[Any], Any]
+    persist_session_state: Callable[[], None]
     append_command_feedback: Callable[..., None]
     set_status: Callable[[str], None]
     render_all: Callable[[], None]
@@ -46,7 +49,7 @@ class TuiSessionKbCommandCoordinator:
             self.render_all()
             return
 
-        result = await self.run_local_kb_command_result(session, args, plan)
+        result = await self._run_local_mutation_result(session, args, plan)
         self.append_command_feedback(
             result.command,
             summary=result.summary,
@@ -73,7 +76,16 @@ class TuiSessionKbCommandCoordinator:
                 self.render_all()
                 return
 
-        result = await self.run_kb_status_result(session, args)
+        runtime = getattr(session, "runtime", None)
+        agent = getattr(runtime, "agent", None)
+        result = await self.execute_local_kb_command(
+            surface="tui",
+            action="status",
+            args=list(args),
+            current_enabled=self.session_knowledge_base_enabled(session),
+            session_label=session.title,
+            runtime_attached=agent is not None,
+        )
         self.append_command_feedback(
             result.command,
             summary=result.summary,
@@ -82,6 +94,44 @@ class TuiSessionKbCommandCoordinator:
         )
         self.set_status(result.status_text)
         self.render_all()
+
+    async def _run_local_mutation_result(
+        self,
+        session: Any,
+        args: Sequence[str],
+        plan: Any,
+    ) -> CommandExecutionResult:
+        projection = getattr(session, "projection", None)
+        runtime = getattr(session, "runtime", None)
+        agent = getattr(runtime, "agent", None)
+
+        def _apply_local_kb(enabled: bool) -> bool:
+            if agent is not None:
+                return self.apply_agent_knowledge_base_enabled(agent, enabled)
+            if projection is not None:
+                projection.knowledge_base_enabled = enabled
+            return enabled
+
+        result = await self.execute_local_kb_command(
+            surface="tui",
+            action=plan.action,
+            args=list(args),
+            current_enabled=self.session_knowledge_base_enabled(session),
+            session_label=session.title,
+            runtime_attached=agent is not None,
+            busy=bool(getattr(projection, "busy", False)),
+            toggle_callback=_apply_local_kb,
+        )
+
+        if agent is not None:
+            self.refresh_local_runtime_projection(session)
+        else:
+            payload = result.payload if isinstance(result.payload, dict) else {}
+            enabled_payload = payload.get("enabled")
+            if projection is not None and (isinstance(enabled_payload, bool) or enabled_payload is None):
+                projection.knowledge_base_enabled = enabled_payload
+        self.persist_session_state()
+        return result
 
 
 __all__ = ["TuiSessionKbCommandCoordinator"]

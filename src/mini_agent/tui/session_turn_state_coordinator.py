@@ -47,7 +47,6 @@ class TuiSessionTurnStateCoordinator:
         runtime = session.runtime
         projection.busy = True
         runtime.active_task_id = task_id
-        projection.active_surface = "tui"
         projection.reply_enabled = False
         projection.running_state = "gateway request running"
         projection.pending_approvals = []

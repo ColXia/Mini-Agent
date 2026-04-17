@@ -54,7 +54,6 @@ from mini_agent.commands import (
     ContextCommandPlan,
     LocalOperatorCommandService,
     MemoryCommandPlan,
-    McpReloadOutcome,
     CommandDispatcher,
     CommandParseError,
     ModelCommandPlan,
@@ -107,6 +106,8 @@ from mini_agent.runtime.sandbox_state import (
     sandbox_network_summary,
     sandbox_policy_summary,
 )
+from mini_agent.runtime.session_local_agent_runtime_handler import LocalSessionAgentRuntimeHandler
+from mini_agent.runtime.session_local_mcp_runtime_service import LocalSessionMcpRuntimeService
 from mini_agent.runtime.runtime_policy_service import SessionRuntimePolicyService
 from mini_agent.runtime.session_agent_support import RuntimeSessionAgentSupport
 from mini_agent.runtime.session_cancel_service import SessionCancelService
@@ -114,7 +115,6 @@ from mini_agent.runtime.session_control_error_service import SessionControlError
 from mini_agent.runtime.session_model_identity_codec import RuntimeSessionModelIdentityCodec
 from mini_agent.runtime.session_payload_codec import RuntimeSessionPayloadCodec
 from mini_agent.runtime.tooling import reconfigure_agent_runtime_policy
-from mini_agent.tools.mcp.command_service import build_mcp_reload_warm_prefix
 from mini_agent.session import (
     SessionFeedbackService,
     SessionPendingApprovalProjection,
@@ -895,6 +895,25 @@ class MiniAgentTuiApp:
             schedule_stream_render=self._schedule_stream_render,
             render_all=self._render_all,
         )
+        self.local_command_service = LocalOperatorCommandService(
+            config_loader=self._load_runtime_config,
+            mcp_cleanup=cleanup_mcp_connections,
+        )
+        self._local_agent_runtime = LocalSessionAgentRuntimeHandler(
+            selected_model_identity=self._session_active_model_identity,
+            set_selected_model_identity=self._set_session_selected_model_identity,
+            set_pending_model_identity=self._set_session_pending_model_identity,
+            clear_pending_skill_reload=self._clear_session_skill_reload_pending,
+            capture_session_agent_snapshot=self._capture_session_agent_snapshot,
+            shutdown_submission_loop=self._shutdown_submission_loop,
+            reset_runtime_execution_state=self._reset_local_runtime_execution_state,
+            warm_session_agent=self._warm_session_agent,
+            format_model_identity=self._format_model_identity,
+            persist_session_state=self._persist_session_state,
+        )
+        self._local_mcp_runtime = LocalSessionMcpRuntimeService(
+            agent_runtime=self._local_agent_runtime,
+        )
         self._approval_commands = TuiSessionApprovalCommandCoordinator(
             runs_via_gateway=self._runs_via_gateway,
             has_local_runtime_state=self._has_local_runtime_state,
@@ -910,8 +929,8 @@ class MiniAgentTuiApp:
         self._runtime_policy_commands = TuiSessionRuntimePolicyCommandCoordinator(
             session_runtime_policy=self._session_runtime_policy,
             runs_via_gateway=self._runs_via_gateway,
-            apply_local_session_runtime_policy=self._apply_local_session_runtime_policy_for_command,
-            apply_remote_session_runtime_policy=self._apply_remote_session_runtime_policy_for_command,
+            apply_local_session_runtime_policy=self._apply_local_session_runtime_policy,
+            apply_remote_session_runtime_policy=self._apply_remote_session_runtime_policy,
             normalize_sandbox_diagnostics_payload=self._normalize_sandbox_diagnostics_payload,
             append_command_feedback=self._append_command_feedback,
             set_status=self._set_status,
@@ -919,8 +938,11 @@ class MiniAgentTuiApp:
         )
         self._context_commands = TuiSessionContextCommandCoordinator(
             resolve_context_command_plan=self._resolve_context_command_plan,
-            refresh_context_snapshot_if_gateway_bound=self._refresh_context_snapshot_for_command,
-            run_context_command_result=self._run_context_command_result_for_coordinator,
+            refresh_context_snapshot_if_gateway_bound=lambda session: self._refresh_context_snapshot_if_gateway_bound(
+                session,
+                recent_limit=80,
+            ),
+            run_context_command_result=self._run_context_command_result,
             execute_context_result=self._execute_context_result,
             runs_via_gateway=self._runs_via_gateway,
             dispatch_remote_context_update=self._dispatch_remote_context_update,
@@ -942,9 +964,12 @@ class MiniAgentTuiApp:
             resolve_kb_command_plan=self._resolve_kb_command_plan,
             runs_via_gateway=self._runs_via_gateway,
             sync_remote_session_detail=self._sync_remote_session_detail_for_command,
-            run_kb_status_result=self._run_kb_status_result_for_coordinator,
-            execute_remote_kb_command=self._execute_remote_kb_command_for_coordinator,
-            run_local_kb_command_result=self._run_local_kb_command_result_for_coordinator,
+            execute_remote_kb_command=self._execute_remote_kb_command,
+            execute_local_kb_command=self.local_command_service.execute_kb,
+            session_knowledge_base_enabled=self._session_knowledge_base_enabled,
+            apply_agent_knowledge_base_enabled=self._apply_agent_knowledge_base_enabled,
+            refresh_local_runtime_projection=self._refresh_local_runtime_projection,
+            persist_session_state=self._persist_session_state,
             append_command_feedback=self._append_command_feedback,
             set_status=self._set_status,
             render_all=self._render_all,
@@ -952,9 +977,10 @@ class MiniAgentTuiApp:
         self._mcp_commands = TuiSessionMcpCommandCoordinator(
             resolve_mcp_command_plan=self._resolve_mcp_command_plan,
             runs_via_gateway=self._runs_via_gateway,
-            dispatch_remote_mcp_command=self._dispatch_remote_mcp_command_for_coordinator,
+            dispatch_remote_control_command=self._dispatch_remote_control_command,
             mcp_remote_status_text=self._mcp_remote_status_text,
-            run_local_mcp_command_result=self._run_local_mcp_command_result_for_coordinator,
+            execute_local_mcp_command=self.local_command_service.execute_mcp,
+            reload_local_mcp_bindings=self._local_mcp_runtime.reload_bindings,
             append_command_feedback=self._append_command_feedback,
             set_status=self._set_status,
             render_all=self._render_all,
@@ -963,9 +989,10 @@ class MiniAgentTuiApp:
             resolve_skill_command_plan=self._resolve_skill_command_plan,
             runs_via_gateway=self._runs_via_gateway,
             resolve_remote_skill_command_plan=self._resolve_remote_skill_command_plan,
-            run_remote_skill_action=self._run_remote_skill_action_for_coordinator,
+            run_remote_skill_action=self._run_remote_skill_action,
             apply_remote_skill_response=self._apply_remote_skill_response,
-            run_local_skill_command_result=self._run_local_skill_command_result_for_coordinator,
+            workspace=self.workspace,
+            execute_local_skill_command=self.local_command_service.execute_skill,
             apply_local_skill_command_result=self._apply_local_skill_command_result,
             append_command_feedback=self._append_command_feedback,
             set_status=self._set_status,
@@ -973,12 +1000,13 @@ class MiniAgentTuiApp:
         )
         self._model_commands = TuiSessionModelCommandCoordinator(
             resolve_model_command_plan=self._resolve_model_command_plan,
-            model_inventory_summary=self._model_inventory_summary_for_coordinator,
+            provider_inventory=lambda: self.providers,
+            render_model_summary=self._render_model_summary,
             move_model_cursor=self._move_model_cursor,
             apply_selected_model=self._apply_selected_model,
             discover_for_selected_provider=self._discover_for_selected_provider,
             refresh_registry=self._refresh_registry,
-            apply_model_use_plan=self._apply_model_use_plan_for_coordinator,
+            apply_session_model_selection=self._apply_session_model_selection,
             model_use_usage_details=lambda: build_command_usage_text("tui", "model", action="use"),
             set_model_filter=self._set_model_filter,
             model_filter_value=lambda: self.model_filter,
@@ -989,10 +1017,6 @@ class MiniAgentTuiApp:
         )
         self._turn_state = TuiSessionTurnStateCoordinator()
         self._turn_outcomes = TuiSessionTurnOutcomeCoordinator()
-        self.local_command_service = LocalOperatorCommandService(
-            config_loader=self._load_runtime_config,
-            mcp_cleanup=cleanup_mcp_connections,
-        )
         self.state_path = (
             state_path.expanduser().resolve()
             if state_path is not None
@@ -4581,6 +4605,15 @@ class MiniAgentTuiApp:
             return
         runtime.restored_agent_messages = _fallback_agent_messages_from_chat(session.view.messages)
 
+    @staticmethod
+    def _reset_local_runtime_execution_state(session: TuiSession) -> None:
+        runtime = session.runtime
+        projection = session.projection
+        runtime.agent = None
+        runtime.cancel_event = None
+        projection.running_state = ""
+        projection.pending_approvals = []
+
     def _selected_model_identity(self) -> tuple[str, str, str] | None:
         selected = self._selected_provider_and_model()
         if selected is None:
@@ -4741,21 +4774,22 @@ class MiniAgentTuiApp:
         self,
         session: TuiSession,
         identity: tuple[str, str, str],
+        *,
+        warm_prefix: str,
+        clear_pending_skill_reload_on_success: bool = False,
     ) -> None:
-        projection = session.projection
-        runtime = session.runtime
         view = session.view
-        self._set_session_selected_model_identity(session, identity)
-        self._set_session_pending_model_identity(session, None)
-        self._capture_session_agent_snapshot(session)
-        await self._shutdown_submission_loop(session)
-        runtime.agent = None
-        runtime.cancel_event = None
-        projection.running_state = ""
         view.active_activity_message_index = None
         if session.session_id == self.current_session.session_id:
             self._set_model_cursor_by_identity(identity)
-        self._persist_session_state()
+        await self._local_agent_runtime.rebuild_with_identity(
+            session,
+            identity=identity,
+            warm_prefix=warm_prefix,
+            clear_pending_model_identity=True,
+            clear_pending_skill_reload_on_success=clear_pending_skill_reload_on_success,
+            persist_before_warm=True,
+        )
 
     async def _build_session_agent(self, session: TuiSession) -> Agent:
         projection = session.projection
@@ -4879,14 +4913,14 @@ class MiniAgentTuiApp:
             return
 
         target_identity = plan.activate_identity or identity
-        await self._activate_session_model_selection(session, target_identity)
         applied_feedback = SessionModelSelectionService.applied_feedback(
             model_label=self._format_model_identity(target_identity),
             session_title=session.title,
         )
-        await self._warm_session_agent(
+        await self._activate_session_model_selection(
             session,
-            prefix=applied_feedback.status_text.rstrip("."),
+            target_identity,
+            warm_prefix=applied_feedback.status_text.rstrip("."),
         )
         self._render_all()
 
@@ -4971,39 +5005,28 @@ class MiniAgentTuiApp:
         )
         if pending_identity is None:
             return
-        await self._activate_session_model_selection(session, pending_identity)
-        await self._warm_session_agent(
+        await self._activate_session_model_selection(
             session,
-            prefix=(
+            pending_identity,
+            warm_prefix=(
                 f"Applied queued model {self._format_model_identity(pending_identity)} "
                 f"for {session.title}"
             ),
+            clear_pending_skill_reload_on_success=bool(session.operator.pending_skill_reload),
         )
-        if session.operator.pending_skill_reload:
-            self._clear_session_skill_reload_pending(session)
-            self._persist_session_state()
 
     async def _apply_pending_session_skill_reload(self, session: TuiSession) -> bool:
         projection = session.projection
         operator = session.operator
-        runtime = session.runtime
         if self._runs_via_gateway(session) or projection.busy or not operator.pending_skill_reload:
             return False
-        if runtime.agent is not None:
-            self._capture_session_agent_snapshot(session)
-            await self._shutdown_submission_loop(session)
-            runtime.agent = None
-            runtime.cancel_event = None
-            projection.running_state = ""
-            projection.pending_approvals = []
-        agent = await self._warm_session_agent(
+        outcome = await self._local_agent_runtime.rebuild_current_identity(
             session,
-            prefix=f"Reloaded skills for {session.title}",
+            warm_prefix=f"Reloaded skills for {session.title}",
+            clear_pending_skill_reload_on_success=True,
         )
-        if agent is None:
+        if outcome.warmed_agent is None:
             return False
-        self._clear_session_skill_reload_pending(session)
-        self._persist_session_state()
         return True
 
     async def _apply_selected_model(self) -> None:
@@ -5126,7 +5149,7 @@ class MiniAgentTuiApp:
         projection = session.projection
         runtime = session.runtime
         current_profile, current_access = self._session_runtime_policy(session)
-        plan = SessionRuntimePolicyService.build_plan(
+        execution = SessionRuntimePolicyService.execute_update(
             current_approval_profile=current_profile,
             current_access_level=current_access,
             requested_approval_profile=approval_profile,
@@ -5135,22 +5158,25 @@ class MiniAgentTuiApp:
             waiting_on_approval=bool(projection.pending_approvals),
             runtime_attached=runtime.agent is not None,
             sandbox_diagnostics=projection.sandbox_diagnostics,
-        )
-        if runtime.agent is not None:
-            diagnostics = self._normalize_sandbox_diagnostics_payload(
-                reconfigure_agent_runtime_policy(
+            normalize_sandbox_diagnostics_payload=self._normalize_sandbox_diagnostics_payload,
+            reconfigure_attached_runtime=(
+                lambda resolved_profile, resolved_access: reconfigure_agent_runtime_policy(
                     agent=runtime.agent,
                     config=self._load_runtime_config(),
                     workspace_dir=self.workspace,
-                    approval_profile_override=plan.approval_profile,
-                    access_level_override=plan.access_level,
+                    approval_profile_override=resolved_profile,
+                    access_level_override=resolved_access,
                 )
             )
-            projection.sandbox_diagnostics = diagnostics
+            if runtime.agent is not None
+            else None,
+        )
+        projection.sandbox_diagnostics = dict(execution.diagnostics)
+        if runtime.agent is not None:
             self._refresh_local_runtime_projection(session)
             diagnostics = self._normalize_sandbox_diagnostics_payload(projection.sandbox_diagnostics)
         else:
-            diagnostics = self._normalize_sandbox_diagnostics_payload(plan.local_sandbox_diagnostics)
+            diagnostics = dict(execution.diagnostics)
         projection.sandbox_diagnostics = diagnostics
         self._persist_session_state()
         return diagnostics
@@ -5181,30 +5207,6 @@ class MiniAgentTuiApp:
             pass
         self._persist_session_state()
         return response
-
-    async def _apply_local_session_runtime_policy_for_command(
-        self,
-        session: TuiSession,
-        approval_profile: str,
-        access_level: str,
-    ) -> dict[str, Any]:
-        return await self._apply_local_session_runtime_policy(
-            session,
-            approval_profile=approval_profile,
-            access_level=access_level,
-        )
-
-    async def _apply_remote_session_runtime_policy_for_command(
-        self,
-        session: TuiSession,
-        approval_profile: str,
-        access_level: str,
-    ) -> MainAgentSessionRuntimePolicyResponse:
-        return await self._apply_remote_session_runtime_policy(
-            session,
-            approval_profile=approval_profile,
-            access_level=access_level,
-        )
 
     async def _update_session_runtime_policy(
         self,
@@ -5567,58 +5569,6 @@ class MiniAgentTuiApp:
         if not normalized.get("active"):
             return {}
         return {"prepared_context_policy": normalized}
-
-    def _set_context_policy_sources(
-        self,
-        session: TuiSession,
-        *,
-        field_name: str,
-        sources: list[str],
-    ) -> dict[str, Any]:
-        projection = session.projection
-        normalized = self._normalize_context_policy_payload(projection.context_policy)
-        deduped = []
-        seen: set[str] = set()
-        for source in sources:
-            cleaned = _safe_text(source).lower()
-            if not cleaned or cleaned in seen:
-                continue
-            seen.add(cleaned)
-            deduped.append(cleaned)
-        normalized[field_name] = deduped
-        opposite = "exclude_sources" if field_name == "include_sources" else "include_sources"
-        normalized[opposite] = [
-            item
-            for item in list(normalized.get(opposite) or [])
-            if item not in deduped
-        ]
-        projection.context_policy = normalized
-        self._persist_session_state()
-        return normalized
-
-    def _set_context_policy_budget(
-        self,
-        session: TuiSession,
-        *,
-        max_items: int,
-        max_total_chars: int | None = None,
-        max_items_per_source: int | None = None,
-    ) -> dict[str, Any]:
-        projection = session.projection
-        normalized = self._normalize_context_policy_payload(projection.context_policy)
-        normalized["max_items"] = max(1, int(max_items))
-        if max_total_chars is not None:
-            normalized["max_total_chars"] = max(200, int(max_total_chars))
-        if max_items_per_source is not None:
-            normalized["max_items_per_source"] = max(1, int(max_items_per_source))
-        projection.context_policy = normalized
-        self._persist_session_state()
-        return normalized
-
-    def _reset_context_policy(self, session: TuiSession) -> dict[str, Any]:
-        session.projection.context_policy = {}
-        self._persist_session_state()
-        return self._normalize_context_policy_payload({})
 
     async def _update_remote_context_policy(
         self,
@@ -6162,15 +6112,9 @@ class MiniAgentTuiApp:
             reason=feedback.reason,
             include_current=False,
         )
-        active_identity = self._session_active_model_identity(session)
-        if active_identity is not None:
-            self._set_session_selected_model_identity(session, active_identity)
-        self._capture_session_agent_snapshot(session)
-        await self._shutdown_submission_loop(session)
-        session.runtime.agent = None
-        await self._warm_session_agent(
+        await self._local_agent_runtime.rebuild_current_identity(
             session,
-            prefix=f"{feedback.warm_prefix_base} for {session.title}",
+            warm_prefix=f"{feedback.warm_prefix_base} for {session.title}",
         )
         self._append_command_feedback(
             result.command,
@@ -6539,10 +6483,7 @@ class MiniAgentTuiApp:
             self._cancel_session_turn(session)
         if runtime.submission_loop is not None:
             self._schedule(self._shutdown_submission_loop(session))
-        runtime.agent = None
-        runtime.cancel_event = None
-        projection.running_state = ""
-        projection.pending_approvals = []
+        self._reset_local_runtime_execution_state(session)
 
     def _invalidate_all_session_agents(self) -> None:
         for session in self.sessions:
@@ -7842,21 +7783,6 @@ class MiniAgentTuiApp:
             session_label=session.title,
         )
 
-    async def _refresh_context_snapshot_for_command(self, session: TuiSession) -> None:
-        await self._refresh_context_snapshot_if_gateway_bound(session, recent_limit=80)
-
-    async def _run_context_command_result_for_coordinator(
-        self,
-        session: TuiSession,
-        action: str,
-        args: Sequence[str],
-    ) -> CommandExecutionResult:
-        return await self._run_context_command_result(
-            session=session,
-            action=action,
-            args=args,
-        )
-
     async def _handle_context_command(self, args: list[str]) -> None:
         session = self.current_session
         await self._context_commands.handle(session, args)
@@ -7865,119 +7791,9 @@ class MiniAgentTuiApp:
         session = self.current_session
         await self._memory_commands.handle(session, args)
 
-    async def _run_kb_status_result_for_coordinator(
-        self,
-        session: TuiSession,
-        args: Sequence[str],
-    ) -> CommandExecutionResult:
-        runtime = session.runtime
-        return await self.local_command_service.execute_kb(
-            surface="tui",
-            action="status",
-            args=list(args),
-            current_enabled=self._session_knowledge_base_enabled(session),
-            session_label=session.title,
-            runtime_attached=runtime.agent is not None,
-        )
-
-    async def _execute_remote_kb_command_for_coordinator(
-        self,
-        session: TuiSession,
-        plan: KbCommandPlan,
-    ) -> None:
-        await self._execute_remote_kb_command(
-            session=session,
-            projection=session.projection,
-            plan=plan,
-        )
-
-    async def _run_local_kb_command_result_for_coordinator(
-        self,
-        session: TuiSession,
-        args: Sequence[str],
-        plan: KbCommandPlan,
-    ) -> CommandExecutionResult:
-        projection = session.projection
-        runtime = session.runtime
-
-        def _apply_local_kb(enabled: bool) -> bool:
-            if runtime.agent is not None:
-                return self._apply_agent_knowledge_base_enabled(runtime.agent, enabled)
-            projection.knowledge_base_enabled = enabled
-            return enabled
-
-        result = await self.local_command_service.execute_kb(
-            surface="tui",
-            action=plan.action,
-            args=list(args),
-            current_enabled=self._session_knowledge_base_enabled(session),
-            session_label=session.title,
-            runtime_attached=runtime.agent is not None,
-            busy=bool(projection.busy),
-            toggle_callback=_apply_local_kb,
-        )
-        if runtime.agent is not None:
-            self._refresh_local_runtime_projection(session)
-        else:
-            payload = result.payload if isinstance(result.payload, dict) else {}
-            enabled_payload = payload.get("enabled")
-            if isinstance(enabled_payload, bool) or enabled_payload is None:
-                projection.knowledge_base_enabled = enabled_payload
-        self._persist_session_state()
-        return result
-
     async def _handle_kb_command(self, args: list[str]) -> None:
         session = self.current_session
         await self._kb_commands.handle(session, args)
-
-    async def _dispatch_remote_mcp_command_for_coordinator(
-        self,
-        session: TuiSession,
-        plan: McpCommandPlan,
-    ) -> tuple[Any, bool] | None:
-        return await self._dispatch_remote_control_command(
-            session=session,
-            command_text=plan.command,
-            action=f"mcp_{plan.action}",
-            metadata={"threads_visible": False},
-        )
-
-    async def _run_local_mcp_command_result_for_coordinator(
-        self,
-        session: TuiSession,
-        args: Sequence[str],
-        plan: McpCommandPlan,
-    ) -> CommandExecutionResult:
-        projection = session.projection
-        runtime = session.runtime
-
-        async def _reload_local_mcp() -> McpReloadOutcome:
-            active_identity = self._session_active_model_identity(session)
-            if active_identity is not None:
-                self._set_session_selected_model_identity(session, active_identity)
-            self._capture_session_agent_snapshot(session)
-            await self._shutdown_submission_loop(session)
-            runtime.agent = None
-            await self._warm_session_agent(
-                session,
-                prefix=build_mcp_reload_warm_prefix(session.title),
-            )
-            return McpReloadOutcome(
-                rebuilt_runtime=True,
-                active_model_label=self._format_model_identity(
-                    self._session_active_model_identity(session),
-                    fallback_model=_safe_text(getattr(getattr(runtime.agent, "llm_client", None), "model", "")),
-                ),
-            )
-
-        return await self.local_command_service.execute_mcp(
-            surface="tui",
-            action=plan.action,
-            args=list(args),
-            busy=bool(projection.busy),
-            busy_label=session.title,
-            reload_callback=_reload_local_mcp if plan.action == "reload" else None,
-        )
 
     def _resolve_kb_command_plan(
         self,
@@ -7999,13 +7815,8 @@ class MiniAgentTuiApp:
             )
         return KbCommandPlan(command=f"kb {action}", action=action)
 
-    async def _execute_remote_kb_command(
-        self,
-        *,
-        session: TuiSession,
-        projection: TuiSessionProjectionState,
-        plan: KbCommandPlan,
-    ) -> None:
+    async def _execute_remote_kb_command(self, session: TuiSession, plan: KbCommandPlan) -> None:
+        projection = session.projection
         try:
             response = await self.remote_session_service.control_session(
                 session.session_id,
@@ -8039,32 +7850,6 @@ class MiniAgentTuiApp:
     async def _handle_mcp_command(self, args: list[str]) -> None:
         session = self.current_session
         await self._mcp_commands.handle(session, args)
-
-    async def _run_remote_skill_action_for_coordinator(
-        self,
-        session: TuiSession,
-        remote_plan: RemoteSkillCommandPlan,
-    ) -> dict[str, Any]:
-        return await self._run_remote_skill_action(
-            session,
-            action=remote_plan.action,
-            **remote_plan.request_kwargs,
-        )
-
-    def _run_local_skill_command_result_for_coordinator(
-        self,
-        session: TuiSession,
-        plan: SkillCommandPlan,
-    ) -> CommandExecutionResult:
-        return self.local_command_service.execute_skill(
-            surface="tui",
-            workspace=self.workspace,
-            action=plan.action,
-            args=list(plan.args),
-            raw_text=plan.raw_text,
-            agent=session.runtime.agent,
-            parsed_request=plan.request,
-        )
 
     def _resolve_mcp_command_plan(
         self,
@@ -8129,24 +7914,6 @@ class MiniAgentTuiApp:
     async def _handle_skill_command(self, invocation_or_args: Any) -> None:
         session = self.current_session
         await self._skill_commands.handle(session, invocation_or_args)
-
-    def _model_inventory_summary_for_coordinator(self) -> tuple[int, int, str]:
-        provider_count = len(self.providers)
-        model_count = sum(
-            len(provider.get("models", []))
-            for provider in self.providers
-            if isinstance(provider.get("models", []), list)
-        )
-        return provider_count, model_count, "Models:\n" + self._render_model_summary()
-
-    async def _apply_model_use_plan_for_coordinator(self, plan: ModelCommandPlan) -> None:
-        request = plan.request
-        if request is None:
-            raise ValueError("missing model use request")
-        await self._apply_session_model_selection(
-            self.current_session,
-            request.identity,
-        )
 
     def _resolve_model_command_plan(
         self,
@@ -8250,7 +8017,7 @@ class MiniAgentTuiApp:
             self._set_status(f"No learned limit to clear for {identity[1]}/{identity[2]}.")
 
     async def _handle_model_command(self, args: list[str]) -> None:
-        await self._model_commands.handle(args)
+        await self._model_commands.handle(self.current_session, args)
 
     async def _run_command(self, command: str) -> None:
         raw = _safe_text(command)

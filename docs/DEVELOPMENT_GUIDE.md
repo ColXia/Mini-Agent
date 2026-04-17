@@ -49,8 +49,12 @@ The active architecture rule is:
 - `Session` is the source of truth
 - surfaces operate sessions
 - channels do not own sessions
+- surfaces own presentation and local ephemeral UI state only
+- shared interaction behavior must default to `application/` or `runtime/`, not surface files
+- if the same rule would be needed by multiple entrances, do not land it in `tui/`, `desktop/`, or channel handlers first
 
 See [`docs/P30_SURFACE_SESSION_ARCHITECTURE_CORRECTION_2026-04-12.md`](./P30_SURFACE_SESSION_ARCHITECTURE_CORRECTION_2026-04-12.md).
+Execution guardrail details and the current leakage checklist live in [`docs/ARCHITECTURE_EXECUTION_GUARDRAILS_2026-04-17.md`](./ARCHITECTURE_EXECUTION_GUARDRAILS_2026-04-17.md).
 Current repo-hygiene closeout is tracked in [`docs/P32B_REPO_HYGIENE_AND_STRUCTURE_ALIGNMENT_PLAN_2026-04-16.md`](./P32B_REPO_HYGIENE_AND_STRUCTURE_ALIGNMENT_PLAN_2026-04-16.md).
 
 ## 3. Repository Layout

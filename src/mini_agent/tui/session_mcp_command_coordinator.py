@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from mini_agent.commands import CommandExecutionResult
+from mini_agent.tools.mcp.command_service import McpReloadOutcome
 
 
 def _safe_text(value: Any) -> str:
@@ -25,9 +26,10 @@ class TuiSessionMcpCommandCoordinator:
 
     resolve_mcp_command_plan: Callable[[Sequence[str]], Any]
     runs_via_gateway: Callable[[Any], bool]
-    dispatch_remote_mcp_command: Callable[[Any, Any], Awaitable[tuple[Any, bool] | None]]
+    dispatch_remote_control_command: Callable[..., Awaitable[tuple[Any, bool] | None]]
     mcp_remote_status_text: Callable[[str], str]
-    run_local_mcp_command_result: Callable[[Any, Sequence[str], Any], Awaitable[CommandExecutionResult]]
+    execute_local_mcp_command: Callable[..., Awaitable[CommandExecutionResult]]
+    reload_local_mcp_bindings: Callable[[Any], Awaitable[McpReloadOutcome]]
     append_command_feedback: Callable[..., None]
     set_status: Callable[[str], None]
     render_all: Callable[[], None]
@@ -47,7 +49,12 @@ class TuiSessionMcpCommandCoordinator:
             return
 
         if self.runs_via_gateway(session):
-            remote_result = await self.dispatch_remote_mcp_command(session, plan)
+            remote_result = await self.dispatch_remote_control_command(
+                session=session,
+                command_text=plan.command,
+                action=f"mcp_{plan.action}",
+                metadata={"threads_visible": False},
+            )
             if remote_result is None:
                 return
             response, synced = remote_result
@@ -66,7 +73,7 @@ class TuiSessionMcpCommandCoordinator:
             self.render_all()
             return
 
-        result = await self.run_local_mcp_command_result(session, args, plan)
+        result = await self._run_local_result(session, args, plan)
         self.append_command_feedback(
             result.command,
             summary=result.summary,
@@ -76,6 +83,25 @@ class TuiSessionMcpCommandCoordinator:
         )
         self.set_status(result.status_text)
         self.render_all()
+
+    async def _run_local_result(
+        self,
+        session: Any,
+        args: Sequence[str],
+        plan: Any,
+    ) -> CommandExecutionResult:
+        async def _reload_local_mcp() -> McpReloadOutcome:
+            return await self.reload_local_mcp_bindings(session)
+
+        projection = getattr(session, "projection", None)
+        return await self.execute_local_mcp_command(
+            surface="tui",
+            action=plan.action,
+            args=list(args),
+            busy=bool(getattr(projection, "busy", False)),
+            busy_label=session.title,
+            reload_callback=_reload_local_mcp if plan.action == "reload" else None,
+        )
 
 
 __all__ = ["TuiSessionMcpCommandCoordinator"]

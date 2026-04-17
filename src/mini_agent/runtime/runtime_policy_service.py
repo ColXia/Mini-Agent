@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -34,6 +35,18 @@ class SessionRuntimePolicyPlan:
     approval_profile: str
     access_level: str
     local_sandbox_diagnostics: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SessionRuntimePolicyExecution:
+    plan: SessionRuntimePolicyPlan
+    diagnostics: dict[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
+class SessionRuntimePolicyAutofixRequest:
+    approval_profile: str
+    access_level: str
 
 
 class SessionRuntimePolicyService:
@@ -137,6 +150,78 @@ class SessionRuntimePolicyService:
             ),
         )
 
+    @classmethod
+    def execute_update(
+        cls,
+        *,
+        current_approval_profile: str | None,
+        current_access_level: str | None,
+        requested_approval_profile: str | None,
+        requested_access_level: str | None,
+        busy: bool,
+        waiting_on_approval: bool,
+        runtime_attached: bool,
+        sandbox_diagnostics: Any,
+        normalize_sandbox_diagnostics_payload: Callable[[Any], dict[str, Any]],
+        reconfigure_attached_runtime: Callable[[str, str], Any] | None = None,
+    ) -> SessionRuntimePolicyExecution:
+        plan = cls.build_plan(
+            current_approval_profile=current_approval_profile,
+            current_access_level=current_access_level,
+            requested_approval_profile=requested_approval_profile,
+            requested_access_level=requested_access_level,
+            busy=busy,
+            waiting_on_approval=waiting_on_approval,
+            runtime_attached=runtime_attached,
+            sandbox_diagnostics=sandbox_diagnostics,
+        )
+        if runtime_attached:
+            if reconfigure_attached_runtime is None:
+                raise RuntimeError("Attached runtime policy updates require a reconfigure callback.")
+            diagnostics = normalize_sandbox_diagnostics_payload(
+                reconfigure_attached_runtime(plan.approval_profile, plan.access_level)
+            )
+        else:
+            diagnostics = normalize_sandbox_diagnostics_payload(plan.local_sandbox_diagnostics)
+        return SessionRuntimePolicyExecution(
+            plan=plan,
+            diagnostics=dict(diagnostics),
+        )
+
+    @classmethod
+    def build_pre_turn_autofix_request(
+        cls,
+        *,
+        requested_surface: str | None,
+        origin_surface: str | None,
+        active_surface: str | None,
+        shared: bool,
+        current_approval_profile: str | None,
+        current_access_level: str | None,
+    ) -> SessionRuntimePolicyAutofixRequest | None:
+        normalized_requested_surface = _safe_text(requested_surface).lower()
+        normalized_origin_surface = _safe_text(origin_surface).lower()
+        normalized_active_surface = _safe_text(active_surface).lower()
+        approval_profile = cls.normalize_approval_profile(current_approval_profile) or "build"
+        access_level = cls.normalize_access_level(current_access_level) or "default"
+
+        is_desktop_owned = normalized_origin_surface == "desktop" or (
+            not normalized_origin_surface and normalized_active_surface == "desktop"
+        )
+        should_upgrade = (
+            normalized_requested_surface == "desktop"
+            and not bool(shared)
+            and is_desktop_owned
+            and approval_profile == "plan"
+        )
+        if not should_upgrade:
+            return None
+
+        return SessionRuntimePolicyAutofixRequest(
+            approval_profile="build",
+            access_level=access_level,
+        )
+
     @staticmethod
     def transcript_content(plan: SessionRuntimePolicyPlan) -> str:
         return (
@@ -233,6 +318,8 @@ class SessionRuntimePolicyService:
 
 
 __all__ = [
+    "SessionRuntimePolicyAutofixRequest",
+    "SessionRuntimePolicyExecution",
     "SessionRuntimePolicyPlan",
     "SessionRuntimePolicyService",
 ]

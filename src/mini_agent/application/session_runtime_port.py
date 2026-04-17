@@ -326,6 +326,16 @@ class SessionRuntimePort(Protocol):
         session_title_hint: str | None = None,
     ) -> ManagedRuntimeSessionPort: ...
 
+    async def ensure_session_runtime_policy_ready_for_turn(
+        self,
+        session: ManagedRuntimeSessionPort,
+        *,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> Any: ...
+
 
 __all__ = [
     "ManagedRuntimeSessionPort",

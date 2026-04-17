@@ -26,7 +26,8 @@ def test_tui_context_command_coordinator_handles_non_mutating_show_flow() -> Non
     async def _refresh(_session: Any) -> None:
         refreshed.append("refreshed")
 
-    async def _run_result(_session: Any, action: str, args: tuple[str, ...]) -> CommandExecutionResult:
+    async def _run_result(*, session: Any, action: str, args: tuple[str, ...]) -> CommandExecutionResult:
+        _ = session
         run_calls.append((action, tuple(args)))
         return CommandExecutionResult(
             command="context show brief",
@@ -71,8 +72,8 @@ def test_tui_context_command_coordinator_handles_local_mutation_flow() -> None:
     render_calls: list[str] = []
     run_calls: list[int] = []
 
-    async def _run_result(_session: Any, action: str, args: tuple[str, ...]) -> CommandExecutionResult:
-        _ = (action, args)
+    async def _run_result(*, session: Any, action: str, args: tuple[str, ...]) -> CommandExecutionResult:
+        _ = (session, action, args)
         run_calls.append(len(run_calls) + 1)
         if len(run_calls) == 1:
             return CommandExecutionResult(
@@ -147,8 +148,8 @@ def test_tui_context_command_coordinator_stops_after_remote_update_failure() -> 
     render_calls: list[str] = []
     remote_calls: list[str] = []
 
-    async def _run_result(_session: Any, action: str, args: tuple[str, ...]) -> CommandExecutionResult:
-        _ = (action, args)
+    async def _run_result(*, session: Any, action: str, args: tuple[str, ...]) -> CommandExecutionResult:
+        _ = (session, action, args)
         return CommandExecutionResult(
             command="context reset",
             summary="updated",

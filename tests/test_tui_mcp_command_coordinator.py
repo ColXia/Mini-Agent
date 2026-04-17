@@ -30,9 +30,10 @@ def test_tui_mcp_command_coordinator_handles_plan_error() -> None:
             kind="error",
         ),
         runs_via_gateway=lambda _session: False,
-        dispatch_remote_mcp_command=lambda _session, _plan: asyncio.sleep(0, result=None),
+        dispatch_remote_control_command=lambda **kwargs: asyncio.sleep(0, result=None),
         mcp_remote_status_text=lambda action: f"remote {action}",
-        run_local_mcp_command_result=lambda _session, _args, _plan: asyncio.sleep(0),
+        execute_local_mcp_command=lambda **kwargs: asyncio.sleep(0),
+        reload_local_mcp_bindings=lambda _session: asyncio.sleep(0),
         append_command_feedback=lambda command, **kwargs: feedback_calls.append({"command": command, **kwargs}),
         set_status=lambda text: status_calls.append(text),
         render_all=lambda: render_calls.append("rendered"),
@@ -59,8 +60,11 @@ def test_tui_mcp_command_coordinator_handles_unsynced_remote_result() -> None:
     status_calls: list[str] = []
     render_calls: list[str] = []
 
-    async def _dispatch_remote(_session: Any, plan: Any) -> tuple[Any, bool] | None:
-        assert plan.action == "reload"
+    async def _dispatch_remote(**kwargs: Any) -> tuple[Any, bool] | None:
+        assert kwargs["session"] is session
+        assert kwargs["command_text"] == "mcp reload"
+        assert kwargs["action"] == "mcp_reload"
+        assert kwargs["metadata"] == {"threads_visible": False}
         return (
             {
                 "stats": {
@@ -74,11 +78,12 @@ def test_tui_mcp_command_coordinator_handles_unsynced_remote_result() -> None:
     coordinator = TuiSessionMcpCommandCoordinator(
         resolve_mcp_command_plan=lambda args: SimpleNamespace(command="mcp reload", action="reload"),
         runs_via_gateway=lambda _session: True,
-        dispatch_remote_mcp_command=_dispatch_remote,
+        dispatch_remote_control_command=_dispatch_remote,
         mcp_remote_status_text=lambda action: {
             "reload": "Shared MCP bindings reloaded.",
         }.get(action, "Shared MCP status shown."),
-        run_local_mcp_command_result=lambda _session, _args, _plan: asyncio.sleep(0),
+        execute_local_mcp_command=lambda **kwargs: asyncio.sleep(0),
+        reload_local_mcp_bindings=lambda _session: asyncio.sleep(0),
         append_command_feedback=lambda command, **kwargs: feedback_calls.append({"command": command, **kwargs}),
         set_status=lambda text: status_calls.append(text),
         render_all=lambda: render_calls.append("rendered"),
@@ -104,16 +109,19 @@ def test_tui_mcp_command_coordinator_handles_synced_remote_result_without_duplic
     status_calls: list[str] = []
     render_calls: list[str] = []
 
-    async def _dispatch_remote(_session: Any, plan: Any) -> tuple[Any, bool] | None:
-        assert plan.action == "status"
+    async def _dispatch_remote(**kwargs: Any) -> tuple[Any, bool] | None:
+        assert kwargs["session"] is session
+        assert kwargs["command_text"] == "mcp status"
+        assert kwargs["action"] == "mcp_status"
         return (SimpleNamespace(stats={"summary": "ignored"}), True)
 
     coordinator = TuiSessionMcpCommandCoordinator(
         resolve_mcp_command_plan=lambda args: SimpleNamespace(command="mcp status", action="status"),
         runs_via_gateway=lambda _session: True,
-        dispatch_remote_mcp_command=_dispatch_remote,
+        dispatch_remote_control_command=_dispatch_remote,
         mcp_remote_status_text=lambda action: "Shared MCP status shown.",
-        run_local_mcp_command_result=lambda _session, _args, _plan: asyncio.sleep(0),
+        execute_local_mcp_command=lambda **kwargs: asyncio.sleep(0),
+        reload_local_mcp_bindings=lambda _session: asyncio.sleep(0),
         append_command_feedback=lambda command, **kwargs: feedback_calls.append({"command": command, **kwargs}),
         set_status=lambda text: status_calls.append(text),
         render_all=lambda: render_calls.append("rendered"),
@@ -131,10 +139,19 @@ def test_tui_mcp_command_coordinator_runs_local_flow_and_emits_feedback() -> Non
     feedback_calls: list[dict[str, Any]] = []
     status_calls: list[str] = []
     render_calls: list[str] = []
-    local_calls: list[tuple[Any, str]] = []
+    local_calls: list[dict[str, Any]] = []
+    reload_calls: list[str] = []
 
-    async def _run_local(target_session: Any, _args: list[str], plan: Any) -> CommandExecutionResult:
-        local_calls.append((target_session, plan.action))
+    async def _reload_local(_session: Any) -> Any:
+        reload_calls.append("reloaded")
+        return {"rebuilt_runtime": True, "active_model_label": "openai/gpt-5.4"}
+
+    async def _run_local(**kwargs: Any) -> CommandExecutionResult:
+        local_calls.append(dict(kwargs))
+        reload_callback = kwargs.get("reload_callback")
+        assert callable(reload_callback)
+        outcome = await reload_callback()
+        assert outcome["active_model_label"] == "openai/gpt-5.4"
         return CommandExecutionResult(
             command="mcp reload",
             summary="reloaded MCP | 1 active server(s) | 2 tool(s)",
@@ -145,9 +162,10 @@ def test_tui_mcp_command_coordinator_runs_local_flow_and_emits_feedback() -> Non
     coordinator = TuiSessionMcpCommandCoordinator(
         resolve_mcp_command_plan=lambda args: SimpleNamespace(command="mcp reload", action="reload"),
         runs_via_gateway=lambda _session: False,
-        dispatch_remote_mcp_command=lambda _session, _plan: asyncio.sleep(0, result=None),
+        dispatch_remote_control_command=lambda **kwargs: asyncio.sleep(0, result=None),
         mcp_remote_status_text=lambda action: f"remote {action}",
-        run_local_mcp_command_result=_run_local,
+        execute_local_mcp_command=_run_local,
+        reload_local_mcp_bindings=_reload_local,
         append_command_feedback=lambda command, **kwargs: feedback_calls.append({"command": command, **kwargs}),
         set_status=lambda text: status_calls.append(text),
         render_all=lambda: render_calls.append("rendered"),
@@ -155,7 +173,10 @@ def test_tui_mcp_command_coordinator_runs_local_flow_and_emits_feedback() -> Non
 
     asyncio.run(coordinator.handle(session, ["reload"]))
 
-    assert local_calls == [(session, "reload")]
+    assert len(local_calls) == 1
+    assert local_calls[0]["action"] == "reload"
+    assert local_calls[0]["busy_label"] == "Session 1"
+    assert reload_calls == ["reloaded"]
     assert feedback_calls == [
         {
             "command": "mcp reload",

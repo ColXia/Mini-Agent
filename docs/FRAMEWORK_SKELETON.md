@@ -144,6 +144,7 @@ More concretely:
 - surface code may call shared application services
 - surface code may render projections and DTOs
 - surface code must not become the owner of session truth
+- surface code must not become the owner of shared runtime-policy or interaction-rule correction
 - route handlers and bot handlers may translate protocol payloads
 - route handlers and bot handlers must not become business-rule owners
 - application services may orchestrate runtime and domain services
@@ -249,6 +250,7 @@ Command support should be layered as follows:
 - command catalog and canonical forms live in `src/mini_agent/commands/`
 - surfaces may adapt presentation and input UX
 - execution semantics should land in shared application/runtime services by default
+- surfaces must not hide shared-rule compensation such as session/runtime policy autofix
 
 That means:
 
