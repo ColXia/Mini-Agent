@@ -86,7 +86,7 @@ from mini_agent.runtime.live_control.session_pending_approval_state_handler impo
 )
 from mini_agent.runtime.handlers.session_agent_control_handler import RuntimeSessionAgentControlHandler
 from mini_agent.runtime.handlers.session_mcp_control_handler import RuntimeSessionMcpControlHandler
-from mini_agent.runtime.session_operator_handler import RuntimeSessionOperatorHandler
+from mini_agent.runtime.handlers.session_operator_handler import RuntimeSessionOperatorHandler
 from mini_agent.runtime.session_recovery_reset_handler import (
     RuntimeSessionRecoveryResetHandler,
 )
