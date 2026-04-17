@@ -46,8 +46,10 @@ from mini_agent.runtime.session_agent_support import (
     BuildSelectedAgentFn,
     RuntimeSessionAgentSupport,
 )
-from mini_agent.runtime.session_model_identity_codec import RuntimeSessionModelIdentityCodec
-from mini_agent.runtime.session_payload_codec import RuntimeSessionPayloadCodec
+from mini_agent.runtime.read_models.session_model_identity_codec import RuntimeSessionModelIdentityCodec
+from mini_agent.runtime.read_models.session_payload_codec import RuntimeSessionPayloadCodec
+from mini_agent.runtime.read_models.session_read_model_builder import RuntimeSessionReadModelBuilder
+from mini_agent.runtime.read_models.session_snapshot_builder import RuntimeSessionSnapshotBuilder
 from mini_agent.runtime.session_snapshot import RuntimeSessionSnapshot
 from mini_agent.runtime.session_diagnostics_service import RuntimeSessionDiagnosticsService
 from mini_agent.runtime.session_admin_handler import RuntimeSessionAdminHandler
@@ -68,8 +70,6 @@ from mini_agent.runtime.session_hydration_coordinator import (
 )
 from mini_agent.runtime.session_persistence_loader import RuntimeSessionPersistenceLoader
 from mini_agent.runtime.session_persistence_record_builder import RuntimeSessionPersistenceRecordBuilder
-from mini_agent.runtime.session_read_model_builder import RuntimeSessionReadModelBuilder
-from mini_agent.runtime.session_snapshot_builder import RuntimeSessionSnapshotBuilder
 from mini_agent.runtime.session_registry_handler import RuntimeSessionRegistryHandler
 from mini_agent.runtime.session_interrupt_handler import RuntimeSessionInterruptHandler
 from mini_agent.runtime.session_lineage_registry import RuntimeSessionLineageRegistry

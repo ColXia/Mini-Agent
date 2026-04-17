@@ -10,7 +10,7 @@ from typing import Any
 
 from mini_agent.agent_core.engine import Agent
 from mini_agent.agent_core.session import SessionLifecycleState
-from mini_agent.runtime.session_payload_codec import RuntimeSessionPayloadCodec
+from mini_agent.runtime.read_models.session_payload_codec import RuntimeSessionPayloadCodec
 
 
 @dataclass(slots=True)

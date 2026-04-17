@@ -112,8 +112,8 @@ from mini_agent.runtime.runtime_policy_service import SessionRuntimePolicyServic
 from mini_agent.runtime.session_agent_support import RuntimeSessionAgentSupport
 from mini_agent.runtime.session_cancel_service import SessionCancelService
 from mini_agent.runtime.session_control_error_service import SessionControlErrorService
-from mini_agent.runtime.session_model_identity_codec import RuntimeSessionModelIdentityCodec
-from mini_agent.runtime.session_payload_codec import RuntimeSessionPayloadCodec
+from mini_agent.runtime.read_models.session_model_identity_codec import RuntimeSessionModelIdentityCodec
+from mini_agent.runtime.read_models.session_payload_codec import RuntimeSessionPayloadCodec
 from mini_agent.runtime.tooling import reconfigure_agent_runtime_policy
 from mini_agent.session import (
     SessionFeedbackService,
