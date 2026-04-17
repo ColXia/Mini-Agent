@@ -9,6 +9,8 @@ from mini_agent.agent_core.engine import Agent
 from mini_agent.application.user_services.agent_user_service import AgentUserService
 from mini_agent.application.interaction_request_adapter import ApplicationInteractionBinding
 from mini_agent.application.managed_session_turn import ManagedSessionTurn
+from mini_agent.application.ports.session_agent_runtime_port import SessionAgentRuntimePort
+from mini_agent.application.ports.session_model_selection_runtime_port import SessionModelSelectionRuntimePort
 from mini_agent.application.use_cases.run_control_application_service import RunControlApplicationService
 from mini_agent.application.use_cases.session_task_service import SessionTaskService
 from mini_agent.application.user_services.model_user_service import ModelUserService
@@ -178,6 +180,140 @@ class _SessionModelSelectionCompatibilityAdapter:
         )
 
 
+class _SessionAgentCompatibilityAdapter:
+    """Bridge session-era agent-facing actions into the agent user service."""
+
+    def __init__(self, runtime_manager: SessionRuntimePort) -> None:
+        self._runtime_manager = runtime_manager
+
+    async def update_session_runtime_policy(
+        self,
+        session_id: str,
+        *,
+        approval_profile: str | None = None,
+        access_level: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> Any:
+        return await self._runtime_manager.update_session_runtime_policy(
+            session_id,
+            approval_profile=approval_profile,
+            access_level=access_level,
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
+
+    async def control_session_context(
+        self,
+        session_id: str,
+        *,
+        action: str,
+        reason: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> MainAgentSessionControlResponse:
+        return await self._runtime_manager.control_session_context(
+            session_id,
+            action=action,
+            reason=reason,
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
+
+    async def update_session_context_policy(
+        self,
+        session_id: str,
+        *,
+        action: str,
+        sources: list[str] | None = None,
+        max_items: int | None = None,
+        max_total_chars: int | None = None,
+        max_items_per_source: int | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> MainAgentSessionContextResponse:
+        return await self._runtime_manager.update_session_context_policy(
+            session_id,
+            action=action,
+            sources=sources,
+            max_items=max_items,
+            max_total_chars=max_total_chars,
+            max_items_per_source=max_items_per_source,
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
+
+    async def manage_session_memory(
+        self,
+        session_id: str,
+        *,
+        action: str,
+        engram_id: str | None = None,
+        content: str | None = None,
+        query: str | None = None,
+        day: str | None = None,
+        export_format: str | None = None,
+        detail_mode: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> MainAgentSessionMemoryResponse:
+        return await self._runtime_manager.manage_session_memory(
+            session_id,
+            action=action,
+            engram_id=engram_id,
+            content=content,
+            query=query,
+            day=day,
+            export_format=export_format,
+            detail_mode=detail_mode,
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
+
+    async def manage_session_skills(
+        self,
+        session_id: str,
+        *,
+        action: str,
+        skill_name: str | None = None,
+        path: str | None = None,
+        query: str | None = None,
+        mode: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> MainAgentSessionSkillResponse:
+        return await self._runtime_manager.manage_session_skills(
+            session_id,
+            action=action,
+            skill_name=skill_name,
+            path=path,
+            query=query,
+            mode=mode,
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
+
+
 class SessionApplicationService:
     """Shared application-facing session operations and turn scoping."""
 
@@ -192,16 +328,20 @@ class SessionApplicationService:
     ) -> None:
         self._runtime_manager = runtime_manager
         self._session_task_service = session_task_service or SessionTaskService(runtime_manager=runtime_manager)
+        session_agent_runtime: SessionAgentRuntimePort = _SessionAgentCompatibilityAdapter(runtime_manager)
+        session_model_runtime: SessionModelSelectionRuntimePort = _SessionModelSelectionCompatibilityAdapter(
+            runtime_manager
+        )
         self._run_control_service = run_control_service or RunControlApplicationService(
             run_runtime=_UnavailableRunRuntimeAdapter(),
             session_tasks=_SessionTaskCompatibilityAdapter(runtime_manager),
         )
         self._agent_service = agent_service or AgentUserService(
             run_control=self._run_control_service,
-            session_agent_runtime=runtime_manager,
+            session_agent_runtime=session_agent_runtime,
         )
         self._model_service = model_service or ModelUserService(
-            session_model_runtime=_SessionModelSelectionCompatibilityAdapter(runtime_manager),
+            session_model_runtime=session_model_runtime,
         )
 
     def validate_workspace(self, workspace_dir: Path) -> None:
