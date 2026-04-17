@@ -8,6 +8,7 @@ from typing import Any
 from mini_agent.agent_core.engine import Agent
 from mini_agent.application.interaction_request_adapter import ApplicationInteractionBinding
 from mini_agent.application.managed_session_turn import ManagedSessionTurn
+from mini_agent.application.use_cases.run_control_application_service import RunControlApplicationService
 from mini_agent.interfaces import (
     MainAgentSessionApprovalRequest,
     MainAgentSessionApprovalResponse,
@@ -37,11 +38,127 @@ from mini_agent.interfaces import (
 from mini_agent.application.session_runtime_port import SessionRuntimePort
 
 
+class _UnavailableRunRuntimeAdapter:
+    """Compatibility placeholder until a real run-runtime port is wired."""
+
+    @staticmethod
+    def _unsupported(run_id: str) -> LookupError:
+        return LookupError(f"Run-level control is not wired for run {run_id!r}.")
+
+    async def get_run(self, run_id: str) -> Any:
+        raise self._unsupported(run_id)
+
+    async def interrupt_run(
+        self,
+        run_id: str,
+        *,
+        reason: str | None = None,
+        source: str | None = None,
+    ) -> Any:
+        _ = (reason, source)
+        raise self._unsupported(run_id)
+
+    async def resume_run(
+        self,
+        run_id: str,
+        *,
+        resume_token: str | None = None,
+        source: str | None = None,
+    ) -> Any:
+        _ = (resume_token, source)
+        raise self._unsupported(run_id)
+
+    async def cancel_run(
+        self,
+        run_id: str,
+        *,
+        reason: str | None = None,
+        source: str | None = None,
+    ) -> Any:
+        _ = (reason, source)
+        raise self._unsupported(run_id)
+
+    async def resolve_approval_wait(
+        self,
+        run_id: str,
+        *,
+        approved: bool,
+        token: str | None = None,
+        source: str | None = None,
+        reason: str | None = None,
+    ) -> Any:
+        _ = (approved, token, source, reason)
+        raise self._unsupported(run_id)
+
+
+class _SessionTaskCompatibilityAdapter:
+    """Bridge session-era runtime operations into the run-control use case."""
+
+    def __init__(self, runtime_manager: SessionRuntimePort) -> None:
+        self._runtime_manager = runtime_manager
+
+    async def get_session_task(self, session_id: str) -> Any:
+        return await self._runtime_manager.get_session_detail(session_id, recent_limit=1)
+
+    async def resolve_run_id_for_session(self, session_id: str) -> str | None:
+        _ = session_id
+        return None
+
+    async def cancel_session_turn(
+        self,
+        session_id: str,
+        *,
+        reason: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> Any:
+        return await self._runtime_manager.cancel_session_turn(
+            session_id,
+            reason=reason,
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
+
+    async def resolve_pending_approval(
+        self,
+        session_id: str,
+        *,
+        approved: bool,
+        token: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> MainAgentSessionApprovalResponse:
+        return await self._runtime_manager.resolve_pending_approval(
+            session_id,
+            approved=approved,
+            token=token,
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
+
+
 class SessionApplicationService:
     """Shared application-facing session operations and turn scoping."""
 
-    def __init__(self, *, runtime_manager: SessionRuntimePort) -> None:
+    def __init__(
+        self,
+        *,
+        runtime_manager: SessionRuntimePort,
+        run_control_service: RunControlApplicationService | None = None,
+    ) -> None:
         self._runtime_manager = runtime_manager
+        self._run_control_service = run_control_service or RunControlApplicationService(
+            run_runtime=_UnavailableRunRuntimeAdapter(),
+            session_tasks=_SessionTaskCompatibilityAdapter(runtime_manager),
+        )
 
     def validate_workspace(self, workspace_dir: Path) -> None:
         self._runtime_manager.validate_workspace(workspace_dir)
@@ -143,9 +260,10 @@ class SessionApplicationService:
         request: MainAgentSessionCancelRequest,
     ) -> MainAgentSessionMutationResponse:
         binding = ApplicationInteractionBinding.from_request(request)
-        return await self._runtime_manager.cancel_session_turn(
+        return await self._run_control_service.cancel_session_run(
             session_id,
             reason=request.reason,
+            source=binding.surface,
             **binding.as_kwargs(),
         )
 
@@ -232,10 +350,17 @@ class SessionApplicationService:
         request: MainAgentSessionApprovalRequest,
     ) -> MainAgentSessionApprovalResponse:
         binding = ApplicationInteractionBinding.from_request(request)
-        return await self._runtime_manager.resolve_pending_approval(
+        if request.approved:
+            return await self._run_control_service.approve_session_wait(
+                session_id,
+                token=request.token,
+                source=binding.surface,
+                **binding.as_kwargs(),
+            )
+        return await self._run_control_service.deny_session_wait(
             session_id,
-            approved=bool(request.approved),
             token=request.token,
+            source=binding.surface,
             **binding.as_kwargs(),
         )
 

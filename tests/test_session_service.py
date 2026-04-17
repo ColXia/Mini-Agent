@@ -8,9 +8,13 @@ from mini_agent.application.interaction_request_adapter import ApplicationIntera
 from mini_agent.application.session_service import SessionApplicationService
 from mini_agent.config import AgentConfig, Config, LLMConfig, ToolsConfig
 from mini_agent.interfaces import (
+    MainAgentSessionApprovalRequest,
+    MainAgentSessionApprovalResponse,
+    MainAgentSessionCancelRequest,
     MainAgentSessionCreateRequest,
     MainAgentSessionForkRequest,
     MainAgentSessionMemoryRequest,
+    MainAgentSessionMutationResponse,
     MainAgentSessionRenameRequest,
     MainAgentSessionRuntimePolicyRequest,
     MainAgentSessionShareRequest,
@@ -426,3 +430,212 @@ def test_session_surface_binding_prefers_remote_channel_over_default_surface() -
         "conversation_id": "group:demo",
         "sender_id": "user-1",
     }
+
+
+def test_session_service_cancel_and_approval_use_injected_run_control_service() -> None:
+    class _RunControlStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        async def cancel_session_run(self, session_id: str, **kwargs):
+            self.calls.append(("cancel_session_run", session_id, kwargs))
+            return MainAgentSessionMutationResponse(
+                status="cancel_requested",
+                session_id=session_id,
+                active_surface="qq",
+            )
+
+        async def approve_session_wait(self, session_id: str, **kwargs):
+            self.calls.append(("approve_session_wait", session_id, kwargs))
+            return MainAgentSessionApprovalResponse(
+                status="resolved",
+                session_id=session_id,
+                token="approval-1",
+                tool_name="shell",
+                decision="approved",
+                active_surface="qq",
+            )
+
+        async def deny_session_wait(self, session_id: str, **kwargs):
+            self.calls.append(("deny_session_wait", session_id, kwargs))
+            return MainAgentSessionApprovalResponse(
+                status="resolved",
+                session_id=session_id,
+                token="approval-2",
+                tool_name="shell",
+                decision="denied",
+                active_surface="qq",
+            )
+
+    class _RuntimeStub:
+        def validate_workspace(self, workspace_dir: Path) -> None:
+            _ = workspace_dir
+
+    async def _run() -> None:
+        run_control = _RunControlStub()
+        service = SessionApplicationService(runtime_manager=_RuntimeStub(), run_control_service=run_control)
+
+        cancel = await service.cancel_session(
+            "sess-1",
+            MainAgentSessionCancelRequest(
+                reason="stop",
+                surface=" qq ",
+                channel_type=" qqbot ",
+                conversation_id=" group:demo ",
+                sender_id=" user-1 ",
+            ),
+        )
+        approved = await service.respond_to_approval(
+            "sess-1",
+            MainAgentSessionApprovalRequest(
+                approved=True,
+                token="approval-1",
+                surface="tui",
+            ),
+        )
+        denied = await service.respond_to_approval(
+            "sess-1",
+            MainAgentSessionApprovalRequest(
+                approved=False,
+                token="approval-2",
+                surface="desktop",
+            ),
+        )
+
+        assert cancel.status == "cancel_requested"
+        assert approved.decision == "approved"
+        assert denied.decision == "denied"
+        assert run_control.calls == [
+            (
+                "cancel_session_run",
+                "sess-1",
+                {
+                    "reason": "stop",
+                    "source": "qq",
+                    "surface": "qq",
+                    "channel_type": "qq",
+                    "conversation_id": "group:demo",
+                    "sender_id": "user-1",
+                },
+            ),
+            (
+                "approve_session_wait",
+                "sess-1",
+                {
+                    "token": "approval-1",
+                    "source": "tui",
+                    "surface": "tui",
+                    "channel_type": None,
+                    "conversation_id": None,
+                    "sender_id": None,
+                },
+            ),
+            (
+                "deny_session_wait",
+                "sess-1",
+                {
+                    "token": "approval-2",
+                    "source": "desktop",
+                    "surface": "desktop",
+                    "channel_type": None,
+                    "conversation_id": None,
+                    "sender_id": None,
+                },
+            ),
+        ]
+
+    asyncio.run(_run())
+
+
+def test_session_service_default_run_control_falls_back_to_runtime_session_operations() -> None:
+    class _RuntimeStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        def validate_workspace(self, workspace_dir: Path) -> None:
+            _ = workspace_dir
+
+        async def cancel_session_turn(
+            self,
+            session_id: str,
+            *,
+            reason: str | None = None,
+            surface: str | None = None,
+            channel_type: str | None = None,
+            conversation_id: str | None = None,
+            sender_id: str | None = None,
+        ):
+            self.calls.append(
+                ("cancel_session_turn", session_id, reason, surface, channel_type, conversation_id, sender_id)
+            )
+            return MainAgentSessionMutationResponse(
+                status="cancel_requested",
+                session_id=session_id,
+                active_surface=surface,
+            )
+
+        async def resolve_pending_approval(
+            self,
+            session_id: str,
+            *,
+            approved: bool,
+            token: str | None = None,
+            surface: str | None = None,
+            channel_type: str | None = None,
+            conversation_id: str | None = None,
+            sender_id: str | None = None,
+        ):
+            self.calls.append(
+                (
+                    "resolve_pending_approval",
+                    session_id,
+                    approved,
+                    token,
+                    surface,
+                    channel_type,
+                    conversation_id,
+                    sender_id,
+                )
+            )
+            return MainAgentSessionApprovalResponse(
+                status="resolved",
+                session_id=session_id,
+                token=token,
+                tool_name="shell",
+                decision="approved" if approved else "denied",
+                active_surface=surface,
+            )
+
+        async def get_session_detail(self, session_id: str, *, recent_limit: int = 1):
+            self.calls.append(("get_session_detail", session_id, recent_limit))
+            return {"session_id": session_id}
+
+    async def _run() -> None:
+        runtime = _RuntimeStub()
+        service = SessionApplicationService(runtime_manager=runtime)
+
+        cancel = await service.cancel_session(
+            "sess-2",
+            MainAgentSessionCancelRequest(
+                reason="stop now",
+                surface="desktop",
+                channel_type="desktop",
+            ),
+        )
+        approval = await service.respond_to_approval(
+            "sess-2",
+            MainAgentSessionApprovalRequest(
+                approved=True,
+                token="approval-9",
+                surface="desktop",
+            ),
+        )
+
+        assert cancel.status == "cancel_requested"
+        assert approval.decision == "approved"
+        assert runtime.calls == [
+            ("cancel_session_turn", "sess-2", "stop now", "desktop", "desktop", None, None),
+            ("resolve_pending_approval", "sess-2", True, "approval-9", "desktop", None, None, None),
+        ]
+
+    asyncio.run(_run())
