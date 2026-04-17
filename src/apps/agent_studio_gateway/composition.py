@@ -17,6 +17,7 @@ from mini_agent.application.channel_ingress_use_cases import ChannelIngressUseCa
 from mini_agent.application.channel_novel_action_handler import ChannelNovelActionHandler
 from mini_agent.application.main_agent_surface_service import MainAgentSurfaceService
 from mini_agent.application.session_service import SessionApplicationService
+from mini_agent.application.use_cases.session_task_service import SessionTaskService
 from mini_agent.application.user_services.agent_user_service import AgentUserService
 from mini_agent.application.user_services.model_user_service import ModelUserService
 from mini_agent.config_bootstrap import load_entry_config, load_noninteractive_config
@@ -55,6 +56,7 @@ class GatewayComposition:
         self._require_ops_auth = require_ops_auth
         self._instance_lock: GatewayInstanceLock | None = None
         self._runtime_manager: MainAgentRuntimeManager | None = None
+        self._session_task_service: SessionTaskService | None = None
         self._session_service: SessionApplicationService | None = None
         self._agent_service: AgentUserService | None = None
         self._model_service: ModelUserService | None = None
@@ -135,9 +137,17 @@ class GatewayComposition:
             )
         return self._runtime_manager
 
+    def get_session_task_service(self) -> SessionTaskService:
+        if self._session_task_service is None:
+            self._session_task_service = SessionTaskService(runtime_manager=self.get_runtime_manager())
+        return self._session_task_service
+
     def get_session_service(self) -> SessionApplicationService:
         if self._session_service is None:
-            self._session_service = SessionApplicationService(runtime_manager=self.get_runtime_manager())
+            self._session_service = SessionApplicationService(
+                runtime_manager=self.get_runtime_manager(),
+                session_task_service=self.get_session_task_service(),
+            )
         return self._session_service
 
     def get_agent_service(self) -> AgentUserService:
@@ -218,6 +228,7 @@ class GatewayComposition:
                 if self._runtime_manager is not None:
                     await self._runtime_manager.clear()
                 self._runtime_manager = None
+                self._session_task_service = None
                 self._session_service = None
                 self._agent_service = None
                 self._model_service = None
