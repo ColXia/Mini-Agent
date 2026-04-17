@@ -14,6 +14,7 @@ from .session_pending_approval_service import (
     SessionPendingApprovalService,
 )
 from .session_pending_approval_state_handler import RuntimeSessionPendingApprovalStateHandler
+from .session_recovery_reset_handler import RuntimeSessionRecoveryResetHandler
 
 __all__ = [
     "PendingApprovalDecision",
@@ -24,6 +25,7 @@ __all__ = [
     "RuntimeSessionInterruptHandler",
     "RuntimeSessionLiveStateHandler",
     "RuntimeSessionPendingApprovalStateHandler",
+    "RuntimeSessionRecoveryResetHandler",
     "SessionCancelService",
     "SessionPendingApprovalService",
 ]
