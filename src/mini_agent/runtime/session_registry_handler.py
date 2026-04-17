@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Awaitable, Callable, MutableMapping, Sequ
 
 from fastapi import HTTPException
 
-from mini_agent.runtime.session_access_handler import (
+from mini_agent.runtime.handlers.session_access_handler import (
     RuntimeSessionAccessCommand,
     RuntimeSessionAccessHandler,
     RuntimeSessionAccessPlan,
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
         MainAgentSessionSummary,
     )
     from mini_agent.runtime.session_state import MainAgentSessionState
-    from mini_agent.runtime.session_catalog_handler import RuntimeSessionCatalogHandler
+    from mini_agent.runtime.handlers.session_catalog_handler import RuntimeSessionCatalogHandler
     from mini_agent.runtime.session_hydration_builder import RuntimeSessionHydrationPayload
     from mini_agent.runtime.session_snapshot import RuntimeSessionSnapshot
 

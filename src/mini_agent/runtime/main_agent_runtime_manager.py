@@ -52,12 +52,12 @@ from mini_agent.runtime.read_models.session_read_model_builder import RuntimeSes
 from mini_agent.runtime.read_models.session_snapshot_builder import RuntimeSessionSnapshotBuilder
 from mini_agent.runtime.session_snapshot import RuntimeSessionSnapshot
 from mini_agent.runtime.session_diagnostics_service import RuntimeSessionDiagnosticsService
-from mini_agent.runtime.session_admin_handler import RuntimeSessionAdminHandler
+from mini_agent.runtime.handlers.session_admin_handler import RuntimeSessionAdminHandler
 from mini_agent.runtime.session_command_coordinator import (
     RuntimeSessionCommandCoordinator,
 )
-from mini_agent.runtime.session_catalog_handler import RuntimeSessionCatalogHandler
-from mini_agent.runtime.session_access_handler import (
+from mini_agent.runtime.handlers.session_catalog_handler import RuntimeSessionCatalogHandler
+from mini_agent.runtime.handlers.session_access_handler import (
     RuntimeSessionAccessHandler,
 )
 from mini_agent.runtime.session_agent_runtime_handler import RuntimeSessionAgentRuntimeHandler
