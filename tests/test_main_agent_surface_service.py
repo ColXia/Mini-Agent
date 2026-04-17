@@ -19,11 +19,13 @@ from mini_agent.config import AgentConfig, Config, LLMConfig, ToolsConfig
 from mini_agent.interfaces import (
     MainAgentChatRequest,
     MainAgentSessionApprovalRequest,
+    MainAgentSessionApprovalResponse,
     MainAgentSessionCancelRequest,
     MainAgentSessionContextRequest,
     MainAgentSessionForkRequest,
     MainAgentSessionMemoryRequest,
     MainAgentSessionModelSelectionRequest,
+    MainAgentSessionMutationResponse,
     MainAgentSessionRuntimePolicyRequest,
     MainAgentSessionSummary,
     MainAgentSessionSkillRequest,
@@ -3808,6 +3810,134 @@ def test_use_case_remote_approval_resolves_pending_shared_session_turn() -> None
             if item.role == "system" and isinstance(item.metadata, dict) and item.metadata.get("command") == "approve"
         ]
         assert command_entries
+
+    asyncio.run(_run())
+
+
+def test_surface_service_prefers_injected_agent_service_for_run_control_entrypoints() -> None:
+    class _FailingSessionService:
+        async def cancel_session(self, session_id: str, request):  # noqa: ANN001
+            raise AssertionError(f"session_service.cancel_session should not be called for {session_id}: {request}")
+
+        async def respond_to_approval(self, session_id: str, request):  # noqa: ANN001
+            raise AssertionError(
+                f"session_service.respond_to_approval should not be called for {session_id}: {request}"
+            )
+
+    class _AgentServiceStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        async def cancel_session_run(self, session_id: str, **kwargs):
+            self.calls.append(("cancel_session_run", session_id, kwargs))
+            return MainAgentSessionMutationResponse(
+                status="cancel_requested",
+                session_id=session_id,
+                active_surface="qq",
+            )
+
+        async def approve_session_wait(self, session_id: str, **kwargs):
+            self.calls.append(("approve_session_wait", session_id, kwargs))
+            return MainAgentSessionApprovalResponse(
+                status="resolved",
+                session_id=session_id,
+                token="approval-1",
+                tool_name="shell",
+                decision="approved",
+                active_surface="qq",
+            )
+
+        async def deny_session_wait(self, session_id: str, **kwargs):
+            self.calls.append(("deny_session_wait", session_id, kwargs))
+            return MainAgentSessionApprovalResponse(
+                status="resolved",
+                session_id=session_id,
+                token="approval-2",
+                tool_name="shell",
+                decision="denied",
+                active_surface="desktop",
+            )
+
+    async def _run() -> None:
+        agent_service = _AgentServiceStub()
+        use_cases = MainAgentSurfaceService(
+            session_service=_FailingSessionService(),
+            agent_service=agent_service,
+            resolve_workspace_dir=_resolve_workspace_dir,
+            to_utc_iso=_to_utc_iso,
+            sse_event=_sse_event,
+            format_bootstrap_error=_format_bootstrap_error,
+            stream_chunk_size=64,
+        )
+
+        cancel = await use_cases.cancel_session(
+            "sess-agent-service",
+            MainAgentSessionCancelRequest(
+                reason="stop now",
+                surface=" qq ",
+                channel_type=" qqbot ",
+                conversation_id=" group:demo ",
+                sender_id=" user-1 ",
+            ),
+        )
+        approved = await use_cases.respond_to_approval(
+            "sess-agent-service",
+            MainAgentSessionApprovalRequest(
+                approved=True,
+                token="approval-1",
+                surface="tui",
+            ),
+        )
+        denied = await use_cases.respond_to_approval(
+            "sess-agent-service",
+            MainAgentSessionApprovalRequest(
+                approved=False,
+                token="approval-2",
+                surface="desktop",
+            ),
+        )
+
+        assert cancel.status == "cancel_requested"
+        assert approved.decision == "approved"
+        assert denied.decision == "denied"
+        assert agent_service.calls == [
+            (
+                "cancel_session_run",
+                "sess-agent-service",
+                {
+                    "reason": "stop now",
+                    "source": "qq",
+                    "surface": "qq",
+                    "channel_type": "qq",
+                    "conversation_id": "group:demo",
+                    "sender_id": "user-1",
+                },
+            ),
+            (
+                "approve_session_wait",
+                "sess-agent-service",
+                {
+                    "token": "approval-1",
+                    "source": "tui",
+                    "surface": "tui",
+                    "channel_type": None,
+                    "conversation_id": None,
+                    "sender_id": None,
+                },
+            ),
+            (
+                "deny_session_wait",
+                "sess-agent-service",
+                {
+                    "token": "approval-2",
+                    "source": "desktop",
+                    "surface": "desktop",
+                    "channel_type": None,
+                    "conversation_id": None,
+                    "sender_id": None,
+                },
+            ),
+        ]
 
     asyncio.run(_run())
 

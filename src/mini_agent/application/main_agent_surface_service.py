@@ -20,6 +20,7 @@ from mini_agent.application.surface_service_types import (
     SseEventFn,
     ToUtcIsoFn,
 )
+from mini_agent.application.user_services.agent_user_service import AgentUserService
 from mini_agent.interfaces import (
     MainAgentChatRequest,
     MainAgentChatResponse,
@@ -49,6 +50,8 @@ from mini_agent.interfaces import (
     MainAgentSessionSkillResponse,
     MainAgentSessionSummary,
 )
+
+
 class MainAgentSurfaceService:
     """Shared main-agent interaction service for all user surfaces."""
 
@@ -61,6 +64,7 @@ class MainAgentSurfaceService:
         self,
         *,
         session_service: SessionApplicationService,
+        agent_service: AgentUserService | None = None,
         resolve_workspace_dir: ResolveWorkspaceDirFn,
         to_utc_iso: ToUtcIsoFn,
         sse_event: SseEventFn,
@@ -68,6 +72,7 @@ class MainAgentSurfaceService:
         stream_chunk_size: int,
     ) -> None:
         self._session_service = session_service
+        self._agent_service = agent_service
         self._resolve_workspace_dir = resolve_workspace_dir
         self._to_utc_iso = to_utc_iso
         self._sse_event = sse_event
@@ -172,6 +177,14 @@ class MainAgentSurfaceService:
         session_id: str,
         request: MainAgentSessionCancelRequest,
     ) -> MainAgentSessionMutationResponse:
+        if self._agent_service is not None:
+            binding = ApplicationInteractionBinding.from_request(request)
+            return await self._agent_service.cancel_session_run(
+                session_id,
+                reason=request.reason,
+                source=binding.surface,
+                **binding.as_kwargs(),
+            )
         return await self._session_service.cancel_session(session_id, request)
 
     async def control_session(
@@ -214,6 +227,21 @@ class MainAgentSurfaceService:
         session_id: str,
         request: MainAgentSessionApprovalRequest,
     ) -> MainAgentSessionApprovalResponse:
+        if self._agent_service is not None:
+            binding = ApplicationInteractionBinding.from_request(request)
+            if request.approved:
+                return await self._agent_service.approve_session_wait(
+                    session_id,
+                    token=request.token,
+                    source=binding.surface,
+                    **binding.as_kwargs(),
+                )
+            return await self._agent_service.deny_session_wait(
+                session_id,
+                token=request.token,
+                source=binding.surface,
+                **binding.as_kwargs(),
+            )
         return await self._session_service.respond_to_approval(session_id, request)
 
     async def update_session_runtime_policy(

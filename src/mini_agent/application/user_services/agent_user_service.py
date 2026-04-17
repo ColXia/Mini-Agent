@@ -9,6 +9,12 @@ from mini_agent.application.ports.agent_runtime_port import AgentRuntimePort
 from mini_agent.application.use_cases.run_control_application_service import RunControlApplicationService
 
 
+def _require_agent_runtime(runtime: AgentRuntimePort | None) -> AgentRuntimePort:
+    if runtime is None:
+        raise RuntimeError("Agent runtime port is not configured.")
+    return runtime
+
+
 def _require_run_control(service: RunControlApplicationService | None) -> RunControlApplicationService:
     if service is None:
         raise RuntimeError("Run control application service is not configured.")
@@ -19,17 +25,17 @@ def _require_run_control(service: RunControlApplicationService | None) -> RunCon
 class AgentUserService:
     """Thin user-service facade for agent and run-facing actions."""
 
-    agent_runtime: AgentRuntimePort
+    agent_runtime: AgentRuntimePort | None = None
     run_control: RunControlApplicationService | None = None
 
     async def list_agents(self) -> Any:
-        return await self.agent_runtime.list_agents()
+        return await _require_agent_runtime(self.agent_runtime).list_agents()
 
     async def get_agent(self, agent_id: str) -> Any:
-        return await self.agent_runtime.get_agent(agent_id)
+        return await _require_agent_runtime(self.agent_runtime).get_agent(agent_id)
 
     async def get_active_agent(self) -> Any:
-        return await self.agent_runtime.get_active_agent()
+        return await _require_agent_runtime(self.agent_runtime).get_active_agent()
 
     async def get_run(self, run_id: str) -> Any:
         return await _require_run_control(self.run_control).get_run(run_id)

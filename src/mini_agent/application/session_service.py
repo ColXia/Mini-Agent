@@ -163,6 +163,10 @@ class SessionApplicationService:
     def validate_workspace(self, workspace_dir: Path) -> None:
         self._runtime_manager.validate_workspace(workspace_dir)
 
+    @property
+    def run_control_service(self) -> RunControlApplicationService:
+        return self._run_control_service
+
     async def list_sessions(
         self,
         *,

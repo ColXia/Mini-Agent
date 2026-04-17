@@ -17,6 +17,7 @@ from mini_agent.application.channel_ingress_use_cases import ChannelIngressUseCa
 from mini_agent.application.channel_novel_action_handler import ChannelNovelActionHandler
 from mini_agent.application.main_agent_surface_service import MainAgentSurfaceService
 from mini_agent.application.session_service import SessionApplicationService
+from mini_agent.application.user_services.agent_user_service import AgentUserService
 from mini_agent.config_bootstrap import load_entry_config, load_noninteractive_config
 from mini_agent.interfaces import MainAgentChatRequest, MainAgentChatResponse, MainAgentRuntimeDiagnostics, SystemHealthResponse
 from mini_agent.novel.runtime import get_novel_use_cases, reset_novel_runtime_state
@@ -54,6 +55,7 @@ class GatewayComposition:
         self._instance_lock: GatewayInstanceLock | None = None
         self._runtime_manager: MainAgentRuntimeManager | None = None
         self._session_service: SessionApplicationService | None = None
+        self._agent_service: AgentUserService | None = None
         self._surface_service: MainAgentSurfaceService | Any | None = None
         self._channel_ingress_use_cases: ChannelIngressUseCases | Any | None = None
 
@@ -136,10 +138,18 @@ class GatewayComposition:
             self._session_service = SessionApplicationService(runtime_manager=self.get_runtime_manager())
         return self._session_service
 
+    def get_agent_service(self) -> AgentUserService:
+        if self._agent_service is None:
+            self._agent_service = AgentUserService(
+                run_control=self.get_session_service().run_control_service,
+            )
+        return self._agent_service
+
     def get_surface_service(self) -> MainAgentSurfaceService:
         if self._surface_service is None:
             self._surface_service = MainAgentSurfaceService(
                 session_service=self.get_session_service(),
+                agent_service=self.get_agent_service(),
                 resolve_workspace_dir=self.resolve_workspace_dir,
                 to_utc_iso=self.to_utc_iso,
                 sse_event=self.sse_event,
@@ -203,6 +213,7 @@ class GatewayComposition:
                     await self._runtime_manager.clear()
                 self._runtime_manager = None
                 self._session_service = None
+                self._agent_service = None
                 self._surface_service = None
                 self._channel_ingress_use_cases = None
                 reset_novel_runtime_state()
