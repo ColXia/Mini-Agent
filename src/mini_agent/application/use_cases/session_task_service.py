@@ -6,9 +6,9 @@ from pathlib import Path
 from typing import Any
 
 from mini_agent.agent_core.engine import Agent
+from mini_agent.application.ports.session_task_runtime_port import SessionTaskRuntimePort
 from mini_agent.application.interaction_request_adapter import ApplicationInteractionBinding
 from mini_agent.application.managed_session_turn import ManagedSessionTurn
-from mini_agent.application.session_runtime_port import SessionRuntimePort
 from mini_agent.interfaces import (
     MainAgentDefaultSessionRequest,
     MainAgentSessionCreateRequest,
@@ -25,7 +25,7 @@ from mini_agent.interfaces import (
 class SessionTaskService:
     """Owns session/task application behavior during the v11.1 transition."""
 
-    def __init__(self, *, runtime_manager: SessionRuntimePort) -> None:
+    def __init__(self, *, runtime_manager: SessionTaskRuntimePort) -> None:
         self._runtime_manager = runtime_manager
 
     def validate_workspace(self, workspace_dir: Path) -> None:

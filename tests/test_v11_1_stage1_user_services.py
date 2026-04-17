@@ -7,6 +7,7 @@ from mini_agent.application.ports import (
     ModelRuntimePort,
     RunRuntimePort,
     SessionRuntimePort,
+    SessionTaskRuntimePort,
     SessionTaskPort,
     WorkspaceRuntimePort,
 )
@@ -552,5 +553,6 @@ def test_stage1_port_packages_export_expected_contracts() -> None:
     assert ModelRuntimePort is not None
     assert RunRuntimePort is not None
     assert SessionRuntimePort is not None
+    assert SessionTaskRuntimePort is not None
     assert SessionTaskPort is not None
     assert WorkspaceRuntimePort is not None

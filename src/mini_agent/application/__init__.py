@@ -10,6 +10,7 @@ from .ports import (
     AgentRuntimePort,
     ModelRuntimePort,
     RunRuntimePort,
+    SessionTaskRuntimePort,
     SessionTaskPort,
     WorkspaceRuntimePort,
 )
@@ -39,6 +40,7 @@ __all__ = [
     "SessionTaskService",
     "RunRuntimePort",
     "SessionApplicationService",
+    "SessionTaskRuntimePort",
     "SessionRuntimePort",
     "SessionTaskPort",
     "SessionTurnScopePort",
