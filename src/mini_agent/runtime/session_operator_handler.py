@@ -41,15 +41,15 @@ from mini_agent.runtime.session_command_coordinator import (
     RuntimeSessionCommandCoordinator,
     RuntimeSessionCommandTranscript,
 )
-from mini_agent.runtime.session_agent_control_handler import RuntimeSessionAgentControlHandler
+from mini_agent.runtime.handlers.session_agent_control_handler import RuntimeSessionAgentControlHandler
 from mini_agent.runtime.session_control_models import (
     RuntimeSessionControlCommand,
     RuntimeSessionControlExecution,
     SESSION_MCP_CONTROL_ACTIONS,
     normalize_session_control_action,
 )
-from mini_agent.runtime.session_mcp_control_handler import RuntimeSessionMcpControlHandler
-from mini_agent.runtime.session_memory_command_handler import (
+from mini_agent.runtime.handlers.session_mcp_control_handler import RuntimeSessionMcpControlHandler
+from mini_agent.runtime.handlers.session_memory_command_handler import (
     RuntimeSessionMemoryCommandExecution,
     RuntimeSessionMemoryCommandHandler,
 )
