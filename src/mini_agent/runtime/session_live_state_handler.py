@@ -18,7 +18,7 @@ except Exception:  # pragma: no cover - compatibility path for staged interactio
         normalize_surface_label,
         resolve_interaction_binding,
     )
-from mini_agent.runtime.session_pending_approval_state_handler import (
+from mini_agent.runtime.live_control.session_pending_approval_state_handler import (
     RuntimeSessionPendingApprovalStateHandler,
 )
 from mini_agent.runtime.session_recovery_reset_handler import (

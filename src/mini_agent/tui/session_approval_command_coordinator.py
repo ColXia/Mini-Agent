@@ -6,7 +6,7 @@ from collections.abc import Awaitable, Mapping
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from mini_agent.runtime.session_pending_approval_service import (
+from mini_agent.runtime.live_control.session_pending_approval_service import (
     PendingApprovalResolutionError,
     SessionPendingApprovalService,
 )

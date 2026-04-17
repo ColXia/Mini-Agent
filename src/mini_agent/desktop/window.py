@@ -13,7 +13,7 @@ from urllib.parse import urlsplit
 from mini_agent.desktop.gateway_supervisor import DesktopGatewayConnection, DesktopGatewaySupervisor
 from mini_agent.model_manager.session_selection_service import SessionModelSelectionService
 from mini_agent.runtime.read_models.session_payload_codec import RuntimeSessionPayloadCodec
-from mini_agent.runtime.session_pending_approval_service import SessionPendingApprovalService
+from mini_agent.runtime.live_control.session_pending_approval_service import SessionPendingApprovalService
 from mini_agent.session import SessionFeedbackService
 from mini_agent.transport import GatewayClient, RemoteStreamErrorService, extract_gateway_error_info
 

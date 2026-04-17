@@ -59,7 +59,7 @@ from mini_agent.runtime.runtime_policy_service import (
     SessionRuntimePolicyService,
 )
 from mini_agent.runtime.session_control_error_service import SessionControlErrorService
-from mini_agent.runtime.session_interrupt_handler import RuntimeSessionInterruptHandler
+from mini_agent.runtime.live_control.session_interrupt_handler import RuntimeSessionInterruptHandler
 
 if TYPE_CHECKING:
     from mini_agent.runtime.session_state import MainAgentSessionState
