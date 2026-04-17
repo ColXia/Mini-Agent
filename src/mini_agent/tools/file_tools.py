@@ -5,20 +5,17 @@ from typing import Any
 
 import tiktoken
 
+from mini_agent.workspace_runtime import WorkspaceBoundary
+
 from .base import Tool, ToolResult
 
 
-def _resolve_workspace_path(workspace_dir: Path, path: str) -> Path:
-    raw_path = Path(path).expanduser()
-    candidate = raw_path if raw_path.is_absolute() else (workspace_dir / raw_path)
-    resolved_workspace = workspace_dir.resolve()
-    resolved_candidate = candidate.resolve(strict=False)
-    try:
-        resolved_candidate.relative_to(resolved_workspace)
-    except ValueError as exc:
+def _resolve_workspace_path(workspace_boundary: WorkspaceBoundary, path: str) -> Path:
+    resolved_candidate = workspace_boundary.resolve_path(path)
+    if workspace_boundary.relative_path(resolved_candidate) is None:
         raise PermissionError(
-            f"Path escapes workspace root: {path} (workspace: {resolved_workspace})"
-        ) from exc
+            f"Path escapes workspace root: {path} (workspace: {workspace_boundary.root})"
+        )
     return resolved_candidate
 
 
@@ -83,7 +80,8 @@ class ReadTool(Tool):
         Args:
             workspace_dir: Base directory for resolving relative paths
         """
-        self.workspace_dir = Path(workspace_dir).absolute()
+        self.workspace_boundary = WorkspaceBoundary(Path(workspace_dir).absolute())
+        self.workspace_dir = self.workspace_boundary.root
 
     @property
     def name(self) -> str:
@@ -122,7 +120,7 @@ class ReadTool(Tool):
     async def execute(self, path: str, offset: int | None = None, limit: int | None = None) -> ToolResult:
         """Execute read file."""
         try:
-            file_path = _resolve_workspace_path(self.workspace_dir, path)
+            file_path = _resolve_workspace_path(self.workspace_boundary, path)
 
             if not file_path.exists():
                 return ToolResult(
@@ -172,7 +170,8 @@ class WriteTool(Tool):
         Args:
             workspace_dir: Base directory for resolving relative paths
         """
-        self.workspace_dir = Path(workspace_dir).absolute()
+        self.workspace_boundary = WorkspaceBoundary(Path(workspace_dir).absolute())
+        self.workspace_dir = self.workspace_boundary.root
 
     @property
     def name(self) -> str:
@@ -206,7 +205,7 @@ class WriteTool(Tool):
     async def execute(self, path: str, content: str) -> ToolResult:
         """Execute write file."""
         try:
-            file_path = _resolve_workspace_path(self.workspace_dir, path)
+            file_path = _resolve_workspace_path(self.workspace_boundary, path)
 
             # Create parent directories if they don't exist
             file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -226,7 +225,8 @@ class EditTool(Tool):
         Args:
             workspace_dir: Base directory for resolving relative paths
         """
-        self.workspace_dir = Path(workspace_dir).absolute()
+        self.workspace_boundary = WorkspaceBoundary(Path(workspace_dir).absolute())
+        self.workspace_dir = self.workspace_boundary.root
 
     @property
     def name(self) -> str:
@@ -264,7 +264,7 @@ class EditTool(Tool):
     async def execute(self, path: str, old_str: str, new_str: str) -> ToolResult:
         """Execute edit file."""
         try:
-            file_path = _resolve_workspace_path(self.workspace_dir, path)
+            file_path = _resolve_workspace_path(self.workspace_boundary, path)
 
             if not file_path.exists():
                 return ToolResult(
