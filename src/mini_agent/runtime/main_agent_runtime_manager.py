@@ -61,7 +61,7 @@ from mini_agent.runtime.handlers.session_access_handler import (
     RuntimeSessionAccessHandler,
 )
 from mini_agent.runtime.session_agent_runtime_handler import RuntimeSessionAgentRuntimeHandler
-from mini_agent.runtime.session_creation_handler import (
+from mini_agent.runtime.handlers.session_creation_handler import (
     RuntimeSessionCreationHandler,
 )
 from mini_agent.runtime.session_hydration_builder import RuntimeSessionHydrationBuilder
@@ -75,7 +75,7 @@ from mini_agent.runtime.orchestration.session_runtime_policy_coordinator import 
 )
 from mini_agent.runtime.session_persistence_loader import RuntimeSessionPersistenceLoader
 from mini_agent.runtime.session_persistence_record_builder import RuntimeSessionPersistenceRecordBuilder
-from mini_agent.runtime.session_registry_handler import RuntimeSessionRegistryHandler
+from mini_agent.runtime.handlers.session_registry_handler import RuntimeSessionRegistryHandler
 from mini_agent.runtime.live_control.session_interrupt_handler import RuntimeSessionInterruptHandler
 from mini_agent.runtime.live_control.session_live_state_handler import RuntimeSessionLiveStateHandler
 from mini_agent.runtime.session_lineage_registry import RuntimeSessionLineageRegistry
