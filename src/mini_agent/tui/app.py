@@ -108,7 +108,7 @@ from mini_agent.runtime.support.sandbox_state import (
 )
 from mini_agent.runtime.support.session_local_agent_runtime_handler import LocalSessionAgentRuntimeHandler
 from mini_agent.runtime.support.session_local_mcp_runtime_service import LocalSessionMcpRuntimeService
-from mini_agent.runtime.runtime_policy_service import SessionRuntimePolicyService
+from mini_agent.runtime.support.runtime_policy_service import SessionRuntimePolicyService
 from mini_agent.runtime.support.session_agent_support import RuntimeSessionAgentSupport
 from mini_agent.runtime.live_control.session_cancel_service import SessionCancelService
 from mini_agent.runtime.support.session_control_error_service import SessionControlErrorService

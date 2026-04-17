@@ -28,7 +28,7 @@ from mini_agent.config_bootstrap import load_entry_config, load_noninteractive_c
 from mini_agent.interfaces import MainAgentChatRequest, MainAgentChatResponse, MainAgentRuntimeDiagnostics, SystemHealthResponse
 from mini_agent.novel.runtime import get_novel_use_cases, reset_novel_runtime_state
 from mini_agent.runtime.main_agent_runtime_manager import MainAgentRuntimeManager
-from mini_agent.runtime.main_agent_runtime_policy_loader import load_main_agent_runtime_policy
+from mini_agent.runtime.support.main_agent_runtime_policy_loader import load_main_agent_runtime_policy
 from mini_agent.session.binding import conversation_binding_store
 from mini_agent.session.conversation_binding_service import ConversationBindingService
 from mini_agent.tools.mcp_loader import cleanup_mcp_connections

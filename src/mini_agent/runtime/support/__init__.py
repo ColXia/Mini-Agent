@@ -21,6 +21,12 @@ from .sandbox_state import (
     sandbox_network_summary,
     sandbox_policy_summary,
 )
+from .main_agent_runtime_policy_loader import (
+    MAIN_AGENT_MAIN_WORKSPACE_ENV,
+    MAIN_AGENT_RUNTIME_MODE_ENV,
+    MAIN_AGENT_TEAM_MAX_AGENTS_ENV,
+    load_main_agent_runtime_policy,
+)
 from .session_command_coordinator import (
     RuntimeSessionCommandCoordinator,
     RuntimeSessionCommandTranscript,
@@ -60,6 +66,12 @@ from .session_persistence_metadata_registry import RuntimeSessionPersistenceMeta
 from .session_persistence_record_builder import RuntimeSessionPersistenceRecordBuilder
 from .session_runtime_persistence import MainAgentRuntimePersistence
 from .session_shared_transcript_store import RuntimeSessionSharedTranscriptStore
+from .runtime_policy_service import (
+    SessionRuntimePolicyAutofixRequest,
+    SessionRuntimePolicyExecution,
+    SessionRuntimePolicyPlan,
+    SessionRuntimePolicyService,
+)
 from .tooling import (
     add_workspace_tools,
     apply_runtime_policy_to_agent,
@@ -83,10 +95,17 @@ __all__ = [
     "LocalSessionAgentRuntimeHandler",
     "LocalSessionMcpRuntimeService",
     "LoadRuntimeConfigFn",
+    "MAIN_AGENT_MAIN_WORKSPACE_ENV",
+    "MAIN_AGENT_RUNTIME_MODE_ENV",
+    "MAIN_AGENT_TEAM_MAX_AGENTS_ENV",
     "MainAgentRuntimePersistence",
     "SESSION_IDLE_SECONDS_ENV",
     "SESSION_RESET_MODE_ENV",
     "SessionLifecycleDecision",
+    "SessionRuntimePolicyAutofixRequest",
+    "SessionRuntimePolicyExecution",
+    "SessionRuntimePolicyPlan",
+    "SessionRuntimePolicyService",
     "SurfaceSessionLifecycleRuntime",
     "RuntimeSessionLineageRegistry",
     "RuntimeSessionCommandCoordinator",
@@ -115,6 +134,7 @@ __all__ = [
     "format_sandbox_status",
     "initialize_agent_tools",
     "initialize_shared_tools",
+    "load_main_agent_runtime_policy",
     "normalize_channel_type",
     "normalize_sandbox_diagnostics",
     "normalize_session_control_action",

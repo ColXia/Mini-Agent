@@ -6,7 +6,10 @@ from collections.abc import Awaitable, Mapping
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from mini_agent.runtime.runtime_policy_service import SessionRuntimePolicyPlan, SessionRuntimePolicyService
+from mini_agent.runtime.support.runtime_policy_service import (
+    SessionRuntimePolicyPlan,
+    SessionRuntimePolicyService,
+)
 
 
 def _safe_text(value: Any) -> str:

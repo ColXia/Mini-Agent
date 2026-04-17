@@ -53,7 +53,7 @@ from mini_agent.runtime.handlers.session_memory_command_handler import (
     RuntimeSessionMemoryCommandExecution,
     RuntimeSessionMemoryCommandHandler,
 )
-from mini_agent.runtime.runtime_policy_service import (
+from mini_agent.runtime.support.runtime_policy_service import (
     SessionRuntimePolicyPlan,
     SessionRuntimePolicyExecution,
     SessionRuntimePolicyService,

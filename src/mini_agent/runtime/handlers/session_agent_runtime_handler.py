@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, Sequence
 
-from mini_agent.runtime.runtime_policy_service import SessionRuntimePolicyService
+from mini_agent.runtime.support.runtime_policy_service import SessionRuntimePolicyService
 
 if TYPE_CHECKING:
     from mini_agent.runtime.session_state import MainAgentSessionState
