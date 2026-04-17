@@ -66,6 +66,7 @@
 - v11.1 module ownership and migration direction (2026-04-17): `docs/V11_1_MODULE_OWNERSHIP_AND_MIGRATION_DIRECTION_2026-04-17.md`
 - v11.1 transport DTO and read-model contract (2026-04-17): `docs/V11_1_TRANSPORT_DTO_AND_READ_MODEL_CONTRACT_2026-04-17.md`
 - v11.1 architecture migration execution order (2026-04-17): `docs/V11_1_ARCHITECTURE_MIGRATION_EXECUTION_ORDER_2026-04-17.md`
+- v11.1 concrete module tree (2026-04-17): `docs/V11_1_CONCRETE_MODULE_TREE_2026-04-17.md`
 - Historical transformation plan (source-study only): `docs/TRANSFORMATION_PLAN.md`
 - Transformation plan (mini guardrails): `docs/TRANSFORMATION_PLAN_LITE_ADDENDUM.md`
 - OSS mapping index: `docs/OSS_REFERENCE_INDEX.md`
@@ -133,6 +134,7 @@ Latest stage sync:
 - `2026-04-17`: the physical ownership and migration direction is now captured in `docs/V11_1_MODULE_OWNERSHIP_AND_MIGRATION_DIRECTION_2026-04-17.md`; treat physical module placement as part of the architecture contract so future implementation keeps logical and repository structure aligned.
 - `2026-04-17`: the transport/DTO/read-model boundary is now captured in `docs/V11_1_TRANSPORT_DTO_AND_READ_MODEL_CONTRACT_2026-04-17.md`; treat truth objects, internal projections, interface DTOs, and raw transport payloads as four distinct shapes with explicit conversion boundaries.
 - `2026-04-17`: the staged migration order is now captured in `docs/V11_1_ARCHITECTURE_MIGRATION_EXECUTION_ORDER_2026-04-17.md`; use it to sequence future code migration so truth movement, service introduction, compatibility retention, and cleanup happen in the correct order.
+- `2026-04-17`: the concrete target tree is now captured in `docs/V11_1_CONCRETE_MODULE_TREE_2026-04-17.md`; use it as the file-level landing map for Stage 1-3 implementation so new code stops drifting into transitional owners.
 
 ## 3. Active Plan: P22 Core Agent Minimal (Started 2026-04-07)
 
