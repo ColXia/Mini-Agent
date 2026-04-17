@@ -5,8 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from mini_agent.application.ports.session_agent_runtime_port import SessionAgentRuntimePort
-from mini_agent.application.ports.session_model_selection_runtime_port import SessionModelSelectionRuntimePort
 from mini_agent.application.ports.session_runtime_port import SessionRuntimePort
 from mini_agent.application.ports.session_task_port import SessionTaskPort
 from mini_agent.application.ports.session_task_runtime_port import SessionTaskRuntimePort
@@ -21,6 +19,8 @@ from .session_runtime_compat import (
     SessionTaskCompatibilityAdapter,
     UnavailableRunRuntimeAdapter,
 )
+from .session_agent_runtime_port import SessionAgentRuntimePort
+from .session_model_selection_runtime_port import SessionModelSelectionRuntimePort
 
 if TYPE_CHECKING:
     from mini_agent.application.legacy import SessionApplicationService

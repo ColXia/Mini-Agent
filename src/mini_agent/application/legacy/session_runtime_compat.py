@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from mini_agent.application.ports.session_agent_runtime_port import SessionAgentRuntimePort
-from mini_agent.application.ports.session_model_selection_runtime_port import SessionModelSelectionRuntimePort
 from mini_agent.application.ports.session_runtime_port import SessionRuntimePort
 from mini_agent.application.ports.session_task_port import SessionTaskPort
 from mini_agent.interfaces import (
@@ -16,6 +14,9 @@ from mini_agent.interfaces import (
     MainAgentSessionModelSelectionResponse,
     MainAgentSessionSkillResponse,
 )
+
+from .session_agent_runtime_port import SessionAgentRuntimePort
+from .session_model_selection_runtime_port import SessionModelSelectionRuntimePort
 
 
 class UnavailableRunRuntimeAdapter:

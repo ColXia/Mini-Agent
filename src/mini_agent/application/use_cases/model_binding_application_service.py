@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from mini_agent.application.legacy.session_model_selection_runtime_port import SessionModelSelectionRuntimePort
 from mini_agent.application.ports.model_runtime_port import ModelRuntimePort
-from mini_agent.application.ports.session_model_selection_runtime_port import SessionModelSelectionRuntimePort
 
 
 def _require_model_runtime(runtime: ModelRuntimePort | None) -> ModelRuntimePort:
