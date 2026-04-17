@@ -21,13 +21,13 @@ from .ports import (
     SessionTaskPort,
     WorkspaceRuntimePort,
 )
-from .operations_provider_use_cases import ProviderOperationsUseCases
 from .session_runtime_port import ManagedRuntimeSessionPort, SessionRuntimePort, SessionTurnScopePort
 from .support import ApplicationInteractionBinding, ManagedSessionTurn
 from .use_cases import (
     ChannelIngressUseCases,
     MemoryOperationsUseCases,
     OperationsPathPolicy,
+    ProviderOperationsUseCases,
     RunControlApplicationService,
     SessionTaskService,
 )
