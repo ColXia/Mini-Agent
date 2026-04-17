@@ -1,55 +1,17 @@
-"""Runtime session diagnostics helpers shared by hydration and read models."""
+"""Compatibility wrapper for runtime session diagnostics helpers."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable
-
 from mini_agent.memory.diagnostics import build_memory_diagnostics
+from mini_agent.runtime.support import session_diagnostics_service as _impl
 
-if TYPE_CHECKING:
-    from mini_agent.runtime.session_state import MainAgentSessionState
-
-
-def _safe_text(value: object) -> str:
-    return " ".join(str(value or "").split())
-
-
-@dataclass(slots=True)
-class RuntimeSessionDiagnosticsService:
-    normalize_prepared_context_payload: Callable[[Any], dict[str, Any]]
-    normalize_memory_diagnostics_payload: Callable[[Any], dict[str, Any]]
-    normalize_sandbox_diagnostics_payload: Callable[[Any], dict[str, Any]]
-    collect_sandbox_diagnostics: Callable[[Any], dict[str, Any]]
-    agent_last_memory_automation: Callable[[Any], dict[str, Any]] | None = None
-    agent_last_runtime_task_memory: Callable[[Any], dict[str, Any]] | None = None
-
-    @staticmethod
-    def _normalize_agent_payload(value: Any) -> dict[str, Any]:
-        return dict(value) if isinstance(value, dict) else {}
-
-    def _read_agent_last_memory_automation(self, agent: Any) -> dict[str, Any]:
-        if callable(self.agent_last_memory_automation):
-            try:
-                return self._normalize_agent_payload(self.agent_last_memory_automation(agent))
-            except Exception:
-                return {}
-        return self._normalize_agent_payload(getattr(agent, "last_memory_automation", {}))
-
-    def _read_agent_last_runtime_task_memory(self, agent: Any) -> dict[str, Any]:
-        if callable(self.agent_last_runtime_task_memory):
-            try:
-                return self._normalize_agent_payload(self.agent_last_runtime_task_memory(agent))
-            except Exception:
-                return {}
-        return self._normalize_agent_payload(getattr(agent, "last_runtime_task_memory", {}))
-
+class RuntimeSessionDiagnosticsService(_impl.RuntimeSessionDiagnosticsService):
     def build_memory_diagnostics_for_session(
         self,
-        session: "MainAgentSessionState",
+        session,
         *,
         preview_limit: int = 5,
-    ) -> dict[str, Any]:
+    ) -> dict[str, object]:
         try:
             diagnostics = build_memory_diagnostics(
                 workspace_dir=session.workspace_dir,
@@ -66,17 +28,17 @@ class RuntimeSessionDiagnosticsService:
 
     def build_memory_diagnostics_from_record(
         self,
-        record: dict[str, Any],
+        record: dict[str, object],
         *,
         preview_limit: int = 5,
-    ) -> dict[str, Any]:
-        workspace_dir = _safe_text(record.get("workspace_dir"))
+    ) -> dict[str, object]:
+        workspace_dir = _impl._safe_text(record.get("workspace_dir"))
         if not workspace_dir:
             return self.normalize_memory_diagnostics_payload(record.get("memory_diagnostics"))
         try:
             diagnostics = build_memory_diagnostics(
                 workspace_dir=workspace_dir,
-                session_id=_safe_text(record.get("session_id")) or None,
+                session_id=_impl._safe_text(record.get("session_id")) or None,
                 last_prepared_context=self.normalize_prepared_context_payload(record.get("last_prepared_context")),
                 last_memory_automation=record.get("last_memory_automation"),
                 last_runtime_task_memory=record.get("last_runtime_task_memory"),
@@ -86,22 +48,8 @@ class RuntimeSessionDiagnosticsService:
             diagnostics = record.get("memory_diagnostics")
         return self.normalize_memory_diagnostics_payload(diagnostics)
 
-    def build_sandbox_diagnostics_for_session(
-        self,
-        session: "MainAgentSessionState",
-    ) -> dict[str, Any]:
-        try:
-            diagnostics = self.collect_sandbox_diagnostics(session.runtime.agent)
-        except Exception:
-            diagnostics = session.projection.sandbox_diagnostics
-        session.projection.sandbox_diagnostics = self.normalize_sandbox_diagnostics_payload(diagnostics)
-        return session.projection.sandbox_diagnostics
 
-    def build_sandbox_diagnostics_from_record(
-        self,
-        record: dict[str, Any],
-    ) -> dict[str, Any]:
-        return self.normalize_sandbox_diagnostics_payload(record.get("sandbox_diagnostics"))
-
-
-__all__ = ["RuntimeSessionDiagnosticsService"]
+__all__ = [
+    "RuntimeSessionDiagnosticsService",
+    "build_memory_diagnostics",
+]

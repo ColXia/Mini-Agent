@@ -51,7 +51,6 @@ from mini_agent.runtime.read_models.session_payload_codec import RuntimeSessionP
 from mini_agent.runtime.read_models.session_read_model_builder import RuntimeSessionReadModelBuilder
 from mini_agent.runtime.read_models.session_snapshot_builder import RuntimeSessionSnapshotBuilder
 from mini_agent.runtime.session_snapshot import RuntimeSessionSnapshot
-from mini_agent.runtime.session_diagnostics_service import RuntimeSessionDiagnosticsService
 from mini_agent.runtime.handlers.session_admin_handler import RuntimeSessionAdminHandler
 from mini_agent.runtime.session_command_coordinator import (
     RuntimeSessionCommandCoordinator,
@@ -78,6 +77,7 @@ from mini_agent.runtime.orchestration.session_runtime_policy_coordinator import 
 from mini_agent.runtime.orchestration.session_runtime_state_hydrator import (
     RuntimeSessionStateHydrator,
 )
+from mini_agent.runtime.support.session_diagnostics_service import RuntimeSessionDiagnosticsService
 from mini_agent.runtime.session_persistence_loader import RuntimeSessionPersistenceLoader
 from mini_agent.runtime.session_persistence_record_builder import RuntimeSessionPersistenceRecordBuilder
 from mini_agent.runtime.handlers.session_registry_handler import RuntimeSessionRegistryHandler
