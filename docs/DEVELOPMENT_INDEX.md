@@ -56,6 +56,16 @@
 - Post-P36 runtime/surface evaluation (2026-04-15): `docs/POST_P36_RUNTIME_SURFACE_EVALUATION_2026-04-15.md`
 - Post-P37 TUI/surface evaluation (2026-04-16): `docs/POST_P37_TUI_SURFACE_EVALUATION_2026-04-16.md`
 - Architecture execution guardrails (2026-04-17): `docs/ARCHITECTURE_EXECUTION_GUARDRAILS_2026-04-17.md`
+- v11.1 agent/workspace execution architecture (2026-04-17): `docs/V11_1_AGENT_WORKSPACE_EXECUTION_ARCHITECTURE_2026-04-17.md`
+- v11.1 agent kernel contract design (2026-04-17): `docs/V11_1_AGENT_KERNEL_CONTRACT_DESIGN_2026-04-17.md`
+- v11.1 run/attachment/checkpoint/journal design (2026-04-17): `docs/V11_1_RUN_ATTACHMENT_CHECKPOINT_JOURNAL_DESIGN_2026-04-17.md`
+- v11.1 run control and agent lifecycle design (2026-04-17): `docs/V11_1_RUN_CONTROL_AND_AGENT_LIFECYCLE_DESIGN_2026-04-17.md`
+- v11.1 model block design record (2026-04-17): `docs/V11_1_MODEL_BLOCK_DESIGN_RECORD_2026-04-17.md`
+- v11.1 user surface architecture (2026-04-17): `docs/V11_1_USER_SURFACE_ARCHITECTURE_2026-04-17.md`
+- v11.1 user service to kernel interface design (2026-04-17): `docs/V11_1_USER_SERVICE_TO_KERNEL_INTERFACE_DESIGN_2026-04-17.md`
+- v11.1 module ownership and migration direction (2026-04-17): `docs/V11_1_MODULE_OWNERSHIP_AND_MIGRATION_DIRECTION_2026-04-17.md`
+- v11.1 transport DTO and read-model contract (2026-04-17): `docs/V11_1_TRANSPORT_DTO_AND_READ_MODEL_CONTRACT_2026-04-17.md`
+- v11.1 architecture migration execution order (2026-04-17): `docs/V11_1_ARCHITECTURE_MIGRATION_EXECUTION_ORDER_2026-04-17.md`
 - Historical transformation plan (source-study only): `docs/TRANSFORMATION_PLAN.md`
 - Transformation plan (mini guardrails): `docs/TRANSFORMATION_PLAN_LITE_ADDENDUM.md`
 - OSS mapping index: `docs/OSS_REFERENCE_INDEX.md`
@@ -113,6 +123,16 @@ Latest stage sync:
 - `2026-04-16`: `P37` TUI surface orchestration convergence is materially complete.
 - `2026-04-16`: active execution focus moves to `P32b` repo hygiene, commit slicing, and active-doc alignment.
 - `2026-04-17`: architecture execution is explicitly tightened again: surfaces must stay presentation-only plus local ephemeral UI state, while shared interaction/runtime corrections belong in `application/` or `runtime/`; use `docs/ARCHITECTURE_EXECUTION_GUARDRAILS_2026-04-17.md` as the current boundary checklist.
+- `2026-04-17`: `v11.1` architecture discussion baseline is now captured in `docs/V11_1_AGENT_WORKSPACE_EXECUTION_ARCHITECTURE_2026-04-17.md`; use it as the current agent/workspace/session/tool/skill/memory boundary discussion anchor before opening a new core redesign slice.
+- `2026-04-17`: the first kernel-contract discussion group is now captured in `docs/V11_1_AGENT_KERNEL_CONTRACT_DESIGN_2026-04-17.md`; treat `AgentProfile / AgentInstance / Run / Attachment / CapabilitySnapshot / Checkpoint / ExecutionJournal` as the maintained kernel truth model for later service and runtime redesign.
+- `2026-04-17`: the second kernel-design slice is now captured in `docs/V11_1_RUN_ATTACHMENT_CHECKPOINT_JOURNAL_DESIGN_2026-04-17.md`; treat `Run.status + Run.phase`, attachment references, checkpoint write points, and journal separation as the maintained execution-truth contract.
+- `2026-04-17`: the third kernel-design slice is now captured in `docs/V11_1_RUN_CONTROL_AND_AGENT_LIFECYCLE_DESIGN_2026-04-17.md`; treat run-owned control state, first-class approval waits, interrupt-vs-cancel separation, and agent-instance lifecycle as the maintained control-plane baseline.
+- `2026-04-17`: the main agent-facing model boundary is now captured separately in `docs/V11_1_MODEL_BLOCK_DESIGN_RECORD_2026-04-17.md`; treat model supply as `ModelPool + AgentModelService`, not as workspace/session-owned state.
+- `2026-04-17`: the corrected user-side topology is now captured in `docs/V11_1_USER_SURFACE_ARCHITECTURE_2026-04-17.md`; treat `TUI / Desktop / Remote Interaction` as the primary user surfaces and `CLI` as the command-carrier form of the shared command subsystem.
+- `2026-04-17`: the user-service/application/runtime-port interface direction is now captured in `docs/V11_1_USER_SERVICE_TO_KERNEL_INTERFACE_DESIGN_2026-04-17.md`; treat explicit user services as the stable surface contract and treat current session-centric application/runtime ports as transitional compatibility structures.
+- `2026-04-17`: the physical ownership and migration direction is now captured in `docs/V11_1_MODULE_OWNERSHIP_AND_MIGRATION_DIRECTION_2026-04-17.md`; treat physical module placement as part of the architecture contract so future implementation keeps logical and repository structure aligned.
+- `2026-04-17`: the transport/DTO/read-model boundary is now captured in `docs/V11_1_TRANSPORT_DTO_AND_READ_MODEL_CONTRACT_2026-04-17.md`; treat truth objects, internal projections, interface DTOs, and raw transport payloads as four distinct shapes with explicit conversion boundaries.
+- `2026-04-17`: the staged migration order is now captured in `docs/V11_1_ARCHITECTURE_MIGRATION_EXECUTION_ORDER_2026-04-17.md`; use it to sequence future code migration so truth movement, service introduction, compatibility retention, and cleanup happen in the correct order.
 
 ## 3. Active Plan: P22 Core Agent Minimal (Started 2026-04-07)
 
