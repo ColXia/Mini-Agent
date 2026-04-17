@@ -29,6 +29,7 @@ def test_gateway_composition_wires_explicit_session_task_service(tmp_path: Path)
     assert isinstance(session_task_service, SessionTaskService)
     assert composition.get_session_task_service() is session_task_service
     assert session_service.session_task_service is session_task_service
+    assert surface_service._session_task_service is session_task_service
     assert surface_service._chat_flow.session_task_service is session_task_service
 
     asyncio.run(composition.shutdown())

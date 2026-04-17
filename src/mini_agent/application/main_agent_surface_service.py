@@ -22,6 +22,7 @@ from mini_agent.application.surface_service_types import (
 )
 from mini_agent.application.user_services.agent_user_service import AgentUserService
 from mini_agent.application.user_services.model_user_service import ModelUserService
+from mini_agent.application.use_cases.session_task_service import SessionTaskService
 from mini_agent.interfaces import (
     MainAgentChatRequest,
     MainAgentChatResponse,
@@ -65,6 +66,7 @@ class MainAgentSurfaceService:
         self,
         *,
         session_service: SessionApplicationService,
+        session_task_service: SessionTaskService | None = None,
         agent_service: AgentUserService | None = None,
         model_service: ModelUserService | None = None,
         resolve_workspace_dir: ResolveWorkspaceDirFn,
@@ -74,6 +76,11 @@ class MainAgentSurfaceService:
         stream_chunk_size: int,
     ) -> None:
         self._session_service = session_service
+        self._session_task_service = session_task_service or getattr(
+            self._session_service,
+            "session_task_service",
+            self._session_service,
+        )
         self._agent_service = agent_service
         self._model_service = model_service
         self._resolve_workspace_dir = resolve_workspace_dir
@@ -81,9 +88,8 @@ class MainAgentSurfaceService:
         self._sse_event = sse_event
         self._format_bootstrap_error = format_bootstrap_error
         self._stream_chunk_size = max(1, int(stream_chunk_size))
-        session_task_service = getattr(self._session_service, "session_task_service", self._session_service)
         self._chat_flow = SurfaceChatFlowHandler(
-            session_task_service=session_task_service,
+            session_task_service=self._session_task_service,
             to_utc_iso=self._to_utc_iso,
             sse_event=self._sse_event,
             format_bootstrap_error=self._format_bootstrap_error,
@@ -91,7 +97,7 @@ class MainAgentSurfaceService:
         )
         self._agent_execution = AgentTurnExecutionHandler()
         self._delegation_execution = AgentDelegationExecutionHandler(
-            session_task_service=session_task_service,
+            session_task_service=self._session_task_service,
             agent_execution=self._agent_execution,
             delegation_owner=self._DELEGATION_OWNER,
             fallback_worker_id=self._ROUTE_AGENT_MAIN,
@@ -128,53 +134,53 @@ class MainAgentSurfaceService:
         shared_only: bool = False,
     ) -> list[MainAgentSessionSummary]:
         resolved_workspace = self._resolve_workspace_dir(workspace_dir) if workspace_dir else None
-        return await self._session_service.list_sessions(
+        return await self._session_task_service.list_sessions(
             workspace_dir=resolved_workspace,
             shared_only=shared_only,
         )
 
     async def create_session(self, request: MainAgentSessionCreateRequest) -> MainAgentSessionDetail:
         resolved_workspace = self._resolve_workspace_dir(request.workspace_dir)
-        self._session_service.validate_workspace(resolved_workspace)
-        return await self._session_service.create_session(request, workspace_dir=resolved_workspace)
+        self._session_task_service.validate_workspace(resolved_workspace)
+        return await self._session_task_service.create_session(request, workspace_dir=resolved_workspace)
 
     async def ensure_default_session(self, request: MainAgentDefaultSessionRequest) -> MainAgentSessionDetail:
         resolved_workspace = self._resolve_workspace_dir(request.workspace_dir)
-        self._session_service.validate_workspace(resolved_workspace)
-        return await self._session_service.ensure_default_session(request, workspace_dir=resolved_workspace)
+        self._session_task_service.validate_workspace(resolved_workspace)
+        return await self._session_task_service.ensure_default_session(request, workspace_dir=resolved_workspace)
 
     async def create_derived_session(
         self,
         parent_session_id: str,
         request: MainAgentSessionForkRequest,
     ) -> MainAgentSessionDetail:
-        return await self._session_service.create_derived_session(parent_session_id, request)
+        return await self._session_task_service.create_derived_session(parent_session_id, request)
 
     async def get_session_detail(self, session_id: str, *, recent_limit: int = 50) -> MainAgentSessionDetail:
-        return await self._session_service.get_session_detail(session_id, recent_limit=recent_limit)
+        return await self._session_task_service.get_session_detail(session_id, recent_limit=recent_limit)
 
     async def get_session_messages(self, session_id: str, *, limit: int = 10) -> list[MainAgentSessionMessage]:
-        return await self._session_service.get_session_messages(session_id, limit=limit)
+        return await self._session_task_service.get_session_messages(session_id, limit=limit)
 
     async def delete_session(self, session_id: str) -> MainAgentSessionMutationResponse:
-        return await self._session_service.delete_session(session_id)
+        return await self._session_task_service.delete_session(session_id)
 
     async def rename_session(
         self,
         session_id: str,
         request: MainAgentSessionRenameRequest,
     ) -> MainAgentSessionMutationResponse:
-        return await self._session_service.rename_session(session_id, request)
+        return await self._session_task_service.rename_session(session_id, request)
 
     async def set_session_shared(
         self,
         session_id: str,
         request: MainAgentSessionShareRequest,
     ) -> MainAgentSessionMutationResponse:
-        return await self._session_service.set_session_shared(session_id, request)
+        return await self._session_task_service.set_session_shared(session_id, request)
 
     async def reset_session(self, session_id: str) -> MainAgentSessionMutationResponse:
-        return await self._session_service.reset_session(session_id)
+        return await self._session_task_service.reset_session(session_id)
 
     async def cancel_session(
         self,

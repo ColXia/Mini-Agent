@@ -164,6 +164,7 @@ class GatewayComposition:
         if self._surface_service is None:
             self._surface_service = MainAgentSurfaceService(
                 session_service=self.get_session_service(),
+                session_task_service=self.get_session_task_service(),
                 agent_service=self.get_agent_service(),
                 model_service=self.get_model_service(),
                 resolve_workspace_dir=self.resolve_workspace_dir,

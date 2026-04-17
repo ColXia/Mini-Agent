@@ -23,6 +23,8 @@ from mini_agent.interfaces import (
     MainAgentSessionCancelRequest,
     MainAgentSessionContextRequest,
     MainAgentSessionContextResponse,
+    MainAgentSessionCreateRequest,
+    MainAgentSessionDetail,
     MainAgentSessionForkRequest,
     MainAgentSessionMemoryRequest,
     MainAgentSessionMemoryResponse,
@@ -3815,6 +3817,127 @@ def test_use_case_remote_approval_resolves_pending_shared_session_turn() -> None
             if item.role == "system" and isinstance(item.metadata, dict) and item.metadata.get("command") == "approve"
         ]
         assert command_entries
+
+    asyncio.run(_run())
+
+
+def test_surface_service_prefers_injected_session_task_service_for_session_entrypoints() -> None:
+    class _FailingSessionService:
+        def validate_workspace(self, workspace_dir: Path) -> None:
+            raise AssertionError(f"session_service.validate_workspace should not be called: {workspace_dir}")
+
+        async def list_sessions(self, *, workspace_dir=None, shared_only=False):  # noqa: ANN001, ANN003
+            raise AssertionError(
+                f"session_service.list_sessions should not be called: {workspace_dir}, {shared_only}"
+            )
+
+        async def create_session(self, request, *, workspace_dir):  # noqa: ANN001, ANN003
+            raise AssertionError(f"session_service.create_session should not be called: {request}, {workspace_dir}")
+
+        async def get_session_detail(self, session_id: str, *, recent_limit: int = 50):
+            raise AssertionError(
+                f"session_service.get_session_detail should not be called: {session_id}, {recent_limit}"
+            )
+
+        async def delete_session(self, session_id: str):
+            raise AssertionError(f"session_service.delete_session should not be called: {session_id}")
+
+    class _SessionTaskServiceStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        def validate_workspace(self, workspace_dir: Path) -> None:
+            self.calls.append(("validate_workspace", workspace_dir))
+
+        async def list_sessions(self, *, workspace_dir=None, shared_only=False):  # noqa: ANN001, ANN003
+            self.calls.append(("list_sessions", workspace_dir, shared_only))
+            now = datetime.now(timezone.utc).isoformat()
+            return [
+                MainAgentSessionSummary(
+                    session_id="sess-task-1",
+                    title="Task Session",
+                    workspace_dir=str(workspace_dir),
+                    created_at=now,
+                    updated_at=now,
+                    message_count=0,
+                    token_usage=0,
+                    token_limit=0,
+                    active_surface="desktop",
+                    origin_surface="desktop",
+                    shared=False,
+                )
+            ]
+
+        async def create_session(self, request, *, workspace_dir):  # noqa: ANN001, ANN003
+            self.calls.append(("create_session", request.title, workspace_dir))
+            now = datetime.now(timezone.utc).isoformat()
+            return MainAgentSessionDetail(
+                session_id="sess-task-1",
+                workspace_dir=str(workspace_dir),
+                created_at=now,
+                updated_at=now,
+                title=request.title,
+                message_count=0,
+                token_usage=0,
+                token_limit=0,
+                origin_surface="desktop",
+                active_surface="desktop",
+                shared=False,
+                recent_messages=[],
+            )
+
+        async def get_session_detail(self, session_id: str, *, recent_limit: int = 50):
+            self.calls.append(("get_session_detail", session_id, recent_limit))
+            now = datetime.now(timezone.utc).isoformat()
+            return MainAgentSessionDetail(
+                session_id=session_id,
+                workspace_dir=str(Path(".").resolve()),
+                created_at=now,
+                updated_at=now,
+                title="Task Session",
+                message_count=0,
+                token_usage=0,
+                token_limit=0,
+                origin_surface="desktop",
+                active_surface="desktop",
+                shared=False,
+                recent_messages=[],
+            )
+
+        async def delete_session(self, session_id: str):
+            self.calls.append(("delete_session", session_id))
+            return MainAgentSessionMutationResponse(status="deleted", session_id=session_id)
+
+    async def _run() -> None:
+        session_task_service = _SessionTaskServiceStub()
+        use_cases = MainAgentSurfaceService(
+            session_service=_FailingSessionService(),
+            session_task_service=session_task_service,
+            resolve_workspace_dir=_resolve_workspace_dir,
+            to_utc_iso=_to_utc_iso,
+            sse_event=_sse_event,
+            format_bootstrap_error=_format_bootstrap_error,
+            stream_chunk_size=64,
+        )
+
+        listed = await use_cases.list_sessions(workspace_dir=".", shared_only=True)
+        created = await use_cases.create_session(
+            MainAgentSessionCreateRequest(workspace_dir=".", title="Session 1", surface="desktop", shared=False)
+        )
+        detail = await use_cases.get_session_detail("sess-task-1", recent_limit=3)
+        deleted = await use_cases.delete_session("sess-task-1")
+
+        assert [item.session_id for item in listed] == ["sess-task-1"]
+        assert created.session_id == "sess-task-1"
+        assert detail.session_id == "sess-task-1"
+        assert deleted.status == "deleted"
+        assert session_task_service.calls == [
+            ("list_sessions", Path(".").resolve(), True),
+            ("validate_workspace", Path(".").resolve()),
+            ("create_session", "Session 1", Path(".").resolve()),
+            ("get_session_detail", "sess-task-1", 3),
+            ("delete_session", "sess-task-1"),
+        ]
 
     asyncio.run(_run())
 
