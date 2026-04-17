@@ -21,6 +21,12 @@ from .sandbox_state import (
     sandbox_network_summary,
     sandbox_policy_summary,
 )
+from .session_agent_support import (
+    BuildAgentFn,
+    BuildSelectedAgentFn,
+    LoadRuntimeConfigFn,
+    RuntimeSessionAgentSupport,
+)
 from .tooling import (
     add_workspace_tools,
     apply_runtime_policy_to_agent,
@@ -31,16 +37,22 @@ from .tooling import (
     reconfigure_agent_runtime_policy,
     resolve_runtime_policy,
 )
+from .turn_context_provider_builder import build_turn_context_providers
 from .workspace_path_utils import same_workspace_path, workspace_path_key
 
 __all__ = [
     "ACTIVE_REMOTE_CHANNEL_ADAPTERS",
+    "BuildAgentFn",
+    "BuildSelectedAgentFn",
     "InteractionBinding",
     "InteractionSurface",
+    "LoadRuntimeConfigFn",
+    "RuntimeSessionAgentSupport",
     "USER_ENTRANCES",
     "add_workspace_tools",
     "apply_runtime_policy_to_agent",
     "build_approval_engine",
+    "build_turn_context_providers",
     "build_workspace_sandbox_manager",
     "collect_sandbox_diagnostics",
     "compact_sandbox_summary",

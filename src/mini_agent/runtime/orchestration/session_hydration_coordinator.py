@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, MutableMapping, Sequence
 
-from mini_agent.runtime.session_hydration_builder import RuntimeSessionHydrationPayload
+from mini_agent.runtime.orchestration.session_hydration_builder import RuntimeSessionHydrationPayload
 
 if TYPE_CHECKING:
     from mini_agent.runtime.orchestration.session_restore_handler import RuntimeSessionRestoreExecution

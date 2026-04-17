@@ -36,7 +36,7 @@ from mini_agent.runtime.support.tooling import (
     initialize_agent_tools,
     resolve_runtime_policy,
 )
-from mini_agent.runtime.turn_context_provider_builder import build_turn_context_providers
+from mini_agent.runtime.support.turn_context_provider_builder import build_turn_context_providers
 
 
 _DEFAULT_SYSTEM_PROMPT = "You are Mini-Agent, an intelligent assistant powered by MiniMax."

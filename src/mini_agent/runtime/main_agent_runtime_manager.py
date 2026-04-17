@@ -41,7 +41,7 @@ from mini_agent.runtime.main_agent_runtime_contracts import (
     MainAgentRuntimeMode,
     MainAgentRuntimePolicy,
 )
-from mini_agent.runtime.session_agent_support import (
+from mini_agent.runtime.support.session_agent_support import (
     BuildAgentFn,
     BuildSelectedAgentFn,
     RuntimeSessionAgentSupport,
@@ -64,14 +64,19 @@ from mini_agent.runtime.handlers.session_agent_runtime_handler import RuntimeSes
 from mini_agent.runtime.handlers.session_creation_handler import (
     RuntimeSessionCreationHandler,
 )
-from mini_agent.runtime.session_hydration_builder import RuntimeSessionHydrationBuilder
 from mini_agent.runtime.orchestration.session_hydration_coordinator import (
     RuntimeSessionHydrationCoordinator,
+)
+from mini_agent.runtime.orchestration.session_hydration_builder import (
+    RuntimeSessionHydrationBuilder,
 )
 from mini_agent.runtime.orchestration.session_restore_handler import RuntimeSessionRestoreHandler
 from mini_agent.runtime.orchestration.session_runtime_lifecycle_handler import RuntimeSessionLifecycleHandler
 from mini_agent.runtime.orchestration.session_runtime_policy_coordinator import (
     RuntimeSessionPolicyCoordinator,
+)
+from mini_agent.runtime.orchestration.session_runtime_state_hydrator import (
+    RuntimeSessionStateHydrator,
 )
 from mini_agent.runtime.session_persistence_loader import RuntimeSessionPersistenceLoader
 from mini_agent.runtime.session_persistence_record_builder import RuntimeSessionPersistenceRecordBuilder
@@ -93,7 +98,6 @@ from mini_agent.runtime.handlers.session_operator_handler import RuntimeSessionO
 from mini_agent.runtime.runtime_policy_service import SessionRuntimePolicyService
 from mini_agent.runtime.session_runtime_persistence import MainAgentRuntimePersistence
 from mini_agent.runtime.session_state import MainAgentSessionState
-from mini_agent.runtime.session_runtime_state_hydrator import RuntimeSessionStateHydrator
 from mini_agent.runtime.orchestration.session_turn_scope_handler import RuntimeSessionTurnScopeHandler
 from mini_agent.runtime.orchestration.session_snapshot_handler import (
     RuntimeSessionSnapshotHandler,
