@@ -9,7 +9,7 @@ from mini_agent.agent_core.execution.sandbox import NetworkAccessMode, NetworkDo
 from mini_agent.agent_core.execution.permissions import ApprovalEngine, PermissionDecision, PermissionPolicy, PermissionRule
 from mini_agent.agent_core.runtime_bindings import set_agent_runtime_services
 from mini_agent.commands.mcp_support import resolve_runtime_mcp_config_path
-from mini_agent.runtime.sandbox_state import collect_sandbox_diagnostics
+from mini_agent.runtime.support.sandbox_state import collect_sandbox_diagnostics
 from mini_agent.agent_core.skills.path_resolver import resolve_builtin_skills_dir, resolve_workspace_skills_dir
 from mini_agent.security.policy import RuntimePolicyEngine
 

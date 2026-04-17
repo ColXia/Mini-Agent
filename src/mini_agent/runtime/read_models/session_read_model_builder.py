@@ -17,7 +17,7 @@ from mini_agent.interfaces import (
 try:
     from mini_agent.interaction import normalize_channel_type
 except Exception:  # pragma: no cover - compatibility path for staged interaction extraction
-    from mini_agent.runtime.interaction_surface import normalize_channel_type
+    from mini_agent.runtime.support.interaction_surface import normalize_channel_type
 from mini_agent.session import (
     SessionDetailProjection,
     SessionMessageProjection,

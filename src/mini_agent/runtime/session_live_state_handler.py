@@ -14,7 +14,7 @@ try:
         resolve_interaction_binding,
     )
 except Exception:  # pragma: no cover - compatibility path for staged interaction extraction
-    from mini_agent.runtime.interaction_surface import (
+    from mini_agent.runtime.support.interaction_surface import (
         normalize_surface_label,
         resolve_interaction_binding,
     )

@@ -22,7 +22,7 @@ from mini_agent.agent_core.skills.workspace_support import (
     load_workspace_skill_policy,
 )
 
-from mini_agent.runtime.sandbox_state import compact_sandbox_summary, format_sandbox_status
+from mini_agent.runtime.support.sandbox_state import compact_sandbox_summary, format_sandbox_status
 from mini_agent.agent_core.context.turn_context import (
     context_policy_summary_line,
     format_context_policy_details,

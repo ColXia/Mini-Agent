@@ -9,7 +9,7 @@ from typing import Any
 from fastapi import HTTPException
 
 from mini_agent.agent_core.runtime_bindings import get_agent_runtime_services
-from mini_agent.runtime.sandbox_state import normalize_sandbox_diagnostics
+from mini_agent.runtime.support.sandbox_state import normalize_sandbox_diagnostics
 
 
 def _safe_text(value: object) -> str:

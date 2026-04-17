@@ -99,9 +99,9 @@ from mini_agent.runtime.session_snapshot_handler import (
     RuntimeSessionSnapshotHandler,
     RuntimeSessionSnapshotImportCommand,
 )
-from mini_agent.runtime.sandbox_state import collect_sandbox_diagnostics
+from mini_agent.runtime.support.sandbox_state import collect_sandbox_diagnostics
 from mini_agent.runtime.tooling import reconfigure_agent_runtime_policy
-from mini_agent.runtime.workspace_path_utils import same_workspace_path, workspace_path_key
+from mini_agent.runtime.support.workspace_path_utils import same_workspace_path, workspace_path_key
 from mini_agent.tools.mcp_loader import cleanup_mcp_connections
 _RUNTIME_SESSION_KIND = "main-agent-runtime"
 

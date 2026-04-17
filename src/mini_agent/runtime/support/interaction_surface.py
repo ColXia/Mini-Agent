@@ -1,6 +1,6 @@
-"""Compatibility re-export for runtime interaction-surface helpers."""
+"""Shared interaction-surface compatibility exports for runtime owners."""
 
-from .support.interaction_surface import (
+from mini_agent.interaction import (
     ACTIVE_REMOTE_CHANNEL_ADAPTERS,
     InteractionBinding,
     InteractionSurface,

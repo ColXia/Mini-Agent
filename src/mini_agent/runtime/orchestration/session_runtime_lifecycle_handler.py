@@ -9,7 +9,7 @@ from typing import Any, Callable
 
 from mini_agent.agent_core.session import AgentSessionKey, SessionLifecycleManager, SessionLifecycleState
 from mini_agent.runtime.orchestration.session_runtime_policy_coordinator import RuntimeSessionPolicyCoordinator
-from mini_agent.runtime.workspace_path_utils import workspace_path_key
+from mini_agent.runtime.support.workspace_path_utils import workspace_path_key
 
 
 @dataclass(slots=True)

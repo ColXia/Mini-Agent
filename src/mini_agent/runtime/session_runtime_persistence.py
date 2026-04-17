@@ -12,7 +12,7 @@ from mini_agent.runtime.session_persistence_loader import RuntimeSessionPersiste
 from mini_agent.runtime.session_persistence_metadata_registry import RuntimeSessionPersistenceMetadataRegistry
 from mini_agent.runtime.session_persistence_record_builder import RuntimeSessionPersistenceRecordBuilder
 from mini_agent.runtime.session_shared_transcript_store import RuntimeSessionSharedTranscriptStore
-from mini_agent.runtime.sandbox_state import normalize_sandbox_diagnostics
+from mini_agent.runtime.support.sandbox_state import normalize_sandbox_diagnostics
 from mini_agent.session.persistence import SessionPersistence
 
 if TYPE_CHECKING:

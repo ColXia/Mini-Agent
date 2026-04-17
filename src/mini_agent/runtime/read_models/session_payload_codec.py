@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Sequence
 from mini_agent.agent_core.context.context_compaction import estimate_tokens
 from mini_agent.agent_core.engine import Agent
 from mini_agent.agent_core.context.turn_context import resolve_turn_context_policy
-from mini_agent.runtime.sandbox_state import normalize_sandbox_diagnostics
+from mini_agent.runtime.support.sandbox_state import normalize_sandbox_diagnostics
 from mini_agent.schema import Message
 
 if TYPE_CHECKING:

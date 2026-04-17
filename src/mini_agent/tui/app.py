@@ -99,7 +99,7 @@ from mini_agent.model_manager.session_selection_service import (
     SessionModelSelectionRequest,
     SessionModelSelectionService,
 )
-from mini_agent.runtime.sandbox_state import (
+from mini_agent.runtime.support.sandbox_state import (
     collect_sandbox_diagnostics,
     compact_sandbox_summary,
     sandbox_guardrail_summary,
