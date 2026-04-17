@@ -17,7 +17,7 @@ from .operations_memory_use_cases import MemoryOperationsUseCases
 from .operations_provider_use_cases import ProviderOperationsUseCases
 from .session_runtime_port import ManagedRuntimeSessionPort, SessionRuntimePort, SessionTurnScopePort
 from .session_service import SessionApplicationService
-from .use_cases import RunControlApplicationService
+from .use_cases import RunControlApplicationService, SessionTaskService
 from .user_services import AgentUserService, CommandUserService, ModelUserService, WorkspaceUserService
 
 __all__ = [
@@ -36,6 +36,7 @@ __all__ = [
     "ModelUserService",
     "ProviderOperationsUseCases",
     "RunControlApplicationService",
+    "SessionTaskService",
     "RunRuntimePort",
     "SessionApplicationService",
     "SessionRuntimePort",

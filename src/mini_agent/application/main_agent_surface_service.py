@@ -81,8 +81,9 @@ class MainAgentSurfaceService:
         self._sse_event = sse_event
         self._format_bootstrap_error = format_bootstrap_error
         self._stream_chunk_size = max(1, int(stream_chunk_size))
+        session_task_service = getattr(self._session_service, "session_task_service", self._session_service)
         self._chat_flow = SurfaceChatFlowHandler(
-            session_service=self._session_service,
+            session_task_service=session_task_service,
             to_utc_iso=self._to_utc_iso,
             sse_event=self._sse_event,
             format_bootstrap_error=self._format_bootstrap_error,
@@ -90,7 +91,7 @@ class MainAgentSurfaceService:
         )
         self._agent_execution = AgentTurnExecutionHandler()
         self._delegation_execution = AgentDelegationExecutionHandler(
-            session_service=self._session_service,
+            session_task_service=session_task_service,
             agent_execution=self._agent_execution,
             delegation_owner=self._DELEGATION_OWNER,
             fallback_worker_id=self._ROUTE_AGENT_MAIN,

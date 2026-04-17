@@ -10,6 +10,7 @@ from mini_agent.application.user_services.agent_user_service import AgentUserSer
 from mini_agent.application.interaction_request_adapter import ApplicationInteractionBinding
 from mini_agent.application.managed_session_turn import ManagedSessionTurn
 from mini_agent.application.use_cases.run_control_application_service import RunControlApplicationService
+from mini_agent.application.use_cases.session_task_service import SessionTaskService
 from mini_agent.application.user_services.model_user_service import ModelUserService
 from mini_agent.interfaces import (
     MainAgentSessionApprovalRequest,
@@ -187,8 +188,10 @@ class SessionApplicationService:
         run_control_service: RunControlApplicationService | None = None,
         agent_service: AgentUserService | None = None,
         model_service: ModelUserService | None = None,
+        session_task_service: SessionTaskService | None = None,
     ) -> None:
         self._runtime_manager = runtime_manager
+        self._session_task_service = session_task_service or SessionTaskService(runtime_manager=runtime_manager)
         self._run_control_service = run_control_service or RunControlApplicationService(
             run_runtime=_UnavailableRunRuntimeAdapter(),
             session_tasks=_SessionTaskCompatibilityAdapter(runtime_manager),
@@ -206,7 +209,7 @@ class SessionApplicationService:
         )
 
     def validate_workspace(self, workspace_dir: Path) -> None:
-        self._runtime_manager.validate_workspace(workspace_dir)
+        self._session_task_service.validate_workspace(workspace_dir)
 
     @property
     def run_control_service(self) -> RunControlApplicationService:
@@ -220,25 +223,28 @@ class SessionApplicationService:
     def model_service(self) -> ModelUserService:
         return self._model_service
 
+    @property
+    def session_task_service(self) -> SessionTaskService:
+        return self._session_task_service
+
     async def list_sessions(
         self,
         *,
         workspace_dir: Path | None = None,
         shared_only: bool = False,
     ) -> list[MainAgentSessionSummary]:
-        return await self._runtime_manager.list_sessions(
+        return await self._session_task_service.list_sessions(
             workspace_dir=workspace_dir,
             shared_only=shared_only,
         )
 
-    async def create_session(self, request: MainAgentSessionCreateRequest, *, workspace_dir: Path) -> MainAgentSessionDetail:
-        session = await self._runtime_manager.create_session(
-            workspace_dir=workspace_dir,
-            title=request.title,
-            surface=request.surface,
-            shared=request.shared,
-        )
-        return await self._runtime_manager.get_session_detail(session.session_id, recent_limit=50)
+    async def create_session(
+        self,
+        request: MainAgentSessionCreateRequest,
+        *,
+        workspace_dir: Path,
+    ) -> MainAgentSessionDetail:
+        return await self._session_task_service.create_session(request, workspace_dir=workspace_dir)
 
     async def ensure_default_session(
         self,
@@ -246,70 +252,40 @@ class SessionApplicationService:
         *,
         workspace_dir: Path,
     ) -> MainAgentSessionDetail:
-        session = await self._runtime_manager.ensure_default_session(
-            workspace_dir,
-            surface=request.surface,
-            channel_type=request.channel_type,
-            conversation_id=request.conversation_id,
-            sender_id=request.sender_id,
-        )
-        return await self._runtime_manager.get_session_detail(session.session_id, recent_limit=50)
+        return await self._session_task_service.ensure_default_session(request, workspace_dir=workspace_dir)
 
     async def create_derived_session(
         self,
         parent_session_id: str,
         request: MainAgentSessionForkRequest,
     ) -> MainAgentSessionDetail:
-        binding = ApplicationInteractionBinding.from_request(request, default_surface="tui")
-        session = await self._runtime_manager.create_derived_session(
-            parent_session_id=parent_session_id,
-            title=request.title,
-            reason="fork",
-            **binding.as_kwargs(),
-        )
-        return await self._runtime_manager.get_session_detail(session.session_id, recent_limit=50)
+        return await self._session_task_service.create_derived_session(parent_session_id, request)
 
     async def get_session_detail(self, session_id: str, *, recent_limit: int = 50) -> MainAgentSessionDetail:
-        return await self._runtime_manager.get_session_detail(session_id, recent_limit=recent_limit)
+        return await self._session_task_service.get_session_detail(session_id, recent_limit=recent_limit)
 
     async def get_session_messages(self, session_id: str, *, limit: int = 10) -> list[MainAgentSessionMessage]:
-        return await self._runtime_manager.get_recent_messages(session_id, limit=limit)
+        return await self._session_task_service.get_session_messages(session_id, limit=limit)
 
     async def delete_session(self, session_id: str) -> MainAgentSessionMutationResponse:
-        await self._runtime_manager.delete_session(session_id)
-        return MainAgentSessionMutationResponse(status="deleted", session_id=session_id)
+        return await self._session_task_service.delete_session(session_id)
 
     async def rename_session(
         self,
         session_id: str,
         request: MainAgentSessionRenameRequest,
     ) -> MainAgentSessionMutationResponse:
-        summary = await self._runtime_manager.rename_session(session_id, title=request.title)
-        return MainAgentSessionMutationResponse(
-            status="renamed",
-            session_id=summary.session_id,
-            active_surface=summary.active_surface,
-            title=summary.title,
-            shared=summary.shared,
-        )
+        return await self._session_task_service.rename_session(session_id, request)
 
     async def set_session_shared(
         self,
         session_id: str,
         request: MainAgentSessionShareRequest,
     ) -> MainAgentSessionMutationResponse:
-        summary = await self._runtime_manager.set_session_shared(session_id, shared=request.shared)
-        return MainAgentSessionMutationResponse(
-            status="shared" if summary.shared else "unshared",
-            session_id=summary.session_id,
-            active_surface=summary.active_surface,
-            title=summary.title,
-            shared=summary.shared,
-        )
+        return await self._session_task_service.set_session_shared(session_id, request)
 
     async def reset_session(self, session_id: str) -> MainAgentSessionMutationResponse:
-        await self._runtime_manager.reset_session(session_id)
-        return MainAgentSessionMutationResponse(status="reset", session_id=session_id)
+        return await self._session_task_service.reset_session(session_id)
 
     async def cancel_session(
         self,
@@ -435,79 +411,13 @@ class SessionApplicationService:
         )
 
     async def build_ephemeral_agent(self, workspace_dir: Path) -> Agent:
-        return await self._runtime_manager.build_ephemeral_agent(workspace_dir)
+        return await self._session_task_service.build_ephemeral_agent(workspace_dir)
 
-    async def prepare_derived_chat_turn(
-        self,
-        *,
-        parent_session_id: str,
-        message: str,
-        title: str | None = None,
-        surface: str | None = None,
-        channel_type: str | None = None,
-        conversation_id: str | None = None,
-        sender_id: str | None = None,
-        running_detail: str,
-        reason: str,
-        metadata: dict[str, Any] | None = None,
-    ) -> ManagedSessionTurn:
-        binding = ApplicationInteractionBinding.from_values(
-            surface=surface,
-            channel_type=channel_type,
-            conversation_id=conversation_id,
-            sender_id=sender_id,
-        )
-        session = await self._runtime_manager.create_derived_session(
-            parent_session_id=parent_session_id,
-            title=title,
-            reason=reason,
-            metadata=metadata,
-            **binding.as_kwargs(),
-        )
-        return ManagedSessionTurn(
-            turn_scope=self._runtime_manager.turn_scope_handler,
-            session=session,
-            binding=binding,
-            user_message=message,
-            running_detail=running_detail,
-        )
+    async def prepare_derived_chat_turn(self, **kwargs: Any) -> ManagedSessionTurn:
+        return await self._session_task_service.prepare_derived_chat_turn(**kwargs)
 
-    async def prepare_chat_turn(
-        self,
-        *,
-        workspace_dir: Path,
-        message: str,
-        session_id: str | None = None,
-        session_title_hint: str | None = None,
-        surface: str | None = None,
-        channel_type: str | None = None,
-        conversation_id: str | None = None,
-        sender_id: str | None = None,
-        running_detail: str,
-    ) -> ManagedSessionTurn:
-        binding = ApplicationInteractionBinding.from_values(
-            surface=surface,
-            channel_type=channel_type,
-            conversation_id=conversation_id,
-            sender_id=sender_id,
-        )
-        session = await self._runtime_manager.get_or_create_session(
-            session_id,
-            workspace_dir,
-            **binding.as_kwargs(),
-            session_title_hint=session_title_hint,
-        )
-        await self._runtime_manager.ensure_session_runtime_policy_ready_for_turn(
-            session,
-            **binding.as_kwargs(),
-        )
-        return ManagedSessionTurn(
-            turn_scope=self._runtime_manager.turn_scope_handler,
-            session=session,
-            binding=binding,
-            user_message=message,
-            running_detail=running_detail,
-        )
+    async def prepare_chat_turn(self, **kwargs: Any) -> ManagedSessionTurn:
+        return await self._session_task_service.prepare_chat_turn(**kwargs)
 
 
 __all__ = [

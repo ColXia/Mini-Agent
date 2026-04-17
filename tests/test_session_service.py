@@ -378,6 +378,146 @@ def test_session_service_prepare_chat_turn_accepts_structural_runtime_port(tmp_p
     asyncio.run(_run())
 
 
+def test_session_service_uses_injected_session_task_service_for_session_crud() -> None:
+    class _SessionTaskServiceStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        def validate_workspace(self, workspace_dir: Path) -> None:
+            self.calls.append(("validate_workspace", workspace_dir))
+
+        async def list_sessions(self, *, workspace_dir=None, shared_only=False):  # noqa: ANN001, ANN003
+            self.calls.append(("list_sessions", workspace_dir, shared_only))
+            return ["listed"]
+
+        async def create_session(self, request, *, workspace_dir):  # noqa: ANN001, ANN003
+            self.calls.append(("create_session", request.title, workspace_dir))
+            return {"kind": "created", "title": request.title}
+
+        async def get_session_detail(self, session_id: str, *, recent_limit: int = 50):
+            self.calls.append(("get_session_detail", session_id, recent_limit))
+            return {"kind": "detail", "session_id": session_id, "recent_limit": recent_limit}
+
+        async def delete_session(self, session_id: str):
+            self.calls.append(("delete_session", session_id))
+            return {"kind": "deleted", "session_id": session_id}
+
+    class _RuntimeStub:
+        def validate_workspace(self, workspace_dir: Path) -> None:
+            raise AssertionError(f"runtime.validate_workspace should not be called: {workspace_dir}")
+
+    async def _run() -> None:
+        session_task_service = _SessionTaskServiceStub()
+        service = SessionApplicationService(
+            runtime_manager=_RuntimeStub(),
+            session_task_service=session_task_service,
+        )
+
+        workspace = Path("D:/workspace/demo")
+        service.validate_workspace(workspace)
+        listed = await service.list_sessions(workspace_dir=workspace, shared_only=True)
+        created = await service.create_session(
+            MainAgentSessionCreateRequest(title="Session 1", surface="desktop", shared=False),
+            workspace_dir=workspace,
+        )
+        detail = await service.get_session_detail("sess-1", recent_limit=3)
+        deleted = await service.delete_session("sess-1")
+
+        assert service.session_task_service is session_task_service
+        assert listed == ["listed"]
+        assert created == {"kind": "created", "title": "Session 1"}
+        assert detail == {"kind": "detail", "session_id": "sess-1", "recent_limit": 3}
+        assert deleted == {"kind": "deleted", "session_id": "sess-1"}
+        assert session_task_service.calls == [
+            ("validate_workspace", workspace),
+            ("list_sessions", workspace, True),
+            ("create_session", "Session 1", workspace),
+            ("get_session_detail", "sess-1", 3),
+            ("delete_session", "sess-1"),
+        ]
+
+    asyncio.run(_run())
+
+
+def test_session_service_uses_injected_session_task_service_for_turn_preparation() -> None:
+    class _SessionTaskServiceStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        async def build_ephemeral_agent(self, workspace_dir: Path):
+            self.calls.append(("build_ephemeral_agent", workspace_dir))
+            return {"kind": "agent", "workspace_dir": str(workspace_dir)}
+
+        async def prepare_chat_turn(self, **kwargs):
+            self.calls.append(("prepare_chat_turn", kwargs))
+            return {"kind": "chat_turn", "kwargs": kwargs}
+
+        async def prepare_derived_chat_turn(self, **kwargs):
+            self.calls.append(("prepare_derived_chat_turn", kwargs))
+            return {"kind": "derived_turn", "kwargs": kwargs}
+
+    class _RuntimeStub:
+        def validate_workspace(self, workspace_dir: Path) -> None:
+            raise AssertionError(f"runtime.validate_workspace should not be called: {workspace_dir}")
+
+    async def _run() -> None:
+        session_task_service = _SessionTaskServiceStub()
+        service = SessionApplicationService(
+            runtime_manager=_RuntimeStub(),
+            session_task_service=session_task_service,
+        )
+
+        workspace = Path("D:/workspace/demo")
+        agent = await service.build_ephemeral_agent(workspace)
+        turn = await service.prepare_chat_turn(
+            workspace_dir=workspace,
+            message="hello",
+            session_id="sess-1",
+            surface="desktop",
+            running_detail="desktop request running",
+        )
+        derived = await service.prepare_derived_chat_turn(
+            parent_session_id="sess-1",
+            message="follow up",
+            title="Task: child",
+            surface="desktop",
+            running_detail="desktop derived running",
+            reason="fork",
+        )
+
+        assert agent == {"kind": "agent", "workspace_dir": str(workspace)}
+        assert turn["kind"] == "chat_turn"
+        assert turn["kwargs"]["message"] == "hello"
+        assert derived["kind"] == "derived_turn"
+        assert derived["kwargs"]["parent_session_id"] == "sess-1"
+        assert session_task_service.calls == [
+            ("build_ephemeral_agent", workspace),
+            (
+                "prepare_chat_turn",
+                {
+                    "workspace_dir": workspace,
+                    "message": "hello",
+                    "session_id": "sess-1",
+                    "surface": "desktop",
+                    "running_detail": "desktop request running",
+                },
+            ),
+            (
+                "prepare_derived_chat_turn",
+                {
+                    "parent_session_id": "sess-1",
+                    "message": "follow up",
+                    "title": "Task: child",
+                    "surface": "desktop",
+                    "running_detail": "desktop derived running",
+                    "reason": "fork",
+                },
+            ),
+        ]
+
+    asyncio.run(_run())
+
+
 def test_session_service_prepare_chat_turn_normalizes_private_desktop_plan_session(tmp_path: Path) -> None:
     async def _run() -> None:
         async def _build_agent(_workspace: Path):

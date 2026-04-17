@@ -6,17 +6,34 @@ import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, AsyncIterator, Awaitable, Callable, TYPE_CHECKING
+from typing import Any, AsyncIterator, Awaitable, Callable, Protocol, TYPE_CHECKING
 from uuid import uuid4
 
 from fastapi import HTTPException
 
 from mini_agent.application.managed_session_turn import ManagedSessionTurn
-from mini_agent.application.session_service import SessionApplicationService
 from mini_agent.interfaces import MainAgentChatResponse
 
 if TYPE_CHECKING:
     from mini_agent.application.surface_service_types import FormatBootstrapErrorFn, SseEventFn, ToUtcIsoFn
+
+
+class SessionTaskFlowPort(Protocol):
+    def validate_workspace(self, workspace_dir: Path) -> None: ...
+
+    async def prepare_chat_turn(
+        self,
+        *,
+        workspace_dir: Path,
+        message: str,
+        session_id: str | None = None,
+        session_title_hint: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+        running_detail: str,
+    ) -> ManagedSessionTurn: ...
 
 
 @dataclass(frozen=True)
@@ -56,7 +73,7 @@ ExecuteSurfaceChatTurnFn = Callable[
 
 @dataclass(slots=True)
 class SurfaceChatFlowHandler:
-    session_service: SessionApplicationService
+    session_task_service: SessionTaskFlowPort
     to_utc_iso: "ToUtcIsoFn"
     sse_event: "SseEventFn"
     format_bootstrap_error: "FormatBootstrapErrorFn"
@@ -68,7 +85,7 @@ class SurfaceChatFlowHandler:
         *,
         execute_turn: ExecuteSurfaceChatTurnFn,
     ) -> MainAgentChatResponse:
-        self.session_service.validate_workspace(request.workspace_dir)
+        self.session_task_service.validate_workspace(request.workspace_dir)
         if request.dry_run:
             return self._build_dry_run_response(request)
 
@@ -98,7 +115,7 @@ class SurfaceChatFlowHandler:
         *,
         execute_turn: ExecuteSurfaceChatTurnFn,
     ) -> AsyncIterator[str]:
-        self.session_service.validate_workspace(request.workspace_dir)
+        self.session_task_service.validate_workspace(request.workspace_dir)
         if request.dry_run:
             async for item in self._stream_dry_run_events(request):
                 yield item
@@ -172,7 +189,7 @@ class SurfaceChatFlowHandler:
 
     async def _prepare_turn(self, request: SurfaceChatExecutionRequest) -> ManagedSessionTurn:
         try:
-            return await self.session_service.prepare_chat_turn(
+            return await self.session_task_service.prepare_chat_turn(
                 workspace_dir=request.workspace_dir,
                 message=request.message,
                 session_id=request.session_id,

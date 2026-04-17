@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 
 from mini_agent.agent_core.delegation import DelegationManager, DelegationRequest
 from mini_agent.application.agent_turn_execution_handler import (
@@ -11,7 +11,23 @@ from mini_agent.application.agent_turn_execution_handler import (
     SurfaceAgentExecutionRequest,
 )
 from mini_agent.application.managed_session_turn import ManagedSessionTurn
-from mini_agent.application.session_service import SessionApplicationService
+
+
+class SessionTaskDelegationPort(Protocol):
+    async def prepare_derived_chat_turn(
+        self,
+        *,
+        parent_session_id: str,
+        message: str,
+        title: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+        running_detail: str,
+        reason: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> ManagedSessionTurn: ...
 
 
 @dataclass(frozen=True)
@@ -32,12 +48,12 @@ class AgentDelegationExecutionHandler:
     def __init__(
         self,
         *,
-        session_service: SessionApplicationService,
+        session_task_service: SessionTaskDelegationPort,
         agent_execution: AgentTurnExecutionHandler,
         delegation_owner: str = "sub-agent",
         fallback_worker_id: str = "main-agent",
     ) -> None:
-        self._session_service = session_service
+        self._session_task_service = session_task_service
         self._agent_execution = agent_execution
         self._delegation_owner = delegation_owner
         self._fallback_worker_id = fallback_worker_id
@@ -56,7 +72,7 @@ class AgentDelegationExecutionHandler:
             events.append({"event_type": event_type, "payload": dict(payload)})
 
         async def _runner(request: DelegationRequest) -> dict[str, Any]:
-            child_turn = await self._session_service.prepare_derived_chat_turn(
+            child_turn = await self._session_task_service.prepare_derived_chat_turn(
                 parent_session_id=turn.session_id,
                 message=request.prompt,
                 title=self._delegated_session_title(request.prompt),
