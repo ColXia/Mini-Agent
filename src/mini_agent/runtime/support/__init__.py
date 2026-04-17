@@ -46,6 +46,15 @@ from .session_local_agent_runtime_handler import (
     LocalSessionAgentRuntimeHandler,
 )
 from .session_local_mcp_runtime_service import LocalSessionMcpRuntimeService
+from .session_lineage_registry import RuntimeSessionLineageRegistry
+from .session_lifecycle import (
+    SESSION_IDLE_SECONDS_ENV,
+    SESSION_RESET_MODE_ENV,
+    SessionLifecycleDecision,
+    SurfaceSessionLifecycleRuntime,
+    build_surface_session_key,
+    resolve_session_lifecycle_policy,
+)
 from .session_persistence_loader import RuntimeSessionPersistenceLoader
 from .session_persistence_metadata_registry import RuntimeSessionPersistenceMetadataRegistry
 from .session_persistence_record_builder import RuntimeSessionPersistenceRecordBuilder
@@ -75,6 +84,11 @@ __all__ = [
     "LocalSessionMcpRuntimeService",
     "LoadRuntimeConfigFn",
     "MainAgentRuntimePersistence",
+    "SESSION_IDLE_SECONDS_ENV",
+    "SESSION_RESET_MODE_ENV",
+    "SessionLifecycleDecision",
+    "SurfaceSessionLifecycleRuntime",
+    "RuntimeSessionLineageRegistry",
     "RuntimeSessionCommandCoordinator",
     "RuntimeSessionCommandTranscript",
     "RuntimeSessionControlCommand",
@@ -92,6 +106,7 @@ __all__ = [
     "USER_ENTRANCES",
     "add_workspace_tools",
     "apply_runtime_policy_to_agent",
+    "build_surface_session_key",
     "build_approval_engine",
     "build_turn_context_providers",
     "build_workspace_sandbox_manager",
@@ -105,6 +120,7 @@ __all__ = [
     "normalize_session_control_action",
     "normalize_surface_label",
     "reconfigure_agent_runtime_policy",
+    "resolve_session_lifecycle_policy",
     "resolve_runtime_policy",
     "resolve_interaction_binding",
     "resolve_interaction_surface",

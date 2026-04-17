@@ -89,7 +89,7 @@ from mini_agent.runtime.live_control.session_recovery_reset_handler import (
 from mini_agent.runtime.orchestration.session_managed_store_handler import (
     RuntimeManagedSessionStoreHandler,
 )
-from mini_agent.runtime.session_lineage_registry import RuntimeSessionLineageRegistry
+from mini_agent.runtime.support.session_lineage_registry import RuntimeSessionLineageRegistry
 from mini_agent.runtime.handlers.session_memory_command_handler import RuntimeSessionMemoryCommandHandler
 from mini_agent.runtime.live_control.session_pending_approval_state_handler import (
     RuntimeSessionPendingApprovalStateHandler,

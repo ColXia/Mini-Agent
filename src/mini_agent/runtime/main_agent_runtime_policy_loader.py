@@ -10,7 +10,7 @@ from mini_agent.runtime.main_agent_runtime_contracts import (
     MainAgentRuntimeMode,
     MainAgentRuntimePolicy,
 )
-from mini_agent.runtime.session_lifecycle import resolve_session_lifecycle_policy
+from mini_agent.runtime.support.session_lifecycle import resolve_session_lifecycle_policy
 
 
 MAIN_AGENT_RUNTIME_MODE_ENV = "MINI_AGENT_RUNTIME_MODE"

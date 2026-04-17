@@ -136,7 +136,7 @@ from mini_agent.tui.session_skill_command_coordinator import TuiSessionSkillComm
 from mini_agent.tui.session_turn_outcome_coordinator import TuiSessionTurnOutcomeCoordinator
 from mini_agent.tui.session_turn_state_coordinator import TuiSessionTurnStateCoordinator
 from mini_agent.tui.session_projection import TerminalSessionProjection
-from mini_agent.runtime.session_lifecycle import SurfaceSessionLifecycleRuntime
+from mini_agent.runtime.support.session_lifecycle import SurfaceSessionLifecycleRuntime
 from mini_agent.schema import Message
 from mini_agent.tools.mcp_loader import cleanup_mcp_connections
 from mini_agent.agent_core.context.turn_context import (

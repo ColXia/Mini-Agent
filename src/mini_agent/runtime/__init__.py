@@ -60,7 +60,7 @@ def __getattr__(name: str) -> Any:
         module = import_module(".session_state", __name__)
         return getattr(module, name)
     if name in _SESSION_EXPORTS:
-        module = import_module(".session_lifecycle", __name__)
+        module = import_module(".support.session_lifecycle", __name__)
         return getattr(module, name)
     if name in _TOOLING_EXPORTS:
         module = import_module(".support.tooling", __name__)
