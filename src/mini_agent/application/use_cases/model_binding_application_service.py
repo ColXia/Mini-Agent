@@ -1,4 +1,4 @@
-"""User-facing model operations facade."""
+"""Application service for agent model binding and session-selection compatibility."""
 
 from __future__ import annotations
 
@@ -7,30 +7,34 @@ from typing import Any
 
 from mini_agent.application.ports.model_runtime_port import ModelRuntimePort
 from mini_agent.application.ports.session_model_selection_runtime_port import SessionModelSelectionRuntimePort
-from mini_agent.application.use_cases.model_binding_application_service import ModelBindingApplicationService
+
+
+def _require_model_runtime(runtime: ModelRuntimePort | None) -> ModelRuntimePort:
+    if runtime is None:
+        raise RuntimeError("Model runtime port is not configured.")
+    return runtime
+
+
+def _require_session_model_runtime(
+    runtime: SessionModelSelectionRuntimePort | None,
+) -> SessionModelSelectionRuntimePort:
+    if runtime is None:
+        raise RuntimeError("Session model compatibility runtime is not configured.")
+    return runtime
 
 
 @dataclass(slots=True)
-class ModelUserService:
-    """Thin user-service facade for model binding and capability views."""
+class ModelBindingApplicationService:
+    """Owns application-layer model binding and compatibility selection flows."""
 
-    application_service: ModelBindingApplicationService | None = None
     model_runtime: ModelRuntimePort | None = None
     session_model_runtime: SessionModelSelectionRuntimePort | None = None
 
-    def _application(self) -> ModelBindingApplicationService:
-        if self.application_service is None:
-            self.application_service = ModelBindingApplicationService(
-                model_runtime=self.model_runtime,
-                session_model_runtime=self.session_model_runtime,
-            )
-        return self.application_service
-
     async def list_model_bindings(self) -> Any:
-        return await self._application().list_model_bindings()
+        return await _require_model_runtime(self.model_runtime).list_model_bindings()
 
     async def get_model_binding(self, agent_id: str | None = None) -> Any:
-        return await self._application().get_model_binding(agent_id)
+        return await _require_model_runtime(self.model_runtime).get_model_binding(agent_id)
 
     async def update_model_binding(
         self,
@@ -40,7 +44,7 @@ class ModelUserService:
         provider_id: str | None = None,
         model_id: str | None = None,
     ) -> Any:
-        return await self._application().update_model_binding(
+        return await _require_model_runtime(self.model_runtime).update_model_binding(
             agent_id=agent_id,
             provider_source=provider_source,
             provider_id=provider_id,
@@ -48,7 +52,7 @@ class ModelUserService:
         )
 
     async def list_model_capabilities(self, agent_id: str | None = None) -> Any:
-        return await self._application().list_model_capabilities(agent_id)
+        return await _require_model_runtime(self.model_runtime).list_model_capabilities(agent_id)
 
     async def update_session_model_selection(
         self,
@@ -62,7 +66,7 @@ class ModelUserService:
         conversation_id: str | None = None,
         sender_id: str | None = None,
     ) -> Any:
-        return await self._application().update_session_model_selection(
+        return await _require_session_model_runtime(self.session_model_runtime).update_session_model_selection(
             session_id,
             provider_source=provider_source,
             provider_id=provider_id,
@@ -74,4 +78,4 @@ class ModelUserService:
         )
 
 
-__all__ = ["ModelUserService"]
+__all__ = ["ModelBindingApplicationService"]

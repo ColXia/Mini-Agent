@@ -1,4 +1,4 @@
-"""User-facing agent operations facade."""
+"""Application service for agent-facing operations and session compatibility actions."""
 
 from __future__ import annotations
 
@@ -7,42 +7,49 @@ from typing import Any
 
 from mini_agent.application.ports.agent_runtime_port import AgentRuntimePort
 from mini_agent.application.ports.session_agent_runtime_port import SessionAgentRuntimePort
-from mini_agent.application.use_cases.agent_application_service import AgentApplicationService
 from mini_agent.application.use_cases.run_control_application_service import RunControlApplicationService
 
 
-@dataclass(slots=True)
-class AgentUserService:
-    """Thin user-service facade for agent and run-facing actions."""
+def _require_agent_runtime(runtime: AgentRuntimePort | None) -> AgentRuntimePort:
+    if runtime is None:
+        raise RuntimeError("Agent runtime port is not configured.")
+    return runtime
 
-    application_service: AgentApplicationService | None = None
+
+def _require_run_control(service: RunControlApplicationService | None) -> RunControlApplicationService:
+    if service is None:
+        raise RuntimeError("Run control application service is not configured.")
+    return service
+
+
+def _require_session_agent_runtime(runtime: SessionAgentRuntimePort | None) -> SessionAgentRuntimePort:
+    if runtime is None:
+        raise RuntimeError("Session agent compatibility runtime is not configured.")
+    return runtime
+
+
+@dataclass(slots=True)
+class AgentApplicationService:
+    """Owns agent-facing application logic above runtime ports and control services."""
+
     agent_runtime: AgentRuntimePort | None = None
     run_control: RunControlApplicationService | None = None
     session_agent_runtime: SessionAgentRuntimePort | None = None
 
-    def _application(self) -> AgentApplicationService:
-        if self.application_service is None:
-            self.application_service = AgentApplicationService(
-                agent_runtime=self.agent_runtime,
-                run_control=self.run_control,
-                session_agent_runtime=self.session_agent_runtime,
-            )
-        return self.application_service
-
     async def list_agents(self) -> Any:
-        return await self._application().list_agents()
+        return await _require_agent_runtime(self.agent_runtime).list_agents()
 
     async def get_agent(self, agent_id: str) -> Any:
-        return await self._application().get_agent(agent_id)
+        return await _require_agent_runtime(self.agent_runtime).get_agent(agent_id)
 
     async def get_active_agent(self) -> Any:
-        return await self._application().get_active_agent()
+        return await _require_agent_runtime(self.agent_runtime).get_active_agent()
 
     async def get_run(self, run_id: str) -> Any:
-        return await self._application().get_run(run_id)
+        return await _require_run_control(self.run_control).get_run(run_id)
 
     async def interrupt_run(self, run_id: str, *, reason: str | None = None, source: str | None = None) -> Any:
-        return await self._application().interrupt_run(run_id, reason=reason, source=source)
+        return await _require_run_control(self.run_control).interrupt_run(run_id, reason=reason, source=source)
 
     async def resume_run(
         self,
@@ -51,14 +58,14 @@ class AgentUserService:
         resume_token: str | None = None,
         source: str | None = None,
     ) -> Any:
-        return await self._application().resume_run(
+        return await _require_run_control(self.run_control).resume_run(
             run_id,
             resume_token=resume_token,
             source=source,
         )
 
     async def cancel_run(self, run_id: str, *, reason: str | None = None, source: str | None = None) -> Any:
-        return await self._application().cancel_run(run_id, reason=reason, source=source)
+        return await _require_run_control(self.run_control).cancel_run(run_id, reason=reason, source=source)
 
     async def approve_wait(
         self,
@@ -68,7 +75,7 @@ class AgentUserService:
         source: str | None = None,
         reason: str | None = None,
     ) -> Any:
-        return await self._application().approve_wait(
+        return await _require_run_control(self.run_control).approve_wait(
             run_id,
             token=token,
             source=source,
@@ -83,7 +90,7 @@ class AgentUserService:
         source: str | None = None,
         reason: str | None = None,
     ) -> Any:
-        return await self._application().deny_wait(
+        return await _require_run_control(self.run_control).deny_wait(
             run_id,
             token=token,
             source=source,
@@ -101,7 +108,7 @@ class AgentUserService:
         conversation_id: str | None = None,
         sender_id: str | None = None,
     ) -> Any:
-        return await self._application().cancel_session_run(
+        return await _require_run_control(self.run_control).cancel_session_run(
             session_id,
             reason=reason,
             source=source,
@@ -123,7 +130,7 @@ class AgentUserService:
         conversation_id: str | None = None,
         sender_id: str | None = None,
     ) -> Any:
-        return await self._application().approve_session_wait(
+        return await _require_run_control(self.run_control).approve_session_wait(
             session_id,
             token=token,
             source=source,
@@ -146,7 +153,7 @@ class AgentUserService:
         conversation_id: str | None = None,
         sender_id: str | None = None,
     ) -> Any:
-        return await self._application().deny_session_wait(
+        return await _require_run_control(self.run_control).deny_session_wait(
             session_id,
             token=token,
             source=source,
@@ -168,7 +175,7 @@ class AgentUserService:
         conversation_id: str | None = None,
         sender_id: str | None = None,
     ) -> Any:
-        return await self._application().update_session_runtime_policy(
+        return await _require_session_agent_runtime(self.session_agent_runtime).update_session_runtime_policy(
             session_id,
             approval_profile=approval_profile,
             access_level=access_level,
@@ -189,7 +196,7 @@ class AgentUserService:
         conversation_id: str | None = None,
         sender_id: str | None = None,
     ) -> Any:
-        return await self._application().control_session(
+        return await _require_session_agent_runtime(self.session_agent_runtime).control_session_context(
             session_id,
             action=action,
             reason=reason,
@@ -213,7 +220,7 @@ class AgentUserService:
         conversation_id: str | None = None,
         sender_id: str | None = None,
     ) -> Any:
-        return await self._application().update_session_context(
+        return await _require_session_agent_runtime(self.session_agent_runtime).update_session_context_policy(
             session_id,
             action=action,
             sources=sources,
@@ -242,7 +249,7 @@ class AgentUserService:
         conversation_id: str | None = None,
         sender_id: str | None = None,
     ) -> Any:
-        return await self._application().manage_session_memory(
+        return await _require_session_agent_runtime(self.session_agent_runtime).manage_session_memory(
             session_id,
             action=action,
             engram_id=engram_id,
@@ -271,7 +278,7 @@ class AgentUserService:
         conversation_id: str | None = None,
         sender_id: str | None = None,
     ) -> Any:
-        return await self._application().manage_session_skills(
+        return await _require_session_agent_runtime(self.session_agent_runtime).manage_session_skills(
             session_id,
             action=action,
             skill_name=skill_name,
@@ -285,4 +292,4 @@ class AgentUserService:
         )
 
 
-__all__ = ["AgentUserService"]
+__all__ = ["AgentApplicationService"]

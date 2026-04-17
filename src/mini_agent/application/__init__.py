@@ -21,29 +21,36 @@ from .ports import (
 )
 from .support import ApplicationInteractionBinding, ManagedSessionTurn
 from .use_cases import (
+    AgentApplicationService,
     ChannelIngressUseCases,
     ChannelNovelActionHandler,
+    CommandApplicationService,
     MemoryOperationsUseCases,
+    ModelBindingApplicationService,
     OperationsPathPolicy,
     ProviderOperationsUseCases,
     RunControlApplicationService,
     SessionTaskService,
+    WorkspaceApplicationService,
 )
 from .user_services import AgentUserService, CommandUserService, ModelUserService, WorkspaceUserService
 from .ports import ManagedRuntimeSessionPort, SessionRuntimePort, SessionTurnScopePort
 
 __all__ = [
     "AgentDelegationExecutionHandler",
+    "AgentApplicationService",
     "AgentRuntimePort",
     "AgentUserService",
     "ApplicationInteractionBinding",
     "ChannelIngressUseCases",
     "ChannelNovelActionHandler",
+    "CommandApplicationService",
     "CommandUserService",
     "MainAgentSurfaceService",
     "ManagedRuntimeSessionPort",
     "ManagedSessionTurn",
     "MemoryOperationsUseCases",
+    "ModelBindingApplicationService",
     "ModelRuntimePort",
     "OperationsPathPolicy",
     "ModelUserService",
@@ -63,6 +70,7 @@ __all__ = [
     "SessionRuntimePort",
     "SessionTaskPort",
     "SessionTurnScopePort",
+    "WorkspaceApplicationService",
     "WorkspaceRuntimePort",
     "WorkspaceUserService",
 ]

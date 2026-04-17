@@ -27,7 +27,13 @@ from mini_agent.application.support import (
     SseEventFn,
     ToUtcIsoFn,
 )
-from mini_agent.application.use_cases import RunControlApplicationService
+from mini_agent.application.use_cases import (
+    AgentApplicationService,
+    CommandApplicationService,
+    ModelBindingApplicationService,
+    RunControlApplicationService,
+    WorkspaceApplicationService,
+)
 from mini_agent.application.user_services import (
     AgentUserService,
     CommandUserService,
@@ -591,3 +597,63 @@ def test_stage1_namespace_packages_reexport_transitional_modules() -> None:
     assert ToUtcIsoFn is not None
     assert SseEventFn is not None
     assert FormatBootstrapErrorFn is not None
+
+
+@pytest.mark.asyncio
+async def test_stage1_application_services_delegate_to_runtime_ports() -> None:
+    run_control = RunControlApplicationService(
+        run_runtime=RunRuntimeStub(),
+        session_tasks=SessionTaskStub({"session-1": "run-1"}),
+    )
+    agent_application = AgentApplicationService(
+        agent_runtime=AgentRuntimeStub(),
+        run_control=run_control,
+        session_agent_runtime=SessionControlRuntimeStub(),
+    )
+    workspace_application = WorkspaceApplicationService(workspace_runtime=WorkspaceRuntimeStub())
+    model_application = ModelBindingApplicationService(
+        model_runtime=ModelRuntimeStub(),
+        session_model_runtime=SessionModelRuntimeStub(),
+    )
+    command_application = CommandApplicationService(command_runtime=CommandRuntimeStub())
+
+    assert await agent_application.get_active_agent() == {"agent_id": "agent-1", "active": True}
+    assert await workspace_application.get_active_workspace() == {"workspace_id": "ws-1", "active": True}
+    assert await model_application.get_model_binding("agent-1") == {"agent_id": "agent-1", "model_id": "model-1"}
+    assert await command_application.complete_command("he") == ["hepletion"]
+
+
+@pytest.mark.asyncio
+async def test_stage1_user_services_can_delegate_to_injected_application_services() -> None:
+    class _AgentAppStub:
+        async def get_active_agent(self):
+            return {"agent_id": "agent-app"}
+
+    class _WorkspaceAppStub:
+        async def switch_workspace(self, workspace_id: str):
+            return {"workspace_id": workspace_id, "source": "workspace-app"}
+
+    class _ModelAppStub:
+        async def list_model_bindings(self):
+            return [{"model_id": "from-app"}]
+
+    class _CommandAppStub:
+        async def dispatch_command(self, raw_command: str, **kwargs):
+            return {"command": raw_command, "kwargs": kwargs, "source": "command-app"}
+
+    agent_service = AgentUserService(application_service=_AgentAppStub())
+    workspace_service = WorkspaceUserService(application_service=_WorkspaceAppStub())
+    model_service = ModelUserService(application_service=_ModelAppStub())
+    command_service = CommandUserService(application_service=_CommandAppStub())
+
+    assert await agent_service.get_active_agent() == {"agent_id": "agent-app"}
+    assert await workspace_service.switch_workspace("ws-2") == {
+        "workspace_id": "ws-2",
+        "source": "workspace-app",
+    }
+    assert await model_service.list_model_bindings() == [{"model_id": "from-app"}]
+    assert await command_service.dispatch_command("/help", surface="desktop") == {
+        "command": "/help",
+        "kwargs": {"surface": "desktop"},
+        "source": "command-app",
+    }

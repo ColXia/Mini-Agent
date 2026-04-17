@@ -2,39 +2,35 @@
 
 from __future__ import annotations
 
-import inspect
 from dataclasses import dataclass
 from typing import Any
+
+from mini_agent.application.use_cases.command_application_service import CommandApplicationService
 
 
 @dataclass(slots=True)
 class CommandUserService:
     """Thin user-service facade for shared command entrypoints."""
 
-    command_runtime: Any
+    application_service: CommandApplicationService | None = None
+    command_runtime: Any = None
+
+    def _application(self) -> CommandApplicationService:
+        if self.application_service is None:
+            self.application_service = CommandApplicationService(command_runtime=self.command_runtime)
+        return self.application_service
 
     async def list_commands(self) -> Any:
-        return await self._invoke_first(("list_commands", "catalog"))
+        return await self._application().list_commands()
 
     async def describe_command(self, command_name: str) -> Any:
-        return await self._invoke_first(("describe_command", "describe"), command_name)
+        return await self._application().describe_command(command_name)
 
     async def complete_command(self, prefix: str) -> Any:
-        return await self._invoke_first(("complete_command", "complete"), prefix)
+        return await self._application().complete_command(prefix)
 
     async def dispatch_command(self, raw_command: str, **kwargs: Any) -> Any:
-        return await self._invoke_first(("dispatch_command", "execute_command"), raw_command, **kwargs)
-
-    async def _invoke_first(self, names: tuple[str, ...], *args: Any, **kwargs: Any) -> Any:
-        for name in names:
-            if hasattr(self.command_runtime, name):
-                target = getattr(self.command_runtime, name)
-                result = target(*args, **kwargs)
-                if inspect.isawaitable(result):
-                    return await result
-                return result
-        available = ", ".join(names)
-        raise RuntimeError(f"Command runtime does not implement any of: {available}")
+        return await self._application().dispatch_command(raw_command, **kwargs)
 
 
 __all__ = ["CommandUserService"]
