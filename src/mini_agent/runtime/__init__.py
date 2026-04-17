@@ -63,7 +63,7 @@ def __getattr__(name: str) -> Any:
         module = import_module(".session_lifecycle", __name__)
         return getattr(module, name)
     if name in _TOOLING_EXPORTS:
-        module = import_module(".tooling", __name__)
+        module = import_module(".support.tooling", __name__)
         return getattr(module, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 

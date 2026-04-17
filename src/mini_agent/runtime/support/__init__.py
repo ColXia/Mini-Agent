@@ -21,6 +21,16 @@ from .sandbox_state import (
     sandbox_network_summary,
     sandbox_policy_summary,
 )
+from .tooling import (
+    add_workspace_tools,
+    apply_runtime_policy_to_agent,
+    build_approval_engine,
+    build_workspace_sandbox_manager,
+    initialize_agent_tools,
+    initialize_shared_tools,
+    reconfigure_agent_runtime_policy,
+    resolve_runtime_policy,
+)
 from .workspace_path_utils import same_workspace_path, workspace_path_key
 
 __all__ = [
@@ -28,12 +38,20 @@ __all__ = [
     "InteractionBinding",
     "InteractionSurface",
     "USER_ENTRANCES",
+    "add_workspace_tools",
+    "apply_runtime_policy_to_agent",
+    "build_approval_engine",
+    "build_workspace_sandbox_manager",
     "collect_sandbox_diagnostics",
     "compact_sandbox_summary",
     "format_sandbox_status",
+    "initialize_agent_tools",
+    "initialize_shared_tools",
     "normalize_channel_type",
     "normalize_sandbox_diagnostics",
     "normalize_surface_label",
+    "reconfigure_agent_runtime_policy",
+    "resolve_runtime_policy",
     "resolve_interaction_binding",
     "resolve_interaction_surface",
     "resolve_remote_channel",

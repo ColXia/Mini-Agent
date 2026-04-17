@@ -95,12 +95,12 @@ from mini_agent.runtime.session_runtime_persistence import MainAgentRuntimePersi
 from mini_agent.runtime.session_state import MainAgentSessionState
 from mini_agent.runtime.session_runtime_state_hydrator import RuntimeSessionStateHydrator
 from mini_agent.runtime.orchestration.session_turn_scope_handler import RuntimeSessionTurnScopeHandler
-from mini_agent.runtime.session_snapshot_handler import (
+from mini_agent.runtime.orchestration.session_snapshot_handler import (
     RuntimeSessionSnapshotHandler,
     RuntimeSessionSnapshotImportCommand,
 )
 from mini_agent.runtime.support.sandbox_state import collect_sandbox_diagnostics
-from mini_agent.runtime.tooling import reconfigure_agent_runtime_policy
+from mini_agent.runtime.support.tooling import reconfigure_agent_runtime_policy
 from mini_agent.runtime.support.workspace_path_utils import same_workspace_path, workspace_path_key
 from mini_agent.tools.mcp_loader import cleanup_mcp_connections
 _RUNTIME_SESSION_KIND = "main-agent-runtime"

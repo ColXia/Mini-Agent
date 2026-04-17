@@ -18,7 +18,7 @@ from mini_agent.runtime.handlers.session_creation_handler import (
     RuntimeSessionCreationCommand,
     RuntimeSessionCreationHandler,
 )
-from mini_agent.runtime.session_snapshot_handler import (
+from mini_agent.runtime.orchestration.session_snapshot_handler import (
     RuntimeSessionSnapshotHandler,
     RuntimeSessionSnapshotImportCommand,
 )

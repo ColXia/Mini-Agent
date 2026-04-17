@@ -114,7 +114,7 @@ from mini_agent.runtime.live_control.session_cancel_service import SessionCancel
 from mini_agent.runtime.session_control_error_service import SessionControlErrorService
 from mini_agent.runtime.read_models.session_model_identity_codec import RuntimeSessionModelIdentityCodec
 from mini_agent.runtime.read_models.session_payload_codec import RuntimeSessionPayloadCodec
-from mini_agent.runtime.tooling import reconfigure_agent_runtime_policy
+from mini_agent.runtime.support.tooling import reconfigure_agent_runtime_policy
 from mini_agent.session import (
     SessionFeedbackService,
     SessionPendingApprovalProjection,

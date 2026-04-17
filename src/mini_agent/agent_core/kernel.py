@@ -30,7 +30,7 @@ from mini_agent.model_manager.runtime import (
 )
 from mini_agent.retry import RetryConfig
 from mini_agent.llm.protocol_binding import ProtocolRequestPolicy
-from mini_agent.runtime.tooling import (
+from mini_agent.runtime.support.tooling import (
     build_approval_engine,
     build_workspace_sandbox_manager,
     initialize_agent_tools,
