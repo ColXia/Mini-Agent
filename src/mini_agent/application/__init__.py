@@ -21,11 +21,16 @@ from .ports import (
     SessionTaskPort,
     WorkspaceRuntimePort,
 )
-from .operations_memory_use_cases import MemoryOperationsUseCases
 from .operations_provider_use_cases import ProviderOperationsUseCases
 from .session_runtime_port import ManagedRuntimeSessionPort, SessionRuntimePort, SessionTurnScopePort
 from .support import ApplicationInteractionBinding, ManagedSessionTurn
-from .use_cases import ChannelIngressUseCases, RunControlApplicationService, SessionTaskService
+from .use_cases import (
+    ChannelIngressUseCases,
+    MemoryOperationsUseCases,
+    OperationsPathPolicy,
+    RunControlApplicationService,
+    SessionTaskService,
+)
 from .user_services import AgentUserService, CommandUserService, ModelUserService, WorkspaceUserService
 
 __all__ = [
@@ -41,6 +46,7 @@ __all__ = [
     "ManagedSessionTurn",
     "MemoryOperationsUseCases",
     "ModelRuntimePort",
+    "OperationsPathPolicy",
     "ModelUserService",
     "ProviderOperationsUseCases",
     "RuntimeBackedSessionApplicationAssembly",
