@@ -6,6 +6,8 @@ from importlib import import_module
 
 __all__ = [
     "AgentModelRuntimeAdapter",
+    "MainAgentSurfaceAssembly",
+    "MainAgentSurfaceService",
     "RuntimeBackedSessionApplicationAssembly",
     "SessionBackedRunRuntimeAdapter",
     "SessionAgentRuntimePort",
@@ -15,14 +17,20 @@ __all__ = [
     "SessionModelSelectionCompatibilityAdapter",
     "SessionTaskCompatibilityAdapter",
     "UnavailableRunRuntimeAdapter",
+    "assemble_main_agent_surface_service",
+    "assemble_runtime_backed_main_agent_surface_service",
     "assemble_runtime_backed_session_application",
     "assemble_typed_session_application",
+    "build_main_agent_surface_service",
+    "build_runtime_backed_main_agent_surface_service",
     "build_runtime_backed_session_service",
     "build_typed_session_service",
 ]
 
 _EXPORTS: dict[str, tuple[str, str]] = {
     "AgentModelRuntimeAdapter": (".session_runtime_compat", "AgentModelRuntimeAdapter"),
+    "MainAgentSurfaceAssembly": (".surface_service_assembly", "MainAgentSurfaceAssembly"),
+    "MainAgentSurfaceService": (".main_agent_surface_service", "MainAgentSurfaceService"),
     "RuntimeBackedSessionApplicationAssembly": (".session_service_assembly", "RuntimeBackedSessionApplicationAssembly"),
     "SessionBackedRunRuntimeAdapter": (".session_runtime_compat", "SessionBackedRunRuntimeAdapter"),
     "SessionAgentRuntimePort": (".session_agent_runtime_port", "SessionAgentRuntimePort"),
@@ -35,11 +43,21 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     ),
     "SessionTaskCompatibilityAdapter": (".session_runtime_compat", "SessionTaskCompatibilityAdapter"),
     "UnavailableRunRuntimeAdapter": (".session_runtime_compat", "UnavailableRunRuntimeAdapter"),
+    "assemble_main_agent_surface_service": (".surface_service_assembly", "assemble_main_agent_surface_service"),
+    "assemble_runtime_backed_main_agent_surface_service": (
+        ".surface_service_assembly",
+        "assemble_runtime_backed_main_agent_surface_service",
+    ),
     "assemble_runtime_backed_session_application": (
         ".session_service_assembly",
         "assemble_runtime_backed_session_application",
     ),
     "assemble_typed_session_application": (".session_service_assembly", "assemble_typed_session_application"),
+    "build_main_agent_surface_service": (".surface_service_assembly", "build_main_agent_surface_service"),
+    "build_runtime_backed_main_agent_surface_service": (
+        ".surface_service_assembly",
+        "build_runtime_backed_main_agent_surface_service",
+    ),
     "build_runtime_backed_session_service": (".session_service_assembly", "build_runtime_backed_session_service"),
     "build_typed_session_service": (".session_service_assembly", "build_typed_session_service"),
 }

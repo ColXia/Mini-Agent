@@ -13,6 +13,14 @@ from mini_agent.application import (
     build_main_agent_surface_service,
     build_runtime_backed_main_agent_surface_service,
 )
+from mini_agent.application.legacy import (
+    MainAgentSurfaceAssembly as LegacyMainAgentSurfaceAssembly,
+    MainAgentSurfaceService as LegacyMainAgentSurfaceService,
+    assemble_main_agent_surface_service as legacy_assemble_main_agent_surface_service,
+    assemble_runtime_backed_main_agent_surface_service as legacy_assemble_runtime_backed_main_agent_surface_service,
+    build_main_agent_surface_service as legacy_build_main_agent_surface_service,
+    build_runtime_backed_main_agent_surface_service as legacy_build_runtime_backed_main_agent_surface_service,
+)
 from mini_agent.application.facades import (
     MainAgentSurfaceAssembly as FacadeMainAgentSurfaceAssembly,
     assemble_main_agent_surface_service as facade_assemble_main_agent_surface_service,
@@ -81,10 +89,16 @@ class _RuntimeManagerStub:
 
 def test_stage3_surface_assembly_exports_stable_entrypoints() -> None:
     assert FacadeMainAgentSurfaceAssembly is MainAgentSurfaceAssembly
+    assert LegacyMainAgentSurfaceAssembly is MainAgentSurfaceAssembly
+    assert LegacyMainAgentSurfaceService is MainAgentSurfaceService
     assert facade_assemble_main_agent_surface_service is assemble_main_agent_surface_service
+    assert legacy_assemble_main_agent_surface_service is assemble_main_agent_surface_service
     assert facade_assemble_runtime_backed_main_agent_surface_service is assemble_runtime_backed_main_agent_surface_service
+    assert legacy_assemble_runtime_backed_main_agent_surface_service is assemble_runtime_backed_main_agent_surface_service
     assert facade_build_main_agent_surface_service is build_main_agent_surface_service
+    assert legacy_build_main_agent_surface_service is build_main_agent_surface_service
     assert facade_build_runtime_backed_main_agent_surface_service is build_runtime_backed_main_agent_surface_service
+    assert legacy_build_runtime_backed_main_agent_surface_service is build_runtime_backed_main_agent_surface_service
     assert compat_assemble_runtime_backed_user_services is assemble_runtime_backed_user_services
 
 
