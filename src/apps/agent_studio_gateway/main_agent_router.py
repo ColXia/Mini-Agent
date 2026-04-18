@@ -4,13 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Awaitable, Callable
+from typing import Any, AsyncIterator, Awaitable, Callable
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 
 from mini_agent.application.support import ApplicationInteractionBinding
-from mini_agent.application.facades import MainAgentSurfaceService
 from mini_agent.application.facades.service_response_dto_adapter import (
     model_binding_diagnostics_response,
     model_binding_summary_response,
@@ -67,12 +66,17 @@ from mini_agent.interfaces import (
 )
 
 
+StreamMainAgentChatFn = Callable[..., AsyncIterator[str]]
+
+
 @dataclass(frozen=True, slots=True)
 class MainAgentRouterDependencies:
     build_health_response: Callable[[], Awaitable[SystemHealthResponse]]
     get_runtime_diagnostics: Callable[[], Awaitable[MainAgentRuntimeDiagnostics]]
+    get_routing_diagnostics: Callable[[], Awaitable[MainAgentRoutingDiagnostics]]
+    run_main_agent_chat: Callable[[MainAgentChatRequest], Awaitable[MainAgentChatResponse]]
+    stream_main_agent_chat: StreamMainAgentChatFn
     resolve_workspace_dir: Callable[[str | None], Path]
-    get_surface_service: Callable[[], MainAgentSurfaceService]
     get_session_task_service: Callable[[], SessionTaskService]
     get_agent_service: Callable[[], AgentUserService]
     get_workspace_service: Callable[[], WorkspaceUserService | None]
@@ -121,11 +125,11 @@ def create_main_agent_router(deps: MainAgentRouterDependencies) -> APIRouter:
         dependencies=[Depends(deps.require_ops_auth)],
     )
     async def v1_ops_routing_diagnostics() -> MainAgentRoutingDiagnostics:
-        return await deps.get_surface_service().get_routing_diagnostics()
+        return await deps.get_routing_diagnostics()
 
     @router.post("/api/v1/agent/chat", response_model=ApiEnvelope[MainAgentChatResponse])
     async def v1_agent_chat(request: MainAgentChatRequest) -> ApiEnvelope[MainAgentChatResponse]:
-        return ApiEnvelope[MainAgentChatResponse](ok=True, data=await deps.get_surface_service().run_chat(request))
+        return ApiEnvelope[MainAgentChatResponse](ok=True, data=await deps.run_main_agent_chat(request))
 
     @router.post("/api/v1/channel/message", response_model=ApiEnvelope[ChannelMessageResponse])
     async def v1_channel_message(request: ChannelMessageRequest) -> ApiEnvelope[ChannelMessageResponse]:
@@ -438,7 +442,7 @@ def create_main_agent_router(deps: MainAgentRouterDependencies) -> APIRouter:
         conversation_id: str | None = None,
         sender_id: str | None = None,
     ) -> StreamingResponse:
-        stream = deps.get_surface_service().stream_chat_events(
+        stream = deps.stream_main_agent_chat(
             message=message,
             session_id=session_id,
             session_title_hint=session_title_hint,

@@ -140,6 +140,7 @@ Latest stage sync:
 - `2026-04-18`: gateway session mutation/control routes now consume `SessionTaskService`, `AgentUserService`, and `ModelUserService` directly; `MainAgentSurfaceService` remains on the chat/session-read side while the gateway transport layer now owns request-binding adaptation for the migrated mutation endpoints.
 - `2026-04-18`: gateway session list/create/default/detail/message routes now consume `SessionTaskService` directly, with explicit router-owned `resolve_workspace_dir` and `validate_workspace` handling; `MainAgentSurfaceService` is narrowed further toward chat/stream orchestration and transitional diagnostics only.
 - `2026-04-18`: `GatewayComposition` no longer assembles the legacy `SessionApplicationService`; gateway runtime composition now exposes explicit user services only, while legacy session-facade compatibility remains isolated under `mini_agent.application.legacy`.
+- `2026-04-18`: the gateway router no longer depends on a whole `MainAgentSurfaceService` object for chat/routing endpoints; transport dependencies are now explicit callables for `run_main_agent_chat`, `stream_main_agent_chat`, and routing diagnostics, which keeps the router ready for later chat-service extraction without another transport contract rewrite.
 
 ## 3. Active Plan: P22 Core Agent Minimal (Started 2026-04-07)
 

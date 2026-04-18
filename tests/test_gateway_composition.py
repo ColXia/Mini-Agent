@@ -155,10 +155,12 @@ def test_gateway_composition_router_dependencies_expose_explicit_workspace_and_m
     deps = composition.build_main_agent_router_dependencies(list_models=lambda: {"items": []})
 
     assert deps.resolve_workspace_dir("workspace") == composition.resolve_workspace_dir("workspace")
+    assert deps.get_routing_diagnostics.__self__ is composition
+    assert deps.run_main_agent_chat.__self__ is composition
+    assert deps.stream_main_agent_chat.__self__ is composition
     assert deps.get_session_task_service() is composition.get_session_task_service()
     assert deps.get_agent_service() is composition.get_agent_service()
     assert deps.get_workspace_service() is composition.get_workspace_service()
     assert deps.get_model_service() is composition.get_model_service()
-    assert deps.get_surface_service() is composition.get_surface_service()
 
     asyncio.run(composition.shutdown())

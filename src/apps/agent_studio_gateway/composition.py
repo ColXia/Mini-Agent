@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, AsyncIterator
 
 from fastapi import HTTPException
 
@@ -227,6 +227,12 @@ class GatewayComposition:
     async def run_main_agent_chat(self, request: MainAgentChatRequest) -> MainAgentChatResponse:
         return await self.get_surface_service().run_chat(request)
 
+    async def get_routing_diagnostics(self) -> MainAgentRoutingDiagnostics:
+        return await self.get_surface_service().get_routing_diagnostics()
+
+    def stream_main_agent_chat(self, **kwargs: Any) -> AsyncIterator[str]:
+        return self.get_surface_service().stream_chat_events(**kwargs)
+
     def get_channel_ingress_use_cases(self) -> ChannelIngressUseCases:
         if self._channel_ingress_use_cases is None:
             self._channel_ingress_use_cases = ChannelIngressUseCases(
@@ -307,8 +313,10 @@ class GatewayComposition:
         return MainAgentRouterDependencies(
             build_health_response=self.build_health_response,
             get_runtime_diagnostics=self.get_runtime_diagnostics,
+            get_routing_diagnostics=self.get_routing_diagnostics,
+            run_main_agent_chat=self.run_main_agent_chat,
+            stream_main_agent_chat=self.stream_main_agent_chat,
             resolve_workspace_dir=self.resolve_workspace_dir,
-            get_surface_service=self.get_surface_service,
             get_session_task_service=self.get_session_task_service,
             get_agent_service=self.get_agent_service,
             get_workspace_service=self.get_workspace_service,
