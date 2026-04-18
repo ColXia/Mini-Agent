@@ -143,6 +143,7 @@ Latest stage sync:
 - `2026-04-18`: the gateway router no longer depends on a whole `MainAgentSurfaceService` object for chat/routing endpoints; transport dependencies are now explicit callables for `run_main_agent_chat`, `stream_main_agent_chat`, and routing diagnostics, which keeps the router ready for later chat-service extraction without another transport contract rewrite.
 - `2026-04-18`: shared chat submission/stream/routing orchestration now lives in `src/mini_agent/application/use_cases/agent_interaction_application_service.py`; `GatewayComposition` routes chat through `AgentUserService`, while `MainAgentSurfaceService` delegates those paths to the extracted interaction service instead of owning the chat-flow and route-execution stack directly.
 - `2026-04-18`: `MainAgentSurfaceService` no longer resolves legacy `session_service` dependencies inside the facade itself; legacy surface compatibility is now isolated in `src/mini_agent/application/facades/surface_service_assembly.py` + `surface_dependency_resolution.py`, so the active surface class only runs on explicit service ownership.
+- `2026-04-18`: `GatewayComposition` no longer builds or caches `MainAgentSurfaceService`; the gateway active runtime path is now fully explicit (`SessionTaskService` / `AgentUserService` / `ModelUserService` / `WorkspaceUserService` / `AgentInteractionApplicationService`), and the surface facade remains a compatibility-only assembly outside gateway composition.
 
 ## 3. Active Plan: P22 Core Agent Minimal (Started 2026-04-07)
 

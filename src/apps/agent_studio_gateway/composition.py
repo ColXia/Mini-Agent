@@ -13,7 +13,6 @@ from fastapi import HTTPException
 
 from mini_agent.agent_core.engine import Agent
 from mini_agent.agent_core.kernel import AgentKernelBuildOptions, build_agent_kernel
-from mini_agent.application.facades import MainAgentSurfaceService, build_main_agent_surface_service
 from mini_agent.application.session_runtime_compat import AgentModelRuntimeAdapter
 from mini_agent.application.user_service_assembly import (
     UserServiceAssembly,
@@ -74,7 +73,6 @@ class GatewayComposition:
         self._agent_model_binding_service: AgentModelService | None = None
         self._model_runtime_adapter: AgentModelRuntimeAdapter | None = None
         self._agent_interaction_service: AgentInteractionApplicationService | None = None
-        self._surface_service: MainAgentSurfaceService | Any | None = None
         self._channel_ingress_use_cases: ChannelIngressUseCases | Any | None = None
 
     def to_utc_iso(self, value: datetime) -> str:
@@ -227,19 +225,6 @@ class GatewayComposition:
             self._workspace_service = self._ensure_user_service_assembly().workspace_service
         return self._workspace_service
 
-    def get_surface_service(self) -> MainAgentSurfaceService:
-        if self._surface_service is None:
-            self._surface_service = build_main_agent_surface_service(
-                user_service_assembly=self._ensure_user_service_assembly(),
-                interaction_service=self.get_agent_interaction_service(),
-                resolve_workspace_dir=self.resolve_workspace_dir,
-                to_utc_iso=self.to_utc_iso,
-                sse_event=self.sse_event,
-                format_bootstrap_error=self.format_agent_bootstrap_error,
-                stream_chunk_size=self.settings.chat_stream_chunk_size,
-            )
-        return self._surface_service
-
     async def run_main_agent_chat(self, request: MainAgentChatRequest) -> MainAgentChatResponse:
         return await self.get_agent_service().submit_message(request)
 
@@ -310,7 +295,6 @@ class GatewayComposition:
                 self._agent_model_binding_service = None
                 self._model_runtime_adapter = None
                 self._agent_interaction_service = None
-                self._surface_service = None
                 self._channel_ingress_use_cases = None
                 reset_novel_runtime_state()
             finally:

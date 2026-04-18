@@ -27,7 +27,7 @@ def test_gateway_composition_wires_explicit_session_task_service(tmp_path: Path)
     session_task_service = composition.get_session_task_service()
     interaction_service = composition.get_agent_interaction_service()
     run_control_service = composition.get_run_control_service()
-    surface_service = composition.get_surface_service()
+    agent_service = composition.get_agent_service()
     workspace_service = composition.get_workspace_service()
 
     assert isinstance(session_task_service, SessionTaskService)
@@ -36,16 +36,11 @@ def test_gateway_composition_wires_explicit_session_task_service(tmp_path: Path)
     assert composition.get_run_control_service() is run_control_service
     assert composition.get_workspace_service() is workspace_service
     assert composition.get_agent_interaction_service() is interaction_service
-    assert composition.get_agent_service().interaction_service is interaction_service
-    assert surface_service._interaction_service is interaction_service
-    assert surface_service._session_task_service is session_task_service
-    assert surface_service._run_control_service is surface_service._agent_service
-    assert surface_service._run_control_service is composition.get_agent_service()
-    assert surface_service._workspace_service is workspace_service
-    assert surface_service._chat_flow.session_task_service is session_task_service
+    assert agent_service.interaction_service is interaction_service
+    assert interaction_service.chat_flow.session_task_service is session_task_service
     assert run_control_service.session_tasks is composition.get_runtime_manager()
     assert isinstance(run_control_service.run_runtime, SessionBackedRunRuntimeAdapter)
-    assert composition.get_agent_service().session_agent_runtime is composition.get_runtime_manager()
+    assert agent_service.session_agent_runtime is composition.get_runtime_manager()
     assert composition.get_model_service().session_model_runtime is composition.get_runtime_manager()
 
     asyncio.run(composition.shutdown())
@@ -72,23 +67,17 @@ def test_gateway_composition_reuses_preassembled_session_owners_across_access_or
     model_service = composition.get_model_service()
     workspace_service = composition.get_workspace_service()
     interaction_service = composition.get_agent_interaction_service()
-    surface_service = composition.get_surface_service()
 
     assert agent_service.interaction_service is interaction_service
-    assert surface_service._interaction_service is interaction_service
-    assert surface_service._session_task_service is session_task_service
-    assert surface_service._run_control_service is surface_service._agent_service
-    assert surface_service._run_control_service is agent_service
-    assert surface_service._agent_service is agent_service
-    assert surface_service._model_service is model_service
+    assert interaction_service.chat_flow.session_task_service is session_task_service
     assert workspace_service is composition.get_workspace_service()
-    assert surface_service._workspace_service is workspace_service
+    assert model_service is composition.get_model_service()
     assert run_control_service is composition.get_run_control_service()
 
     asyncio.run(composition.shutdown())
 
 
-def test_gateway_composition_builds_surface_without_materializing_session_facade(tmp_path: Path) -> None:
+def test_gateway_composition_avoids_surface_facade_materialization(tmp_path: Path) -> None:
     composition = GatewayComposition(
         settings=GatewayCompositionSettings(
             repo_root=Path(".").resolve(),
@@ -103,16 +92,19 @@ def test_gateway_composition_builds_surface_without_materializing_session_facade
         require_ops_auth=lambda: None,
     )
 
-    surface_service = composition.get_surface_service()
+    interaction_service = composition.get_agent_interaction_service()
+    session_task_service = composition.get_session_task_service()
+    workspace_service = composition.get_workspace_service()
+    agent_service = composition.get_agent_service()
 
-    assert surface_service is composition.get_surface_service()
-    assert composition.get_agent_interaction_service() is surface_service._interaction_service
-    assert not hasattr(surface_service, "_session_service")
+    assert not hasattr(composition, "get_surface_service")
+    assert not hasattr(composition, "_surface_service")
+    assert interaction_service.chat_flow.session_task_service is session_task_service
+    assert agent_service.interaction_service is interaction_service
     assert composition._run_control_service is not None
     assert composition._agent_service is not None
     assert composition._model_service is not None
-    assert composition.get_workspace_service() is not None
-    assert surface_service._workspace_service is composition.get_workspace_service()
+    assert workspace_service is composition.get_workspace_service()
 
     asyncio.run(composition.shutdown())
 
