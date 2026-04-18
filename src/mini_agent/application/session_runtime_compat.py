@@ -1,9 +1,11 @@
-"""Compatibility re-export for legacy session runtime compatibility adapters."""
+"""Compatibility re-export for session runtime compatibility adapters."""
 
 from .legacy.session_runtime_compat import (
-    SessionBackedRunRuntimeAdapter,
     SessionAgentCompatibilityAdapter,
     SessionModelSelectionCompatibilityAdapter,
+)
+from .user_services.session_runtime_compat_adapters import (
+    SessionBackedRunRuntimeAdapter,
     SessionTaskCompatibilityAdapter,
     UnavailableRunRuntimeAdapter,
 )

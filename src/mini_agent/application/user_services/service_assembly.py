@@ -13,17 +13,17 @@ from mini_agent.application.ports.session_model_selection_runtime_port import Se
 from mini_agent.application.ports.session_task_port import SessionTaskPort
 from mini_agent.application.ports.session_task_runtime_port import SessionTaskRuntimePort
 from mini_agent.application.ports.workspace_runtime_port import WorkspaceRuntimePort
-from mini_agent.application.legacy.session_runtime_compat import (
-    SessionBackedRunRuntimeAdapter,
-    SessionTaskCompatibilityAdapter,
-    UnavailableRunRuntimeAdapter,
-)
 from mini_agent.application.use_cases.run_control_application_service import RunControlApplicationService
 from mini_agent.application.use_cases.session_task_service import SessionTaskService
 
 from .agent_user_service import AgentUserService
 from .command_user_service import CommandUserService
 from .model_user_service import ModelUserService
+from .session_runtime_compat_adapters import (
+    SessionBackedRunRuntimeAdapter,
+    SessionTaskCompatibilityAdapter,
+    UnavailableRunRuntimeAdapter,
+)
 from .workspace_user_service import WorkspaceUserService
 
 
