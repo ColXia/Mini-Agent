@@ -6,14 +6,14 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = REPO_ROOT / "src"
-ALLOWED_PATHS = {
-    Path("src/mini_agent/application/session_runtime_compat.py"),
-    Path("src/mini_agent/application/user_services/session_runtime_compat_adapters.py"),
-}
+ALLOWED_PATHS: set[Path] = set()
 ALLOWED_PARENT_PREFIXES = (
     Path("src/mini_agent/application/legacy"),
 )
-FORBIDDEN_MODULE = "mini_agent.application.legacy.session_runtime_compat"
+FORBIDDEN_MODULES = {
+    "legacy.session_runtime_compat",
+    "mini_agent.application.legacy.session_runtime_compat",
+}
 
 
 def _is_allowed(path: Path) -> bool:
@@ -36,9 +36,9 @@ def _collect_violations(path: Path) -> list[str]:
     tree = ast.parse(source, filename=str(relative))
     violations: list[str] = []
     for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and (node.module or "") == FORBIDDEN_MODULE:
+        if isinstance(node, ast.ImportFrom) and (node.module or "") in FORBIDDEN_MODULES:
             violations.append(
-                f"{relative}:{node.lineno}: forbidden active import from {FORBIDDEN_MODULE}"
+                f"{relative}:{node.lineno}: forbidden active import from {node.module}"
             )
     return violations
 
