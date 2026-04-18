@@ -1,14 +1,10 @@
 """Application-layer orchestration use cases."""
 
-from .facades import (
-    AgentDelegationExecutionHandler,
-    MainAgentSurfaceAssembly,
-    MainAgentSurfaceService,
-    assemble_main_agent_surface_service,
-    assemble_runtime_backed_main_agent_surface_service,
-    build_main_agent_surface_service,
-    build_runtime_backed_main_agent_surface_service,
-)
+from __future__ import annotations
+
+from importlib import import_module
+
+from .facades.agent_delegation_execution_handler import AgentDelegationExecutionHandler
 from .legacy import (
     RuntimeBackedSessionApplicationAssembly,
     SessionApplicationService,
@@ -66,8 +62,6 @@ __all__ = [
     "ChannelNovelActionHandler",
     "CommandApplicationService",
     "CommandUserService",
-    "MainAgentSurfaceAssembly",
-    "MainAgentSurfaceService",
     "ManagedRuntimeSessionPort",
     "ManagedSessionTurn",
     "MemoryOperationsUseCases",
@@ -86,13 +80,9 @@ __all__ = [
     "build_runtime_backed_session_service",
     "assemble_typed_session_application",
     "assemble_runtime_backed_session_application",
-    "assemble_main_agent_surface_service",
-    "assemble_runtime_backed_main_agent_surface_service",
     "assemble_typed_user_services",
     "assemble_runtime_backed_user_services",
     "resolve_runtime_backed_user_service_ports",
-    "build_main_agent_surface_service",
-    "build_runtime_backed_main_agent_surface_service",
     "SessionAgentRuntimePort",
     "SessionModelSelectionRuntimePort",
     "SessionApplicationService",
@@ -104,3 +94,29 @@ __all__ = [
     "WorkspaceRuntimePort",
     "WorkspaceUserService",
 ]
+
+_COMPAT_EXPORTS: dict[str, tuple[str, str]] = {
+    "MainAgentSurfaceService": (".main_agent_surface_service", "MainAgentSurfaceService"),
+    "MainAgentSurfaceAssembly": (".surface_service_assembly", "MainAgentSurfaceAssembly"),
+    "assemble_main_agent_surface_service": (".surface_service_assembly", "assemble_main_agent_surface_service"),
+    "assemble_runtime_backed_main_agent_surface_service": (
+        ".surface_service_assembly",
+        "assemble_runtime_backed_main_agent_surface_service",
+    ),
+    "build_main_agent_surface_service": (".surface_service_assembly", "build_main_agent_surface_service"),
+    "build_runtime_backed_main_agent_surface_service": (
+        ".surface_service_assembly",
+        "build_runtime_backed_main_agent_surface_service",
+    ),
+}
+
+
+def __getattr__(name: str):
+    export = _COMPAT_EXPORTS.get(name)
+    if export is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module_name, attr_name = export
+    module = import_module(module_name, __name__)
+    value = getattr(module, attr_name)
+    globals()[name] = value
+    return value
