@@ -56,6 +56,24 @@ class TuiRemoteTurnStreamCoordinator:
         stop_reason = "end_turn"
         reply_text = ""
         response: dict[str, Any] | None = None
+        remote_thinking_text = ""
+        remote_thinking_dirty = False
+
+        def _flush_remote_thinking() -> None:
+            nonlocal remote_thinking_dirty
+            normalized = _normalize_chat_content(remote_thinking_text).strip()
+            if not remote_thinking_dirty or not normalized:
+                return
+            self.append_activity_line(
+                session,
+                label="thinking",
+                detail="thinking",
+                activity_id="remote-thinking",
+                output_text=normalized,
+                state="running",
+            )
+            self.update_running_state(session, "thinking")
+            remote_thinking_dirty = False
 
         async for event_type, payload in chat_client.stream_chat_events(
             session_id=session.session_id,
@@ -65,6 +83,15 @@ class TuiRemoteTurnStreamCoordinator:
         ):
             normalized_event = _safe_text(event_type).lower() or "message"
             data = payload if isinstance(payload, dict) else {}
+            if normalized_event == "thinking_delta":
+                chunk = str(data.get("chunk", ""))
+                if chunk:
+                    remote_thinking_text += chunk
+                    remote_thinking_dirty = True
+                continue
+
+            _flush_remote_thinking()
+
             if normalized_event == "activity":
                 self.append_activity_line(
                     session,
@@ -127,6 +154,8 @@ class TuiRemoteTurnStreamCoordinator:
                 stop_reason = _safe_text(data.get("stop_reason")).lower() or "end_turn"
                 reply_text = _safe_text(data.get("reply"))
                 break
+
+        _flush_remote_thinking()
 
         return TuiRemoteTurnStreamResult(
             response=response,

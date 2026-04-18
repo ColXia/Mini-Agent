@@ -192,6 +192,63 @@ def test_tui_remote_turn_stream_coordinator_handles_approval_roundtrip() -> None
     assert result.stop_reason == "cancelled"
 
 
+def test_tui_remote_turn_stream_coordinator_surfaces_thinking_deltas_as_activity_output() -> None:
+    session = _session()
+    activity_calls: list[dict[str, Any]] = []
+    running_states: list[str] = []
+    render_calls: list[str] = []
+
+    class _ChatClient:
+        async def stream_chat_events(
+            self,
+            *,
+            session_id: str,
+            message: str,
+            workspace_dir: str,
+            surface: str = "tui",
+        ):
+            _ = (session_id, message, workspace_dir, surface)
+            yield ("thinking_delta", {"chunk": "plan"})
+            yield ("thinking_delta", {"chunk": " next"})
+            yield ("heartbeat", {})
+            yield ("done", {"reply": "ok", "stop_reason": "end_turn"})
+
+    coordinator = TuiRemoteTurnStreamCoordinator(
+        append_activity_line=lambda _session, **kwargs: activity_calls.append(dict(kwargs)),
+        update_running_state=lambda _session, text: running_states.append(text),
+        record_pending_approval=lambda _session, payload: None,
+        handle_approval_requested=lambda _session, tool_name, token: None,
+        pending_approval_token=lambda payload: "",
+        clear_pending_approval=lambda _session, token: None,
+        handle_approval_resolved=lambda _session: None,
+        append_assistant_stream_chunk=lambda _session, chunk, message_index: 0,
+        schedule_stream_render=lambda: None,
+        render_all=lambda: render_calls.append("rendered"),
+    )
+
+    result = asyncio.run(
+        coordinator.consume(
+            chat_client=_ChatClient(),
+            session=session,
+            message="show thinking",
+            workspace_dir="D:/file/Mini-Agent",
+        )
+    )
+
+    assert result.reply_text == "ok"
+    assert activity_calls == [
+        {
+            "label": "thinking",
+            "detail": "thinking",
+            "activity_id": "remote-thinking",
+            "output_text": "plan next",
+            "state": "running",
+        }
+    ]
+    assert running_states == ["thinking"]
+    assert render_calls == ["rendered"]
+
+
 def test_tui_remote_turn_stream_coordinator_falls_back_to_run_chat() -> None:
     session = _session()
 

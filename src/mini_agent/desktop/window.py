@@ -149,6 +149,12 @@ def _truncate_text(value: Any, *, limit: int = 88) -> str:
     return f"{text[: limit - 1]}…"
 
 
+def _normalize_chat_content(value: Any) -> str:
+    text = str(value or "")
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    return text.expandtabs(4)
+
+
 def _safe_nonnegative_int(value: Any) -> int:
     try:
         return max(0, int(value or 0))
@@ -439,6 +445,121 @@ def format_desktop_approval_failure(exc: Exception) -> tuple[str, str]:
     return title, status
 
 
+def desktop_stream_activity_payload(
+    event_type: Any,
+    payload: object,
+    *,
+    thinking_text: str | None = None,
+) -> dict[str, str] | None:
+    """Normalize one remote stream event into one desktop activity card payload."""
+    event = _compact_text(event_type).lower() or "message"
+    data = payload if isinstance(payload, dict) else {}
+
+    if event == "activity":
+        label = _compact_text(data.get("label")) or "activity"
+        detail = _compact_text(data.get("detail")) or "running"
+        preview = _compact_text(data.get("preview"))
+        return {
+            "kind": label,
+            "title": detail,
+            "detail": _compact_text(data.get("output_text")),
+            "preview": preview,
+            "activity_id": _compact_text(data.get("activity_id") or data.get("id")),
+        }
+    if event == "status":
+        stage = _compact_text(data.get("stage")) or "running"
+        return {"kind": "status", "title": stage}
+    if event == "approval_requested":
+        tool_name = _compact_text(data.get("tool_name")) or "tool"
+        return {
+            "kind": "approval",
+            "title": f"{tool_name} needs approval",
+            "detail": _compact_text(data.get("reason")),
+            "activity_id": f"approval:{_compact_text(data.get('token')) or tool_name}",
+        }
+    if event == "approval_resolved":
+        return {"kind": "approval", "title": "Approval resolved"}
+    if event.startswith("delegation."):
+        detail = event.split(".", 1)[-1] or "delegation"
+        owner = _compact_text(data.get("worker_id") or data.get("owner"))
+        return {
+            "kind": "delegation",
+            "title": detail,
+            "preview": owner,
+            "activity_id": _compact_text(data.get("task_id")) or event,
+        }
+    if event == "thinking_delta":
+        text = _normalize_chat_content(thinking_text or data.get("chunk")).strip()
+        if not text:
+            return None
+        return {
+            "kind": "thinking",
+            "title": "Thinking",
+            "detail": text,
+            "activity_id": "remote-thinking",
+        }
+    if event == "error":
+        detail = RemoteStreamErrorService.payload_detail(data)
+        return {
+            "kind": "error",
+            "title": detail,
+        }
+    return None
+
+
+def append_desktop_activity_entry(
+    entries: list[dict[str, Any]],
+    message: str,
+    *,
+    kind: str = "activity",
+    detail: str | None = None,
+    preview: str | None = None,
+    activity_id: str | None = None,
+    timestamp: str | None = None,
+    limit: int = 120,
+) -> list[dict[str, Any]]:
+    """Append or update one desktop activity entry in-place."""
+    normalized_message = str(message or "").strip() or "activity"
+    normalized_detail = str(detail or "")
+    if not normalized_detail and "\n" in normalized_message:
+        first_line, remainder = normalized_message.split("\n", 1)
+        normalized_message = first_line.strip() or "activity"
+        normalized_detail = remainder.strip()
+
+    normalized_id = _compact_text(activity_id)
+    normalized_timestamp = _compact_text(timestamp) or datetime.now().strftime("%H:%M:%S")
+    target: dict[str, Any] | None = None
+    if normalized_id:
+        for item in entries:
+            if _compact_text(item.get("activity_id")) == normalized_id:
+                target = item
+                break
+
+    if target is None:
+        entries.append(
+            {
+                "timestamp": normalized_timestamp,
+                "kind": _compact_text(kind).lower() or "activity",
+                "title": normalized_message,
+                "detail": normalized_detail,
+                "preview": _compact_text(preview),
+                "activity_id": normalized_id,
+            }
+        )
+    else:
+        target["timestamp"] = normalized_timestamp
+        target["kind"] = _compact_text(kind).lower() or "activity"
+        target["title"] = normalized_message
+        target["detail"] = normalized_detail
+        if preview is not None:
+            target["preview"] = _compact_text(preview)
+        target["activity_id"] = normalized_id
+
+    if len(entries) > max(1, int(limit or 120)):
+        del entries[:-max(1, int(limit or 120))]
+    return entries
+
+
 def format_chat_context_text(detail: dict[str, Any] | None) -> str:
     """Render a compact session summary for the desktop chat side panel."""
     payload = detail or {}
@@ -535,6 +656,7 @@ def render_activity_html(entries: list[dict[str, Any]]) -> str:
         "model": ("#1d2850", "#f3f4ff", "#dfe3ff", "#7d8fe6"),
         "session": ("#163845", "#eef9fc", "#d6eaf0", "#67bdd5"),
         "status": ("#1a3046", "#f1f7fc", "#dce8f3", "#7fb2da"),
+        "thinking": ("#35224a", "#f8f4ff", "#eadfff", "#ab84eb"),
     }
     parts = [
         "<html><body style='font-family: \"Segoe UI Variable\", \"SF Pro Text\", \"Microsoft YaHei UI\"; "
@@ -1107,64 +1229,51 @@ def create_desktop_main_window(
                 self.finished.emit()
 
         async def _consume(self) -> None:
+            remote_thinking_text = ""
+            remote_thinking_dirty = False
+
+            def _flush_remote_thinking() -> None:
+                nonlocal remote_thinking_dirty
+                if not remote_thinking_dirty:
+                    return
+                activity = desktop_stream_activity_payload(
+                    "thinking_delta",
+                    {},
+                    thinking_text=remote_thinking_text,
+                )
+                if activity is not None:
+                    self.activity_received.emit(activity)
+                remote_thinking_dirty = False
+
             async for event_type, payload in self._chat_client.stream_chat_events(self._request):
                 event = _compact_text(event_type).lower() or "message"
                 data = payload if isinstance(payload, dict) else {}
+                if event == "thinking_delta":
+                    chunk = str(data.get("chunk") or "")
+                    if chunk:
+                        remote_thinking_text += chunk
+                        remote_thinking_dirty = True
+                    continue
+                if remote_thinking_dirty:
+                    _flush_remote_thinking()
                 if event == "delta":
                     chunk = str(data.get("chunk") or "")
                     if chunk:
                         self.chunk_received.emit(chunk)
                     continue
-                if event == "activity":
-                    label = _compact_text(data.get("label")) or "activity"
-                    detail = _compact_text(data.get("detail")) or "running"
-                    preview = _compact_text(data.get("preview"))
-                    self.activity_received.emit(
-                        {
-                            "kind": label,
-                            "title": detail,
-                            "preview": preview,
-                        }
-                    )
-                    continue
-                if event == "status":
-                    stage = _compact_text(data.get("stage")) or "running"
-                    self.activity_received.emit({"kind": "status", "title": stage})
-                    continue
+                activity = desktop_stream_activity_payload(event, data)
+                if activity is not None:
+                    self.activity_received.emit(activity)
                 if event == "approval_requested":
-                    tool_name = _compact_text(data.get("tool_name")) or "tool"
-                    self.activity_received.emit(
-                        {
-                            "kind": "approval",
-                            "title": f"{tool_name} needs approval",
-                            "detail": _compact_text(data.get("reason")),
-                        }
-                    )
                     self.approval_requested.emit(data)
                     continue
                 if event == "approval_resolved":
-                    self.activity_received.emit({"kind": "approval", "title": "Approval resolved"})
                     self.approval_resolved.emit()
                     continue
-                if event.startswith("delegation."):
-                    detail = event.split(".", 1)[-1] or "delegation"
-                    owner = _compact_text(data.get("worker_id") or data.get("owner"))
-                    self.activity_received.emit(
-                        {
-                            "kind": "delegation",
-                            "title": detail,
-                            "preview": owner,
-                        }
-                    )
+                if event in {"activity", "status"} or event.startswith("delegation."):
                     continue
                 if event == "error":
                     detail = RemoteStreamErrorService.payload_detail(data)
-                    self.activity_received.emit(
-                        {
-                            "kind": "error",
-                            "title": detail,
-                        }
-                    )
                     raise RuntimeError(detail)
                 if event == "done":
                     self.done_received.emit(data)
@@ -5434,6 +5543,7 @@ def create_desktop_main_window(
                 kind=str(entry.get("kind") or "activity"),
                 detail=str(entry.get("detail") or ""),
                 preview=str(entry.get("preview") or ""),
+                activity_id=str(entry.get("activity_id") or ""),
             )
 
         def _on_stream_approval_requested(self, payload: object) -> None:
@@ -5536,24 +5646,16 @@ def create_desktop_main_window(
             kind: str = "activity",
             detail: str | None = None,
             preview: str | None = None,
+            activity_id: str | None = None,
         ) -> None:
-            normalized_message = str(message or "").strip() or "activity"
-            normalized_detail = str(detail or "")
-            if not normalized_detail and "\n" in normalized_message:
-                first_line, remainder = normalized_message.split("\n", 1)
-                normalized_message = first_line.strip() or "activity"
-                normalized_detail = remainder.strip()
-            self._activity_entries.append(
-                {
-                    "timestamp": datetime.now().strftime("%H:%M:%S"),
-                    "kind": _compact_text(kind).lower() or "activity",
-                    "title": normalized_message,
-                    "detail": normalized_detail,
-                    "preview": _compact_text(preview),
-                }
+            append_desktop_activity_entry(
+                self._activity_entries,
+                message,
+                kind=kind,
+                detail=detail,
+                preview=preview,
+                activity_id=activity_id,
             )
-            if len(self._activity_entries) > 120:
-                self._activity_entries = self._activity_entries[-120:]
             self._render_activity()
 
         def _append_managed_gateway_excerpt(self, label: str) -> None:

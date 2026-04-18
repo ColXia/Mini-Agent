@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from mini_agent.desktop.window import (
     _truncate_text,
+    append_desktop_activity_entry,
     collect_memory_file_entries,
     collect_model_options,
     collect_provider_draft_model_entries,
@@ -12,6 +13,7 @@ from mini_agent.desktop.window import (
     desktop_error_detail,
     desktop_page_specs,
     desktop_provider_preset_specs,
+    desktop_stream_activity_payload,
     first_pending_approval,
     format_desktop_approval_failure,
     format_feature_bindings_text,
@@ -396,6 +398,70 @@ def test_render_activity_html_renders_cards_with_detail_and_preview() -> None:
     assert "shell needs approval" in html_text
     assert "cmd /c dir" in html_text
     assert "reason: elevated shell" in html_text
+
+
+def test_append_desktop_activity_entry_updates_existing_entry_by_activity_id() -> None:
+    entries: list[dict[str, object]] = []
+
+    append_desktop_activity_entry(
+        entries,
+        "Thinking",
+        kind="thinking",
+        detail="plan step 1",
+        activity_id="remote-thinking",
+        timestamp="10:00:00",
+    )
+    append_desktop_activity_entry(
+        entries,
+        "Thinking",
+        kind="thinking",
+        detail="plan step 1\nplan step 2",
+        activity_id="remote-thinking",
+        timestamp="10:00:01",
+    )
+
+    assert entries == [
+        {
+            "timestamp": "10:00:01",
+            "kind": "thinking",
+            "title": "Thinking",
+            "detail": "plan step 1\nplan step 2",
+            "preview": "",
+            "activity_id": "remote-thinking",
+        }
+    ]
+
+
+def test_desktop_stream_activity_payload_maps_remote_thinking_delta_to_update_card() -> None:
+    payload = desktop_stream_activity_payload(
+        "thinking_delta",
+        {"chunk": "ignored"},
+        thinking_text="plan next step",
+    )
+
+    assert payload == {
+        "kind": "thinking",
+        "title": "Thinking",
+        "detail": "plan next step",
+        "activity_id": "remote-thinking",
+    }
+
+
+def test_render_activity_html_supports_thinking_cards() -> None:
+    html_text = render_activity_html(
+        [
+            {
+                "timestamp": "12:34:56",
+                "kind": "thinking",
+                "title": "Thinking",
+                "detail": "plan next step",
+            }
+        ]
+    )
+
+    assert "12:34:56 | thinking" in html_text
+    assert "Thinking" in html_text
+    assert "plan next step" in html_text
 
 
 def test_format_feature_bindings_text_renders_binding_lines() -> None:
