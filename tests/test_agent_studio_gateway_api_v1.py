@@ -575,10 +575,19 @@ def test_v1_agent_model_binding_routes_use_model_service(monkeypatch) -> None:
 
 
 def test_v1_agent_session_detail_and_operation_routes(monkeypatch) -> None:
-    class _SurfaceServiceStub:
-        async def ensure_default_session(self, request):
+    class _SessionTaskServiceStub:
+        def __init__(self) -> None:
+            self.validated_workspaces: list[Path] = []
+
+        def validate_workspace(self, workspace_dir: Path) -> None:
+            assert workspace_dir == Path("D:/file/Mini-Agent").resolve()
+            self.validated_workspaces.append(workspace_dir)
+
+        async def ensure_default_session(self, request, *, workspace_dir: Path):
             assert request.workspace_dir == "D:/file/Mini-Agent"
             assert request.surface == "desktop"
+            assert workspace_dir == Path("D:/file/Mini-Agent").resolve()
+            assert self.validated_workspaces[-1] == workspace_dir
             return MainAgentSessionDetail(
                 session_id="default",
                 workspace_dir="D:/file/Mini-Agent",
@@ -905,7 +914,8 @@ def test_v1_agent_session_detail_and_operation_routes(monkeypatch) -> None:
                 selected_model_id="gpt-5.3",
             )
 
-    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_surface_service", _SurfaceServiceStub())
+    session_task_service = _SessionTaskServiceStub()
+    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_session_task_service", session_task_service)
     monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_agent_service", _AgentServiceStub())
     monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_model_service", _ModelServiceStub())
 
@@ -930,6 +940,7 @@ def test_v1_agent_session_detail_and_operation_routes(monkeypatch) -> None:
         assert default_payload["ok"] is True
         assert default_payload["data"]["session_id"] == "default"
         assert default_payload["data"]["is_default"] is True
+        assert session_task_service.validated_workspaces == [Path("D:/file/Mini-Agent").resolve()]
 
         message_response = client.get("/api/v1/agent/sessions/sess-qq/messages", params={"limit": 2})
         assert message_response.status_code == 200
@@ -1069,9 +1080,16 @@ def test_v1_agent_session_detail_and_operation_routes(monkeypatch) -> None:
 
 
 def test_v1_runtime_session_create_share_rename_routes(monkeypatch) -> None:
-    class _SurfaceServiceStub:
+    class _SessionTaskServiceStub:
+        def __init__(self) -> None:
+            self.validated_workspaces: list[Path] = []
+
+        def validate_workspace(self, workspace_dir: Path) -> None:
+            assert workspace_dir == gateway_main.GATEWAY_COMPOSITION.settings.repo_root
+            self.validated_workspaces.append(workspace_dir)
+
         async def list_sessions(self, *, workspace_dir=None, shared_only=False):
-            assert workspace_dir == "."
+            assert workspace_dir == gateway_main.GATEWAY_COMPOSITION.settings.repo_root
             assert shared_only is True
             return [
                 MainAgentSessionSummary(
@@ -1087,11 +1105,13 @@ def test_v1_runtime_session_create_share_rename_routes(monkeypatch) -> None:
                 )
             ]
 
-        async def create_session(self, request):
+        async def create_session(self, request, *, workspace_dir: Path):
             assert request.workspace_dir == "."
             assert request.title == "Session 1"
             assert request.surface == "tui"
             assert request.shared is False
+            assert workspace_dir == gateway_main.GATEWAY_COMPOSITION.settings.repo_root
+            assert self.validated_workspaces[-1] == workspace_dir
             return MainAgentSessionDetail(
                 session_id="sess-runtime-1",
                 workspace_dir="D:/file/Mini-Agent",
@@ -1105,7 +1125,6 @@ def test_v1_runtime_session_create_share_rename_routes(monkeypatch) -> None:
                 recent_messages=[],
             )
 
-    class _SessionTaskServiceStub:
         async def rename_session(self, session_id: str, request):
             assert session_id == "sess-runtime-1"
             assert request.title == "Focus Session"
@@ -1128,8 +1147,8 @@ def test_v1_runtime_session_create_share_rename_routes(monkeypatch) -> None:
                 shared=True,
             )
 
-    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_surface_service", _SurfaceServiceStub())
-    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_session_task_service", _SessionTaskServiceStub())
+    session_task_service = _SessionTaskServiceStub()
+    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_session_task_service", session_task_service)
 
     with TestClient(app) as client:
         list_response = client.get("/api/v1/agent/sessions", params={"workspace_dir": ".", "shared_only": True})
@@ -1147,6 +1166,7 @@ def test_v1_runtime_session_create_share_rename_routes(monkeypatch) -> None:
         assert create_payload["ok"] is True
         assert create_payload["data"]["session_id"] == "sess-runtime-1"
         assert create_payload["data"]["shared"] is False
+        assert session_task_service.validated_workspaces == [gateway_main.GATEWAY_COMPOSITION.settings.repo_root]
 
         rename_response = client.patch(
             "/api/v1/agent/sessions/sess-runtime-1",

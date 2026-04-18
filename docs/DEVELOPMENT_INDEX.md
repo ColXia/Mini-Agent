@@ -138,6 +138,7 @@ Latest stage sync:
 - `2026-04-18`: the surface DTO-read boundary is tightened again: TUI/desktop surface paths now route DTO-to-payload conversion through `mini_agent.interfaces.surface_payload_adapter`, and `tests/test_surface_payload_boundary_hygiene.py` guards against new direct `.model_dump()` transport serialization inside surface modules.
 - `2026-04-18`: gateway workspace/model routes now consume `WorkspaceUserService` and `ModelUserService` directly instead of routing those entrypoints through `MainAgentSurfaceService`; shared HTTP DTO normalization for those services lives in `src/mini_agent/application/facades/service_response_dto_adapter.py`.
 - `2026-04-18`: gateway session mutation/control routes now consume `SessionTaskService`, `AgentUserService`, and `ModelUserService` directly; `MainAgentSurfaceService` remains on the chat/session-read side while the gateway transport layer now owns request-binding adaptation for the migrated mutation endpoints.
+- `2026-04-18`: gateway session list/create/default/detail/message routes now consume `SessionTaskService` directly, with explicit router-owned `resolve_workspace_dir` and `validate_workspace` handling; `MainAgentSurfaceService` is narrowed further toward chat/stream orchestration and transitional diagnostics only.
 
 ## 3. Active Plan: P22 Core Agent Minimal (Started 2026-04-07)
 

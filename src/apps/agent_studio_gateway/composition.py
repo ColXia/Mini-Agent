@@ -327,6 +327,7 @@ class GatewayComposition:
         return MainAgentRouterDependencies(
             build_health_response=self.build_health_response,
             get_runtime_diagnostics=self.get_runtime_diagnostics,
+            resolve_workspace_dir=self.resolve_workspace_dir,
             get_surface_service=self.get_surface_service,
             get_session_task_service=self.get_session_task_service,
             get_agent_service=self.get_agent_service,

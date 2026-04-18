@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Awaitable, Callable
 
 from fastapi import APIRouter, Depends
@@ -70,6 +71,7 @@ from mini_agent.interfaces import (
 class MainAgentRouterDependencies:
     build_health_response: Callable[[], Awaitable[SystemHealthResponse]]
     get_runtime_diagnostics: Callable[[], Awaitable[MainAgentRuntimeDiagnostics]]
+    resolve_workspace_dir: Callable[[str | None], Path]
     get_surface_service: Callable[[], MainAgentSurfaceService]
     get_session_task_service: Callable[[], SessionTaskService]
     get_agent_service: Callable[[], AgentUserService]
@@ -91,6 +93,9 @@ def create_main_agent_router(deps: MainAgentRouterDependencies) -> APIRouter:
 
     def _require_session_task_service() -> SessionTaskService:
         return deps.get_session_task_service()
+
+    def _resolve_workspace_dir(workspace_dir: str | None) -> Path:
+        return deps.resolve_workspace_dir(workspace_dir)
 
     def _require_agent_service() -> AgentUserService:
         return deps.get_agent_service()
@@ -167,21 +172,29 @@ def create_main_agent_router(deps: MainAgentRouterDependencies) -> APIRouter:
         workspace_dir: str | None = None,
         shared_only: bool = False,
     ) -> ApiEnvelope[list[MainAgentSessionSummary]]:
-        data = await deps.get_surface_service().list_sessions(
-            workspace_dir=workspace_dir,
+        data = await _require_session_task_service().list_sessions(
+            workspace_dir=_resolve_workspace_dir(workspace_dir) if workspace_dir else None,
             shared_only=shared_only,
         )
         return ApiEnvelope[list[MainAgentSessionSummary]](ok=True, data=data)
 
     @router.post("/api/v1/agent/sessions", response_model=ApiEnvelope[MainAgentSessionDetail])
     async def v1_create_session(request: MainAgentSessionCreateRequest) -> ApiEnvelope[MainAgentSessionDetail]:
-        return ApiEnvelope[MainAgentSessionDetail](ok=True, data=await deps.get_surface_service().create_session(request))
+        resolved_workspace = _resolve_workspace_dir(request.workspace_dir)
+        _require_session_task_service().validate_workspace(resolved_workspace)
+        data = await _require_session_task_service().create_session(request, workspace_dir=resolved_workspace)
+        return ApiEnvelope[MainAgentSessionDetail](ok=True, data=data)
 
     @router.post("/api/v1/agent/sessions/default", response_model=ApiEnvelope[MainAgentSessionDetail])
     async def v1_ensure_default_session(
         request: MainAgentDefaultSessionRequest,
     ) -> ApiEnvelope[MainAgentSessionDetail]:
-        data = await deps.get_surface_service().ensure_default_session(request)
+        resolved_workspace = _resolve_workspace_dir(request.workspace_dir)
+        _require_session_task_service().validate_workspace(resolved_workspace)
+        data = await _require_session_task_service().ensure_default_session(
+            request,
+            workspace_dir=resolved_workspace,
+        )
         return ApiEnvelope[MainAgentSessionDetail](ok=True, data=data)
 
     @router.get("/api/v1/agent/sessions/{session_id}", response_model=ApiEnvelope[MainAgentSessionDetail])
@@ -189,7 +202,7 @@ def create_main_agent_router(deps: MainAgentRouterDependencies) -> APIRouter:
         session_id: str,
         recent_limit: int = 50,
     ) -> ApiEnvelope[MainAgentSessionDetail]:
-        data = await deps.get_surface_service().get_session_detail(session_id, recent_limit=recent_limit)
+        data = await _require_session_task_service().get_session_detail(session_id, recent_limit=recent_limit)
         return ApiEnvelope[MainAgentSessionDetail](ok=True, data=data)
 
     @router.get("/api/v1/agent/sessions/{session_id}/messages", response_model=ApiEnvelope[list[MainAgentSessionMessage]])
@@ -197,7 +210,7 @@ def create_main_agent_router(deps: MainAgentRouterDependencies) -> APIRouter:
         session_id: str,
         limit: int = 10,
     ) -> ApiEnvelope[list[MainAgentSessionMessage]]:
-        data = await deps.get_surface_service().get_session_messages(session_id, limit=limit)
+        data = await _require_session_task_service().get_session_messages(session_id, limit=limit)
         return ApiEnvelope[list[MainAgentSessionMessage]](ok=True, data=data)
 
     @router.get("/api/v1/agent/models", response_model=ApiEnvelope[StudioModelListResponse])
