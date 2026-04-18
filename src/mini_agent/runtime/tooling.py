@@ -2,23 +2,41 @@
 
 from __future__ import annotations
 
+from importlib import import_module
 from pathlib import Path
 from typing import Any
 
 from mini_agent.commands.mcp_support import resolve_runtime_mcp_config_path
-from mini_agent.runtime.support import tooling as _impl
 
-add_workspace_tools = _impl.add_workspace_tools
-apply_runtime_policy_to_agent = _impl.apply_runtime_policy_to_agent
-build_approval_engine = _impl.build_approval_engine
-build_workspace_sandbox_manager = _impl.build_workspace_sandbox_manager
-reconfigure_agent_runtime_policy = _impl.reconfigure_agent_runtime_policy
-resolve_runtime_policy = _impl.resolve_runtime_policy
+
+_COMPAT_EXPORTS: dict[str, tuple[str, str]] = {
+    "add_workspace_tools": (".support.tooling", "add_workspace_tools"),
+    "apply_runtime_policy_to_agent": (".support.tooling", "apply_runtime_policy_to_agent"),
+    "build_approval_engine": (".support.tooling", "build_approval_engine"),
+    "build_workspace_sandbox_manager": (".support.tooling", "build_workspace_sandbox_manager"),
+    "reconfigure_agent_runtime_policy": (".support.tooling", "reconfigure_agent_runtime_policy"),
+    "resolve_runtime_policy": (".support.tooling", "resolve_runtime_policy"),
+}
+
+
+def _runtime_tooling_impl():
+    return import_module(".support.tooling", __package__)
+
+
+def __getattr__(name: str):
+    export = _COMPAT_EXPORTS.get(name)
+    if export is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module_name, attr_name = export
+    module = import_module(module_name, __package__)
+    value = getattr(module, attr_name)
+    globals()[name] = value
+    return value
 
 
 def _sync_runtime_tooling_globals() -> None:
     """Keep compatibility monkeypatches visible to the real owner module."""
-    _impl.resolve_runtime_mcp_config_path = resolve_runtime_mcp_config_path
+    _runtime_tooling_impl().resolve_runtime_mcp_config_path = resolve_runtime_mcp_config_path
 
 
 async def initialize_shared_tools(
@@ -27,7 +45,7 @@ async def initialize_shared_tools(
     policy_engine: Any,
 ) -> tuple[list, Any, dict[str, Any]]:
     _sync_runtime_tooling_globals()
-    return await _impl.initialize_shared_tools(
+    return await _runtime_tooling_impl().initialize_shared_tools(
         config,
         workspace_dir=workspace_dir,
         policy_engine=policy_engine,
@@ -41,7 +59,7 @@ async def initialize_agent_tools(
     access_level_override: str | None = None,
 ) -> tuple[list, Any, dict[str, Any]]:
     _sync_runtime_tooling_globals()
-    return await _impl.initialize_agent_tools(
+    return await _runtime_tooling_impl().initialize_agent_tools(
         config,
         workspace_dir,
         approval_profile_override=approval_profile_override,
@@ -60,3 +78,7 @@ __all__ = [
     "resolve_runtime_mcp_config_path",
     "resolve_runtime_policy",
 ]
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(__all__))
