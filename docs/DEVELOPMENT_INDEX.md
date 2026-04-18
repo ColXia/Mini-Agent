@@ -146,6 +146,7 @@ Latest stage sync:
 - `2026-04-18`: `GatewayComposition` no longer builds or caches `MainAgentSurfaceService`; the gateway active runtime path is now fully explicit (`SessionTaskService` / `AgentUserService` / `ModelUserService` / `WorkspaceUserService` / `AgentInteractionApplicationService`), and the surface facade remains a compatibility-only assembly outside gateway composition.
 - `2026-04-18`: the physical implementation of `MainAgentSurfaceService` and its assembly/resolution helpers now lives under `src/mini_agent/application/legacy/`; `application.facades.*` keeps compatibility re-exports only, so repository structure now matches the facade’s compatibility-only status.
 - `2026-04-18`: `mini_agent.application` no longer promotes surface-facade symbols in top-level `__all__`; `MainAgentSurfaceService` and its assembly helpers remain available only through lazy compatibility export resolution, which reduces the chance of new code treating them as primary application entrypoints.
+- `2026-04-18`: `mini_agent.application.facades` now follows the same rule: legacy surface-facade symbols are lazy compatibility exports only, and `tests/test_surface_facade_boundary_hygiene.py` blocks active `src/` code from importing those surface facade entrypoints outside the compatibility/legacy files.
 
 ## 3. Active Plan: P22 Core Agent Minimal (Started 2026-04-07)
 

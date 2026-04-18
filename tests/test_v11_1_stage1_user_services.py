@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 import mini_agent.application as application_module
+import mini_agent.application.facades as application_facades_module
 from mini_agent.application.facades import MainAgentSurfaceService as FacadeMainAgentSurfaceService
 from mini_agent.application.legacy import (
     MainAgentSurfaceService as LegacyMainAgentSurfaceService,
@@ -635,6 +636,13 @@ def test_stage1_application_namespace_does_not_promote_legacy_surface_exports_in
     assert "MainAgentSurfaceAssembly" not in application_module.__all__
     assert "build_main_agent_surface_service" not in application_module.__all__
     assert "build_runtime_backed_main_agent_surface_service" not in application_module.__all__
+
+
+def test_stage1_facades_namespace_does_not_promote_legacy_surface_exports_in_all() -> None:
+    assert "MainAgentSurfaceService" not in application_facades_module.__all__
+    assert "MainAgentSurfaceAssembly" not in application_facades_module.__all__
+    assert "build_main_agent_surface_service" not in application_facades_module.__all__
+    assert "build_runtime_backed_main_agent_surface_service" not in application_facades_module.__all__
     assert ApplicationInteractionBinding is not None
     assert ManagedSessionTurn is not None
     assert ResolveWorkspaceDirFn is not None
