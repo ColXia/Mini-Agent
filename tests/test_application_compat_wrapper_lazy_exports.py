@@ -71,3 +71,87 @@ def test_application_session_runtime_port_wrapper_resolves_exports_lazily() -> N
 
     assert resolved is not None
     assert module.__dict__["SessionRuntimePort"] is resolved
+
+
+def test_application_channel_novel_action_wrapper_resolves_export_lazily() -> None:
+    module = _reset_lazy_export(
+        "mini_agent.application.channel_novel_action_handler",
+        "ChannelNovelActionHandler",
+    )
+
+    assert "ChannelNovelActionHandler" not in module.__dict__
+
+    resolved = getattr(module, "ChannelNovelActionHandler")
+
+    assert resolved is not None
+    assert module.__dict__["ChannelNovelActionHandler"] is resolved
+
+
+def test_application_operations_provider_wrapper_resolves_export_lazily() -> None:
+    module = _reset_lazy_export(
+        "mini_agent.application.operations_provider_use_cases",
+        "ProviderOperationsUseCases",
+    )
+
+    assert "ProviderOperationsUseCases" not in module.__dict__
+
+    resolved = getattr(module, "ProviderOperationsUseCases")
+
+    assert resolved is not None
+    assert module.__dict__["ProviderOperationsUseCases"] is resolved
+
+
+def test_application_agent_route_wrapper_resolves_runtime_helper_lazily() -> None:
+    module = _reset_lazy_export(
+        "mini_agent.application.agent_route_execution_handler",
+        "get_model_route_diagnostics_state",
+    )
+
+    assert "get_model_route_diagnostics_state" not in module.__dict__
+
+    resolved = getattr(module, "get_model_route_diagnostics_state")
+
+    assert resolved is not None
+    assert module.__dict__["get_model_route_diagnostics_state"] is resolved
+
+
+def test_application_session_runtime_compat_wrapper_resolves_export_lazily() -> None:
+    module = _reset_lazy_export(
+        "mini_agent.application.session_runtime_compat",
+        "SessionTaskCompatibilityAdapter",
+    )
+
+    assert "SessionTaskCompatibilityAdapter" not in module.__dict__
+
+    resolved = getattr(module, "SessionTaskCompatibilityAdapter")
+
+    assert resolved is not None
+    assert module.__dict__["SessionTaskCompatibilityAdapter"] is resolved
+
+
+def test_application_session_agent_runtime_port_wrapper_resolves_export_lazily() -> None:
+    module = _reset_lazy_export(
+        "mini_agent.application.ports.session_agent_runtime_port",
+        "SessionAgentRuntimePort",
+    )
+
+    assert "SessionAgentRuntimePort" not in module.__dict__
+
+    resolved = getattr(module, "SessionAgentRuntimePort")
+
+    assert resolved is not None
+    assert module.__dict__["SessionAgentRuntimePort"] is resolved
+
+
+def test_application_session_model_selection_runtime_port_wrapper_resolves_export_lazily() -> None:
+    module = _reset_lazy_export(
+        "mini_agent.application.ports.session_model_selection_runtime_port",
+        "SessionModelSelectionRuntimePort",
+    )
+
+    assert "SessionModelSelectionRuntimePort" not in module.__dict__
+
+    resolved = getattr(module, "SessionModelSelectionRuntimePort")
+
+    assert resolved is not None
+    assert module.__dict__["SessionModelSelectionRuntimePort"] is resolved
