@@ -59,6 +59,7 @@ class RuntimeSessionImportRequest(BaseModel):
     prepared_context_diagnostics: dict[str, Any] = Field(default_factory=dict)
     memory_diagnostics: dict[str, Any] = Field(default_factory=dict)
     sandbox_diagnostics: dict[str, Any] = Field(default_factory=dict)
+    workspace_runtime_snapshot: dict[str, Any] = Field(default_factory=dict)
     runtime_task_memory_payload: dict[str, Any] = Field(default_factory=dict)
     workspace_shared_runtime_memory_payload: dict[str, Any] = Field(default_factory=dict)
     agent_messages: list[dict[str, Any]] = Field(default_factory=list)

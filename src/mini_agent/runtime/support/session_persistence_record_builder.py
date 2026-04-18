@@ -117,6 +117,7 @@ class RuntimeSessionPersistenceRecordBuilder:
         *,
         transcript_path: Path,
         sandbox_diagnostics: dict[str, Any],
+        workspace_runtime_snapshot: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         pending_approvals = self._read_active_pending_approvals(session)
         return {
@@ -195,6 +196,11 @@ class RuntimeSessionPersistenceRecordBuilder:
                 else {}
             ),
             "sandbox_diagnostics": dict(sandbox_diagnostics) if isinstance(sandbox_diagnostics, dict) else {},
+            "workspace_runtime_snapshot": (
+                dict(workspace_runtime_snapshot)
+                if isinstance(workspace_runtime_snapshot, dict)
+                else None
+            ),
             "last_memory_automation": self._read_agent_last_memory_automation(session.runtime.agent),
             "last_runtime_task_memory": self._read_agent_last_runtime_task_memory(session.runtime.agent),
             "run_control": self._read_active_run_control_state(session),

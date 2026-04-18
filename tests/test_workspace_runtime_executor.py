@@ -178,3 +178,5 @@ def test_build_direct_workspace_runtime_bundle_composes_shared_runtime_parts(tmp
     assert summary["mode"] == WorkspaceRuntimeMode.DIRECT.value
     assert summary["scope"] == WorkspaceAccessScope.WORKSPACE_ONLY.value
     assert summary["permission_rule_count"] == 0
+    assert summary["snapshot_count"] == 0
+    assert summary["latest_snapshot_id"] is None

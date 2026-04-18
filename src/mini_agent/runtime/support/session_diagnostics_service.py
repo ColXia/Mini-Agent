@@ -6,6 +6,11 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable
 
 from mini_agent.memory.diagnostics import build_memory_diagnostics
+from mini_agent.workspace_runtime import (
+    capture_shared_workspace_snapshot,
+    restore_shared_workspace_snapshot,
+    workspace_runtime_snapshot_payload,
+)
 
 if TYPE_CHECKING:
     from mini_agent.runtime.session_state import MainAgentSessionState
@@ -102,6 +107,36 @@ class RuntimeSessionDiagnosticsService:
         record: dict[str, Any],
     ) -> dict[str, Any]:
         return self.normalize_sandbox_diagnostics_payload(record.get("sandbox_diagnostics"))
+
+    def build_workspace_runtime_snapshot_for_session(
+        self,
+        session: "MainAgentSessionState",
+    ) -> dict[str, Any] | None:
+        snapshot = capture_shared_workspace_snapshot(
+            session.workspace_dir,
+            metadata={
+                "trigger": "session_snapshot_export",
+                "session_id": session.session_id,
+                "message_count": len(getattr(session.transcript_state, "transcript", []) or []),
+            },
+        )
+        return workspace_runtime_snapshot_payload(snapshot)
+
+    @staticmethod
+    def build_workspace_runtime_snapshot_from_record(
+        record: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        payload = record.get("workspace_runtime_snapshot")
+        return dict(payload) if isinstance(payload, dict) else None
+
+    @staticmethod
+    def restore_workspace_runtime_snapshot_payload(
+        payload: Any,
+        *,
+        workspace_dir: Any,
+    ) -> dict[str, Any] | None:
+        restored = restore_shared_workspace_snapshot(payload, workspace_dir=workspace_dir)
+        return workspace_runtime_snapshot_payload(restored)
 
 
 __all__ = ["RuntimeSessionDiagnosticsService"]

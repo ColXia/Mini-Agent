@@ -18,6 +18,7 @@ from mini_agent.interfaces import (
     MainAgentModelCandidateSummary,
     MainAgentModelCapabilities,
     MainAgentRunApprovalWait,
+    MainAgentRunCheckpoint,
     MainAgentRunApprovalRequest,
     MainAgentRunCancelRequest,
     MainAgentRunInterruptRequest,
@@ -188,6 +189,7 @@ def test_main_agent_session_contracts() -> None:
         "context_policy",
         "last_prepared_context",
         "prepared_context_diagnostics",
+        "workspace_runtime_snapshot",
         "sandbox_diagnostics",
         "recent_messages",
     }
@@ -344,6 +346,18 @@ def test_main_agent_run_contracts() -> None:
         "resolved_at",
         "invalidated_reason",
     }
+    assert _required_fields(MainAgentRunCheckpoint) == {
+        "checkpoint_id",
+        "kind",
+    }
+    assert _property_fields(MainAgentRunCheckpoint) >= {
+        "source",
+        "created_at",
+        "workspace_dir",
+        "runtime_mode",
+        "access_scope",
+        "mutation_count",
+    }
     assert _required_fields(MainAgentRunSummary) == {
         "run_id",
         "session_id",
@@ -364,6 +378,7 @@ def test_main_agent_run_contracts() -> None:
         "resumable",
         "active_wait_id",
         "approval_wait",
+        "checkpoint",
     }
     assert _property_fields(MainAgentRunResumeRequest) == {
         "resume_token",

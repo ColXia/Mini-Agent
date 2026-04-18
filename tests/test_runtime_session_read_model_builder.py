@@ -50,6 +50,16 @@ def _builder() -> RuntimeSessionReadModelBuilder:
         record_token_limit=lambda record: int(record.get("token_limit") or 0),
         transcript_entries_from_record=lambda record: list(record.get("_transcript_entries") or []),
         pending_approvals_from_raw=lambda raw: list(raw or []),
+        build_workspace_runtime_snapshot_for_session=lambda session: {
+            "snapshot_id": f"snap-{session.session_id}",
+            "workspace_dir": str(Path(session.workspace_dir).resolve()),
+            "mode": "direct",
+            "scope": "workspace_only",
+            "mutation_count": len(getattr(session.transcript_state, "transcript", []) or []),
+        },
+        build_workspace_runtime_snapshot_from_record=lambda record: dict(
+            record.get("workspace_runtime_snapshot") or {}
+        ),
         snapshot_runtime_task_memory_payload=lambda **kwargs: {"session_id": kwargs.get("session_id")},
         snapshot_workspace_shared_runtime_task_memory_payload=lambda **kwargs: {
             "workspace_dir": str(kwargs.get("workspace_dir"))
@@ -221,3 +231,91 @@ def test_runtime_session_read_model_builder_prefers_active_run_pending_approvals
     summary = builder.build_session_summary(session)
 
     assert [item.token for item in summary.pending_approvals] == ["approval-run"]
+
+
+def test_runtime_session_read_model_builder_session_detail_exposes_workspace_runtime_snapshot(
+    tmp_path: Path,
+) -> None:
+    builder = _builder()
+    session = runtime_session_stub(
+        session_id="sess-detail-snapshot",
+        workspace_dir=tmp_path,
+        created_at=_dt(),
+        updated_at=_dt(),
+        projection=runtime_projection_stub(
+            title="Detail Snapshot",
+            origin_surface="TUI",
+            active_surface="Desktop",
+            reply_enabled=False,
+            is_default=False,
+            channel_type=None,
+            conversation_id=None,
+            sender_id=None,
+            shared=False,
+            selected_model_source=None,
+            selected_provider_id=None,
+            selected_model_id=None,
+            pending_model_source=None,
+            pending_provider_id=None,
+            pending_model_id=None,
+            context_policy={"sources": ["workspace"]},
+            last_prepared_context={"summary": "ctx"},
+            prepared_context_diagnostics={"chars": 21},
+        ),
+        transcript_state=transcript_state_stub(
+            transcript=[
+                transcript_entry_stub(
+                    index=1,
+                    role="user",
+                    content="inspect state",
+                    surface="desktop",
+                    created_at=_dt(),
+                )
+            ]
+        ),
+    )
+
+    detail = builder.build_session_detail(session, recent_limit=5)
+
+    assert detail.workspace_runtime_snapshot["snapshot_id"] == "snap-sess-detail-snapshot"
+    assert detail.workspace_runtime_snapshot["workspace_dir"] == str(tmp_path.resolve())
+    assert detail.workspace_runtime_snapshot["mutation_count"] == 1
+
+
+def test_runtime_session_read_model_builder_persisted_detail_exposes_workspace_runtime_snapshot(
+    tmp_path: Path,
+) -> None:
+    builder = _builder()
+    record = {
+        "session_id": "sess-detail-record",
+        "workspace_dir": str(tmp_path),
+        "created_at": _dt().isoformat(),
+        "updated_at": _dt().isoformat(),
+        "origin_surface": "desktop",
+        "active_surface": "desktop",
+        "context_policy": {"sources": ["memory"]},
+        "last_prepared_context": {"summary": "persisted"},
+        "prepared_context_diagnostics": {"chars": 18},
+        "workspace_runtime_snapshot": {
+            "snapshot_id": "persisted-workspace-snap",
+            "workspace_dir": str(tmp_path.resolve()),
+            "mode": "direct",
+            "scope": "workspace_only",
+            "mutation_count": 3,
+        },
+        "_transcript_entries": [
+            transcript_entry_stub(
+                index=1,
+                role="assistant",
+                content="persisted state",
+                surface="desktop",
+                created_at=_dt(),
+            )
+        ],
+    }
+
+    detail = builder.build_session_detail_from_record(record, recent_limit=5)
+
+    assert detail.workspace_runtime_snapshot["snapshot_id"] == "persisted-workspace-snap"
+    assert detail.workspace_runtime_snapshot["workspace_dir"] == str(tmp_path.resolve())
+    assert detail.workspace_runtime_snapshot["mutation_count"] == 3

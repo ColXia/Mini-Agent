@@ -109,6 +109,19 @@ class MainAgentRunApprovalWait(BaseModel):
     invalidated_reason: str | None = None
 
 
+class MainAgentRunCheckpoint(BaseModel):
+    """Compact run checkpoint summary derived from workspace-runtime state."""
+
+    checkpoint_id: str = Field(min_length=1)
+    kind: str = Field(min_length=1)
+    source: str | None = None
+    created_at: str | None = None
+    workspace_dir: str | None = None
+    runtime_mode: str | None = None
+    access_scope: str | None = None
+    mutation_count: int = Field(ge=0, default=0)
+
+
 class MainAgentRunSummary(BaseModel):
     """Canonical run summary for run-level active control APIs."""
 
@@ -129,6 +142,7 @@ class MainAgentRunSummary(BaseModel):
     resumable: bool = False
     active_wait_id: str | None = None
     approval_wait: MainAgentRunApprovalWait | None = None
+    checkpoint: MainAgentRunCheckpoint | None = None
 
 
 class MainAgentSessionSummary(BaseModel):
@@ -188,6 +202,7 @@ class MainAgentSessionDetail(MainAgentSessionSummary):
     context_policy: dict[str, Any] = Field(default_factory=dict)
     last_prepared_context: dict[str, Any] = Field(default_factory=dict)
     prepared_context_diagnostics: dict[str, Any] = Field(default_factory=dict)
+    workspace_runtime_snapshot: dict[str, Any] = Field(default_factory=dict)
     recent_messages: list[MainAgentSessionMessage] = Field(default_factory=list)
 
 

@@ -17,6 +17,7 @@ class RuntimeSessionStateHydrator:
     restore_workspace_shared_runtime_task_memory: Callable[..., dict[str, Any]]
     build_memory_diagnostics_for_session: Callable[["MainAgentSessionState"], dict[str, Any]]
     build_sandbox_diagnostics_for_session: Callable[["MainAgentSessionState"], dict[str, Any]]
+    restore_workspace_runtime_snapshot: Callable[..., Any] | None = None
     agent_last_prepared_context: Callable[[Any], dict[str, Any]] | None = None
     agent_prepared_context_diagnostics: Callable[[Any], dict[str, Any]] | None = None
     normalize_prepared_context_payload: Callable[[Any], dict[str, Any]] | None = None
@@ -102,6 +103,11 @@ class RuntimeSessionStateHydrator:
             self.restore_workspace_shared_runtime_task_memory(
                 workspace_dir=payload.workspace_dir,
                 payload=payload.workspace_shared_runtime_memory_payload,
+            )
+        if payload.workspace_runtime_snapshot is not None and callable(self.restore_workspace_runtime_snapshot):
+            self.restore_workspace_runtime_snapshot(
+                workspace_dir=payload.workspace_dir,
+                payload=payload.workspace_runtime_snapshot,
             )
         self.restore_agent_prepared_context_state(session)
         self.refresh_runtime_projection(session)

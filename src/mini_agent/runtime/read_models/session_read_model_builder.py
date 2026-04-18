@@ -62,6 +62,8 @@ class RuntimeSessionReadModelBuilder:
     transcript_entries_from_record: Callable[[dict[str, Any]], list["MainAgentSessionTranscriptEntry"]]
     pending_approvals_from_raw: Callable[[Any], list[dict[str, Any]]]
     active_pending_approvals_for_session: Callable[["MainAgentSessionState"], Sequence[dict[str, Any]]] | None = None
+    build_workspace_runtime_snapshot_for_session: Callable[["MainAgentSessionState"], dict[str, Any] | None] | None = None
+    build_workspace_runtime_snapshot_from_record: Callable[[dict[str, Any]], dict[str, Any] | None] | None = None
     snapshot_runtime_task_memory_payload: Callable[..., dict[str, Any]] | None = None
     snapshot_workspace_shared_runtime_task_memory_payload: Callable[..., dict[str, Any]] | None = None
     serialize_agent_messages: Callable[[Sequence[Any]], list[dict[str, Any]]] | None = None
@@ -169,6 +171,11 @@ class RuntimeSessionReadModelBuilder:
             prepared_context_diagnostics=self.normalize_prepared_context_diagnostics_payload(
                 session.projection.prepared_context_diagnostics
             ),
+            workspace_runtime_snapshot=(
+                self.build_workspace_runtime_snapshot_for_session(session)
+                if callable(self.build_workspace_runtime_snapshot_for_session)
+                else None
+            ),
             recent_messages=tuple(
                 self.build_session_message_projection(entry)
                 for entry in session.transcript_state.transcript[-normalized_limit:]
@@ -260,6 +267,11 @@ class RuntimeSessionReadModelBuilder:
             last_prepared_context=self.normalize_prepared_context_payload(record.get("last_prepared_context")),
             prepared_context_diagnostics=self.normalize_prepared_context_diagnostics_payload(
                 record.get("prepared_context_diagnostics")
+            ),
+            workspace_runtime_snapshot=(
+                self.build_workspace_runtime_snapshot_from_record(record)
+                if callable(self.build_workspace_runtime_snapshot_from_record)
+                else None
             ),
             recent_messages=tuple(
                 self.build_session_message_projection(entry)
@@ -423,6 +435,12 @@ class RuntimeSessionReadModelBuilder:
             build_memory_diagnostics_from_record=self.build_memory_diagnostics_from_record,
             build_sandbox_diagnostics_for_session=self.build_sandbox_diagnostics_for_session,
             build_sandbox_diagnostics_from_record=self.build_sandbox_diagnostics_from_record,
+            build_workspace_runtime_snapshot_for_session=(
+                self.build_workspace_runtime_snapshot_for_session or self._empty_workspace_runtime_snapshot_payload
+            ),
+            build_workspace_runtime_snapshot_from_record=(
+                self.build_workspace_runtime_snapshot_from_record or self._empty_workspace_runtime_snapshot_payload
+            ),
             snapshot_runtime_task_memory_payload=(
                 self.snapshot_runtime_task_memory_payload or self._empty_runtime_memory_payload
             ),
@@ -441,6 +459,10 @@ class RuntimeSessionReadModelBuilder:
     @staticmethod
     def _empty_runtime_memory_payload(**_kwargs: Any) -> dict[str, Any]:
         return {}
+
+    @staticmethod
+    def _empty_workspace_runtime_snapshot_payload(*_args: Any, **_kwargs: Any) -> dict[str, Any] | None:
+        return None
 
     @staticmethod
     def _agent_messages(agent: Any) -> list[Any]:

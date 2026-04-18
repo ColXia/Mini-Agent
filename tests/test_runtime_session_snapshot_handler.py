@@ -28,7 +28,11 @@ def test_runtime_session_snapshot_handler_prepares_import_plan(tmp_path: Path) -
     )
 
     plan = handler.prepare_import(
-        RuntimeSessionSnapshotImportCommand(session_id=None, workspace_dir=tmp_path),
+        RuntimeSessionSnapshotImportCommand(
+            session_id=None,
+            workspace_dir=tmp_path,
+            workspace_runtime_snapshot={"snapshot_id": "import-snap"},
+        ),
         now_utc=_dt(),
         prepare_environment=lambda workspace_dir, now_utc: prepared.append((workspace_dir, now_utc)),
         session_exists=lambda _candidate: False,
@@ -39,6 +43,7 @@ def test_runtime_session_snapshot_handler_prepares_import_plan(tmp_path: Path) -
     assert plan.session_id == "sess-import"
     assert plan.payload is payload
     assert captured["session_id"] == "sess-import"
+    assert captured["workspace_runtime_snapshot"] == {"snapshot_id": "import-snap"}
 
 
 def test_runtime_session_snapshot_handler_exports_live_or_persisted_snapshot() -> None:

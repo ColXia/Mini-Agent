@@ -42,6 +42,8 @@ class RuntimeSessionSnapshotBuilder:
     build_memory_diagnostics_from_record: Callable[[dict[str, Any]], dict[str, Any]]
     build_sandbox_diagnostics_for_session: Callable[["MainAgentSessionState"], dict[str, Any]]
     build_sandbox_diagnostics_from_record: Callable[[dict[str, Any]], dict[str, Any]]
+    build_workspace_runtime_snapshot_for_session: Callable[["MainAgentSessionState"], dict[str, Any] | None]
+    build_workspace_runtime_snapshot_from_record: Callable[[dict[str, Any]], dict[str, Any] | None]
     snapshot_runtime_task_memory_payload: Callable[..., dict[str, Any]]
     snapshot_workspace_shared_runtime_task_memory_payload: Callable[..., dict[str, Any]]
     session_token_usage: Callable[["MainAgentSessionState"], int]
@@ -55,6 +57,7 @@ class RuntimeSessionSnapshotBuilder:
     def build_session_snapshot(self, session: "MainAgentSessionState") -> RuntimeSessionSnapshot:
         memory_diagnostics = self.build_memory_diagnostics_for_session(session)
         sandbox_diagnostics = self.build_sandbox_diagnostics_for_session(session)
+        workspace_runtime_snapshot = self.build_workspace_runtime_snapshot_for_session(session)
         return RuntimeSessionSnapshot(
             session_id=session.session_id,
             workspace_dir=str(session.workspace_dir),
@@ -96,6 +99,9 @@ class RuntimeSessionSnapshotBuilder:
             ),
             memory_diagnostics=dict(memory_diagnostics),
             sandbox_diagnostics=dict(sandbox_diagnostics),
+            workspace_runtime_snapshot=(
+                dict(workspace_runtime_snapshot) if isinstance(workspace_runtime_snapshot, dict) else {}
+            ),
             runtime_task_memory_payload=self.snapshot_runtime_task_memory_payload(
                 workspace_dir=session.workspace_dir,
                 session_id=session.session_id,
@@ -152,6 +158,9 @@ class RuntimeSessionSnapshotBuilder:
             ),
             memory_diagnostics=self.build_memory_diagnostics_from_record(record),
             sandbox_diagnostics=self.build_sandbox_diagnostics_from_record(record),
+            workspace_runtime_snapshot=(
+                dict(self.build_workspace_runtime_snapshot_from_record(record) or {})
+            ),
             runtime_task_memory_payload=(
                 self.snapshot_runtime_task_memory_payload(
                     workspace_dir=workspace_dir,

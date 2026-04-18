@@ -16,6 +16,10 @@ from mini_agent.agent_core.contracts import (
     RunWaitKind,
 )
 from mini_agent.runtime.support.session_backed_run_id import build_session_backed_run_id
+from mini_agent.workspace_runtime import (
+    shared_workspace_snapshot_store,
+    workspace_runtime_snapshot_payload,
+)
 
 if TYPE_CHECKING:
     from mini_agent.runtime.session_state import MainAgentSessionState
@@ -354,6 +358,10 @@ class RuntimeSessionRunControlStore:
         payloads = self.pending_approval_payloads(session)
         recovery_pending = bool(session.projection.recovery_context_pending)
         running_state = _safe_text(session.projection.running_state) or None
+        checkpoint = self._build_run_checkpoint_projection(
+            self._latest_workspace_runtime_snapshot_payload(session),
+            source="live_workspace_runtime",
+        )
         status, phase = self._resolve_status_phase(
             control_state=record.control_state,
             busy=bool(session.projection.busy),
@@ -380,6 +388,7 @@ class RuntimeSessionRunControlStore:
             "resumable": bool(record.control_state.resumable),
             "active_wait_id": record.control_state.active_wait_id,
             "approval_wait": self.serialize_approval_wait(record.approval_wait),
+            "checkpoint": checkpoint,
         }
 
     @classmethod
@@ -387,6 +396,10 @@ class RuntimeSessionRunControlStore:
         control_state = cls.deserialize_run_control_state(record.get("run_control"))
         approval_wait = cls.deserialize_approval_wait(record.get("approval_wait"))
         pending_payload = cls._deserialize_pending_payload(record.get("pending_approvals"))
+        checkpoint = cls._build_run_checkpoint_projection(
+            record.get("workspace_runtime_snapshot"),
+            source="persisted_workspace_runtime",
+        )
         if approval_wait is not None and approval_wait.is_pending and pending_payload is not None:
             pending_approvals = [pending_payload]
         else:
@@ -420,6 +433,7 @@ class RuntimeSessionRunControlStore:
             "resumable": bool(control_state.resumable) if control_state is not None else not recovery_pending,
             "active_wait_id": control_state.active_wait_id if control_state is not None else None,
             "approval_wait": cls.serialize_approval_wait(approval_wait),
+            "checkpoint": checkpoint,
         }
 
     @staticmethod
@@ -542,6 +556,37 @@ class RuntimeSessionRunControlStore:
             if normalized is not None:
                 return normalized
         return None
+
+    @staticmethod
+    def _latest_workspace_runtime_snapshot_payload(session: "MainAgentSessionState") -> dict[str, Any] | None:
+        latest = shared_workspace_snapshot_store(session.workspace_dir).latest(session.workspace_dir)
+        return workspace_runtime_snapshot_payload(latest)
+
+    @staticmethod
+    def _build_run_checkpoint_projection(
+        payload: Any,
+        *,
+        source: str,
+    ) -> dict[str, Any] | None:
+        if not isinstance(payload, dict):
+            return None
+        checkpoint_id = _safe_text(payload.get("snapshot_id"))
+        if not checkpoint_id:
+            return None
+        try:
+            mutation_count = max(0, int(payload.get("mutation_count") or 0))
+        except Exception:
+            mutation_count = 0
+        return {
+            "checkpoint_id": checkpoint_id,
+            "kind": "workspace_runtime_snapshot",
+            "source": _safe_text(source) or None,
+            "created_at": _safe_text(payload.get("created_at")) or None,
+            "workspace_dir": _safe_text(payload.get("workspace_dir")) or None,
+            "runtime_mode": _safe_text(payload.get("mode")) or None,
+            "access_scope": _safe_text(payload.get("scope")) or None,
+            "mutation_count": mutation_count,
+        }
 
     @staticmethod
     def _resolve_status_phase(

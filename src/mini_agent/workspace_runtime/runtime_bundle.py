@@ -11,9 +11,15 @@ from mini_agent.security.policy import RuntimePolicyEngine
 
 from .adapters import DirectWorkspaceExecutor
 from .boundary import WorkspaceBoundary
-from .mutation_ledger import InMemoryMutationLedger
+from .mutation_ledger import InMemoryMutationLedger, shared_mutation_ledger
 from .outside_zone_policy import DefaultOutsideZonePolicy
 from .permission_table import WorkspacePermissionTable
+from .snapshot_store import (
+    InMemoryWorkspaceSnapshotStore,
+    WorkspaceRuntimeSnapshot,
+    shared_workspace_snapshot_store,
+    workspace_runtime_snapshot_payload,
+)
 from .workspace_executor import WorkspaceAccessScope, WorkspaceExecutor
 
 
@@ -28,6 +34,7 @@ class WorkspaceRuntimeBundle:
     outside_zone_policy: DefaultOutsideZonePolicy
     permission_table: WorkspacePermissionTable
     mutation_ledger: InMemoryMutationLedger
+    snapshot_store: InMemoryWorkspaceSnapshotStore
 
     @property
     def workspace_dir(self) -> Path:
@@ -37,8 +44,28 @@ class WorkspaceRuntimeBundle:
     def descriptor(self):
         return self.executor.runtime_descriptor
 
+    def capture_snapshot(
+        self,
+        *,
+        snapshot_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> WorkspaceRuntimeSnapshot:
+        return self.snapshot_store.create(
+            workspace_dir=self.workspace_dir,
+            mode=self.descriptor.mode,
+            scope=self.scope,
+            descriptor=self.descriptor,
+            mutation_records=self.mutation_ledger.snapshot(),
+            metadata=metadata,
+            snapshot_id=snapshot_id,
+        )
+
+    def latest_snapshot(self) -> WorkspaceRuntimeSnapshot | None:
+        return self.snapshot_store.latest(self.workspace_dir)
+
     def to_summary(self) -> dict[str, Any]:
         selection = self.sandbox_manager.select_initial()
+        latest_snapshot = self.latest_snapshot()
         return {
             "workspace_root": str(self.workspace_dir),
             "mode": self.descriptor.mode.value,
@@ -47,6 +74,9 @@ class WorkspaceRuntimeBundle:
             "sandbox_reason": selection.reason,
             "permission_rule_count": len(self.permission_table.rules),
             "mutation_count": len(self.mutation_ledger),
+            "snapshot_count": len(self.snapshot_store.list(self.workspace_dir)),
+            "latest_snapshot_id": latest_snapshot.snapshot_id if latest_snapshot is not None else None,
+            "latest_snapshot": workspace_runtime_snapshot_payload(latest_snapshot),
         }
 
 
@@ -77,6 +107,7 @@ def build_direct_workspace_runtime_bundle(
     outside_zone_policy: DefaultOutsideZonePolicy | None = None,
     permission_table: WorkspacePermissionTable | None = None,
     mutation_ledger: InMemoryMutationLedger | None = None,
+    snapshot_store: InMemoryWorkspaceSnapshotStore | None = None,
 ) -> WorkspaceRuntimeBundle:
     """Compose the maintained direct workspace-runtime bundle."""
 
@@ -84,7 +115,8 @@ def build_direct_workspace_runtime_bundle(
     boundary = WorkspaceBoundary(workspace_dir)
     resolved_outside_zone_policy = outside_zone_policy or DefaultOutsideZonePolicy()
     resolved_permission_table = permission_table or WorkspacePermissionTable()
-    resolved_mutation_ledger = mutation_ledger or InMemoryMutationLedger()
+    resolved_mutation_ledger = mutation_ledger or shared_mutation_ledger(boundary.root)
+    resolved_snapshot_store = snapshot_store or shared_workspace_snapshot_store(boundary.root)
     executor = DirectWorkspaceExecutor(
         boundary,
         scope=scope,
@@ -108,6 +140,7 @@ def build_direct_workspace_runtime_bundle(
         outside_zone_policy=resolved_outside_zone_policy,
         permission_table=resolved_permission_table,
         mutation_ledger=resolved_mutation_ledger,
+        snapshot_store=resolved_snapshot_store,
     )
 
 

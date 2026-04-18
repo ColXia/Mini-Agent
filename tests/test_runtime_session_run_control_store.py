@@ -5,6 +5,7 @@ from pathlib import Path
 
 from mini_agent.agent_core.contracts import ApprovalWaitState, RunControlMode
 from mini_agent.runtime.live_control.run_control_store import RuntimeSessionRunControlStore
+from mini_agent.workspace_runtime import capture_shared_workspace_snapshot
 from tests.runtime_contract_fixtures import runtime_projection_stub, runtime_session_stub, runtime_state_stub
 
 
@@ -186,3 +187,48 @@ def test_run_control_store_pause_turn_acknowledges_interrupt_and_clears_waiters(
         assert wait.wait_state is ApprovalWaitState.INVALIDATED
 
     asyncio.run(_run())
+
+
+def test_run_control_store_active_projection_exposes_checkpoint_summary(tmp_path: Path) -> None:
+    store = RuntimeSessionRunControlStore()
+    session = _session(tmp_path)
+    store.begin_turn(session)
+
+    capture_shared_workspace_snapshot(
+        session.workspace_dir,
+        snapshot_id="live-snap-1",
+        metadata={"trigger": "test"},
+    )
+
+    projection = store.build_active_run_projection(session)
+
+    assert projection["checkpoint"] is not None
+    assert projection["checkpoint"]["checkpoint_id"] == "live-snap-1"
+    assert projection["checkpoint"]["kind"] == "workspace_runtime_snapshot"
+    assert projection["checkpoint"]["source"] == "live_workspace_runtime"
+    assert projection["checkpoint"]["workspace_dir"] == str(session.workspace_dir.resolve())
+    assert projection["checkpoint"]["runtime_mode"] == "direct"
+    assert projection["checkpoint"]["access_scope"] == "workspace_only"
+
+
+def test_run_control_store_persisted_projection_exposes_checkpoint_summary(tmp_path: Path) -> None:
+    run_id = RuntimeSessionRunControlStore.run_id_for_session("sess-persisted-run")
+    record = {
+        "session_id": "sess-persisted-run",
+        "workspace_runtime_snapshot": {
+            "snapshot_id": "persisted-snap-1",
+            "created_at": "2026-04-18T09:15:00+00:00",
+            "workspace_dir": str((tmp_path / "workspace").resolve()),
+            "mode": "direct",
+            "scope": "workspace_only",
+            "mutation_count": 4,
+        },
+    }
+
+    projection = RuntimeSessionRunControlStore.build_persisted_run_projection(run_id=run_id, record=record)
+
+    assert projection["checkpoint"] is not None
+    assert projection["checkpoint"]["checkpoint_id"] == "persisted-snap-1"
+    assert projection["checkpoint"]["kind"] == "workspace_runtime_snapshot"
+    assert projection["checkpoint"]["source"] == "persisted_workspace_runtime"
+    assert projection["checkpoint"]["mutation_count"] == 4

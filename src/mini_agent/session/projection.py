@@ -319,6 +319,7 @@ class SessionDetailProjection(SessionSummaryProjection):
     context_policy: dict[str, Any] = field(default_factory=dict)
     last_prepared_context: dict[str, Any] = field(default_factory=dict)
     prepared_context_diagnostics: dict[str, Any] = field(default_factory=dict)
+    workspace_runtime_snapshot: dict[str, Any] = field(default_factory=dict)
     recent_messages: tuple[SessionMessageProjection, ...] = ()
 
     @classmethod
@@ -329,6 +330,7 @@ class SessionDetailProjection(SessionSummaryProjection):
         context_policy: Mapping[str, Any] | None = None,
         last_prepared_context: Mapping[str, Any] | None = None,
         prepared_context_diagnostics: Mapping[str, Any] | None = None,
+        workspace_runtime_snapshot: Mapping[str, Any] | None = None,
         recent_messages: Sequence[SessionMessageProjection] | None = None,
     ) -> SessionDetailProjection:
         return cls(
@@ -367,6 +369,7 @@ class SessionDetailProjection(SessionSummaryProjection):
             context_policy=_copy_dict(context_policy),
             last_prepared_context=_copy_dict(last_prepared_context),
             prepared_context_diagnostics=_copy_dict(prepared_context_diagnostics),
+            workspace_runtime_snapshot=_copy_dict(workspace_runtime_snapshot),
             recent_messages=tuple(recent_messages or ()),
         )
 
@@ -381,6 +384,7 @@ class SessionDetailProjection(SessionSummaryProjection):
             context_policy=_copy_dict(data.get("context_policy")),
             last_prepared_context=_copy_dict(data.get("last_prepared_context")),
             prepared_context_diagnostics=_copy_dict(data.get("prepared_context_diagnostics")),
+            workspace_runtime_snapshot=_copy_dict(data.get("workspace_runtime_snapshot")),
             recent_messages=SessionMessageProjection.from_payloads(data.get("recent_messages")),
         )
 
@@ -390,6 +394,7 @@ class SessionDetailProjection(SessionSummaryProjection):
             context_policy=dict(self.context_policy),
             last_prepared_context=dict(self.last_prepared_context),
             prepared_context_diagnostics=dict(self.prepared_context_diagnostics),
+            workspace_runtime_snapshot=dict(self.workspace_runtime_snapshot),
             recent_messages=[item.to_transport() for item in self.recent_messages],
         )
 

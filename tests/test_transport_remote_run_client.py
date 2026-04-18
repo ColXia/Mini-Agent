@@ -48,6 +48,16 @@ class _DummyGatewayClient:
                 "resolved_at": None,
                 "invalidated_reason": None,
             },
+            "checkpoint": {
+                "checkpoint_id": "snap-run-1",
+                "kind": "workspace_runtime_snapshot",
+                "source": "persisted_workspace_runtime",
+                "created_at": "2026-04-18T09:00:00+00:00",
+                "workspace_dir": "D:/workspace/demo",
+                "runtime_mode": "direct",
+                "access_scope": "workspace_only",
+                "mutation_count": 2,
+            },
         }
 
     def get_run_sync(self, run_id: str):
@@ -265,6 +275,8 @@ def test_remote_run_client_shapes_gateway_payloads_into_typed_models() -> None:
         assert run.status == "paused"
         assert run.approval_wait is not None
         assert run.approval_wait.tool_name == "shell"
+        assert run.checkpoint is not None
+        assert run.checkpoint.checkpoint_id == "snap-run-1"
         assert interrupted.phase == "executing_tools"
         assert resumed.run_id == "run:sess-1"
         assert resumed.resumable is True
@@ -322,6 +334,8 @@ def test_remote_run_client_sync_helpers_shape_gateway_payloads_into_typed_models
     )
 
     assert run.status == "paused"
+    assert run.checkpoint is not None
+    assert run.checkpoint.checkpoint_id == "snap-run-1"
     assert interrupted.phase == "executing_tools"
     assert resumed.run_id == "run:sess-1"
     assert cancelled.status == "paused"

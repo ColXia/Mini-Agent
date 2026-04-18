@@ -14,6 +14,7 @@ from mini_agent.runtime.support.session_persistence_record_builder import Runtim
 from mini_agent.runtime.support.session_shared_transcript_store import RuntimeSessionSharedTranscriptStore
 from mini_agent.runtime.support.sandbox_state import normalize_sandbox_diagnostics
 from mini_agent.session.persistence import SessionPersistence
+from mini_agent.workspace_runtime import capture_shared_workspace_snapshot, workspace_runtime_snapshot_payload
 
 if TYPE_CHECKING:
     from mini_agent.runtime.session_state import MainAgentSessionState
@@ -72,12 +73,23 @@ class MainAgentRuntimePersistence:
         normalized_sandbox = normalize_sandbox_diagnostics(
             sandbox_diagnostics or session.projection.sandbox_diagnostics,
         )
+        workspace_runtime_snapshot = workspace_runtime_snapshot_payload(
+            capture_shared_workspace_snapshot(
+                session.workspace_dir,
+                metadata={
+                    "trigger": "session_persist",
+                    "session_id": session.session_id,
+                    "message_count": len(session.transcript_state.transcript),
+                },
+            )
+        )
         self._metadata_registry.upsert_record(
             session.session_id,
             self._record_builder.build_metadata_record(
                 session,
                 transcript_path=transcript_path,
                 sandbox_diagnostics=normalized_sandbox,
+                workspace_runtime_snapshot=workspace_runtime_snapshot,
             ),
         )
 

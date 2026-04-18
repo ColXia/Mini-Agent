@@ -53,6 +53,7 @@ class RuntimeSessionSnapshotImportCommand:
     prepared_context_diagnostics: dict[str, Any] | None = None
     memory_diagnostics: dict[str, Any] | None = None
     sandbox_diagnostics: dict[str, Any] | None = None
+    workspace_runtime_snapshot: dict[str, Any] | None = None
     runtime_task_memory_payload: dict[str, Any] | None = None
     workspace_shared_runtime_memory_payload: dict[str, Any] | None = None
     agent_messages: Sequence[dict[str, Any]] | None = None
@@ -124,6 +125,7 @@ class RuntimeSessionSnapshotHandler:
             prepared_context_diagnostics=command.prepared_context_diagnostics,
             memory_diagnostics=command.memory_diagnostics,
             sandbox_diagnostics=command.sandbox_diagnostics,
+            workspace_runtime_snapshot=command.workspace_runtime_snapshot,
             runtime_task_memory_payload=command.runtime_task_memory_payload,
             workspace_shared_runtime_memory_payload=command.workspace_shared_runtime_memory_payload,
             agent_messages=command.agent_messages,

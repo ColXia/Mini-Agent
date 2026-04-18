@@ -47,6 +47,14 @@ def _builder() -> RuntimeSessionSnapshotBuilder:
         build_memory_diagnostics_from_record=lambda record: {"memory": str(record.get("session_id"))},
         build_sandbox_diagnostics_for_session=lambda session: {"approval_profile": "build"},
         build_sandbox_diagnostics_from_record=lambda record: {"approval_profile": "default"},
+        build_workspace_runtime_snapshot_for_session=lambda session: {
+            "snapshot_id": f"live-{session.session_id}",
+            "workspace_dir": str(session.workspace_dir),
+            "mutation_count": 2,
+        },
+        build_workspace_runtime_snapshot_from_record=lambda record: dict(
+            record.get("workspace_runtime_snapshot") or {}
+        ),
         snapshot_runtime_task_memory_payload=lambda **kwargs: {"session_id": kwargs.get("session_id")},
         snapshot_workspace_shared_runtime_task_memory_payload=lambda **kwargs: {
             "workspace_dir": str(kwargs.get("workspace_dir"))
@@ -123,6 +131,7 @@ def test_runtime_session_snapshot_builder_builds_snapshot_from_live_session(tmp_
     assert snapshot.pending_skill_reload is True
     assert snapshot.memory_diagnostics == {"memory": "sess-live"}
     assert snapshot.sandbox_diagnostics == {"approval_profile": "build"}
+    assert snapshot.workspace_runtime_snapshot["snapshot_id"] == "live-sess-live"
     assert snapshot.runtime_task_memory_payload == {"session_id": "sess-live"}
     assert snapshot.agent_messages == [{"role": "system", "content": "system prompt"}]
     assert [item.content for item in snapshot.transcript] == ["hello"]
@@ -158,6 +167,11 @@ def test_runtime_session_snapshot_builder_builds_snapshot_from_persisted_record(
         "context_policy": {"sources": ["workspace"]},
         "last_prepared_context": {"summary": "persisted"},
         "prepared_context_diagnostics": {"chars": 42},
+        "workspace_runtime_snapshot": {
+            "snapshot_id": "persisted-snap",
+            "workspace_dir": str(tmp_path),
+            "mutation_count": 3,
+        },
         "messages": [{"role": "assistant", "content": "seed"}],
         "_transcript_entries": [
             transcript_entry_stub(
@@ -181,6 +195,7 @@ def test_runtime_session_snapshot_builder_builds_snapshot_from_persisted_record(
     assert snapshot.selected_model_source == "preset"
     assert snapshot.memory_diagnostics == {"memory": "sess-record"}
     assert snapshot.sandbox_diagnostics == {"approval_profile": "default"}
+    assert snapshot.workspace_runtime_snapshot["snapshot_id"] == "persisted-snap"
     assert snapshot.runtime_task_memory_payload == {"session_id": "sess-record"}
     assert snapshot.agent_messages == [{"role": "assistant", "content": "seed"}]
     assert [item.content for item in snapshot.transcript] == ["persisted hello"]

@@ -9,6 +9,7 @@ from mini_agent.config import AgentConfig, Config, LLMConfig, SecurityConfig, To
 from mini_agent.runtime.main_agent_runtime_contracts import MainAgentRuntimeDiagnostics
 from mini_agent.runtime.workspace_runtime_adapter import MainAgentWorkspaceRuntimeAdapter
 from mini_agent.runtime.support.workspace_path_utils import same_workspace_path
+from mini_agent.workspace_runtime import build_direct_workspace_runtime_bundle
 
 
 def _make_config() -> Config:
@@ -122,6 +123,32 @@ async def test_workspace_runtime_adapter_builds_runtime_summary(tmp_path: Path) 
     assert summary["runtime"]["workspace_root"] == str(main_workspace.resolve())
     assert summary["runtime"]["mode"] == "direct"
     assert summary["runtime"]["scope"] == "workspace_only"
+
+
+@pytest.mark.asyncio
+async def test_workspace_runtime_adapter_reads_shared_snapshot_state(tmp_path: Path) -> None:
+    main_workspace = tmp_path / "default"
+    project_workspace = tmp_path / "project-a"
+    main_workspace.mkdir()
+    project_workspace.mkdir()
+    runtime_bundle = build_direct_workspace_runtime_bundle(_make_config(), main_workspace)
+    runtime_bundle.executor.write_text(main_workspace / "note.txt", "hello")
+    runtime_bundle.capture_snapshot(snapshot_id="adapter-shared-snap")
+    adapter = MainAgentWorkspaceRuntimeAdapter(
+        runtime_manager=_RuntimeManagerStub(
+            main_workspace=main_workspace,
+            project_workspace=project_workspace,
+        ),
+        config_loader=_make_config,
+        repo_root=main_workspace,
+    )
+
+    summary = await adapter.get_workspace_runtime_summary()
+
+    assert summary["runtime"]["mutation_count"] >= 1
+    assert summary["runtime"]["snapshot_count"] >= 1
+    assert summary["runtime"]["latest_snapshot_id"] == "adapter-shared-snap"
+    assert summary["runtime"]["latest_snapshot"]["snapshot_id"] == "adapter-shared-snap"
 
 
 @pytest.mark.asyncio

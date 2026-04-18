@@ -214,6 +214,7 @@ class MainAgentRuntimeManager:
             agent_prepared_context_diagnostics=self._session_agent_support.agent_prepared_context_diagnostics,
             restore_session_runtime_task_memory=self._runtime_task_memory_backend.restore_session_payload,
             restore_workspace_shared_runtime_task_memory=self._runtime_task_memory_backend.restore_workspace_shared_payload,
+            restore_workspace_runtime_snapshot=self._session_diagnostics.restore_workspace_runtime_snapshot_payload,
             build_memory_diagnostics_for_session=self._session_diagnostics.build_memory_diagnostics_for_session,
             build_sandbox_diagnostics_for_session=self._session_diagnostics.build_sandbox_diagnostics_for_session,
         )
@@ -273,6 +274,12 @@ class MainAgentRuntimeManager:
             build_memory_diagnostics_from_record=self._session_diagnostics.build_memory_diagnostics_from_record,
             build_sandbox_diagnostics_for_session=self._session_diagnostics.build_sandbox_diagnostics_for_session,
             build_sandbox_diagnostics_from_record=self._session_diagnostics.build_sandbox_diagnostics_from_record,
+            build_workspace_runtime_snapshot_for_session=(
+                self._session_diagnostics.build_workspace_runtime_snapshot_for_session
+            ),
+            build_workspace_runtime_snapshot_from_record=(
+                self._session_diagnostics.build_workspace_runtime_snapshot_from_record
+            ),
             session_token_usage=self._payload_codec.session_token_usage,
             session_token_limit=self._payload_codec.session_token_limit,
             record_token_usage=self._payload_codec.record_token_usage,
@@ -293,6 +300,12 @@ class MainAgentRuntimeManager:
             build_memory_diagnostics_from_record=self._session_diagnostics.build_memory_diagnostics_from_record,
             build_sandbox_diagnostics_for_session=self._session_diagnostics.build_sandbox_diagnostics_for_session,
             build_sandbox_diagnostics_from_record=self._session_diagnostics.build_sandbox_diagnostics_from_record,
+            build_workspace_runtime_snapshot_for_session=(
+                self._session_diagnostics.build_workspace_runtime_snapshot_for_session
+            ),
+            build_workspace_runtime_snapshot_from_record=(
+                self._session_diagnostics.build_workspace_runtime_snapshot_from_record
+            ),
             snapshot_runtime_task_memory_payload=self._runtime_task_memory_backend.snapshot_session_payload,
             snapshot_workspace_shared_runtime_task_memory_payload=self._runtime_task_memory_backend.snapshot_workspace_shared_payload,
             session_token_usage=self._payload_codec.session_token_usage,

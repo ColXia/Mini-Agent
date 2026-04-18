@@ -12,6 +12,10 @@ def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _workspace_state_key(value: str | Path) -> str:
+    return str(Path(value).expanduser().resolve(strict=False))
+
+
 class MutationKind(str, Enum):
     """Baseline recorded operation kinds."""
 
@@ -77,8 +81,30 @@ class InMemoryMutationLedger:
         return len(self._records)
 
 
+_SHARED_MUTATION_LEDGERS: dict[str, InMemoryMutationLedger] = {}
+
+
+def shared_mutation_ledger(workspace_dir: str | Path) -> InMemoryMutationLedger:
+    """Return the process-local shared mutation ledger for one workspace."""
+
+    key = _workspace_state_key(workspace_dir)
+    ledger = _SHARED_MUTATION_LEDGERS.get(key)
+    if ledger is None:
+        ledger = InMemoryMutationLedger()
+        _SHARED_MUTATION_LEDGERS[key] = ledger
+    return ledger
+
+
+def clear_shared_mutation_ledgers() -> None:
+    """Clear all process-local shared mutation ledgers."""
+
+    _SHARED_MUTATION_LEDGERS.clear()
+
+
 __all__ = [
+    "clear_shared_mutation_ledgers",
     "InMemoryMutationLedger",
     "MutationKind",
     "MutationRecord",
+    "shared_mutation_ledger",
 ]
