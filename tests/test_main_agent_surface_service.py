@@ -13,7 +13,7 @@ from mini_agent.agent_core.engine import ToolApprovalRequest, TurnExecutionResul
 from mini_agent.agent_core.runtime_bindings import get_agent_runtime_services
 from mini_agent.agent_core.session import SessionLifecyclePolicy, SessionLifecycleState, SessionResetMode
 from mini_agent.agent_core.skills.policy import WorkspaceSkillPolicyStore
-from mini_agent.application import build_runtime_backed_main_agent_surface_service
+from mini_agent.application import build_main_agent_surface_service, build_runtime_backed_main_agent_surface_service
 from mini_agent.application.facades import MainAgentSurfaceService
 from mini_agent.config import AgentConfig, Config, LLMConfig, ToolsConfig
 from mini_agent.interfaces import (
@@ -117,8 +117,8 @@ def test_main_agent_surface_service_is_exported_from_application_package() -> No
     assert MainAgentSurfaceService.__module__ == "mini_agent.application.main_agent_surface_service"
 
 
-def test_main_agent_surface_service_uses_injected_session_service_for_session_listing() -> None:
-    class _InjectedSessionService:
+def test_main_agent_surface_service_uses_injected_session_task_service_for_session_listing() -> None:
+    class _InjectedSessionTaskService:
         async def list_sessions(self, *, workspace_dir=None, shared_only=False):  # noqa: ANN001, ANN003
             assert workspace_dir == Path(".").resolve()
             assert shared_only is True
@@ -141,7 +141,7 @@ def test_main_agent_surface_service_uses_injected_session_service_for_session_li
 
     async def _run() -> None:
         use_cases = MainAgentSurfaceService(
-            session_service=_InjectedSessionService(),
+            session_task_service=_InjectedSessionTaskService(),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
             sse_event=_sse_event,
@@ -3707,7 +3707,6 @@ def test_surface_service_prefers_injected_session_task_service_for_session_entry
     async def _run() -> None:
         session_task_service = _SessionTaskServiceStub()
         use_cases = MainAgentSurfaceService(
-            session_service=_FailingSessionService(),
             session_task_service=session_task_service,
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
@@ -3932,15 +3931,6 @@ def test_surface_service_can_run_with_explicit_services_without_session_facade()
 
 
 def test_surface_service_prefers_injected_agent_service_for_run_control_entrypoints() -> None:
-    class _FailingSessionService:
-        async def cancel_session(self, session_id: str, request):  # noqa: ANN001
-            raise AssertionError(f"session_service.cancel_session should not be called for {session_id}: {request}")
-
-        async def respond_to_approval(self, session_id: str, request):  # noqa: ANN001
-            raise AssertionError(
-                f"session_service.respond_to_approval should not be called for {session_id}: {request}"
-            )
-
     class _RunControlServiceStub:
         def __init__(self) -> None:
             self.calls: list[tuple[str, object]] = []
@@ -3978,7 +3968,7 @@ def test_surface_service_prefers_injected_agent_service_for_run_control_entrypoi
     async def _run() -> None:
         run_control_service = _RunControlServiceStub()
         use_cases = MainAgentSurfaceService(
-            session_service=_FailingSessionService(),
+            session_task_service=SimpleNamespace(),
             run_control_service=run_control_service,
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
@@ -4059,7 +4049,7 @@ def test_surface_service_prefers_injected_agent_service_for_run_control_entrypoi
     asyncio.run(_run())
 
 
-def test_surface_service_prefers_session_service_run_control_owner_when_available() -> None:
+def test_surface_service_builder_preserves_legacy_session_service_run_control_owner_when_available() -> None:
     class _RunControlServiceStub:
         def __init__(self) -> None:
             self.calls: list[tuple[str, object]] = []
@@ -4090,6 +4080,10 @@ def test_surface_service_prefers_session_service_run_control_owner_when_availabl
 
     class _SessionServiceStub:
         def __init__(self) -> None:
+            self.session_task_service = SimpleNamespace()
+            self.agent_service = object()
+            self.model_service = object()
+            self.workspace_service = object()
             self.run_control_service = _RunControlServiceStub()
 
         async def cancel_session(self, session_id: str, request):  # noqa: ANN001
@@ -4102,7 +4096,7 @@ def test_surface_service_prefers_session_service_run_control_owner_when_availabl
 
     async def _run() -> None:
         session_service = _SessionServiceStub()
-        use_cases = MainAgentSurfaceService(
+        use_cases = build_main_agent_surface_service(
             session_service=session_service,
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
@@ -4170,10 +4164,6 @@ def test_surface_service_prefers_session_service_run_control_owner_when_availabl
 
 
 def test_surface_service_prefers_injected_agent_service_for_control_entrypoint() -> None:
-    class _FailingSessionService:
-        async def control_session(self, session_id: str, request):  # noqa: ANN001
-            raise AssertionError(f"session_service.control_session should not be called for {session_id}: {request}")
-
     class _AgentServiceStub:
         def __init__(self) -> None:
             self.calls: list[tuple[str, object]] = []
@@ -4191,7 +4181,7 @@ def test_surface_service_prefers_injected_agent_service_for_control_entrypoint()
     async def _run() -> None:
         agent_service = _AgentServiceStub()
         use_cases = MainAgentSurfaceService(
-            session_service=_FailingSessionService(),
+            session_task_service=SimpleNamespace(),
             agent_service=agent_service,
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
@@ -4233,12 +4223,6 @@ def test_surface_service_prefers_injected_agent_service_for_control_entrypoint()
 
 
 def test_surface_service_prefers_injected_agent_service_for_context_entrypoint() -> None:
-    class _FailingSessionService:
-        async def update_session_context(self, session_id: str, request):  # noqa: ANN001
-            raise AssertionError(
-                f"session_service.update_session_context should not be called for {session_id}: {request}"
-            )
-
     class _AgentServiceStub:
         def __init__(self) -> None:
             self.calls: list[tuple[str, object]] = []
@@ -4256,7 +4240,7 @@ def test_surface_service_prefers_injected_agent_service_for_context_entrypoint()
     async def _run() -> None:
         agent_service = _AgentServiceStub()
         use_cases = MainAgentSurfaceService(
-            session_service=_FailingSessionService(),
+            session_task_service=SimpleNamespace(),
             agent_service=agent_service,
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
@@ -4304,12 +4288,6 @@ def test_surface_service_prefers_injected_agent_service_for_context_entrypoint()
 
 
 def test_surface_service_prefers_injected_model_service_for_model_selection_entrypoint() -> None:
-    class _FailingSessionService:
-        async def update_session_model_selection(self, session_id: str, request):  # noqa: ANN001
-            raise AssertionError(
-                f"session_service.update_session_model_selection should not be called for {session_id}: {request}"
-            )
-
     class _ModelServiceStub:
         def __init__(self) -> None:
             self.calls: list[tuple[str, object]] = []
@@ -4330,7 +4308,7 @@ def test_surface_service_prefers_injected_model_service_for_model_selection_entr
     async def _run() -> None:
         model_service = _ModelServiceStub()
         use_cases = MainAgentSurfaceService(
-            session_service=_FailingSessionService(),
+            session_task_service=SimpleNamespace(),
             model_service=model_service,
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
@@ -4374,10 +4352,6 @@ def test_surface_service_prefers_injected_model_service_for_model_selection_entr
 
 
 def test_surface_service_prefers_injected_model_service_for_agent_model_entrypoints() -> None:
-    class _FailingSessionService:
-        async def list_model_candidates(self):
-            raise AssertionError("session_service.list_model_candidates should not be used")
-
     class _ModelServiceStub:
         async def list_model_candidates(self):
             return {
@@ -4469,7 +4443,7 @@ def test_surface_service_prefers_injected_model_service_for_agent_model_entrypoi
 
     async def _run() -> None:
         use_cases = MainAgentSurfaceService(
-            session_service=_FailingSessionService(),
+            session_task_service=SimpleNamespace(),
             model_service=_ModelServiceStub(),
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
@@ -4507,12 +4481,6 @@ def test_surface_service_prefers_injected_model_service_for_agent_model_entrypoi
 
 
 def test_surface_service_prefers_injected_agent_service_for_runtime_policy_entrypoint() -> None:
-    class _FailingSessionService:
-        async def update_session_runtime_policy(self, session_id: str, request):  # noqa: ANN001
-            raise AssertionError(
-                f"session_service.update_session_runtime_policy should not be called for {session_id}: {request}"
-            )
-
     class _AgentServiceStub:
         def __init__(self) -> None:
             self.calls: list[tuple[str, object]] = []
@@ -4535,7 +4503,7 @@ def test_surface_service_prefers_injected_agent_service_for_runtime_policy_entry
     async def _run() -> None:
         agent_service = _AgentServiceStub()
         use_cases = MainAgentSurfaceService(
-            session_service=_FailingSessionService(),
+            session_task_service=SimpleNamespace(),
             agent_service=agent_service,
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
@@ -4577,12 +4545,6 @@ def test_surface_service_prefers_injected_agent_service_for_runtime_policy_entry
 
 
 def test_surface_service_prefers_injected_agent_service_for_memory_entrypoint() -> None:
-    class _FailingSessionService:
-        async def manage_session_memory(self, session_id: str, request):  # noqa: ANN001
-            raise AssertionError(
-                f"session_service.manage_session_memory should not be called for {session_id}: {request}"
-            )
-
     class _AgentServiceStub:
         def __init__(self) -> None:
             self.calls: list[tuple[str, object]] = []
@@ -4601,7 +4563,7 @@ def test_surface_service_prefers_injected_agent_service_for_memory_entrypoint() 
     async def _run() -> None:
         agent_service = _AgentServiceStub()
         use_cases = MainAgentSurfaceService(
-            session_service=_FailingSessionService(),
+            session_task_service=SimpleNamespace(),
             agent_service=agent_service,
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,
@@ -4650,12 +4612,6 @@ def test_surface_service_prefers_injected_agent_service_for_memory_entrypoint() 
 
 
 def test_surface_service_prefers_injected_agent_service_for_skill_entrypoint() -> None:
-    class _FailingSessionService:
-        async def manage_session_skills(self, session_id: str, request):  # noqa: ANN001
-            raise AssertionError(
-                f"session_service.manage_session_skills should not be called for {session_id}: {request}"
-            )
-
     class _AgentServiceStub:
         def __init__(self) -> None:
             self.calls: list[tuple[str, object]] = []
@@ -4673,7 +4629,7 @@ def test_surface_service_prefers_injected_agent_service_for_skill_entrypoint() -
     async def _run() -> None:
         agent_service = _AgentServiceStub()
         use_cases = MainAgentSurfaceService(
-            session_service=_FailingSessionService(),
+            session_task_service=SimpleNamespace(),
             agent_service=agent_service,
             resolve_workspace_dir=_resolve_workspace_dir,
             to_utc_iso=_to_utc_iso,

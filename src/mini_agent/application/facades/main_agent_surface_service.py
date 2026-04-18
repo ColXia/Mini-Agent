@@ -62,13 +62,6 @@ from .service_response_dto_adapter import (
     workspace_runtime_summary_response,
     workspace_summary_response,
 )
-from .surface_dependency_resolution import (
-    resolve_surface_agent_entry_service,
-    resolve_surface_model_entry_service,
-    resolve_surface_run_control_service,
-    resolve_surface_session_task_service,
-    resolve_surface_workspace_entry_service,
-)
 
 
 class MainAgentSurfaceService:
@@ -77,7 +70,6 @@ class MainAgentSurfaceService:
     def __init__(
         self,
         *,
-        session_service: object | None = None,
         session_task_service: SessionTaskService | None = None,
         run_control_service: RunControlApplicationService | AgentUserService | None = None,
         agent_service: AgentUserService | None = None,
@@ -90,52 +82,61 @@ class MainAgentSurfaceService:
         format_bootstrap_error: FormatBootstrapErrorFn,
         stream_chunk_size: int,
     ) -> None:
-        self._session_service = session_service
-        self._session_task_service = resolve_surface_session_task_service(
-            session_service,
-            session_task_service,
-        )
+        self._session_task_service = session_task_service
         self._run_control_service = run_control_service
         self._agent_service = agent_service
         self._model_service = model_service
         self._workspace_service = workspace_service
         self._resolve_workspace_dir = resolve_workspace_dir
-        self._interaction_service = interaction_service or AgentInteractionApplicationService(
-            session_task_service=self._session_task_service,
-            resolve_workspace_dir=resolve_workspace_dir,
-            to_utc_iso=to_utc_iso,
-            sse_event=sse_event,
-            format_bootstrap_error=format_bootstrap_error,
-            stream_chunk_size=stream_chunk_size,
-        )
+        if interaction_service is None:
+            if self._session_task_service is None:
+                raise RuntimeError(
+                    "Session task service is required when interaction_service is not configured."
+                )
+            self._interaction_service = AgentInteractionApplicationService(
+                session_task_service=self._session_task_service,
+                resolve_workspace_dir=resolve_workspace_dir,
+                to_utc_iso=to_utc_iso,
+                sse_event=sse_event,
+                format_bootstrap_error=format_bootstrap_error,
+                stream_chunk_size=stream_chunk_size,
+            )
+        else:
+            self._interaction_service = interaction_service
         # Keep compatibility-visible handler attributes stable while chat ownership
         # migrates out of this transitional facade.
         self._chat_flow = self._interaction_service.chat_flow
         self._route_execution = self._interaction_service.route_execution
 
+    def _require_session_task_service(self) -> SessionTaskService:
+        if self._session_task_service is None:
+            raise RuntimeError("Session task service is not configured.")
+        return self._session_task_service
+
     def _require_run_control_service(self):
-        resolved = resolve_surface_run_control_service(
-            self._session_service,
-            self._run_control_service,
-            self._agent_service,
-        )
-        self._run_control_service = resolved
-        return resolved
+        if self._run_control_service is None and self._agent_service is not None and all(
+            hasattr(self._agent_service, attr)
+            for attr in ("cancel_session_run", "approve_session_wait", "deny_session_wait")
+        ):
+            self._run_control_service = self._agent_service
+        if self._run_control_service is None:
+            raise RuntimeError("Run control service is not configured.")
+        return self._run_control_service
 
-    def _require_agent_service(self):
-        resolved = resolve_surface_agent_entry_service(self._session_service, self._agent_service)
-        self._agent_service = resolved
-        return resolved
+    def _require_agent_service(self) -> AgentUserService:
+        if self._agent_service is None:
+            raise RuntimeError("Agent service is not configured.")
+        return self._agent_service
 
-    def _require_model_service(self):
-        resolved = resolve_surface_model_entry_service(self._session_service, self._model_service)
-        self._model_service = resolved
-        return resolved
+    def _require_model_service(self) -> ModelUserService:
+        if self._model_service is None:
+            raise RuntimeError("Model service is not configured.")
+        return self._model_service
 
-    def _require_workspace_service(self):
-        resolved = resolve_surface_workspace_entry_service(self._session_service, self._workspace_service)
-        self._workspace_service = resolved
-        return resolved
+    def _require_workspace_service(self) -> WorkspaceUserService:
+        if self._workspace_service is None:
+            raise RuntimeError("Workspace service is not configured.")
+        return self._workspace_service
 
     async def list_model_candidates(self) -> MainAgentModelCandidateListResponse:
         payload = await self._require_model_service().list_model_candidates()
@@ -205,53 +206,55 @@ class MainAgentSurfaceService:
         shared_only: bool = False,
     ) -> list[MainAgentSessionSummary]:
         resolved_workspace = self._resolve_workspace_dir(workspace_dir) if workspace_dir else None
-        return await self._session_task_service.list_sessions(
+        return await self._require_session_task_service().list_sessions(
             workspace_dir=resolved_workspace,
             shared_only=shared_only,
         )
 
     async def create_session(self, request: MainAgentSessionCreateRequest) -> MainAgentSessionDetail:
         resolved_workspace = self._resolve_workspace_dir(request.workspace_dir)
-        self._session_task_service.validate_workspace(resolved_workspace)
-        return await self._session_task_service.create_session(request, workspace_dir=resolved_workspace)
+        session_task_service = self._require_session_task_service()
+        session_task_service.validate_workspace(resolved_workspace)
+        return await session_task_service.create_session(request, workspace_dir=resolved_workspace)
 
     async def ensure_default_session(self, request: MainAgentDefaultSessionRequest) -> MainAgentSessionDetail:
         resolved_workspace = self._resolve_workspace_dir(request.workspace_dir)
-        self._session_task_service.validate_workspace(resolved_workspace)
-        return await self._session_task_service.ensure_default_session(request, workspace_dir=resolved_workspace)
+        session_task_service = self._require_session_task_service()
+        session_task_service.validate_workspace(resolved_workspace)
+        return await session_task_service.ensure_default_session(request, workspace_dir=resolved_workspace)
 
     async def create_derived_session(
         self,
         parent_session_id: str,
         request: MainAgentSessionForkRequest,
     ) -> MainAgentSessionDetail:
-        return await self._session_task_service.create_derived_session(parent_session_id, request)
+        return await self._require_session_task_service().create_derived_session(parent_session_id, request)
 
     async def get_session_detail(self, session_id: str, *, recent_limit: int = 50) -> MainAgentSessionDetail:
-        return await self._session_task_service.get_session_detail(session_id, recent_limit=recent_limit)
+        return await self._require_session_task_service().get_session_detail(session_id, recent_limit=recent_limit)
 
     async def get_session_messages(self, session_id: str, *, limit: int = 10) -> list[MainAgentSessionMessage]:
-        return await self._session_task_service.get_session_messages(session_id, limit=limit)
+        return await self._require_session_task_service().get_session_messages(session_id, limit=limit)
 
     async def delete_session(self, session_id: str) -> MainAgentSessionMutationResponse:
-        return await self._session_task_service.delete_session(session_id)
+        return await self._require_session_task_service().delete_session(session_id)
 
     async def rename_session(
         self,
         session_id: str,
         request: MainAgentSessionRenameRequest,
     ) -> MainAgentSessionMutationResponse:
-        return await self._session_task_service.rename_session(session_id, request)
+        return await self._require_session_task_service().rename_session(session_id, request)
 
     async def set_session_shared(
         self,
         session_id: str,
         request: MainAgentSessionShareRequest,
     ) -> MainAgentSessionMutationResponse:
-        return await self._session_task_service.set_session_shared(session_id, request)
+        return await self._require_session_task_service().set_session_shared(session_id, request)
 
     async def reset_session(self, session_id: str) -> MainAgentSessionMutationResponse:
-        return await self._session_task_service.reset_session(session_id)
+        return await self._require_session_task_service().reset_session(session_id)
 
     async def cancel_session(
         self,

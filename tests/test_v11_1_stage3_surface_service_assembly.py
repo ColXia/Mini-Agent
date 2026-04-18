@@ -23,6 +23,12 @@ from mini_agent.application.facades import (
 from mini_agent.application.user_service_assembly import (
     assemble_runtime_backed_user_services as compat_assemble_runtime_backed_user_services,
 )
+from mini_agent.interfaces import (
+    MainAgentSessionApprovalRequest,
+    MainAgentSessionApprovalResponse,
+    MainAgentSessionCancelRequest,
+    MainAgentSessionMutationResponse,
+)
 
 
 def _resolve_workspace_dir(workspace_dir: str | None) -> Path:
@@ -95,7 +101,7 @@ def test_stage3_surface_builder_prefers_explicit_user_service_assembly() -> None
     )
 
     assert isinstance(surface_service, MainAgentSurfaceService)
-    assert surface_service._session_service is None
+    assert not hasattr(surface_service, "_session_service")
     assert surface_service._session_task_service is user_assembly.session_task_service
     assert surface_service._run_control_service is user_assembly.agent_service
     assert surface_service._agent_service is user_assembly.agent_service
@@ -124,29 +130,45 @@ def test_stage4_runtime_backed_surface_builder_preserves_runtime_manager_access(
 
     assert isinstance(assembly, MainAgentSurfaceAssembly)
     assert assembly.runtime_manager is runtime_manager
-    assert assembly.surface_service._session_service is None
+    assert not hasattr(assembly.surface_service, "_session_service")
     assert isinstance(surface_service, MainAgentSurfaceService)
-    assert surface_service._session_service is None
+    assert not hasattr(surface_service, "_session_service")
 
 
 @pytest.mark.asyncio
-async def test_stage3_surface_assembly_preserves_legacy_session_service_when_explicitly_supplied() -> None:
+async def test_stage4_surface_assembly_resolves_legacy_session_service_only_at_assembly_boundary() -> None:
+    class _LegacySessionTaskService:
+        async def list_sessions(self, *, workspace_dir=None, shared_only=False):  # noqa: ANN001, ANN003
+            return [{"workspace_dir": str(workspace_dir), "shared_only": shared_only}]
+
+    class _LegacyRunControlService:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, str, object]] = []
+
+        async def cancel_session_run(self, session_id: str, **kwargs):
+            self.calls.append(("cancel_session_run", session_id, kwargs))
+            return MainAgentSessionMutationResponse(status="cancel_requested", session_id=session_id)
+
+        async def approve_session_wait(self, session_id: str, **kwargs):
+            self.calls.append(("approve_session_wait", session_id, kwargs))
+            return MainAgentSessionApprovalResponse(
+                status="resolved",
+                session_id=session_id,
+                token=str(kwargs.get("token") or ""),
+                tool_name="shell",
+                decision="approved",
+            )
+
     class _LegacySessionService:
         def __init__(self) -> None:
-            self.session_task_service = object()
+            self.session_task_service = _LegacySessionTaskService()
+            self.run_control_service = _LegacyRunControlService()
             self.agent_service = object()
             self.model_service = object()
-
-        async def cancel_session(self, session_id: str, request):  # noqa: ANN001
-            return {"session_id": session_id, "request": request}
-
-        async def respond_to_approval(self, session_id: str, request):  # noqa: ANN001
-            return {"session_id": session_id, "request": request}
+            self.workspace_service = object()
 
     legacy_session_service = _LegacySessionService()
-    user_assembly = assemble_runtime_backed_user_services(runtime_manager=_RuntimeManagerStub())
     assembly = assemble_main_agent_surface_service(
-        user_service_assembly=user_assembly,
         session_service=legacy_session_service,
         resolve_workspace_dir=_resolve_workspace_dir,
         to_utc_iso=_to_utc_iso,
@@ -156,8 +178,20 @@ async def test_stage3_surface_assembly_preserves_legacy_session_service_when_exp
     )
 
     sessions = await assembly.surface_service.list_sessions(workspace_dir=".", shared_only=True)
+    cancel = await assembly.surface_service.cancel_session(
+        "sess-legacy",
+        MainAgentSessionCancelRequest(reason="stop", surface="desktop"),
+    )
+    approved = await assembly.surface_service.respond_to_approval(
+        "sess-legacy",
+        MainAgentSessionApprovalRequest(approved=True, token="approval-1", surface="desktop"),
+    )
 
     assert isinstance(assembly, MainAgentSurfaceAssembly)
     assert assembly.legacy_session_service is legacy_session_service
-    assert assembly.surface_service._session_service is legacy_session_service
+    assert not hasattr(assembly.surface_service, "_session_service")
+    assert assembly.surface_service._session_task_service is legacy_session_service.session_task_service
+    assert assembly.surface_service._run_control_service is legacy_session_service.run_control_service
     assert sessions == [{"workspace_dir": str(Path(".").resolve()), "shared_only": True}]
+    assert cancel.status == "cancel_requested"
+    assert approved.decision == "approved"

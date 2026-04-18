@@ -107,7 +107,7 @@ def test_gateway_composition_builds_surface_without_materializing_session_facade
 
     assert surface_service is composition.get_surface_service()
     assert composition.get_agent_interaction_service() is surface_service._interaction_service
-    assert surface_service._session_service is None
+    assert not hasattr(surface_service, "_session_service")
     assert composition._run_control_service is not None
     assert composition._agent_service is not None
     assert composition._model_service is not None

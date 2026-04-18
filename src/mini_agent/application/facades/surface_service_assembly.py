@@ -34,6 +34,13 @@ from mini_agent.application.user_services.model_user_service import ModelUserSer
 from mini_agent.application.user_services.workspace_user_service import WorkspaceUserService
 
 from .main_agent_surface_service import MainAgentSurfaceService
+from .surface_dependency_resolution import (
+    resolve_surface_agent_entry_service,
+    resolve_surface_model_entry_service,
+    resolve_surface_run_control_service,
+    resolve_surface_session_task_service,
+    resolve_surface_workspace_entry_service,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,16 +84,35 @@ def assemble_main_agent_surface_service(
         if resolved_run_control_service is None and resolved_agent_service is None:
             resolved_run_control_service = user_service_assembly.run_control_service
 
-    # Surfaces should default to user-service-owned entrypoints. The explicit
-    # run-control application service remains available as a compatibility seam.
-    if resolved_run_control_service is None and resolved_agent_service is not None and all(
+    if session_service is not None:
+        resolved_session_task_service = resolve_surface_session_task_service(
+            session_service,
+            resolved_session_task_service,
+        )
+        resolved_agent_service = resolve_surface_agent_entry_service(
+            session_service,
+            resolved_agent_service,
+        )
+        resolved_model_service = resolve_surface_model_entry_service(
+            session_service,
+            resolved_model_service,
+        )
+        resolved_workspace_service = resolve_surface_workspace_entry_service(
+            session_service,
+            resolved_workspace_service,
+        )
+        resolved_run_control_service = resolve_surface_run_control_service(
+            session_service,
+            resolved_run_control_service,
+            resolved_agent_service,
+        )
+    elif resolved_run_control_service is None and resolved_agent_service is not None and all(
         hasattr(resolved_agent_service, attr)
         for attr in ("cancel_session_run", "approve_session_wait", "deny_session_wait")
     ):
         resolved_run_control_service = resolved_agent_service
 
     surface_service = MainAgentSurfaceService(
-        session_service=session_service,
         session_task_service=resolved_session_task_service,
         run_control_service=resolved_run_control_service,
         agent_service=resolved_agent_service,

@@ -1,4 +1,4 @@
-"""Dependency resolution helpers for the transitional surface facade."""
+"""Legacy assembly-only dependency resolution helpers for the surface facade."""
 
 from __future__ import annotations
 
