@@ -8,6 +8,7 @@ from typing import Any, Awaitable, Callable
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 
+from mini_agent.application.support import ApplicationInteractionBinding
 from mini_agent.application.facades import MainAgentSurfaceService
 from mini_agent.application.facades.service_response_dto_adapter import (
     model_binding_diagnostics_response,
@@ -17,8 +18,9 @@ from mini_agent.application.facades.service_response_dto_adapter import (
     workspace_runtime_summary_response,
     workspace_summary_response,
 )
-from mini_agent.application.use_cases import ChannelIngressUseCases
+from mini_agent.application.use_cases import ChannelIngressUseCases, SessionTaskService
 from mini_agent.application.user_services import ModelUserService, WorkspaceUserService
+from mini_agent.application.user_services.agent_user_service import AgentUserService
 from mini_agent.interfaces import (
     ApiEnvelope,
     ChannelMessageRequest,
@@ -69,6 +71,8 @@ class MainAgentRouterDependencies:
     build_health_response: Callable[[], Awaitable[SystemHealthResponse]]
     get_runtime_diagnostics: Callable[[], Awaitable[MainAgentRuntimeDiagnostics]]
     get_surface_service: Callable[[], MainAgentSurfaceService]
+    get_session_task_service: Callable[[], SessionTaskService]
+    get_agent_service: Callable[[], AgentUserService]
     get_workspace_service: Callable[[], WorkspaceUserService | None]
     get_model_service: Callable[[], ModelUserService]
     get_channel_ingress_use_cases: Callable[[], ChannelIngressUseCases]
@@ -84,6 +88,12 @@ def create_main_agent_router(deps: MainAgentRouterDependencies) -> APIRouter:
         if workspace_service is None:
             raise RuntimeError("Workspace service is not configured.")
         return workspace_service
+
+    def _require_session_task_service() -> SessionTaskService:
+        return deps.get_session_task_service()
+
+    def _require_agent_service() -> AgentUserService:
+        return deps.get_agent_service()
 
     def _require_model_service() -> ModelUserService:
         return deps.get_model_service()
@@ -236,7 +246,7 @@ def create_main_agent_router(deps: MainAgentRouterDependencies) -> APIRouter:
 
     @router.delete("/api/v1/agent/sessions/{session_id}", response_model=ApiEnvelope[MainAgentSessionMutationResponse])
     async def v1_delete_session(session_id: str) -> ApiEnvelope[MainAgentSessionMutationResponse]:
-        data = await deps.get_surface_service().delete_session(session_id)
+        data = await _require_session_task_service().delete_session(session_id)
         return ApiEnvelope[MainAgentSessionMutationResponse](ok=True, data=data)
 
     @router.patch("/api/v1/agent/sessions/{session_id}", response_model=ApiEnvelope[MainAgentSessionMutationResponse])
@@ -244,7 +254,7 @@ def create_main_agent_router(deps: MainAgentRouterDependencies) -> APIRouter:
         session_id: str,
         request: MainAgentSessionRenameRequest,
     ) -> ApiEnvelope[MainAgentSessionMutationResponse]:
-        data = await deps.get_surface_service().rename_session(session_id, request)
+        data = await _require_session_task_service().rename_session(session_id, request)
         return ApiEnvelope[MainAgentSessionMutationResponse](ok=True, data=data)
 
     @router.post("/api/v1/agent/sessions/{session_id}/share", response_model=ApiEnvelope[MainAgentSessionMutationResponse])
@@ -252,7 +262,7 @@ def create_main_agent_router(deps: MainAgentRouterDependencies) -> APIRouter:
         session_id: str,
         request: MainAgentSessionShareRequest,
     ) -> ApiEnvelope[MainAgentSessionMutationResponse]:
-        data = await deps.get_surface_service().set_session_shared(session_id, request)
+        data = await _require_session_task_service().set_session_shared(session_id, request)
         return ApiEnvelope[MainAgentSessionMutationResponse](ok=True, data=data)
 
     @router.post("/api/v1/agent/sessions/{session_id}/fork", response_model=ApiEnvelope[MainAgentSessionDetail])
@@ -260,12 +270,12 @@ def create_main_agent_router(deps: MainAgentRouterDependencies) -> APIRouter:
         session_id: str,
         request: MainAgentSessionForkRequest,
     ) -> ApiEnvelope[MainAgentSessionDetail]:
-        data = await deps.get_surface_service().create_derived_session(session_id, request)
+        data = await _require_session_task_service().create_derived_session(session_id, request)
         return ApiEnvelope[MainAgentSessionDetail](ok=True, data=data)
 
     @router.post("/api/v1/agent/sessions/{session_id}/reset", response_model=ApiEnvelope[MainAgentSessionMutationResponse])
     async def v1_reset_session(session_id: str) -> ApiEnvelope[MainAgentSessionMutationResponse]:
-        data = await deps.get_surface_service().reset_session(session_id)
+        data = await _require_session_task_service().reset_session(session_id)
         return ApiEnvelope[MainAgentSessionMutationResponse](ok=True, data=data)
 
     @router.post("/api/v1/agent/sessions/{session_id}/cancel", response_model=ApiEnvelope[MainAgentSessionMutationResponse])
@@ -273,7 +283,13 @@ def create_main_agent_router(deps: MainAgentRouterDependencies) -> APIRouter:
         session_id: str,
         request: MainAgentSessionCancelRequest,
     ) -> ApiEnvelope[MainAgentSessionMutationResponse]:
-        data = await deps.get_surface_service().cancel_session(session_id, request)
+        binding = ApplicationInteractionBinding.from_request(request)
+        data = await _require_agent_service().cancel_session_run(
+            session_id,
+            reason=request.reason,
+            source=binding.surface,
+            **binding.as_kwargs(),
+        )
         return ApiEnvelope[MainAgentSessionMutationResponse](ok=True, data=data)
 
     @router.post("/api/v1/agent/sessions/{session_id}/control", response_model=ApiEnvelope[MainAgentSessionControlResponse])
@@ -281,7 +297,13 @@ def create_main_agent_router(deps: MainAgentRouterDependencies) -> APIRouter:
         session_id: str,
         request: MainAgentSessionControlRequest,
     ) -> ApiEnvelope[MainAgentSessionControlResponse]:
-        data = await deps.get_surface_service().control_session(session_id, request)
+        binding = ApplicationInteractionBinding.from_request(request)
+        data = await _require_agent_service().control_session(
+            session_id,
+            action=request.action,
+            reason=request.reason,
+            **binding.as_kwargs(),
+        )
         return ApiEnvelope[MainAgentSessionControlResponse](ok=True, data=data)
 
     @router.post("/api/v1/agent/sessions/{session_id}/context", response_model=ApiEnvelope[MainAgentSessionContextResponse])
@@ -289,7 +311,16 @@ def create_main_agent_router(deps: MainAgentRouterDependencies) -> APIRouter:
         session_id: str,
         request: MainAgentSessionContextRequest,
     ) -> ApiEnvelope[MainAgentSessionContextResponse]:
-        data = await deps.get_surface_service().update_session_context(session_id, request)
+        binding = ApplicationInteractionBinding.from_request(request)
+        data = await _require_agent_service().update_session_context(
+            session_id,
+            action=request.action,
+            sources=request.sources,
+            max_items=request.max_items,
+            max_total_chars=request.max_total_chars,
+            max_items_per_source=request.max_items_per_source,
+            **binding.as_kwargs(),
+        )
         return ApiEnvelope[MainAgentSessionContextResponse](ok=True, data=data)
 
     @router.post("/api/v1/agent/sessions/{session_id}/memory", response_model=ApiEnvelope[MainAgentSessionMemoryResponse])
@@ -297,7 +328,18 @@ def create_main_agent_router(deps: MainAgentRouterDependencies) -> APIRouter:
         session_id: str,
         request: MainAgentSessionMemoryRequest,
     ) -> ApiEnvelope[MainAgentSessionMemoryResponse]:
-        data = await deps.get_surface_service().manage_session_memory(session_id, request)
+        binding = ApplicationInteractionBinding.from_request(request)
+        data = await _require_agent_service().manage_session_memory(
+            session_id,
+            action=request.action,
+            engram_id=request.engram_id,
+            content=request.content,
+            query=request.query,
+            day=request.day,
+            export_format=request.export_format,
+            detail_mode=request.detail_mode,
+            **binding.as_kwargs(),
+        )
         return ApiEnvelope[MainAgentSessionMemoryResponse](ok=True, data=data)
 
     @router.post("/api/v1/agent/sessions/{session_id}/skill", response_model=ApiEnvelope[MainAgentSessionSkillResponse])
@@ -305,7 +347,16 @@ def create_main_agent_router(deps: MainAgentRouterDependencies) -> APIRouter:
         session_id: str,
         request: MainAgentSessionSkillRequest,
     ) -> ApiEnvelope[MainAgentSessionSkillResponse]:
-        data = await deps.get_surface_service().manage_session_skills(session_id, request)
+        binding = ApplicationInteractionBinding.from_request(request)
+        data = await _require_agent_service().manage_session_skills(
+            session_id,
+            action=request.action,
+            skill_name=request.skill_name,
+            path=request.path,
+            query=request.query,
+            mode=request.mode,
+            **binding.as_kwargs(),
+        )
         return ApiEnvelope[MainAgentSessionSkillResponse](ok=True, data=data)
 
     @router.post(
@@ -316,7 +367,14 @@ def create_main_agent_router(deps: MainAgentRouterDependencies) -> APIRouter:
         session_id: str,
         request: MainAgentSessionModelSelectionRequest,
     ) -> ApiEnvelope[MainAgentSessionModelSelectionResponse]:
-        data = await deps.get_surface_service().update_session_model_selection(session_id, request)
+        binding = ApplicationInteractionBinding.from_request(request)
+        data = await _require_model_service().update_session_model_selection(
+            session_id,
+            provider_source=request.provider_source,
+            provider_id=request.provider_id,
+            model_id=request.model_id,
+            **binding.as_kwargs(),
+        )
         return ApiEnvelope[MainAgentSessionModelSelectionResponse](ok=True, data=data)
 
     @router.post("/api/v1/agent/sessions/{session_id}/policy", response_model=ApiEnvelope[MainAgentSessionRuntimePolicyResponse])
@@ -324,7 +382,13 @@ def create_main_agent_router(deps: MainAgentRouterDependencies) -> APIRouter:
         session_id: str,
         request: MainAgentSessionRuntimePolicyRequest,
     ) -> ApiEnvelope[MainAgentSessionRuntimePolicyResponse]:
-        data = await deps.get_surface_service().update_session_runtime_policy(session_id, request)
+        binding = ApplicationInteractionBinding.from_request(request)
+        data = await _require_agent_service().update_session_runtime_policy(
+            session_id,
+            approval_profile=request.approval_profile,
+            access_level=request.access_level,
+            **binding.as_kwargs(),
+        )
         return ApiEnvelope[MainAgentSessionRuntimePolicyResponse](ok=True, data=data)
 
     @router.post("/api/v1/agent/sessions/{session_id}/approval", response_model=ApiEnvelope[MainAgentSessionApprovalResponse])
@@ -332,7 +396,21 @@ def create_main_agent_router(deps: MainAgentRouterDependencies) -> APIRouter:
         session_id: str,
         request: MainAgentSessionApprovalRequest,
     ) -> ApiEnvelope[MainAgentSessionApprovalResponse]:
-        data = await deps.get_surface_service().respond_to_approval(session_id, request)
+        binding = ApplicationInteractionBinding.from_request(request)
+        if request.approved:
+            data = await _require_agent_service().approve_session_wait(
+                session_id,
+                token=request.token,
+                source=binding.surface,
+                **binding.as_kwargs(),
+            )
+        else:
+            data = await _require_agent_service().deny_session_wait(
+                session_id,
+                token=request.token,
+                source=binding.surface,
+                **binding.as_kwargs(),
+            )
         return ApiEnvelope[MainAgentSessionApprovalResponse](ok=True, data=data)
 
     @router.get("/api/v1/agent/chat/stream")

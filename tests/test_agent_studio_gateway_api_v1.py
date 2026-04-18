@@ -575,24 +575,7 @@ def test_v1_agent_model_binding_routes_use_model_service(monkeypatch) -> None:
 
 
 def test_v1_agent_session_detail_and_operation_routes(monkeypatch) -> None:
-    class _UseCaseStub:
-        async def list_sessions(self):
-            return [
-                MainAgentSessionSummary(
-                    session_id="sess-qq",
-                    workspace_dir="D:/file/Mini-Agent",
-                    created_at="2026-04-08T00:00:00+00:00",
-                    updated_at="2026-04-08T00:01:00+00:00",
-                    message_count=4,
-                    origin_surface="qq",
-                    active_surface="qq",
-                    reply_enabled=True,
-                    channel_type="qq",
-                    conversation_id="group:demo",
-                    sender_id="user-1",
-                )
-            ]
-
+    class _SurfaceServiceStub:
         async def ensure_default_session(self, request):
             assert request.workspace_dir == "D:/file/Mini-Agent"
             assert request.surface == "desktop"
@@ -680,27 +663,49 @@ def test_v1_agent_session_detail_and_operation_routes(monkeypatch) -> None:
                 ),
             ]
 
-        async def cancel_session(self, session_id: str, request):
+    class _AgentServiceStub:
+        async def cancel_session_run(
+            self,
+            session_id: str,
+            *,
+            reason: str | None = None,
+            source: str | None = None,
+            surface: str | None = None,
+            channel_type: str | None = None,
+            conversation_id: str | None = None,
+            sender_id: str | None = None,
+        ):
             assert session_id == "sess-qq"
-            assert request.reason == "stop now"
-            assert request.surface == "qq"
-            assert request.channel_type == "qq"
-            assert request.conversation_id == "group:demo"
-            assert request.sender_id == "user-1"
+            assert reason == "stop now"
+            assert source == "qq"
+            assert surface == "qq"
+            assert channel_type == "qq"
+            assert conversation_id == "group:demo"
+            assert sender_id == "user-1"
             return MainAgentSessionMutationResponse(
                 status="cancel_requested",
                 session_id="sess-qq",
                 active_surface="qq",
             )
 
-        async def control_session(self, session_id: str, request):
+        async def control_session(
+            self,
+            session_id: str,
+            *,
+            action: str,
+            reason: str | None = None,
+            surface: str | None = None,
+            channel_type: str | None = None,
+            conversation_id: str | None = None,
+            sender_id: str | None = None,
+        ):
             assert session_id == "sess-qq"
-            assert request.action == "compact"
-            assert request.reason == "trim history"
-            assert request.surface == "qq"
-            assert request.channel_type == "qq"
-            assert request.conversation_id == "group:demo"
-            assert request.sender_id == "user-1"
+            assert action == "compact"
+            assert reason == "trim history"
+            assert surface == "qq"
+            assert channel_type == "qq"
+            assert conversation_id == "group:demo"
+            assert sender_id == "user-1"
             return MainAgentSessionControlResponse(
                 status="controlled",
                 session_id="sess-qq",
@@ -719,14 +724,30 @@ def test_v1_agent_session_detail_and_operation_routes(monkeypatch) -> None:
                 },
             )
 
-        async def update_session_context(self, session_id: str, request):
+        async def update_session_context(
+            self,
+            session_id: str,
+            *,
+            action: str,
+            sources: list[str] | None = None,
+            surface: str | None = None,
+            channel_type: str | None = None,
+            conversation_id: str | None = None,
+            sender_id: str | None = None,
+            max_items: int | None = None,
+            max_total_chars: int | None = None,
+            max_items_per_source: int | None = None,
+        ):
             assert session_id == "sess-qq"
-            assert request.action == "include"
-            assert request.sources == ["knowledge_base", "workspace_memory"]
-            assert request.surface == "qq"
-            assert request.channel_type == "qq"
-            assert request.conversation_id == "group:demo"
-            assert request.sender_id == "user-1"
+            assert action == "include"
+            assert sources == ["knowledge_base", "workspace_memory"]
+            assert surface == "qq"
+            assert channel_type == "qq"
+            assert conversation_id == "group:demo"
+            assert sender_id == "user-1"
+            assert max_items is None
+            assert max_total_chars is None
+            assert max_items_per_source is None
             return MainAgentSessionContextResponse(
                 status="updated",
                 session_id="sess-qq",
@@ -742,14 +763,34 @@ def test_v1_agent_session_detail_and_operation_routes(monkeypatch) -> None:
                 },
             )
 
-        async def manage_session_memory(self, session_id: str, request):
+        async def manage_session_memory(
+            self,
+            session_id: str,
+            *,
+            action: str,
+            detail_mode: str | None = None,
+            surface: str | None = None,
+            channel_type: str | None = None,
+            conversation_id: str | None = None,
+            sender_id: str | None = None,
+            engram_id: str | None = None,
+            content: str | None = None,
+            query: str | None = None,
+            day: str | None = None,
+            export_format: str | None = None,
+        ):
             assert session_id == "sess-qq"
-            assert request.action == "show"
-            assert request.detail_mode == "brief"
-            assert request.surface == "qq"
-            assert request.channel_type == "qq"
-            assert request.conversation_id == "group:demo"
-            assert request.sender_id == "user-1"
+            assert action == "show"
+            assert detail_mode == "brief"
+            assert surface == "qq"
+            assert channel_type == "qq"
+            assert conversation_id == "group:demo"
+            assert sender_id == "user-1"
+            assert engram_id is None
+            assert content is None
+            assert query is None
+            assert day is None
+            assert export_format is None
             return MainAgentSessionMemoryResponse(
                 status="ok",
                 session_id="sess-qq",
@@ -766,14 +807,30 @@ def test_v1_agent_session_detail_and_operation_routes(monkeypatch) -> None:
                 },
             )
 
-        async def manage_session_skills(self, session_id: str, request):
+        async def manage_session_skills(
+            self,
+            session_id: str,
+            *,
+            action: str,
+            query: str | None = None,
+            surface: str | None = None,
+            channel_type: str | None = None,
+            conversation_id: str | None = None,
+            sender_id: str | None = None,
+            skill_name: str | None = None,
+            path: str | None = None,
+            mode: str | None = None,
+        ):
             assert session_id == "sess-qq"
-            assert request.action == "search"
-            assert request.query == "foundry"
-            assert request.surface == "qq"
-            assert request.channel_type == "qq"
-            assert request.conversation_id == "group:demo"
-            assert request.sender_id == "user-1"
+            assert action == "search"
+            assert query == "foundry"
+            assert surface == "qq"
+            assert channel_type == "qq"
+            assert conversation_id == "group:demo"
+            assert sender_id == "user-1"
+            assert skill_name is None
+            assert path is None
+            assert mode is None
             return MainAgentSessionSkillResponse(
                 status="ok",
                 session_id="sess-qq",
@@ -787,15 +844,56 @@ def test_v1_agent_session_detail_and_operation_routes(monkeypatch) -> None:
                 },
             )
 
-        async def update_session_model_selection(self, session_id: str, request):
+        async def approve_session_wait(
+            self,
+            session_id: str,
+            *,
+            token: str | None = None,
+            source: str | None = None,
+            surface: str | None = None,
+            channel_type: str | None = None,
+            conversation_id: str | None = None,
+            sender_id: str | None = None,
+            reason: str | None = None,
+        ):
             assert session_id == "sess-qq"
-            assert request.provider_source == "preset"
-            assert request.provider_id == "openai"
-            assert request.model_id == "gpt-5.3"
-            assert request.surface == "qq"
-            assert request.channel_type == "qq"
-            assert request.conversation_id == "group:demo"
-            assert request.sender_id == "user-1"
+            assert token == "approval-1"
+            assert source == "qq"
+            assert surface == "qq"
+            assert channel_type == "qq"
+            assert conversation_id == "group:demo"
+            assert sender_id == "user-1"
+            assert reason is None
+            return MainAgentSessionApprovalResponse(
+                status="resolved",
+                session_id="sess-qq",
+                token="approval-1",
+                tool_name="shell",
+                decision="approved",
+                active_surface="qq",
+            )
+
+    class _ModelServiceStub:
+        async def update_session_model_selection(
+            self,
+            session_id: str,
+            *,
+            provider_source: str | None = None,
+            provider_id: str | None = None,
+            model_id: str | None = None,
+            surface: str | None = None,
+            channel_type: str | None = None,
+            conversation_id: str | None = None,
+            sender_id: str | None = None,
+        ):
+            assert session_id == "sess-qq"
+            assert provider_source == "preset"
+            assert provider_id == "openai"
+            assert model_id == "gpt-5.3"
+            assert surface == "qq"
+            assert channel_type == "qq"
+            assert conversation_id == "group:demo"
+            assert sender_id == "user-1"
             return MainAgentSessionModelSelectionResponse(
                 status="selected",
                 session_id="sess-qq",
@@ -807,24 +905,9 @@ def test_v1_agent_session_detail_and_operation_routes(monkeypatch) -> None:
                 selected_model_id="gpt-5.3",
             )
 
-        async def respond_to_approval(self, session_id: str, request):
-            assert session_id == "sess-qq"
-            assert request.approved is True
-            assert request.token == "approval-1"
-            assert request.surface == "qq"
-            assert request.channel_type == "qq"
-            assert request.conversation_id == "group:demo"
-            assert request.sender_id == "user-1"
-            return MainAgentSessionApprovalResponse(
-                status="resolved",
-                session_id="sess-qq",
-                token="approval-1",
-                tool_name="shell",
-                decision="approved",
-                active_surface="qq",
-            )
-
-    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_surface_service", _UseCaseStub())
+    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_surface_service", _SurfaceServiceStub())
+    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_agent_service", _AgentServiceStub())
+    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_model_service", _ModelServiceStub())
 
     with TestClient(app) as client:
         detail_response = client.get("/api/v1/agent/sessions/sess-qq", params={"recent_limit": 5})
@@ -986,7 +1069,7 @@ def test_v1_agent_session_detail_and_operation_routes(monkeypatch) -> None:
 
 
 def test_v1_runtime_session_create_share_rename_routes(monkeypatch) -> None:
-    class _UseCaseStub:
+    class _SurfaceServiceStub:
         async def list_sessions(self, *, workspace_dir=None, shared_only=False):
             assert workspace_dir == "."
             assert shared_only is True
@@ -1022,6 +1105,7 @@ def test_v1_runtime_session_create_share_rename_routes(monkeypatch) -> None:
                 recent_messages=[],
             )
 
+    class _SessionTaskServiceStub:
         async def rename_session(self, session_id: str, request):
             assert session_id == "sess-runtime-1"
             assert request.title == "Focus Session"
@@ -1044,7 +1128,8 @@ def test_v1_runtime_session_create_share_rename_routes(monkeypatch) -> None:
                 shared=True,
             )
 
-    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_surface_service", _UseCaseStub())
+    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_surface_service", _SurfaceServiceStub())
+    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_session_task_service", _SessionTaskServiceStub())
 
     with TestClient(app) as client:
         list_response = client.get("/api/v1/agent/sessions", params={"workspace_dir": ".", "shared_only": True})
@@ -1083,11 +1168,25 @@ def test_v1_runtime_session_create_share_rename_routes(monkeypatch) -> None:
 
 
 def test_v1_main_agent_control_route_accepts_mcp_actions(monkeypatch) -> None:
-    class _UseCaseStub:
-        async def control_session(self, session_id: str, request):
+    class _AgentServiceStub:
+        async def control_session(
+            self,
+            session_id: str,
+            *,
+            action: str,
+            reason: str | None = None,
+            surface: str | None = None,
+            channel_type: str | None = None,
+            conversation_id: str | None = None,
+            sender_id: str | None = None,
+        ):
             assert session_id == "sess-qq"
-            assert request.action == "mcp_list"
-            assert request.surface == "tui"
+            assert action == "mcp_list"
+            assert reason is None
+            assert surface == "tui"
+            assert channel_type is None
+            assert conversation_id is None
+            assert sender_id is None
             return MainAgentSessionControlResponse(
                 status="controlled",
                 session_id="sess-qq",
@@ -1105,7 +1204,7 @@ def test_v1_main_agent_control_route_accepts_mcp_actions(monkeypatch) -> None:
                 },
             )
 
-    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_surface_service", _UseCaseStub())
+    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_agent_service", _AgentServiceStub())
 
     with TestClient(app) as client:
         response = client.post(
@@ -1124,15 +1223,31 @@ def test_v1_main_agent_control_route_accepts_mcp_actions(monkeypatch) -> None:
 
 
 def test_v1_main_agent_skill_mode_route_forwards_mode_field(monkeypatch) -> None:
-    class _UseCaseStub:
-        async def manage_session_skills(self, session_id: str, request):
+    class _AgentServiceStub:
+        async def manage_session_skills(
+            self,
+            session_id: str,
+            *,
+            action: str,
+            mode: str | None = None,
+            surface: str | None = None,
+            channel_type: str | None = None,
+            conversation_id: str | None = None,
+            sender_id: str | None = None,
+            skill_name: str | None = None,
+            path: str | None = None,
+            query: str | None = None,
+        ):
             assert session_id == "sess-qq"
-            assert request.action == "mode"
-            assert request.mode == "allowlist"
-            assert request.surface == "qq"
-            assert request.channel_type == "qq"
-            assert request.conversation_id == "group:demo"
-            assert request.sender_id == "user-1"
+            assert action == "mode"
+            assert mode == "allowlist"
+            assert surface == "qq"
+            assert channel_type == "qq"
+            assert conversation_id == "group:demo"
+            assert sender_id == "user-1"
+            assert skill_name is None
+            assert path is None
+            assert query is None
             return MainAgentSessionSkillResponse(
                 status="ok",
                 session_id="sess-qq",
@@ -1149,7 +1264,7 @@ def test_v1_main_agent_skill_mode_route_forwards_mode_field(monkeypatch) -> None
                 },
             )
 
-    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_surface_service", _UseCaseStub())
+    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_agent_service", _AgentServiceStub())
 
     with TestClient(app) as client:
         response = client.post(
@@ -1171,12 +1286,31 @@ def test_v1_main_agent_skill_mode_route_forwards_mode_field(monkeypatch) -> None
 
 
 def test_v1_main_agent_skill_install_route_forwards_path_field(monkeypatch) -> None:
-    class _UseCaseStub:
-        async def manage_session_skills(self, session_id: str, request):
+    class _AgentServiceStub:
+        async def manage_session_skills(
+            self,
+            session_id: str,
+            *,
+            action: str,
+            path: str | None = None,
+            surface: str | None = None,
+            channel_type: str | None = None,
+            conversation_id: str | None = None,
+            sender_id: str | None = None,
+            skill_name: str | None = None,
+            query: str | None = None,
+            mode: str | None = None,
+        ):
             assert session_id == "sess-qq"
-            assert request.action == "install"
-            assert request.path == "C:/skills/repo-helper"
-            assert request.surface == "qq"
+            assert action == "install"
+            assert path == "C:/skills/repo-helper"
+            assert surface == "qq"
+            assert channel_type is None
+            assert conversation_id is None
+            assert sender_id is None
+            assert skill_name is None
+            assert query is None
+            assert mode is None
             return MainAgentSessionSkillResponse(
                 status="ok",
                 session_id="sess-qq",
@@ -1188,7 +1322,7 @@ def test_v1_main_agent_skill_install_route_forwards_path_field(monkeypatch) -> N
                 },
             )
 
-    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_surface_service", _UseCaseStub())
+    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_agent_service", _AgentServiceStub())
 
     with TestClient(app) as client:
         response = client.post(
@@ -1207,12 +1341,12 @@ def test_v1_main_agent_skill_install_route_forwards_path_field(monkeypatch) -> N
 
 
 def test_v1_main_agent_skill_mode_invalid_returns_http_400(monkeypatch) -> None:
-    class _UseCaseStub:
-        async def manage_session_skills(self, session_id: str, request):
-            _ = (session_id, request)
+    class _AgentServiceStub:
+        async def manage_session_skills(self, session_id: str, **kwargs):
+            _ = (session_id, kwargs)
             raise HTTPException(status_code=400, detail="Unsupported skill policy mode: invalid-mode")
 
-    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_surface_service", _UseCaseStub())
+    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_agent_service", _AgentServiceStub())
 
     with TestClient(app) as client:
         response = client.post(

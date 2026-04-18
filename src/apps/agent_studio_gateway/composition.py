@@ -328,6 +328,8 @@ class GatewayComposition:
             build_health_response=self.build_health_response,
             get_runtime_diagnostics=self.get_runtime_diagnostics,
             get_surface_service=self.get_surface_service,
+            get_session_task_service=self.get_session_task_service,
+            get_agent_service=self.get_agent_service,
             get_workspace_service=self.get_workspace_service,
             get_model_service=self.get_model_service,
             get_channel_ingress_use_cases=self.get_channel_ingress_use_cases,
