@@ -1,149 +1,57 @@
 from __future__ import annotations
 
 import importlib
+from pathlib import Path
+
+import pytest
 
 
-def _reset_lazy_export(module_name: str, attr_name: str):
+_RUNTIME_DIR = Path(__file__).resolve().parents[1] / "src" / "mini_agent" / "runtime"
+_SPECIAL_CASE_WRAPPERS = {"tooling.py"}
+
+
+def _runtime_compat_wrapper_modules() -> list[str]:
+    modules: list[str] = []
+    for path in sorted(_RUNTIME_DIR.glob("*.py")):
+        if path.name in {"__init__.py", *_SPECIAL_CASE_WRAPPERS}:
+            continue
+        text = path.read_text(encoding="utf-8")
+        if "Compatibility re-export for" in text and "_COMPAT_EXPORTS" in text:
+            modules.append(f"mini_agent.runtime.{path.stem}")
+    return modules
+
+
+_LAZY_COMPAT_MODULES = _runtime_compat_wrapper_modules()
+
+
+def _reset_lazy_export(module_name: str):
     module = importlib.import_module(module_name)
+    attr_name = next(iter(module._COMPAT_EXPORTS))
     module.__dict__.pop(attr_name, None)
-    return module
+    return module, attr_name
 
 
-def test_runtime_session_access_wrapper_resolves_exports_lazily() -> None:
-    module = _reset_lazy_export(
-        "mini_agent.runtime.session_access_handler",
-        "RuntimeSessionAccessHandler",
-    )
+@pytest.mark.parametrize("module_name", _LAZY_COMPAT_MODULES)
+def test_runtime_compat_wrapper_resolves_exports_lazily(module_name: str) -> None:
+    module, attr_name = _reset_lazy_export(module_name)
 
-    assert "RuntimeSessionAccessHandler" not in module.__dict__
+    assert attr_name not in module.__dict__
 
-    resolved = getattr(module, "RuntimeSessionAccessHandler")
+    resolved = getattr(module, attr_name)
 
     assert resolved is not None
-    assert module.__dict__["RuntimeSessionAccessHandler"] is resolved
+    assert module.__dict__[attr_name] is resolved
 
 
-def test_runtime_session_control_models_wrapper_resolves_exports_lazily() -> None:
-    module = _reset_lazy_export(
-        "mini_agent.runtime.session_control_models",
-        "RuntimeSessionControlCommand",
-    )
+def test_runtime_compat_wrappers_use_lazy_exports_by_default() -> None:
+    offenders: list[str] = []
+    for path in sorted(_RUNTIME_DIR.glob("*.py")):
+        if path.name == "__init__.py":
+            continue
+        text = path.read_text(encoding="utf-8")
+        if "Compatibility re-export for" not in text or path.name in _SPECIAL_CASE_WRAPPERS:
+            continue
+        if "_COMPAT_EXPORTS" not in text:
+            offenders.append(path.name)
 
-    assert "RuntimeSessionControlCommand" not in module.__dict__
-
-    resolved = getattr(module, "RuntimeSessionControlCommand")
-
-    assert resolved is not None
-    assert module.__dict__["RuntimeSessionControlCommand"] is resolved
-
-
-def test_runtime_session_read_model_wrapper_resolves_exports_lazily() -> None:
-    module = _reset_lazy_export(
-        "mini_agent.runtime.session_read_model_builder",
-        "RuntimeSessionReadModelBuilder",
-    )
-
-    assert "RuntimeSessionReadModelBuilder" not in module.__dict__
-
-    resolved = getattr(module, "RuntimeSessionReadModelBuilder")
-
-    assert resolved is not None
-    assert module.__dict__["RuntimeSessionReadModelBuilder"] is resolved
-
-
-def test_runtime_session_snapshot_handler_wrapper_resolves_exports_lazily() -> None:
-    module = _reset_lazy_export(
-        "mini_agent.runtime.session_snapshot_handler",
-        "RuntimeSessionSnapshotImportCommand",
-    )
-
-    assert "RuntimeSessionSnapshotImportCommand" not in module.__dict__
-
-    resolved = getattr(module, "RuntimeSessionSnapshotImportCommand")
-
-    assert resolved is not None
-    assert module.__dict__["RuntimeSessionSnapshotImportCommand"] is resolved
-
-
-def test_runtime_session_restore_wrapper_resolves_exports_lazily() -> None:
-    module = _reset_lazy_export(
-        "mini_agent.runtime.session_restore_handler",
-        "RuntimeSessionRestoreHandler",
-    )
-
-    assert "RuntimeSessionRestoreHandler" not in module.__dict__
-
-    resolved = getattr(module, "RuntimeSessionRestoreHandler")
-
-    assert resolved is not None
-    assert module.__dict__["RuntimeSessionRestoreHandler"] is resolved
-
-
-def test_runtime_session_cancel_service_wrapper_resolves_exports_lazily() -> None:
-    module = _reset_lazy_export(
-        "mini_agent.runtime.session_cancel_service",
-        "SessionCancelService",
-    )
-
-    assert "SessionCancelService" not in module.__dict__
-
-    resolved = getattr(module, "SessionCancelService")
-
-    assert resolved is not None
-    assert module.__dict__["SessionCancelService"] is resolved
-
-
-def test_runtime_session_pending_approval_service_wrapper_resolves_exports_lazily() -> None:
-    module = _reset_lazy_export(
-        "mini_agent.runtime.session_pending_approval_service",
-        "SessionPendingApprovalService",
-    )
-
-    assert "SessionPendingApprovalService" not in module.__dict__
-
-    resolved = getattr(module, "SessionPendingApprovalService")
-
-    assert resolved is not None
-    assert module.__dict__["SessionPendingApprovalService"] is resolved
-
-
-def test_runtime_session_lifecycle_wrapper_resolves_exports_lazily() -> None:
-    module = _reset_lazy_export(
-        "mini_agent.runtime.session_lifecycle",
-        "resolve_session_lifecycle_policy",
-    )
-
-    assert "resolve_session_lifecycle_policy" not in module.__dict__
-
-    resolved = getattr(module, "resolve_session_lifecycle_policy")
-
-    assert resolved is not None
-    assert module.__dict__["resolve_session_lifecycle_policy"] is resolved
-
-
-def test_runtime_workspace_path_utils_wrapper_resolves_exports_lazily() -> None:
-    module = _reset_lazy_export(
-        "mini_agent.runtime.workspace_path_utils",
-        "workspace_path_key",
-    )
-
-    assert "workspace_path_key" not in module.__dict__
-
-    resolved = getattr(module, "workspace_path_key")
-
-    assert resolved is not None
-    assert module.__dict__["workspace_path_key"] is resolved
-
-
-def test_runtime_policy_loader_wrapper_resolves_exports_lazily() -> None:
-    module = _reset_lazy_export(
-        "mini_agent.runtime.main_agent_runtime_policy_loader",
-        "load_main_agent_runtime_policy",
-    )
-
-    assert "load_main_agent_runtime_policy" not in module.__dict__
-
-    resolved = getattr(module, "load_main_agent_runtime_policy")
-
-    assert resolved is not None
-    assert module.__dict__["load_main_agent_runtime_policy"] is resolved
+    assert offenders == []

@@ -1,11 +1,30 @@
 """Compatibility re-export for runtime session hydration builders."""
 
-from .orchestration.session_hydration_builder import (
-    RuntimeSessionHydrationBuilder,
-    RuntimeSessionHydrationPayload,
-)
+from __future__ import annotations
+
+from importlib import import_module
 
 __all__ = [
     "RuntimeSessionHydrationBuilder",
     "RuntimeSessionHydrationPayload",
 ]
+
+_COMPAT_EXPORTS: dict[str, tuple[str, str]] = {
+    "RuntimeSessionHydrationBuilder": (".orchestration.session_hydration_builder", "RuntimeSessionHydrationBuilder"),
+    "RuntimeSessionHydrationPayload": (".orchestration.session_hydration_builder", "RuntimeSessionHydrationPayload"),
+}
+
+
+def __getattr__(name: str):
+    export = _COMPAT_EXPORTS.get(name)
+    if export is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module_name, attr_name = export
+    module = import_module(module_name, __package__)
+    value = getattr(module, attr_name)
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(__all__))
