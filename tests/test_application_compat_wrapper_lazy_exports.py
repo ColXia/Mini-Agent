@@ -43,3 +43,31 @@ def test_facade_surface_assembly_wrapper_resolves_exports_lazily() -> None:
 
     assert resolved is not None
     assert module.__dict__["build_main_agent_surface_service"] is resolved
+
+
+def test_application_user_service_assembly_wrapper_resolves_exports_lazily() -> None:
+    module = _reset_lazy_export(
+        "mini_agent.application.user_service_assembly",
+        "assemble_runtime_backed_user_services",
+    )
+
+    assert "assemble_runtime_backed_user_services" not in module.__dict__
+
+    resolved = getattr(module, "assemble_runtime_backed_user_services")
+
+    assert resolved is not None
+    assert module.__dict__["assemble_runtime_backed_user_services"] is resolved
+
+
+def test_application_session_runtime_port_wrapper_resolves_exports_lazily() -> None:
+    module = _reset_lazy_export(
+        "mini_agent.application.session_runtime_port",
+        "SessionRuntimePort",
+    )
+
+    assert "SessionRuntimePort" not in module.__dict__
+
+    resolved = getattr(module, "SessionRuntimePort")
+
+    assert resolved is not None
+    assert module.__dict__["SessionRuntimePort"] is resolved
