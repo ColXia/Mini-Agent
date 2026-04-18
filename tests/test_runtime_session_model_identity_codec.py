@@ -59,6 +59,24 @@ def test_model_identity_codec_reads_and_updates_selected_and_pending_identity() 
     assert codec.selected_model_identity(session) == ("preset", "openai", "gpt-5.4")
 
 
+def test_model_identity_codec_prefers_runtime_route_over_projection_identity() -> None:
+    codec = RuntimeSessionModelIdentityCodec()
+    session = runtime_session_stub(
+        projection=runtime_projection_stub(
+            selected_model_source="preset",
+            selected_provider_id="openai",
+            selected_model_id="gpt-5.4",
+        ),
+        agent=RuntimeContractAgentStub(
+            model="astron-code-latest",
+            provider_source="custom",
+            provider_id="maas",
+        ),
+    )
+
+    assert codec.selected_model_identity(session) == ("custom", "maas", "astron-code-latest")
+
+
 def test_model_identity_codec_projection_helpers_normalize_shape_and_route_payloads() -> None:
     codec = RuntimeSessionModelIdentityCodec()
     projection = runtime_projection_stub(

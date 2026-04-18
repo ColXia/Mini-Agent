@@ -109,10 +109,10 @@ class RuntimeSessionModelIdentityCodec:
 
     @classmethod
     def selected_model_identity(cls, session: "MainAgentSessionState") -> tuple[str, str, str] | None:
-        explicit = cls.selected_identity_from_projection(session.projection)
-        if explicit is not None:
-            return explicit
-        return cls.route_model_identity(session.runtime.agent)
+        routed = cls.route_model_identity(session.runtime.agent)
+        if routed is not None:
+            return routed
+        return cls.selected_identity_from_projection(session.projection)
 
     @classmethod
     def pending_model_identity(cls, session: "MainAgentSessionState") -> tuple[str, str, str] | None:

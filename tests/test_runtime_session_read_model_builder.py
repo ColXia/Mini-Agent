@@ -233,6 +233,55 @@ def test_runtime_session_read_model_builder_prefers_active_run_pending_approvals
     assert [item.token for item in summary.pending_approvals] == ["approval-run"]
 
 
+def test_runtime_session_read_model_builder_prefers_live_selected_identity_callback(tmp_path: Path) -> None:
+    builder = _builder()
+    builder.selected_model_identity_for_session = lambda _session: ("custom", "maas", "astron-code-latest")
+    session = runtime_session_stub(
+        session_id="sess-route-truth",
+        workspace_dir=tmp_path,
+        created_at=_dt(),
+        updated_at=_dt(),
+        projection=runtime_projection_stub(
+            title="Route Truth",
+            origin_surface="tui",
+            active_surface="tui",
+            reply_enabled=False,
+            is_default=False,
+            channel_type=None,
+            conversation_id=None,
+            sender_id=None,
+            shared=False,
+            knowledge_base_enabled=True,
+            selected_model_source="preset",
+            selected_provider_id="openai",
+            selected_model_id="gpt-5.4",
+            pending_model_source=None,
+            pending_provider_id=None,
+            pending_model_id=None,
+            pending_skill_reload=False,
+            pending_skill_reload_reason="",
+        ),
+        runtime=SimpleNamespace(
+            agent=RuntimeContractAgentStub(
+                model="astron-code-latest",
+                provider_source="custom",
+                provider_id="maas",
+            ),
+            cancel_event=None,
+            pending_approvals=[],
+            pending_approval_waiters={},
+            lock=SimpleNamespace(),
+        ),
+        transcript_state=transcript_state_stub(transcript=[]),
+    )
+
+    summary = builder.build_session_summary(session)
+
+    assert summary.selected_model_source == "custom"
+    assert summary.selected_provider_id == "maas"
+    assert summary.selected_model_id == "astron-code-latest"
+
+
 def test_runtime_session_read_model_builder_session_detail_exposes_workspace_runtime_snapshot(
     tmp_path: Path,
 ) -> None:

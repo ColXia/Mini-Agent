@@ -289,6 +289,8 @@ class MainAgentRuntimeManager:
             active_pending_approvals_for_session=lambda session: self._session_run_control.pending_approval_payloads(
                 session
             ),
+            selected_model_identity_for_session=self._model_identity_codec.selected_model_identity,
+            pending_model_identity_for_session=self._model_identity_codec.pending_model_identity,
         )
         self._session_snapshot_builder = RuntimeSessionSnapshotBuilder(
             normalize_surface=normalize_surface_label,
@@ -300,6 +302,8 @@ class MainAgentRuntimeManager:
             build_memory_diagnostics_from_record=self._session_diagnostics.build_memory_diagnostics_from_record,
             build_sandbox_diagnostics_for_session=self._session_diagnostics.build_sandbox_diagnostics_for_session,
             build_sandbox_diagnostics_from_record=self._session_diagnostics.build_sandbox_diagnostics_from_record,
+            selected_model_identity_for_session=self._model_identity_codec.selected_model_identity,
+            pending_model_identity_for_session=self._model_identity_codec.pending_model_identity,
             build_workspace_runtime_snapshot_for_session=(
                 self._session_diagnostics.build_workspace_runtime_snapshot_for_session
             ),

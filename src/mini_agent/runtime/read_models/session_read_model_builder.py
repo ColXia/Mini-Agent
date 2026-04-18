@@ -62,6 +62,8 @@ class RuntimeSessionReadModelBuilder:
     transcript_entries_from_record: Callable[[dict[str, Any]], list["MainAgentSessionTranscriptEntry"]]
     pending_approvals_from_raw: Callable[[Any], list[dict[str, Any]]]
     active_pending_approvals_for_session: Callable[["MainAgentSessionState"], Sequence[dict[str, Any]]] | None = None
+    selected_model_identity_for_session: Callable[["MainAgentSessionState"], tuple[str, str, str] | None] | None = None
+    pending_model_identity_for_session: Callable[["MainAgentSessionState"], tuple[str, str, str] | None] | None = None
     build_workspace_runtime_snapshot_for_session: Callable[["MainAgentSessionState"], dict[str, Any] | None] | None = None
     build_workspace_runtime_snapshot_from_record: Callable[[dict[str, Any]], dict[str, Any] | None] | None = None
     snapshot_runtime_task_memory_payload: Callable[..., dict[str, Any]] | None = None
@@ -88,6 +90,8 @@ class RuntimeSessionReadModelBuilder:
         self,
         session: "MainAgentSessionState",
     ) -> SessionSummaryProjection:
+        selected_identity = self._selected_model_identity(session)
+        pending_identity = self._pending_model_identity(session)
         memory_diagnostics = self.build_memory_diagnostics_for_session(session)
         sandbox_diagnostics = self.build_sandbox_diagnostics_for_session(session)
         active_pending_approvals = self._pending_approvals_for_session(session)
@@ -138,12 +142,12 @@ class RuntimeSessionReadModelBuilder:
             token_limit=self.session_token_limit(session),
             shared=bool(session.projection.shared),
             knowledge_base_enabled=bool(session.projection.knowledge_base_enabled),
-            selected_model_source=session.projection.selected_model_source,
-            selected_provider_id=session.projection.selected_provider_id,
-            selected_model_id=session.projection.selected_model_id,
-            pending_model_source=session.projection.pending_model_source,
-            pending_provider_id=session.projection.pending_provider_id,
-            pending_model_id=session.projection.pending_model_id,
+            selected_model_source=selected_identity[0] if selected_identity is not None else None,
+            selected_provider_id=selected_identity[1] if selected_identity is not None else None,
+            selected_model_id=selected_identity[2] if selected_identity is not None else None,
+            pending_model_source=pending_identity[0] if pending_identity is not None else None,
+            pending_provider_id=pending_identity[1] if pending_identity is not None else None,
+            pending_model_id=pending_identity[2] if pending_identity is not None else None,
             pending_skill_reload=bool(session.projection.pending_skill_reload),
             pending_skill_reload_reason=_safe_text(session.projection.pending_skill_reload_reason) or None,
             pending_approvals=pending_approvals,
@@ -435,6 +439,12 @@ class RuntimeSessionReadModelBuilder:
             build_memory_diagnostics_from_record=self.build_memory_diagnostics_from_record,
             build_sandbox_diagnostics_for_session=self.build_sandbox_diagnostics_for_session,
             build_sandbox_diagnostics_from_record=self.build_sandbox_diagnostics_from_record,
+            selected_model_identity_for_session=(
+                self.selected_model_identity_for_session or self._selected_identity_from_projection
+            ),
+            pending_model_identity_for_session=(
+                self.pending_model_identity_for_session or self._pending_identity_from_projection
+            ),
             build_workspace_runtime_snapshot_for_session=(
                 self.build_workspace_runtime_snapshot_for_session or self._empty_workspace_runtime_snapshot_payload
             ),
@@ -462,6 +472,54 @@ class RuntimeSessionReadModelBuilder:
 
     @staticmethod
     def _empty_workspace_runtime_snapshot_payload(*_args: Any, **_kwargs: Any) -> dict[str, Any] | None:
+        return None
+
+    def _selected_model_identity(
+        self,
+        session: "MainAgentSessionState",
+    ) -> tuple[str, str, str] | None:
+        if callable(self.selected_model_identity_for_session):
+            try:
+                identity = self.selected_model_identity_for_session(session)
+            except Exception:
+                identity = None
+            if isinstance(identity, (tuple, list)) and len(identity) == 3:
+                return str(identity[0]), str(identity[1]), str(identity[2])
+        return self._selected_identity_from_projection(session)
+
+    def _pending_model_identity(
+        self,
+        session: "MainAgentSessionState",
+    ) -> tuple[str, str, str] | None:
+        if callable(self.pending_model_identity_for_session):
+            try:
+                identity = self.pending_model_identity_for_session(session)
+            except Exception:
+                identity = None
+            if isinstance(identity, (tuple, list)) and len(identity) == 3:
+                return str(identity[0]), str(identity[1]), str(identity[2])
+        return self._pending_identity_from_projection(session)
+
+    def _selected_identity_from_projection(
+        self,
+        session: "MainAgentSessionState",
+    ) -> tuple[str, str, str] | None:
+        source = self.normalize_model_source(getattr(session.projection, "selected_model_source", None))
+        provider_id = _safe_text(getattr(session.projection, "selected_provider_id", None))
+        model_id = _safe_text(getattr(session.projection, "selected_model_id", None))
+        if source and provider_id and model_id:
+            return source, provider_id, model_id
+        return None
+
+    def _pending_identity_from_projection(
+        self,
+        session: "MainAgentSessionState",
+    ) -> tuple[str, str, str] | None:
+        source = self.normalize_model_source(getattr(session.projection, "pending_model_source", None))
+        provider_id = _safe_text(getattr(session.projection, "pending_provider_id", None))
+        model_id = _safe_text(getattr(session.projection, "pending_model_id", None))
+        if source and provider_id and model_id:
+            return source, provider_id, model_id
         return None
 
     @staticmethod

@@ -47,6 +47,32 @@ def _builder() -> RuntimeSessionSnapshotBuilder:
         build_memory_diagnostics_from_record=lambda record: {"memory": str(record.get("session_id"))},
         build_sandbox_diagnostics_for_session=lambda session: {"approval_profile": "build"},
         build_sandbox_diagnostics_from_record=lambda record: {"approval_profile": "default"},
+        selected_model_identity_for_session=lambda session: (
+            (
+                str(session.projection.selected_model_source),
+                str(session.projection.selected_provider_id),
+                str(session.projection.selected_model_id),
+            )
+            if (
+                getattr(session.projection, "selected_model_source", None)
+                and getattr(session.projection, "selected_provider_id", None)
+                and getattr(session.projection, "selected_model_id", None)
+            )
+            else None
+        ),
+        pending_model_identity_for_session=lambda session: (
+            (
+                str(session.projection.pending_model_source),
+                str(session.projection.pending_provider_id),
+                str(session.projection.pending_model_id),
+            )
+            if (
+                getattr(session.projection, "pending_model_source", None)
+                and getattr(session.projection, "pending_provider_id", None)
+                and getattr(session.projection, "pending_model_id", None)
+            )
+            else None
+        ),
         build_workspace_runtime_snapshot_for_session=lambda session: {
             "snapshot_id": f"live-{session.session_id}",
             "workspace_dir": str(session.workspace_dir),
@@ -199,3 +225,54 @@ def test_runtime_session_snapshot_builder_builds_snapshot_from_persisted_record(
     assert snapshot.runtime_task_memory_payload == {"session_id": "sess-record"}
     assert snapshot.agent_messages == [{"role": "assistant", "content": "seed"}]
     assert [item.content for item in snapshot.transcript] == ["persisted hello"]
+
+
+def test_runtime_session_snapshot_builder_prefers_live_selected_identity_callback(tmp_path: Path) -> None:
+    builder = _builder()
+    builder.selected_model_identity_for_session = lambda _session: ("custom", "maas", "astron-code-latest")
+    session = runtime_session_stub(
+        session_id="sess-live-route",
+        workspace_dir=tmp_path,
+        lineage_state=lineage_state_stub(
+            parent_session_id=None,
+            root_session_id="sess-live-route",
+            reason="root",
+            created_at=_dt(),
+            metadata={},
+        ),
+        projection=runtime_projection_stub(
+            title="Route Truth",
+            origin_surface="tui",
+            active_surface="tui",
+            reply_enabled=False,
+            is_default=False,
+            channel_type=None,
+            conversation_id=None,
+            sender_id=None,
+            shared=False,
+            knowledge_base_enabled=True,
+            selected_model_source="preset",
+            selected_provider_id="openai",
+            selected_model_id="gpt-5.4",
+            pending_model_source=None,
+            pending_provider_id=None,
+            pending_model_id=None,
+            pending_skill_reload=False,
+            pending_skill_reload_reason="",
+            context_policy={},
+            last_prepared_context={},
+            prepared_context_diagnostics={},
+        ),
+        agent=RuntimeContractAgentStub(
+            model="astron-code-latest",
+            provider_source="custom",
+            provider_id="maas",
+        ),
+        transcript_state=transcript_state_stub(transcript=[]),
+    )
+
+    snapshot = builder.build_session_snapshot(session)
+
+    assert snapshot.selected_model_source == "custom"
+    assert snapshot.selected_provider_id == "maas"
+    assert snapshot.selected_model_id == "astron-code-latest"
