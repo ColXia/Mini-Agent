@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, AsyncIterator
 
-from mini_agent.application.legacy.session_agent_runtime_port import SessionAgentRuntimePort
 from mini_agent.application.ports.agent_runtime_port import AgentRuntimePort
+from mini_agent.application.ports.session_agent_runtime_port import SessionAgentRuntimePort
 from mini_agent.application.use_cases.agent_application_service import AgentApplicationService
 from mini_agent.application.use_cases.agent_interaction_application_service import AgentInteractionApplicationService
 from mini_agent.application.use_cases.run_control_application_service import RunControlApplicationService
