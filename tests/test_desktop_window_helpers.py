@@ -332,6 +332,39 @@ def test_first_pending_approval_returns_first_item() -> None:
     assert approval == {"token": "tok-1", "tool_name": "shell"}
 
 
+def test_first_pending_approval_prefers_run_approval_wait() -> None:
+    approval = first_pending_approval(
+        {
+            "pending_approvals": [
+                {"token": "tok-session", "tool_name": "shell"},
+            ]
+        },
+        {
+            "approval_wait": {
+                "wait_id": "wait-1",
+                "approval_token": "tok-run",
+                "tool_name": "python",
+                "tool_arguments_summary": {"path": "script.py"},
+                "approval_kind": "tool",
+                "policy_reason": "outside workspace",
+                "cache_key": "python:script.py",
+                "can_escalate": True,
+            }
+        },
+    )
+
+    assert approval == {
+        "token": "tok-run",
+        "tool_name": "python",
+        "arguments": {"path": "script.py"},
+        "kind": "tool",
+        "reason": "outside workspace",
+        "cache_key": "python:script.py",
+        "can_escalate": True,
+        "wait_id": "wait-1",
+    }
+
+
 def test_render_conversation_html_separates_roles_and_escapes_content() -> None:
     html_text = render_conversation_html(
         [

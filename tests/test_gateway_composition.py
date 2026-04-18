@@ -4,8 +4,9 @@ import asyncio
 from pathlib import Path
 
 from apps.agent_studio_gateway.composition import GatewayComposition, GatewayCompositionSettings
+from mini_agent.application import RuntimeBackedUserServicePorts, SessionTaskService
 from mini_agent.application.session_runtime_compat import SessionBackedRunRuntimeAdapter
-from mini_agent.application import SessionTaskService
+from mini_agent.application.user_services.model_runtime_adapter import AgentModelRuntimeAdapter
 from mini_agent.application.user_services import WorkspaceUserService
 
 
@@ -25,23 +26,37 @@ def test_gateway_composition_wires_explicit_session_task_service(tmp_path: Path)
     )
 
     session_task_service = composition.get_session_task_service()
+    runtime_backed_ports = composition.get_runtime_backed_user_service_ports()
     interaction_service = composition.get_agent_interaction_service()
     run_control_service = composition.get_run_control_service()
     agent_service = composition.get_agent_service()
     workspace_service = composition.get_workspace_service()
 
     assert isinstance(session_task_service, SessionTaskService)
+    assert isinstance(runtime_backed_ports, RuntimeBackedUserServicePorts)
     assert isinstance(workspace_service, WorkspaceUserService)
     assert composition.get_session_task_service() is session_task_service
+    assert composition.get_runtime_backed_user_service_ports() is runtime_backed_ports
     assert composition.get_run_control_service() is run_control_service
     assert composition.get_workspace_service() is workspace_service
     assert composition.get_agent_interaction_service() is interaction_service
     assert agent_service.interaction_service is interaction_service
     assert interaction_service.chat_flow.session_task_service is session_task_service
-    assert run_control_service.session_tasks is composition.get_runtime_manager()
+    assert runtime_backed_ports.session_task_runtime is composition.get_runtime_manager()
+    assert runtime_backed_ports.session_task_port is composition.get_runtime_manager()
+    assert runtime_backed_ports.session_agent_runtime is composition.get_runtime_manager()
+    assert runtime_backed_ports.session_model_runtime is composition.get_runtime_manager()
+    assert runtime_backed_ports.model_runtime is composition.get_model_runtime_adapter()
+    assert runtime_backed_ports.workspace_runtime is composition.get_workspace_runtime()
+    assert isinstance(composition.get_model_runtime_adapter(), AgentModelRuntimeAdapter)
+    assert session_task_service._runtime_manager is runtime_backed_ports.session_task_runtime
+    assert session_task_service._session_agent_runtime is runtime_backed_ports.session_agent_runtime
+    assert session_task_service._session_model_runtime is runtime_backed_ports.session_model_runtime
+    assert run_control_service.session_tasks is runtime_backed_ports.session_task_port
     assert isinstance(run_control_service.run_runtime, SessionBackedRunRuntimeAdapter)
-    assert agent_service.session_agent_runtime is composition.get_runtime_manager()
-    assert composition.get_model_service().session_model_runtime is composition.get_runtime_manager()
+    assert run_control_service.run_runtime is runtime_backed_ports.run_runtime
+    assert agent_service.session_agent_runtime is runtime_backed_ports.session_agent_runtime
+    assert composition.get_model_service().session_model_runtime is runtime_backed_ports.session_model_runtime
 
     asyncio.run(composition.shutdown())
 
@@ -159,7 +174,7 @@ def test_gateway_composition_router_dependencies_expose_explicit_workspace_and_m
     assert deps.run_main_agent_chat.__self__ is composition
     assert deps.stream_main_agent_chat.__self__ is composition
     assert deps.get_session_task_service() is composition.get_session_task_service()
-    assert deps.get_agent_service() is composition.get_agent_service()
+    assert deps.get_run_control_service() is composition.get_run_control_service()
     assert deps.get_workspace_service() is composition.get_workspace_service()
     assert deps.get_model_service() is composition.get_model_service()
 

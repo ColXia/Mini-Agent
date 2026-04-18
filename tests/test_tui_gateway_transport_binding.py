@@ -12,5 +12,6 @@ def test_tui_gateway_transport_binding_shares_gateway_transport() -> None:
     assert binding.gateway_client is gateway_client
     assert binding.chat_client._chat_transport is gateway_client
     assert binding.model_client._model_transport is gateway_client
+    assert binding.run_client._run_transport is gateway_client
     assert binding.session_client._session_transport is gateway_client
     assert binding.workspace_client._workspace_transport is gateway_client

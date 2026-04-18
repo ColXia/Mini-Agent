@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timezone
 
+from mini_agent.agent_core.contracts import RunControlMode
 from mini_agent.runtime.session_live_state_handler import RuntimeSessionLiveStateHandler
 from tests.runtime_contract_fixtures import (
     RuntimeContractAgentStub,
@@ -232,6 +233,50 @@ def test_live_state_handler_compat_legacy_recovery_wiring_resets_runtime_state()
     assert session.projection.knowledge_base_enabled is True
     assert session.projection.memory_diagnostics == {"rebuilt_for": "sess-live"}
     assert session.projection.sandbox_diagnostics == {"backend": "none"}
+
+
+def test_live_state_handler_mark_turn_finished_pauses_interrupt_requested_runs() -> None:
+    session = _session_for_pending()
+    session.projection.busy = True
+    session.projection.running_state = "step 2: running shell"
+    handler = RuntimeSessionLiveStateHandler()
+
+    async def _run() -> None:
+        future = asyncio.get_running_loop().create_future()
+        handler.mark_turn_started(session, surface="desktop", detail="desktop request running")
+        handler.record_pending_approval(
+            session,
+            payload={"token": "tok-pause", "tool_name": "shell"},
+            future=future,
+        )
+        handler._run_control_store().request_interrupt(session, reason="pause", source="desktop")
+        session.projection.running_state = "step 2: running shell"
+
+        handler.mark_turn_finished(session, now_utc=_dt())
+
+        assert future.done() is True
+        assert future.result() is None
+        state = handler._run_control_store().current_control_state(session)
+        assert state.control_mode is RunControlMode.PAUSED
+        assert session.projection.busy is False
+        assert session.projection.running_state == ""
+        assert session.projection.recovery_context_pending is True
+        assert session.projection.recovery_state == "interrupted"
+        assert session.projection.recovery_summary == "interrupted after pause request: approval pending for shell"
+        assert session.projection.recovery_pending_approvals == [
+            {
+                "token": "tok-pause",
+                "tool_name": "shell",
+                "arguments": {},
+                "kind": None,
+                "reason": None,
+                "cache_key": None,
+                "can_escalate": False,
+                "step": 0,
+            }
+        ]
+
+    asyncio.run(_run())
 
 
 def test_live_state_handler_compat_prefers_injected_support_owners() -> None:

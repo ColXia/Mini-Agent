@@ -184,6 +184,33 @@ def test_recovery_reset_handler_applies_stored_recovery_fields() -> None:
     assert session.projection.recovery_pending_approvals == [{"token": "tok-2", "tool_name": "shell"}]
 
 
+def test_recovery_reset_handler_applies_interrupted_recovery_projection() -> None:
+    session = _session()
+    handler = RuntimeSessionRecoveryResetHandler(
+        refresh_session_diagnostics=lambda _session: ({}, {}),
+        agent_knowledge_base_enabled=lambda _agent: True,
+        clear_runtime_task_memory_namespace=lambda workspace_dir, session_id: False,
+        stored_recovery_snapshot_from_session=lambda _session: None,
+    )
+
+    handler.apply_interrupted_recovery(
+        session,
+        summary="interrupted after pause request: shell running",
+        last_activity="shell running",
+        pending_approvals=[{"token": "tok-3", "tool_name": "shell"}],
+        now_utc=_dt(),
+    )
+
+    assert session.projection.recovery_context_pending is True
+    assert session.projection.recovery_state == "interrupted"
+    assert session.projection.recovery_summary == "interrupted after pause request: shell running"
+    assert session.projection.recovery_last_activity == "shell running"
+    assert session.projection.recovery_last_user_message == "continue"
+    assert session.projection.recovery_last_assistant_message == "working"
+    assert session.projection.recovery_pending_approvals == [{"token": "tok-3", "tool_name": "shell"}]
+    assert session._touch_calls == [_dt()]
+
+
 def test_recovery_reset_handler_clears_runtime_state_and_recovery_fields() -> None:
     session = _session(with_agent_reset_hook=True)
     cleared: list[tuple[str, str]] = []

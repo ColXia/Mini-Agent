@@ -15,9 +15,11 @@ from mini_agent.application import (
 from mini_agent.application.legacy import RuntimeBackedSessionApplicationAssembly
 from mini_agent.application.session_runtime_compat import SessionBackedRunRuntimeAdapter
 from mini_agent.application.user_service_assembly import (
+    RuntimeBackedUserServicePorts as CompatRuntimeBackedUserServicePorts,
     UserServiceAssembly as CompatUserServiceAssembly,
     assemble_runtime_backed_user_services as compat_assemble_runtime_backed_user_services,
     assemble_typed_user_services as compat_assemble_typed_user_services,
+    resolve_runtime_backed_user_service_ports as compat_resolve_runtime_backed_user_service_ports,
 )
 from mini_agent.application.user_services import (
     AgentUserService,
@@ -103,6 +105,9 @@ class _RuntimeManagerStub(_SessionTaskRuntimeStub):
     async def resolve_run_id_for_session(self, session_id: str) -> str | None:
         return build_session_backed_run_id(session_id)
 
+    async def interrupt_run(self, run_id: str, *, reason: str | None = None, source: str | None = None):
+        return {"kind": "interrupt", "run_id": run_id, "reason": reason, "source": source}
+
     async def get_session_detail(self, session_id: str, *, recent_limit: int = 50):
         _ = recent_limit
         return {
@@ -143,9 +148,11 @@ class _RuntimeManagerStub(_SessionTaskRuntimeStub):
 
 def test_stage3_user_service_assembly_exports_stable_entrypoints() -> None:
     assert RuntimeBackedSessionApplicationAssembly is UserServiceAssembly
+    assert CompatRuntimeBackedUserServicePorts is RuntimeBackedUserServicePorts
     assert CompatUserServiceAssembly is UserServiceAssembly
     assert compat_assemble_runtime_backed_user_services is assemble_runtime_backed_user_services
     assert compat_assemble_typed_user_services is assemble_typed_user_services
+    assert compat_resolve_runtime_backed_user_service_ports is resolve_runtime_backed_user_service_ports
 
 
 @pytest.mark.asyncio
@@ -230,6 +237,94 @@ async def test_stage3_runtime_backed_user_service_assembly_wraps_broad_runtime_w
     assert model["kind"] == "model"
 
 
+@pytest.mark.asyncio
+async def test_stage4_session_task_service_absorbs_session_scoped_compatibility_actions() -> None:
+    runtime_manager = _RuntimeManagerStub()
+    assembly = assemble_runtime_backed_user_services(runtime_manager=runtime_manager)
+
+    controlled = await assembly.session_task_service.control_session(
+        "sess-runtime",
+        action="compact",
+        reason="trim",
+        surface="desktop",
+    )
+    context = await assembly.session_task_service.update_session_context(
+        "sess-runtime",
+        action="include",
+        sources=["workspace_memory"],
+        max_items=2,
+        surface="desktop",
+    )
+    memory = await assembly.session_task_service.manage_session_memory(
+        "sess-runtime",
+        action="show",
+        query="recent",
+        detail_mode="brief",
+        surface="desktop",
+    )
+    skills = await assembly.session_task_service.manage_session_skills(
+        "sess-runtime",
+        action="search",
+        query="foundry",
+        mode="allowlist",
+        surface="desktop",
+    )
+    model = await assembly.session_task_service.update_session_model_selection(
+        "sess-runtime",
+        provider_source="preset",
+        provider_id="openai",
+        model_id="gpt-5.4",
+        surface="desktop",
+    )
+    policy = await assembly.session_task_service.update_session_runtime_policy(
+        "sess-runtime",
+        approval_profile="plan",
+        access_level="default",
+        surface="desktop",
+    )
+
+    assert controlled["kind"] == "control"
+    assert context["kind"] == "context"
+    assert memory["kind"] == "memory"
+    assert skills["kind"] == "skills"
+    assert model["kind"] == "model"
+    assert policy["kind"] == "policy"
+
+
+@pytest.mark.asyncio
+async def test_stage5_runtime_backed_user_service_ports_accept_narrow_structural_support_owner() -> None:
+    class _RuntimeBackedSupportStub:
+        async def get_session_task(self, session_id: str):
+            return {"kind": "task", "session_id": session_id}
+
+        async def resolve_run_id_for_session(self, session_id: str) -> str | None:
+            return build_session_backed_run_id(session_id)
+
+        async def cancel_session_turn(self, session_id: str, **kwargs):
+            return {"kind": "cancelled", "session_id": session_id, "kwargs": kwargs}
+
+        async def resolve_pending_approval(self, session_id: str, **kwargs):
+            return {"kind": "approval", "session_id": session_id, "kwargs": kwargs}
+
+        async def get_session_detail(self, session_id: str, *, recent_limit: int = 50):
+            _ = recent_limit
+            return {
+                "session_id": session_id,
+                "busy": False,
+                "pending_approvals": [],
+                "active_surface": "desktop",
+                "running_state": "",
+            }
+
+    ports = resolve_runtime_backed_user_service_ports(runtime_manager=_RuntimeBackedSupportStub())
+    task = await ports.session_task_port.get_session_task("sess-structural")
+    run = await ports.run_runtime.get_run(build_session_backed_run_id("sess-structural"))
+
+    assert task == {"kind": "task", "session_id": "sess-structural"}
+    assert run["run_id"] == build_session_backed_run_id("sess-structural")
+    assert run["status"] == "completed"
+
+
 def test_stage5_runtime_backed_user_service_ports_prefers_direct_runtime_for_agent_and_model_paths() -> None:
     runtime_manager = _RuntimeManagerStub()
 
@@ -275,10 +370,32 @@ async def test_stage5_runtime_backed_user_service_ports_attach_session_backed_ru
     assert run["run_id"] == build_session_backed_run_id("sess-runtime")
     assert run["status"] == "waiting"
     assert run["phase"] == "awaiting_approval"
-    assert interrupted["kind"] == "cancelled"
+    assert interrupted["kind"] == "interrupt"
     assert cancelled["kind"] == "cancelled"
     assert resumed["kind"] == "approval"
     assert approved["kind"] == "approval"
+
+
+@pytest.mark.asyncio
+async def test_stage5_session_backed_run_runtime_reports_interrupt_requested_state() -> None:
+    class _RuntimeManager:
+        async def get_session_detail(self, session_id: str, *, recent_limit: int = 50):
+            _ = recent_limit
+            return {
+                "session_id": session_id,
+                "busy": True,
+                "pending_approvals": [],
+                "active_surface": "desktop",
+                "running_state": "interrupt requested",
+            }
+
+    adapter = SessionBackedRunRuntimeAdapter(_RuntimeManager())
+
+    run = await adapter.get_run(build_session_backed_run_id("sess-interrupt"))
+
+    assert run["status"] == "interrupt_requested"
+    assert run["phase"] == "interrupting"
+    assert run["waiting_on_approval"] is False
 
 
 @pytest.mark.asyncio
@@ -301,6 +418,95 @@ async def test_stage5_session_backed_run_runtime_reports_cancel_requested_state(
     assert run["status"] == "cancel_requested"
     assert run["phase"] == "cancelling"
     assert run["waiting_on_approval"] is True
+
+
+@pytest.mark.asyncio
+async def test_stage5_session_backed_run_runtime_interrupt_requires_direct_runtime_support() -> None:
+    class _RuntimeManager:
+        async def get_session_detail(self, session_id: str, *, recent_limit: int = 50):
+            _ = (session_id, recent_limit)
+            return {
+                "session_id": "sess-no-direct-interrupt",
+                "busy": True,
+                "pending_approvals": [],
+                "active_surface": "desktop",
+            }
+
+    adapter = SessionBackedRunRuntimeAdapter(_RuntimeManager())
+
+    with pytest.raises(LookupError, match="does not support interrupt"):
+        await adapter.interrupt_run(
+            build_session_backed_run_id("sess-no-direct-interrupt"),
+            reason="pause",
+            source="desktop",
+        )
+
+
+@pytest.mark.asyncio
+async def test_stage5_session_backed_run_runtime_prefers_direct_runtime_methods_when_available() -> None:
+    class _RuntimeManager:
+        async def get_run(self, run_id: str):
+            return {"kind": "run", "run_id": run_id}
+
+        async def interrupt_run(self, run_id: str, *, reason: str | None = None, source: str | None = None):
+            return {"kind": "interrupt", "run_id": run_id, "reason": reason, "source": source}
+
+        async def resume_run(self, run_id: str, *, resume_token: str | None = None, source: str | None = None):
+            return {"kind": "resume", "run_id": run_id, "resume_token": resume_token, "source": source}
+
+        async def cancel_run(self, run_id: str, *, reason: str | None = None, source: str | None = None):
+            return {"kind": "cancel", "run_id": run_id, "reason": reason, "source": source}
+
+        async def resolve_approval_wait(
+            self,
+            run_id: str,
+            *,
+            approved: bool,
+            token: str | None = None,
+            source: str | None = None,
+            reason: str | None = None,
+        ):
+            return {
+                "kind": "approval",
+                "run_id": run_id,
+                "approved": approved,
+                "token": token,
+                "source": source,
+                "reason": reason,
+            }
+
+    adapter = SessionBackedRunRuntimeAdapter(_RuntimeManager())
+
+    run_id = build_session_backed_run_id("sess-direct")
+    run = await adapter.get_run(run_id)
+    interrupted = await adapter.interrupt_run(run_id, reason="pause", source="desktop")
+    resumed = await adapter.resume_run(run_id, resume_token="approval-1", source="desktop")
+    cancelled = await adapter.cancel_run(run_id, reason="stop", source="desktop")
+    approved = await adapter.resolve_approval_wait(
+        run_id,
+        approved=True,
+        token="approval-1",
+        source="desktop",
+        reason="continue",
+    )
+
+    assert run == {"kind": "run", "run_id": run_id}
+    assert interrupted == {"kind": "interrupt", "run_id": run_id, "reason": "pause", "source": "desktop"}
+    assert resumed == {
+        "kind": "resume",
+        "run_id": run_id,
+        "resume_token": "approval-1",
+        "source": "desktop",
+    }
+    assert cancelled == {"kind": "cancel", "run_id": run_id, "reason": "stop", "source": "desktop"}
+    assert approved == {
+        "kind": "approval",
+        "run_id": run_id,
+        "approved": True,
+        "token": "approval-1",
+        "source": "desktop",
+        "reason": "continue",
+    }
 
 
 @pytest.mark.asyncio

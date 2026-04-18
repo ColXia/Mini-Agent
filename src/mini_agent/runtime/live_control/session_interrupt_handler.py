@@ -13,6 +13,7 @@ from mini_agent.runtime.live_control.session_pending_approval_service import (
     PendingApprovalResolutionError,
     SessionPendingApprovalService,
 )
+from mini_agent.runtime.live_control.run_control_store import RuntimeSessionRunControlStore
 
 if TYPE_CHECKING:
     import asyncio
@@ -47,6 +48,7 @@ class RuntimeSessionApprovalExecution:
 class RuntimeSessionInterruptHandler:
     normalize_surface: Callable[[str | None], str | None]
     pending_approvals_from_raw: Callable[[Any], list[dict[str, Any]]]
+    run_control_store: RuntimeSessionRunControlStore | None = None
 
     def execute_cancel(
         self,
@@ -57,15 +59,16 @@ class RuntimeSessionInterruptHandler:
         if not session.projection.busy:
             raise HTTPException(status_code=409, detail=SessionCancelService.no_running_turn_detail())
 
-        cancel_event = session.runtime.cancel_event
+        store = self._store()
+        cancel_event = getattr(session.runtime, "cancel_event", None)
         if cancel_event is None:
             raise HTTPException(status_code=409, detail=SessionCancelService.not_cancellable_detail())
 
-        if not cancel_event.is_set():
-            cancel_event.set()
-        for future in list(session.runtime.pending_approval_waiters.values()):
-            if not future.done():
-                future.set_result(None)
+        store.request_cancel(
+            session,
+            source=session.projection.active_surface or session.projection.origin_surface,
+            reason=reason,
+        )
 
         active_surface = self.normalize_surface(session.projection.active_surface or session.projection.origin_surface)
         session.projection.running_state = SessionCancelService.REQUESTED_STATE
@@ -86,7 +89,10 @@ class RuntimeSessionInterruptHandler:
         approved: bool,
         token: str | None,
     ) -> RuntimeSessionApprovalExecution:
-        pending = self.pending_approvals_from_raw(session.runtime.pending_approvals)
+        store = self._store()
+        pending = store.pending_approval_payloads(session)
+        if not pending:
+            pending = self.pending_approvals_from_raw(session.runtime.pending_approvals)
         try:
             target = SessionPendingApprovalService.resolve_target(
                 pending=pending,
@@ -100,11 +106,18 @@ class RuntimeSessionInterruptHandler:
                 detail=exc.detail,
             ) from exc
 
-        future = session.runtime.pending_approval_waiters.get(target.token)
+        future = store.pending_approval_waiter(session, token=target.token)
+        if future is None:
+            future = session.runtime.pending_approval_waiters.get(target.token)
         try:
             SessionPendingApprovalService.ensure_waiter(future)
         except PendingApprovalResolutionError as exc:
             raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+        store.resolve_active_approval_wait(
+            session,
+            token=target.token,
+            approved=approved,
+        )
 
         resolution = SessionPendingApprovalService.build_decision(
             approved=approved,
@@ -134,6 +147,11 @@ class RuntimeSessionInterruptHandler:
     @staticmethod
     def restart_pending_approval_detail() -> str:
         return SessionPendingApprovalService.restart_pending_approval_detail()
+
+    def _store(self) -> RuntimeSessionRunControlStore:
+        if self.run_control_store is None:
+            self.run_control_store = RuntimeSessionRunControlStore()
+        return self.run_control_store
 
 
 __all__ = [

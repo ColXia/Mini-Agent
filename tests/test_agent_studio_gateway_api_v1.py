@@ -19,6 +19,11 @@ from mini_agent.interfaces import (
     MainAgentModelBindingSummary,
     MainAgentModelCandidateListResponse,
     MainAgentModelCapabilities,
+    MainAgentRunApprovalRequest,
+    MainAgentRunCancelRequest,
+    MainAgentRunInterruptRequest,
+    MainAgentRunResumeRequest,
+    MainAgentRunSummary,
     MainAgentSessionApprovalResponse,
     MainAgentSessionContextResponse,
     MainAgentSessionDetail,
@@ -27,6 +32,7 @@ from mini_agent.interfaces import (
     MainAgentSessionMessage,
     MainAgentSessionModelSelectionResponse,
     MainAgentSessionMutationResponse,
+    MainAgentSessionRuntimePolicyResponse,
     MainAgentSessionSkillResponse,
     MainAgentSessionSummary,
 )
@@ -672,31 +678,6 @@ def test_v1_agent_session_detail_and_operation_routes(monkeypatch) -> None:
                 ),
             ]
 
-    class _AgentServiceStub:
-        async def cancel_session_run(
-            self,
-            session_id: str,
-            *,
-            reason: str | None = None,
-            source: str | None = None,
-            surface: str | None = None,
-            channel_type: str | None = None,
-            conversation_id: str | None = None,
-            sender_id: str | None = None,
-        ):
-            assert session_id == "sess-qq"
-            assert reason == "stop now"
-            assert source == "qq"
-            assert surface == "qq"
-            assert channel_type == "qq"
-            assert conversation_id == "group:demo"
-            assert sender_id == "user-1"
-            return MainAgentSessionMutationResponse(
-                status="cancel_requested",
-                session_id="sess-qq",
-                active_surface="qq",
-            )
-
         async def control_session(
             self,
             session_id: str,
@@ -853,36 +834,6 @@ def test_v1_agent_session_detail_and_operation_routes(monkeypatch) -> None:
                 },
             )
 
-        async def approve_session_wait(
-            self,
-            session_id: str,
-            *,
-            token: str | None = None,
-            source: str | None = None,
-            surface: str | None = None,
-            channel_type: str | None = None,
-            conversation_id: str | None = None,
-            sender_id: str | None = None,
-            reason: str | None = None,
-        ):
-            assert session_id == "sess-qq"
-            assert token == "approval-1"
-            assert source == "qq"
-            assert surface == "qq"
-            assert channel_type == "qq"
-            assert conversation_id == "group:demo"
-            assert sender_id == "user-1"
-            assert reason is None
-            return MainAgentSessionApprovalResponse(
-                status="resolved",
-                session_id="sess-qq",
-                token="approval-1",
-                tool_name="shell",
-                decision="approved",
-                active_surface="qq",
-            )
-
-    class _ModelServiceStub:
         async def update_session_model_selection(
             self,
             session_id: str,
@@ -914,10 +865,79 @@ def test_v1_agent_session_detail_and_operation_routes(monkeypatch) -> None:
                 selected_model_id="gpt-5.3",
             )
 
+    class _RunControlServiceStub:
+        async def cancel_session_run(
+            self,
+            session_id: str,
+            *,
+            reason: str | None = None,
+            source: str | None = None,
+            surface: str | None = None,
+            channel_type: str | None = None,
+            conversation_id: str | None = None,
+            sender_id: str | None = None,
+        ):
+            assert session_id == "sess-qq"
+            assert reason == "stop now"
+            assert source == "qq"
+            assert surface == "qq"
+            assert channel_type == "qq"
+            assert conversation_id == "group:demo"
+            assert sender_id == "user-1"
+            return MainAgentSessionMutationResponse(
+                status="cancel_requested",
+                session_id="sess-qq",
+                active_surface="qq",
+            )
+
+        async def interrupt_session_run(
+            self,
+            session_id: str,
+            *,
+            reason: str | None = None,
+            source: str | None = None,
+        ):
+            assert session_id == "sess-qq"
+            assert reason == "pause now"
+            assert source == "qq"
+            return MainAgentSessionMutationResponse(
+                status="interrupt_requested",
+                session_id="sess-qq",
+                active_surface="qq",
+            )
+
+        async def approve_session_wait(
+            self,
+            session_id: str,
+            *,
+            token: str | None = None,
+            source: str | None = None,
+            surface: str | None = None,
+            channel_type: str | None = None,
+            conversation_id: str | None = None,
+            sender_id: str | None = None,
+            reason: str | None = None,
+        ):
+            assert session_id == "sess-qq"
+            assert token == "approval-1"
+            assert source == "qq"
+            assert surface == "qq"
+            assert channel_type == "qq"
+            assert conversation_id == "group:demo"
+            assert sender_id == "user-1"
+            assert reason is None
+            return MainAgentSessionApprovalResponse(
+                status="resolved",
+                session_id="sess-qq",
+                token="approval-1",
+                tool_name="shell",
+                decision="approved",
+                active_surface="qq",
+            )
+
     session_task_service = _SessionTaskServiceStub()
     monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_session_task_service", session_task_service)
-    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_agent_service", _AgentServiceStub())
-    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_model_service", _ModelServiceStub())
+    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_run_control_service", _RunControlServiceStub())
 
     with TestClient(app) as client:
         detail_response = client.get("/api/v1/agent/sessions/sess-qq", params={"recent_limit": 5})
@@ -963,6 +983,22 @@ def test_v1_agent_session_detail_and_operation_routes(monkeypatch) -> None:
         assert cancel_payload["ok"] is True
         assert cancel_payload["data"]["status"] == "cancel_requested"
         assert cancel_payload["data"]["active_surface"] == "qq"
+
+        interrupt_response = client.post(
+            "/api/v1/agent/sessions/sess-qq/interrupt",
+            json={
+                "reason": "pause now",
+                "surface": "qq",
+                "channel_type": "qq",
+                "conversation_id": "group:demo",
+                "sender_id": "user-1",
+            },
+        )
+        assert interrupt_response.status_code == 200
+        interrupt_payload = interrupt_response.json()
+        assert interrupt_payload["ok"] is True
+        assert interrupt_payload["data"]["status"] == "interrupt_requested"
+        assert interrupt_payload["data"]["active_surface"] == "qq"
 
         control_response = client.post(
             "/api/v1/agent/sessions/sess-qq/control",
@@ -1079,6 +1115,225 @@ def test_v1_agent_session_detail_and_operation_routes(monkeypatch) -> None:
         assert approval_payload["data"]["decision"] == "approved"
 
 
+def test_v1_agent_run_routes_use_run_control_service(monkeypatch) -> None:
+    calls: list[tuple[object, ...]] = []
+
+    class _RunControlServiceStub:
+        async def get_run(self, run_id: str):
+            calls.append(("get_run", run_id))
+            assert run_id == "run:sess-qq"
+            return MainAgentRunSummary(
+                run_id=run_id,
+                session_id="sess-qq",
+                status="paused",
+                phase="executing_tools",
+                busy=False,
+                waiting_on_approval=True,
+                active_surface="qq",
+                channel_type="qq",
+                conversation_id="group:demo",
+                sender_id="user-1",
+                running_state="interrupted",
+                control_mode="paused",
+                interrupt_requested=False,
+                cancel_requested=False,
+                resumable=True,
+                active_wait_id="run:sess-qq:approval:approval-1",
+                approval_wait={
+                    "wait_id": "run:sess-qq:approval:approval-1",
+                    "run_id": run_id,
+                    "session_id": "sess-qq",
+                    "workspace_id": "ws-default",
+                    "approval_token": "approval-1",
+                    "tool_name": "shell",
+                    "tool_arguments_summary": {"command": "dir"},
+                    "approval_kind": "tool",
+                    "policy_reason": "write access",
+                    "cache_key": "shell:dir",
+                    "can_escalate": False,
+                    "wait_state": "pending",
+                    "decision_result": None,
+                    "created_at": "2026-04-18T09:00:00+00:00",
+                    "resolved_at": None,
+                    "invalidated_reason": None,
+                },
+            )
+
+        async def resume_run(
+            self,
+            run_id: str,
+            *,
+            resume_token: str | None = None,
+            source: str | None = None,
+        ):
+            calls.append(("resume_run", run_id, resume_token, source))
+            assert run_id == "run:sess-qq"
+            assert resume_token == "approval-1"
+            assert source == "qq"
+            return {"kind": "approval", "run_id": run_id}
+
+        async def interrupt_run(
+            self,
+            run_id: str,
+            *,
+            reason: str | None = None,
+            source: str | None = None,
+        ):
+            calls.append(("interrupt_run", run_id, reason, source))
+            assert run_id == "run:sess-qq"
+            assert reason == "pause now"
+            assert source == "qq"
+            return {"kind": "interrupt", "run_id": run_id}
+
+        async def cancel_run(
+            self,
+            run_id: str,
+            *,
+            reason: str | None = None,
+            source: str | None = None,
+        ):
+            calls.append(("cancel_run", run_id, reason, source))
+            assert run_id == "run:sess-qq"
+            assert reason == "stop now"
+            assert source == "qq"
+            return {"kind": "cancelled", "run_id": run_id}
+
+        async def approve_wait(
+            self,
+            run_id: str,
+            *,
+            token: str | None = None,
+            source: str | None = None,
+            reason: str | None = None,
+        ):
+            calls.append(("approve_wait", run_id, token, source, reason))
+            assert run_id == "run:sess-qq"
+            assert token == "approval-1"
+            assert source == "qq"
+            assert reason == "continue"
+            return {"kind": "approval", "run_id": run_id}
+
+        async def deny_wait(
+            self,
+            run_id: str,
+            *,
+            token: str | None = None,
+            source: str | None = None,
+            reason: str | None = None,
+        ):
+            calls.append(("deny_wait", run_id, token, source, reason))
+            assert run_id == "run:sess-qq"
+            assert token == "approval-1"
+            assert source == "qq"
+            assert reason == "deny"
+            return {"kind": "approval", "run_id": run_id}
+
+    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_run_control_service", _RunControlServiceStub())
+
+    with TestClient(app) as client:
+        run_response = client.get("/api/v1/agent/runs/run:sess-qq")
+        assert run_response.status_code == 200
+        run_payload = run_response.json()
+        assert run_payload["ok"] is True
+        assert run_payload["data"]["status"] == "paused"
+        assert run_payload["data"]["phase"] == "executing_tools"
+        assert run_payload["data"]["approval_wait"]["tool_name"] == "shell"
+
+        resume_response = client.post(
+            "/api/v1/agent/runs/run:sess-qq/resume",
+            json={
+                "resume_token": "approval-1",
+                "surface": "qq",
+                "channel_type": "qq",
+                "conversation_id": "group:demo",
+                "sender_id": "user-1",
+            },
+        )
+        assert resume_response.status_code == 200
+        resume_payload = resume_response.json()
+        assert resume_payload["ok"] is True
+        assert resume_payload["data"]["run_id"] == "run:sess-qq"
+        assert resume_payload["data"]["resumable"] is True
+
+        interrupt_response = client.post(
+            "/api/v1/agent/runs/run:sess-qq/interrupt",
+            json=MainAgentRunInterruptRequest(
+                reason="pause now",
+                surface="qq",
+                channel_type="qq",
+                conversation_id="group:demo",
+                sender_id="user-1",
+            ).model_dump(),
+        )
+        assert interrupt_response.status_code == 200
+        interrupt_payload = interrupt_response.json()
+        assert interrupt_payload["ok"] is True
+        assert interrupt_payload["data"]["status"] == "paused"
+
+        cancel_response = client.post(
+            "/api/v1/agent/runs/run:sess-qq/cancel",
+            json=MainAgentRunCancelRequest(
+                reason="stop now",
+                surface="qq",
+                channel_type="qq",
+                conversation_id="group:demo",
+                sender_id="user-1",
+            ).model_dump(),
+        )
+        assert cancel_response.status_code == 200
+        cancel_payload = cancel_response.json()
+        assert cancel_payload["ok"] is True
+        assert cancel_payload["data"]["run_id"] == "run:sess-qq"
+
+        approve_response = client.post(
+            "/api/v1/agent/runs/run:sess-qq/approval",
+            json=MainAgentRunApprovalRequest(
+                approved=True,
+                token="approval-1",
+                reason="continue",
+                surface="qq",
+                channel_type="qq",
+                conversation_id="group:demo",
+                sender_id="user-1",
+            ).model_dump(),
+        )
+        assert approve_response.status_code == 200
+        approve_payload = approve_response.json()
+        assert approve_payload["ok"] is True
+        assert approve_payload["data"]["approval_wait"]["approval_token"] == "approval-1"
+
+        deny_response = client.post(
+            "/api/v1/agent/runs/run:sess-qq/approval",
+            json=MainAgentRunApprovalRequest(
+                approved=False,
+                token="approval-1",
+                reason="deny",
+                surface="qq",
+                channel_type="qq",
+                conversation_id="group:demo",
+                sender_id="user-1",
+            ).model_dump(),
+        )
+        assert deny_response.status_code == 200
+        deny_payload = deny_response.json()
+        assert deny_payload["ok"] is True
+        assert deny_payload["data"]["phase"] == "executing_tools"
+
+    assert calls == [
+        ("get_run", "run:sess-qq"),
+        ("resume_run", "run:sess-qq", "approval-1", "qq"),
+        ("get_run", "run:sess-qq"),
+        ("interrupt_run", "run:sess-qq", "pause now", "qq"),
+        ("get_run", "run:sess-qq"),
+        ("cancel_run", "run:sess-qq", "stop now", "qq"),
+        ("get_run", "run:sess-qq"),
+        ("approve_wait", "run:sess-qq", "approval-1", "qq", "continue"),
+        ("get_run", "run:sess-qq"),
+        ("deny_wait", "run:sess-qq", "approval-1", "qq", "deny"),
+        ("get_run", "run:sess-qq"),
+    ]
+
+
 def test_v1_runtime_session_create_share_rename_routes(monkeypatch) -> None:
     class _SessionTaskServiceStub:
         def __init__(self) -> None:
@@ -1188,7 +1443,7 @@ def test_v1_runtime_session_create_share_rename_routes(monkeypatch) -> None:
 
 
 def test_v1_main_agent_control_route_accepts_mcp_actions(monkeypatch) -> None:
-    class _AgentServiceStub:
+    class _SessionTaskServiceStub:
         async def control_session(
             self,
             session_id: str,
@@ -1224,7 +1479,7 @@ def test_v1_main_agent_control_route_accepts_mcp_actions(monkeypatch) -> None:
                 },
             )
 
-    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_agent_service", _AgentServiceStub())
+    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_session_task_service", _SessionTaskServiceStub())
 
     with TestClient(app) as client:
         response = client.post(
@@ -1243,7 +1498,7 @@ def test_v1_main_agent_control_route_accepts_mcp_actions(monkeypatch) -> None:
 
 
 def test_v1_main_agent_skill_mode_route_forwards_mode_field(monkeypatch) -> None:
-    class _AgentServiceStub:
+    class _SessionTaskServiceStub:
         async def manage_session_skills(
             self,
             session_id: str,
@@ -1284,7 +1539,7 @@ def test_v1_main_agent_skill_mode_route_forwards_mode_field(monkeypatch) -> None
                 },
             )
 
-    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_agent_service", _AgentServiceStub())
+    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_session_task_service", _SessionTaskServiceStub())
 
     with TestClient(app) as client:
         response = client.post(
@@ -1306,7 +1561,7 @@ def test_v1_main_agent_skill_mode_route_forwards_mode_field(monkeypatch) -> None
 
 
 def test_v1_main_agent_skill_install_route_forwards_path_field(monkeypatch) -> None:
-    class _AgentServiceStub:
+    class _SessionTaskServiceStub:
         async def manage_session_skills(
             self,
             session_id: str,
@@ -1342,7 +1597,7 @@ def test_v1_main_agent_skill_install_route_forwards_path_field(monkeypatch) -> N
                 },
             )
 
-    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_agent_service", _AgentServiceStub())
+    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_session_task_service", _SessionTaskServiceStub())
 
     with TestClient(app) as client:
         response = client.post(
@@ -1361,12 +1616,12 @@ def test_v1_main_agent_skill_install_route_forwards_path_field(monkeypatch) -> N
 
 
 def test_v1_main_agent_skill_mode_invalid_returns_http_400(monkeypatch) -> None:
-    class _AgentServiceStub:
+    class _SessionTaskServiceStub:
         async def manage_session_skills(self, session_id: str, **kwargs):
             _ = (session_id, kwargs)
             raise HTTPException(status_code=400, detail="Unsupported skill policy mode: invalid-mode")
 
-    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_agent_service", _AgentServiceStub())
+    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_session_task_service", _SessionTaskServiceStub())
 
     with TestClient(app) as client:
         response = client.post(
@@ -1382,6 +1637,165 @@ def test_v1_main_agent_skill_mode_invalid_returns_http_400(monkeypatch) -> None:
         )
         assert response.status_code == 400
         assert response.json()["detail"] == "Unsupported skill policy mode: invalid-mode"
+
+
+def test_v1_session_mutation_routes_prefer_session_task_service_over_agent_or_model_services(monkeypatch) -> None:
+    calls: list[tuple[str, str, object]] = []
+
+    class _SessionTaskServiceStub:
+        async def control_session(self, session_id: str, **kwargs):
+            calls.append(("control_session", session_id, kwargs))
+            return MainAgentSessionControlResponse(
+                status="controlled",
+                session_id=session_id,
+                action=str(kwargs.get("action") or ""),
+                applied=True,
+                active_surface=str(kwargs.get("surface") or "desktop"),
+            )
+
+        async def update_session_context(self, session_id: str, **kwargs):
+            calls.append(("update_session_context", session_id, kwargs))
+            return MainAgentSessionContextResponse(
+                status="updated",
+                session_id=session_id,
+                action=str(kwargs.get("action") or ""),
+                active_surface=str(kwargs.get("surface") or "desktop"),
+                context_policy={"include_sources": list(kwargs.get("sources") or [])},
+            )
+
+        async def manage_session_memory(self, session_id: str, **kwargs):
+            calls.append(("manage_session_memory", session_id, kwargs))
+            return MainAgentSessionMemoryResponse(
+                status="ok",
+                session_id=session_id,
+                action=str(kwargs.get("action") or ""),
+                active_surface=str(kwargs.get("surface") or "desktop"),
+                memory_diagnostics={"runtime_task_memory": {"session_count": 1}},
+                result={"summary": "memory ok"},
+            )
+
+        async def manage_session_skills(self, session_id: str, **kwargs):
+            calls.append(("manage_session_skills", session_id, kwargs))
+            return MainAgentSessionSkillResponse(
+                status="ok",
+                session_id=session_id,
+                action=str(kwargs.get("action") or ""),
+                active_surface=str(kwargs.get("surface") or "desktop"),
+                result={"summary": "skills ok"},
+            )
+
+        async def update_session_model_selection(self, session_id: str, **kwargs):
+            calls.append(("update_session_model_selection", session_id, kwargs))
+            return MainAgentSessionModelSelectionResponse(
+                status="selected",
+                session_id=session_id,
+                active_surface=str(kwargs.get("surface") or "desktop"),
+                applied=True,
+                queued=False,
+                selected_model_source=str(kwargs.get("provider_source") or ""),
+                selected_provider_id=str(kwargs.get("provider_id") or ""),
+                selected_model_id=str(kwargs.get("model_id") or ""),
+            )
+
+        async def update_session_runtime_policy(self, session_id: str, **kwargs):
+            calls.append(("update_session_runtime_policy", session_id, kwargs))
+            return MainAgentSessionRuntimePolicyResponse(
+                status="updated",
+                session_id=session_id,
+                active_surface=str(kwargs.get("surface") or "desktop"),
+                applied=True,
+                approval_profile=str(kwargs.get("approval_profile") or ""),
+                access_level=str(kwargs.get("access_level") or ""),
+                summary="policy updated",
+                details="policy updated",
+                status_text="policy updated",
+                sandbox_diagnostics={"sandbox_mode": "workspace"},
+            )
+
+    class _AgentServiceStub:
+        async def control_session(self, session_id: str, **kwargs):
+            raise AssertionError(f"agent_service.control_session should not be called: {session_id}, {kwargs}")
+
+        async def update_session_context(self, session_id: str, **kwargs):
+            raise AssertionError(f"agent_service.update_session_context should not be called: {session_id}, {kwargs}")
+
+        async def manage_session_memory(self, session_id: str, **kwargs):
+            raise AssertionError(f"agent_service.manage_session_memory should not be called: {session_id}, {kwargs}")
+
+        async def manage_session_skills(self, session_id: str, **kwargs):
+            raise AssertionError(f"agent_service.manage_session_skills should not be called: {session_id}, {kwargs}")
+
+        async def update_session_runtime_policy(self, session_id: str, **kwargs):
+            raise AssertionError(
+                f"agent_service.update_session_runtime_policy should not be called: {session_id}, {kwargs}"
+            )
+
+    class _ModelServiceStub:
+        async def update_session_model_selection(self, session_id: str, **kwargs):
+            raise AssertionError(
+                f"model_service.update_session_model_selection should not be called: {session_id}, {kwargs}"
+            )
+
+    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_session_task_service", _SessionTaskServiceStub())
+    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_agent_service", _AgentServiceStub())
+    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_model_service", _ModelServiceStub())
+
+    with TestClient(app) as client:
+        control = client.post(
+            "/api/v1/agent/sessions/sess-pref/control",
+            json={"action": "compact", "reason": "trim", "surface": "desktop"},
+        )
+        assert control.status_code == 200
+        assert control.json()["data"]["action"] == "compact"
+
+        context = client.post(
+            "/api/v1/agent/sessions/sess-pref/context",
+            json={"action": "include", "sources": ["workspace_memory"], "max_items": 2, "surface": "desktop"},
+        )
+        assert context.status_code == 200
+        assert context.json()["data"]["context_policy"]["include_sources"] == ["workspace_memory"]
+
+        memory = client.post(
+            "/api/v1/agent/sessions/sess-pref/memory",
+            json={"action": "show", "query": "recent", "detail_mode": "brief", "surface": "desktop"},
+        )
+        assert memory.status_code == 200
+        assert memory.json()["data"]["result"]["summary"] == "memory ok"
+
+        skill = client.post(
+            "/api/v1/agent/sessions/sess-pref/skill",
+            json={"action": "search", "query": "foundry", "mode": "allowlist", "surface": "desktop"},
+        )
+        assert skill.status_code == 200
+        assert skill.json()["data"]["result"]["summary"] == "skills ok"
+
+        model = client.post(
+            "/api/v1/agent/sessions/sess-pref/model",
+            json={
+                "provider_source": "preset",
+                "provider_id": "openai",
+                "model_id": "gpt-5.4",
+                "surface": "desktop",
+            },
+        )
+        assert model.status_code == 200
+        assert model.json()["data"]["selected_model_id"] == "gpt-5.4"
+
+        policy = client.post(
+            "/api/v1/agent/sessions/sess-pref/policy",
+            json={"approval_profile": "plan", "access_level": "default", "surface": "desktop"},
+        )
+        assert policy.status_code == 200
+        assert policy.json()["data"]["approval_profile"] == "plan"
+
+    assert [name for name, _, _ in calls] == [
+        "control_session",
+        "update_session_context",
+        "manage_session_memory",
+        "manage_session_skills",
+        "update_session_model_selection",
+        "update_session_runtime_policy",
+    ]
 
 
 def test_v1_agent_chat_stream_dry_run() -> None:

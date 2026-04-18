@@ -12,7 +12,11 @@ from mini_agent.application.use_cases.model_binding_application_service import M
 
 @dataclass(slots=True)
 class ModelUserService:
-    """Thin user-service facade for model binding and capability views."""
+    """Thin user-service facade for model binding and capability views.
+
+    Session model-selection remains a compatibility shim while session/task
+    entrypoints migrate behind `SessionTaskService`.
+    """
 
     application_service: ModelBindingApplicationService | None = None
     model_runtime: ModelRuntimePort | None = None
@@ -77,6 +81,7 @@ class ModelUserService:
     async def get_model_binding_diagnostics(self, agent_id: str | None = None) -> Any:
         return await self._application().get_model_binding_diagnostics(agent_id)
 
+    # Compatibility-only session-scoped entrypoint. Prefer SessionTaskService when available.
     async def update_session_model_selection(
         self,
         session_id: str,

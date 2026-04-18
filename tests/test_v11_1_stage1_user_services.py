@@ -4,6 +4,7 @@ import pytest
 
 import mini_agent.application as application_module
 import mini_agent.application.facades as application_facades_module
+import mini_agent.application.user_services as application_user_services_module
 from mini_agent.application.facades import MainAgentSurfaceService as FacadeMainAgentSurfaceService
 from mini_agent.application.legacy import (
     MainAgentSurfaceService as LegacyMainAgentSurfaceService,
@@ -390,6 +391,23 @@ async def test_run_control_application_service_prefers_run_runtime_when_run_is_a
 
 
 @pytest.mark.asyncio
+async def test_run_control_application_service_interrupts_attached_session_run() -> None:
+    run_runtime = RunRuntimeStub()
+    session_tasks = SessionTaskStub({"session-1": "run-1"})
+    service = RunControlApplicationService(run_runtime=run_runtime, session_tasks=session_tasks)
+
+    result = await service.interrupt_session_run(
+        "session-1",
+        reason="pause",
+        source="desktop",
+    )
+
+    assert result == {"kind": "interrupt", "run_id": "run-1"}
+    assert ("resolve_run_id_for_session", "session-1") in session_tasks.calls
+    assert ("interrupt_run", "run-1", "pause", "desktop") in run_runtime.calls
+
+
+@pytest.mark.asyncio
 async def test_run_control_application_service_falls_back_to_session_compatibility() -> None:
     run_runtime = RunRuntimeStub()
     session_tasks = SessionTaskStub()
@@ -517,6 +535,24 @@ async def test_agent_user_service_supports_session_runtime_policy_compatibility(
 
 
 @pytest.mark.asyncio
+async def test_agent_user_service_supports_interrupt_session_run_compatibility() -> None:
+    run_control = RunControlApplicationService(
+        run_runtime=RunRuntimeStub(),
+        session_tasks=SessionTaskStub({"session-4a": "run-4a"}),
+    )
+    agent_service = AgentUserService(run_control=run_control)
+
+    assert await agent_service.interrupt_session_run(
+        "session-4a",
+        reason="pause",
+        source="desktop",
+    ) == {
+        "kind": "interrupt",
+        "run_id": "run-4a",
+    }
+
+
+@pytest.mark.asyncio
 async def test_agent_user_service_supports_session_control_compatibility() -> None:
     agent_service = AgentUserService(session_agent_runtime=SessionControlRuntimeStub())
 
@@ -636,6 +672,23 @@ def test_stage1_application_namespace_does_not_promote_legacy_surface_exports_in
     assert "MainAgentSurfaceAssembly" not in application_module.__all__
     assert "build_main_agent_surface_service" not in application_module.__all__
     assert "build_runtime_backed_main_agent_surface_service" not in application_module.__all__
+
+
+def test_stage1_application_namespace_does_not_promote_legacy_session_exports_in_all() -> None:
+    assert "ManagedRuntimeSessionPort" not in application_module.__all__
+    assert "RuntimeBackedSessionApplicationAssembly" not in application_module.__all__
+    assert "SessionApplicationService" not in application_module.__all__
+    assert "SessionRuntimePort" not in application_module.__all__
+    assert "SessionTurnScopePort" not in application_module.__all__
+    assert "assemble_runtime_backed_session_application" not in application_module.__all__
+    assert "assemble_typed_session_application" not in application_module.__all__
+    assert "assemble_runtime_backed_user_services" not in application_module.__all__
+    assert "build_runtime_backed_session_service" not in application_module.__all__
+    assert "build_typed_session_service" not in application_module.__all__
+
+
+def test_stage1_user_services_namespace_does_not_promote_runtime_backed_shortcut_in_all() -> None:
+    assert "assemble_runtime_backed_user_services" not in application_user_services_module.__all__
 
 
 def test_stage1_facades_namespace_does_not_promote_legacy_surface_exports_in_all() -> None:

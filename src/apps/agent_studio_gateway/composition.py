@@ -13,10 +13,12 @@ from fastapi import HTTPException
 
 from mini_agent.agent_core.engine import Agent
 from mini_agent.agent_core.kernel import AgentKernelBuildOptions, build_agent_kernel
-from mini_agent.application.session_runtime_compat import AgentModelRuntimeAdapter
-from mini_agent.application.user_service_assembly import (
+from mini_agent.application.user_services.model_runtime_adapter import AgentModelRuntimeAdapter
+from mini_agent.application.user_services import (
+    RuntimeBackedUserServicePorts,
     UserServiceAssembly,
-    assemble_runtime_backed_user_services,
+    assemble_typed_user_services,
+    resolve_runtime_backed_user_service_ports,
 )
 from mini_agent.application.use_cases import ChannelIngressUseCases, ChannelNovelActionHandler
 from mini_agent.application.use_cases.agent_interaction_application_service import AgentInteractionApplicationService
@@ -64,6 +66,7 @@ class GatewayComposition:
         self._instance_lock: GatewayInstanceLock | None = None
         self._runtime_manager: MainAgentRuntimeManager | None = None
         self._session_task_service: SessionTaskService | None = None
+        self._runtime_backed_user_service_ports: RuntimeBackedUserServicePorts | None = None
         self._user_service_assembly: UserServiceAssembly | None = None
         self._run_control_service: RunControlApplicationService | None = None
         self._agent_service: AgentUserService | None = None
@@ -152,7 +155,12 @@ class GatewayComposition:
 
     def get_session_task_service(self) -> SessionTaskService:
         if self._session_task_service is None:
-            self._session_task_service = SessionTaskService(runtime_manager=self.get_runtime_manager())
+            resolved_ports = self.get_runtime_backed_user_service_ports()
+            self._session_task_service = SessionTaskService(
+                runtime_manager=resolved_ports.session_task_runtime,
+                session_agent_runtime=resolved_ports.session_agent_runtime,
+                session_model_runtime=resolved_ports.session_model_runtime,
+            )
         return self._session_task_service
 
     def get_workspace_runtime(self) -> MainAgentWorkspaceRuntimeAdapter:
@@ -190,13 +198,32 @@ class GatewayComposition:
             )
         return self._agent_interaction_service
 
-    def _ensure_user_service_assembly(self) -> UserServiceAssembly:
-        if self._user_service_assembly is None:
-            self._user_service_assembly = assemble_runtime_backed_user_services(
+    def get_runtime_backed_user_service_ports(self) -> RuntimeBackedUserServicePorts:
+        if self._runtime_backed_user_service_ports is None:
+            self._runtime_backed_user_service_ports = resolve_runtime_backed_user_service_ports(
                 runtime_manager=self.get_runtime_manager(),
-                session_task_service=self.get_session_task_service(),
+                session_task_runtime=self.get_runtime_manager(),
+                session_agent_runtime=self.get_runtime_manager(),
+                session_model_runtime=self.get_runtime_manager(),
                 model_runtime=self.get_model_runtime_adapter(),
                 workspace_runtime=self.get_workspace_runtime(),
+            )
+        return self._runtime_backed_user_service_ports
+
+    def _ensure_user_service_assembly(self) -> UserServiceAssembly:
+        if self._user_service_assembly is None:
+            resolved_ports = self.get_runtime_backed_user_service_ports()
+            self._user_service_assembly = assemble_typed_user_services(
+                session_task_runtime=resolved_ports.session_task_runtime,
+                session_task_port=resolved_ports.session_task_port,
+                session_agent_runtime=resolved_ports.session_agent_runtime,
+                session_model_runtime=resolved_ports.session_model_runtime,
+                agent_runtime=resolved_ports.agent_runtime,
+                run_runtime=resolved_ports.run_runtime,
+                model_runtime=resolved_ports.model_runtime,
+                workspace_runtime=resolved_ports.workspace_runtime,
+                command_runtime=resolved_ports.command_runtime,
+                session_task_service=self.get_session_task_service(),
             )
             self._run_control_service = self._user_service_assembly.run_control_service
             self._agent_service = self._user_service_assembly.agent_service
@@ -286,6 +313,7 @@ class GatewayComposition:
                     await self._runtime_manager.clear()
                 self._runtime_manager = None
                 self._session_task_service = None
+                self._runtime_backed_user_service_ports = None
                 self._user_service_assembly = None
                 self._run_control_service = None
                 self._agent_service = None
@@ -319,7 +347,7 @@ class GatewayComposition:
             stream_main_agent_chat=self.stream_main_agent_chat,
             resolve_workspace_dir=self.resolve_workspace_dir,
             get_session_task_service=self.get_session_task_service,
-            get_agent_service=self.get_agent_service,
+            get_run_control_service=self.get_run_control_service,
             get_workspace_service=self.get_workspace_service,
             get_model_service=self.get_model_service,
             get_channel_ingress_use_cases=self.get_channel_ingress_use_cases,

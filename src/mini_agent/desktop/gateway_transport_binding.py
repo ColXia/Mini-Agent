@@ -11,6 +11,7 @@ from mini_agent.transport import (
     RemoteMemoryClient,
     RemoteModelCatalogClient,
     RemoteProviderClient,
+    RemoteRunClient,
     RemoteSessionClient,
     RemoteSystemClient,
     RemoteWorkspaceClient,
@@ -23,6 +24,7 @@ class DesktopGatewayTransportBinding:
 
     gateway_client: GatewayClient
     chat_client: RemoteChatClient
+    run_client: RemoteRunClient
     session_client: RemoteSessionClient
     system_client: RemoteSystemClient
     memory_client: RemoteMemoryClient
@@ -38,6 +40,7 @@ class DesktopGatewayTransportBinding:
         return cls(
             gateway_client=gateway_client,
             chat_client=RemoteChatClient(chat_transport=gateway_client),
+            run_client=RemoteRunClient(run_transport=gateway_client),
             session_client=RemoteSessionClient(session_transport=gateway_client),
             system_client=RemoteSystemClient(system_transport=gateway_client),
             memory_client=RemoteMemoryClient(memory_transport=gateway_client),

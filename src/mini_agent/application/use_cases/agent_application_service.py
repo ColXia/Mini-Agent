@@ -41,7 +41,11 @@ def _require_interaction_service(
 
 @dataclass(slots=True)
 class AgentApplicationService:
-    """Owns agent-facing application logic above runtime ports and control services."""
+    """Owns agent-facing application logic above runtime ports and control services.
+
+    Session-scoped compatibility actions remain here only as fallback shims during
+    the v11.1 migration. Active session/task routing should prefer `SessionTaskService`.
+    """
 
     agent_runtime: AgentRuntimePort | None = None
     run_control: RunControlApplicationService | None = None
@@ -139,6 +143,19 @@ class AgentApplicationService:
             sender_id=sender_id,
         )
 
+    async def interrupt_session_run(
+        self,
+        session_id: str,
+        *,
+        reason: str | None = None,
+        source: str | None = None,
+    ) -> Any:
+        return await _require_run_control(self.run_control).interrupt_session_run(
+            session_id,
+            reason=reason,
+            source=source,
+        )
+
     async def approve_session_wait(
         self,
         session_id: str,
@@ -173,7 +190,7 @@ class AgentApplicationService:
         channel_type: str | None = None,
         conversation_id: str | None = None,
         sender_id: str | None = None,
-    ) -> Any:
+        ) -> Any:
         return await _require_run_control(self.run_control).deny_session_wait(
             session_id,
             token=token,
@@ -185,6 +202,7 @@ class AgentApplicationService:
             sender_id=sender_id,
         )
 
+    # Compatibility-only session-scoped entrypoints. Prefer SessionTaskService when available.
     async def update_session_runtime_policy(
         self,
         session_id: str,

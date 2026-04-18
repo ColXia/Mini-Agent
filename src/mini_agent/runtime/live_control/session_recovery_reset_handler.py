@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Callable
 
+from .run_control_store import RuntimeSessionRunControlStore
+
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -27,6 +29,7 @@ class RuntimeSessionRecoveryResetHandler:
         ["MainAgentSessionState"],
         "MainAgentSessionRecoverySnapshot | None",
     ]
+    run_control_store: RuntimeSessionRunControlStore | None = None
 
     def build_recovery_turn_context(
         self,
@@ -61,6 +64,39 @@ class RuntimeSessionRecoveryResetHandler:
             item.model_dump() for item in list(stored_recovery.pending_approvals or [])
         ]
 
+    def apply_interrupted_recovery(
+        self,
+        session: "MainAgentSessionState",
+        *,
+        summary: str | None = None,
+        last_activity: str | None = None,
+        pending_approvals: list[dict[str, Any]] | None = None,
+        now_utc: datetime | None = None,
+    ) -> None:
+        user_preview = self._last_role_preview(session, role="user") or _safe_text(
+            session.projection.recovery_last_user_message
+        ) or None
+        assistant_preview = self._last_role_preview(session, role="assistant") or _safe_text(
+            session.projection.recovery_last_assistant_message
+        ) or None
+        session.projection.recovery_context_pending = True
+        session.projection.recovery_state = "interrupted"
+        session.projection.recovery_summary = _safe_text(summary) or "interrupted after pause request"
+        session.projection.recovery_last_activity = (
+            _safe_text(last_activity)
+            or self._last_activity_summary(session)
+            or _safe_text(session.projection.recovery_last_activity)
+            or None
+        )
+        session.projection.recovery_last_user_message = user_preview
+        session.projection.recovery_last_assistant_message = assistant_preview
+        session.projection.recovery_pending_approvals = [
+            dict(item)
+            for item in list(pending_approvals or [])
+            if isinstance(item, dict)
+        ]
+        session.touch(now_utc=now_utc)
+
     def clear_recovery_context(
         self,
         session: "MainAgentSessionState",
@@ -83,12 +119,10 @@ class RuntimeSessionRecoveryResetHandler:
                 session.session_id,
             )
         session.transcript_state.current_turn_id = None
-        session.runtime.cancel_event = None
-        session.runtime.pending_approvals = []
-        for future in list(session.runtime.pending_approval_waiters.values()):
-            if not future.done():
-                future.set_result(None)
-        session.runtime.pending_approval_waiters.clear()
+        self._run_control_store().reset_runtime_state(
+            session,
+            reason="runtime state reset",
+        )
         self._clear_recovery_context(session)
         session.projection.last_prepared_context = {}
         session.projection.prepared_context_diagnostics = {}
@@ -128,6 +162,68 @@ class RuntimeSessionRecoveryResetHandler:
             agent.last_memory_automation = {}
         if hasattr(agent, "last_runtime_task_memory"):
             agent.last_runtime_task_memory = {}
+
+    @staticmethod
+    def _last_role_preview(
+        session: "MainAgentSessionState",
+        *,
+        role: str,
+        limit: int = 160,
+    ) -> str | None:
+        normalized_role = _safe_text(role).lower()
+        transcript = getattr(session.transcript_state, "transcript", None)
+        for entry in reversed(list(transcript or [])):
+            if _safe_text(getattr(entry, "role", "")).lower() != normalized_role:
+                continue
+            text = _safe_text(getattr(entry, "content", ""))
+            if not text:
+                continue
+            if len(text) <= limit:
+                return text
+            return text[: limit - 3] + "..."
+        return None
+
+    @staticmethod
+    def _last_activity_summary(session: "MainAgentSessionState") -> str | None:
+        transcript = getattr(session.transcript_state, "transcript", None)
+        for entry in reversed(list(transcript or [])):
+            metadata = dict(entry.metadata) if isinstance(getattr(entry, "metadata", None), dict) else {}
+            if getattr(entry, "role", "") == "tool" and metadata.get("kind") == "activity":
+                items = metadata.get("activity_items")
+                if isinstance(items, list) and items:
+                    item = items[-1]
+                    label = RuntimeSessionRecoveryResetHandler._activity_label(item.get("label", "activity"))
+                    detail = _safe_text(item.get("detail")) or "running"
+                    preview = _safe_text(item.get("preview"))
+                    output_summary = _safe_text(item.get("output_summary"))
+                    parts = [f"{label} {detail}"]
+                    if preview:
+                        parts.append(preview)
+                    if output_summary and label == "shell":
+                        parts.append(output_summary)
+                    return " | ".join(part for part in parts if part).strip() or None
+                text = _safe_text(getattr(entry, "content", ""))
+                if text:
+                    return text
+            if metadata.get("kind") == "command":
+                command = _safe_text(metadata.get("command")) or "command"
+                command_summary = _safe_text(metadata.get("summary")) or _safe_text(getattr(entry, "content", "")) or "applied"
+                return f"{command} | {command_summary}"
+        return None
+
+    @staticmethod
+    def _activity_label(value: object) -> str:
+        normalized = _safe_text(value).lower().replace("_", "-")
+        if normalized in {"bash", "powershell", "shell", "shell-command"}:
+            return "shell"
+        if normalized.startswith("bash-"):
+            return normalized.replace("bash-", "shell-", 1)
+        return normalized or "activity"
+
+    def _run_control_store(self) -> RuntimeSessionRunControlStore:
+        if self.run_control_store is None:
+            self.run_control_store = RuntimeSessionRunControlStore()
+        return self.run_control_store
 
 
 __all__ = ["RuntimeSessionRecoveryResetHandler"]

@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import HTTPException
 
+from .run_control_store import RuntimeSessionRunControlStore
+
 if TYPE_CHECKING:
     import asyncio
 
@@ -20,6 +22,8 @@ def _safe_text(value: object) -> str:
 
 @dataclass(slots=True)
 class RuntimeSessionPendingApprovalStateHandler:
+    run_control_store: RuntimeSessionRunControlStore | None = None
+
     @staticmethod
     def normalize_pending_approval(item: Any) -> dict[str, Any] | None:
         if not isinstance(item, dict):
@@ -61,20 +65,11 @@ class RuntimeSessionPendingApprovalStateHandler:
         normalized = self.normalize_pending_approval(payload)
         if normalized is None:
             raise HTTPException(status_code=400, detail="Invalid pending approval payload.")
-        token = normalized["token"]
-        existing_index = next(
-            (
-                index
-                for index, item in enumerate(session.runtime.pending_approvals)
-                if _safe_text(item.get("token")) == token
-            ),
-            None,
+        self._store().replace_active_approval_wait(
+            session,
+            payload=normalized,
+            future=future,
         )
-        if existing_index is None:
-            session.runtime.pending_approvals.append(normalized)
-        else:
-            session.runtime.pending_approvals[existing_index] = normalized
-        session.runtime.pending_approval_waiters[token] = future
         session.touch(now_utc=now_utc)
         return dict(normalized)
 
@@ -85,19 +80,16 @@ class RuntimeSessionPendingApprovalStateHandler:
         token: str | None = None,
         now_utc: datetime | None = None,
     ) -> None:
-        normalized_token = _safe_text(token)
-        if not normalized_token:
-            session.runtime.pending_approvals = []
-            session.runtime.pending_approval_waiters.clear()
-            session.touch(now_utc=now_utc)
-            return
-        session.runtime.pending_approvals = [
-            item
-            for item in session.runtime.pending_approvals
-            if _safe_text(item.get("token")) != normalized_token
-        ]
-        session.runtime.pending_approval_waiters.pop(normalized_token, None)
+        self._store().clear_pending_approval(
+            session,
+            token=token,
+        )
         session.touch(now_utc=now_utc)
+
+    def _store(self) -> RuntimeSessionRunControlStore:
+        if self.run_control_store is None:
+            self.run_control_store = RuntimeSessionRunControlStore()
+        return self.run_control_store
 
 
 __all__ = ["RuntimeSessionPendingApprovalStateHandler"]

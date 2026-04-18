@@ -32,5 +32,6 @@ def test_desktop_gateway_transport_binding_rebinds_shared_gateway_client() -> No
 
     assert binding.gateway_client.base_url == "http://127.0.0.1:8010"
     assert binding.chat_client._chat_transport is binding.gateway_client
+    assert binding.run_client._run_transport is binding.gateway_client
     assert binding.session_client._session_transport is binding.gateway_client
     assert binding.workspace_client._workspace_transport is binding.gateway_client

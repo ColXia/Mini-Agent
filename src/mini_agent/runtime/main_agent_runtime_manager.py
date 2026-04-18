@@ -83,6 +83,10 @@ from mini_agent.runtime.support.session_persistence_record_builder import Runtim
 from mini_agent.runtime.handlers.session_registry_handler import RuntimeSessionRegistryHandler
 from mini_agent.runtime.live_control.session_interrupt_handler import RuntimeSessionInterruptHandler
 from mini_agent.runtime.live_control.session_live_state_handler import RuntimeSessionLiveStateHandler
+from mini_agent.runtime.live_control.run_control_store import (
+    INTERRUPT_REQUESTED_RUNNING_STATE,
+    RuntimeSessionRunControlStore,
+)
 from mini_agent.runtime.live_control.session_recovery_reset_handler import (
     RuntimeSessionRecoveryResetHandler,
 )
@@ -106,7 +110,10 @@ from mini_agent.runtime.orchestration.session_snapshot_handler import (
     RuntimeSessionSnapshotImportCommand,
 )
 from mini_agent.runtime.support.sandbox_state import collect_sandbox_diagnostics
-from mini_agent.runtime.support.session_backed_run_id import build_session_backed_run_id
+from mini_agent.runtime.support.session_backed_run_id import (
+    build_session_backed_run_id,
+    resolve_session_backed_session_id,
+)
 from mini_agent.runtime.support.tooling import reconfigure_agent_runtime_policy
 from mini_agent.runtime.support.workspace_path_utils import same_workspace_path, workspace_path_key
 from mini_agent.tools.mcp_loader import cleanup_mcp_connections
@@ -163,6 +170,13 @@ class MainAgentRuntimeManager:
             session_token_limit=self._payload_codec.session_token_limit,
             agent_last_memory_automation=self._payload_codec.agent_last_memory_automation,
             agent_last_runtime_task_memory=self._payload_codec.agent_last_runtime_task_memory,
+            active_pending_approvals=lambda session: self._session_run_control.pending_approval_payloads(session),
+            active_run_control_state=lambda session: self._session_run_control.serialize_run_control_state(
+                self._session_run_control.current_control_state(session)
+            ),
+            active_approval_wait=lambda session: self._session_run_control.serialize_approval_wait(
+                self._session_run_control.current_approval_wait(session)
+            ),
         )
         self._session_persistence_loader = RuntimeSessionPersistenceLoader(
             session_kind=_RUNTIME_SESSION_KIND,
@@ -192,6 +206,7 @@ class MainAgentRuntimeManager:
             agent_last_memory_automation=self._session_agent_support.agent_last_memory_automation,
             agent_last_runtime_task_memory=self._session_agent_support.agent_last_runtime_task_memory,
         )
+        self._session_run_control = RuntimeSessionRunControlStore()
         self._runtime_task_memory_backend = WorkspaceRuntimeMemoryBackend()
         self._session_runtime_state_hydrator = RuntimeSessionStateHydrator(
             agent_knowledge_base_enabled=self._session_agent_support.agent_knowledge_base_enabled,
@@ -202,8 +217,12 @@ class MainAgentRuntimeManager:
             build_memory_diagnostics_for_session=self._session_diagnostics.build_memory_diagnostics_for_session,
             build_sandbox_diagnostics_for_session=self._session_diagnostics.build_sandbox_diagnostics_for_session,
         )
-        self._session_live_state = RuntimeSessionLiveStateHandler()
-        self._session_pending_approval_state = RuntimeSessionPendingApprovalStateHandler()
+        self._session_live_state = RuntimeSessionLiveStateHandler(
+            run_control_store=self._session_run_control,
+        )
+        self._session_pending_approval_state = RuntimeSessionPendingApprovalStateHandler(
+            run_control_store=self._session_run_control,
+        )
         self._session_recovery_reset = RuntimeSessionRecoveryResetHandler(
             refresh_session_diagnostics=self._session_runtime_state_hydrator.refresh_session_diagnostics,
             agent_knowledge_base_enabled=self._session_agent_support.agent_knowledge_base_enabled,
@@ -216,6 +235,7 @@ class MainAgentRuntimeManager:
             stored_recovery_snapshot_from_session=lambda session: self._session_read_models.stored_recovery_snapshot_from_session(
                 session
             ),
+            run_control_store=self._session_run_control,
         )
         self._session_memory_commands = RuntimeSessionMemoryCommandHandler(
             build_memory_diagnostics_for_session=self._session_diagnostics.build_memory_diagnostics_for_session,
@@ -259,6 +279,9 @@ class MainAgentRuntimeManager:
             record_token_limit=self._payload_codec.record_token_limit,
             transcript_entries_from_record=self._session_hydration_builder.transcript_entries_from_record,
             pending_approvals_from_raw=RuntimeSessionPendingApprovalStateHandler.pending_approvals_from_raw,
+            active_pending_approvals_for_session=lambda session: self._session_run_control.pending_approval_payloads(
+                session
+            ),
         )
         self._session_snapshot_builder = RuntimeSessionSnapshotBuilder(
             normalize_surface=normalize_surface_label,
@@ -427,6 +450,7 @@ class MainAgentRuntimeManager:
         self._session_interrupt = RuntimeSessionInterruptHandler(
             normalize_surface=normalize_surface_label,
             pending_approvals_from_raw=RuntimeSessionPendingApprovalStateHandler.pending_approvals_from_raw,
+            run_control_store=self._session_run_control,
         )
         self._session_context_commands = ContextCommandService()
         self._session_skill_commands = SkillCommandService()
@@ -528,6 +552,7 @@ class MainAgentRuntimeManager:
             selected_model_identity=self._model_identity_codec.selected_model_identity,
             pending_model_identity=self._model_identity_codec.pending_model_identity,
             set_pending_model_identity=self._model_identity_codec.set_pending_model_identity,
+            active_pending_approvals=lambda session: self._session_run_control.pending_approval_payloads(session),
             persist_session=self._managed_session_store.persist_session,
             queue_workspace_skill_reload=self.queue_workspace_skill_reload,
             cleanup_mcp_connections=lambda: cleanup_mcp_connections(),
@@ -539,6 +564,7 @@ class MainAgentRuntimeManager:
             self._session_lineage = SessionLineageStore()
             self._session_lineage_registry.replace_store(self._session_lineage)
             self._runtime_policy_coordinator.clear_counters()
+            self._session_run_control.clear()
 
     async def build_ephemeral_agent(self, workspace_dir: Path) -> Agent:
         """Build an isolated agent instance without attaching a managed session."""
@@ -773,9 +799,135 @@ class MainAgentRuntimeManager:
                 return build_session_backed_run_id(session_id)
         return None
 
+    async def get_run(self, run_id: str) -> dict[str, Any]:
+        async with self._store_lock:
+            session_id = self._require_session_id_from_run_id(run_id)
+            session = self._sessions.get(session_id)
+            if session is not None:
+                return self._session_run_control.build_active_run_projection(session)
+            record = self._persistence.load_session_record(session_id)
+            if record is None:
+                raise LookupError(f"Run {run_id!r} was not found.")
+            return self._session_run_control.build_persisted_run_projection(run_id=run_id, record=record)
+
+    async def interrupt_run(
+        self,
+        run_id: str,
+        *,
+        reason: str | None = None,
+        source: str | None = None,
+    ) -> dict[str, Any]:
+        async with self._store_lock:
+            session = self._require_active_session_for_run_id(run_id)
+            if not bool(session.projection.busy):
+                raise LookupError(f"Run {run_id!r} is not active and cannot be interrupted.")
+            self._session_run_control.request_interrupt(
+                session,
+                source=source or session.projection.active_surface or session.projection.origin_surface,
+                reason=reason,
+            )
+            session.projection.running_state = INTERRUPT_REQUESTED_RUNNING_STATE
+            self._managed_session_store.persist_session(session)
+            return self._session_run_control.build_active_run_projection(session)
+
+    async def resume_run(
+        self,
+        run_id: str,
+        *,
+        resume_token: str | None = None,
+        source: str | None = None,
+    ) -> Any:
+        async with self._store_lock:
+            session = self._require_active_session_for_run_id(run_id)
+            pending = self._session_run_control.pending_approval_payloads(session)
+            if pending:
+                self._session_run_control.request_resume(
+                    session,
+                    source=source or session.projection.active_surface or session.projection.origin_surface,
+                    resume_token=resume_token,
+                )
+                return self._session_operator.resolve_pending_approval(
+                    session_id=session.session_id,
+                    active_session=session,
+                    persisted_exists=False,
+                    approved=True,
+                    token=resume_token,
+                    surface=source or session.projection.active_surface or session.projection.origin_surface,
+                    channel_type=session.projection.channel_type,
+                    conversation_id=session.projection.conversation_id,
+                    sender_id=session.projection.sender_id,
+                )
+            if bool(session.projection.recovery_context_pending):
+                raise LookupError(
+                    f"Run {run_id!r} is in recovery state and cannot be resumed directly. "
+                    "Send a new message to continue with recovery context."
+                )
+            raise LookupError(f"Run {run_id!r} is not waiting for resume input.")
+
+    async def cancel_run(
+        self,
+        run_id: str,
+        *,
+        reason: str | None = None,
+        source: str | None = None,
+    ) -> MainAgentSessionMutationResponse:
+        async with self._store_lock:
+            session = self._require_active_session_for_run_id(run_id)
+            return self._session_operator.cancel_turn(
+                session_id=session.session_id,
+                active_session=session,
+                persisted_exists=False,
+                reason=reason,
+                surface=source or session.projection.active_surface or session.projection.origin_surface,
+                channel_type=session.projection.channel_type,
+                conversation_id=session.projection.conversation_id,
+                sender_id=session.projection.sender_id,
+            )
+
+    async def resolve_approval_wait(
+        self,
+        run_id: str,
+        *,
+        approved: bool,
+        token: str | None = None,
+        source: str | None = None,
+        reason: str | None = None,
+    ) -> MainAgentSessionApprovalResponse:
+        _ = reason
+        async with self._store_lock:
+            session = self._require_active_session_for_run_id(run_id)
+            return self._session_operator.resolve_pending_approval(
+                session_id=session.session_id,
+                active_session=session,
+                persisted_exists=False,
+                approved=approved,
+                token=token,
+                surface=source or session.projection.active_surface or session.projection.origin_surface,
+                channel_type=session.projection.channel_type,
+                conversation_id=session.projection.conversation_id,
+                sender_id=session.projection.sender_id,
+            )
+
+    @staticmethod
+    def _require_session_id_from_run_id(run_id: str) -> str:
+        session_id = resolve_session_backed_session_id(run_id)
+        if session_id is None:
+            raise LookupError(f"Run {run_id!r} is not a session-backed run identifier.")
+        return session_id
+
+    def _require_active_session_for_run_id(self, run_id: str) -> MainAgentSessionState:
+        session_id = self._require_session_id_from_run_id(run_id)
+        session = self._sessions.get(session_id)
+        if session is None:
+            if self._persistence.load_session_record(session_id) is not None:
+                raise LookupError(f"Run {run_id!r} is not active in the current runtime host.")
+            raise LookupError(f"Run {run_id!r} was not found.")
+        return session
+
     async def delete_session(self, session_id: str) -> None:
         async with self._store_lock:
             self._managed_session_store.delete_session(self._sessions, session_id)
+            self._session_run_control.drop_session(session_id)
 
     async def reset_session(self, session_id: str) -> None:
         async with self._store_lock:

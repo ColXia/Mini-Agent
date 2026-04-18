@@ -61,9 +61,26 @@ class RuntimeSessionReadModelBuilder:
     record_token_limit: Callable[[dict[str, Any]], int]
     transcript_entries_from_record: Callable[[dict[str, Any]], list["MainAgentSessionTranscriptEntry"]]
     pending_approvals_from_raw: Callable[[Any], list[dict[str, Any]]]
+    active_pending_approvals_for_session: Callable[["MainAgentSessionState"], Sequence[dict[str, Any]]] | None = None
     snapshot_runtime_task_memory_payload: Callable[..., dict[str, Any]] | None = None
     snapshot_workspace_shared_runtime_task_memory_payload: Callable[..., dict[str, Any]] | None = None
     serialize_agent_messages: Callable[[Sequence[Any]], list[dict[str, Any]]] | None = None
+
+    def _pending_approvals_for_session(
+        self,
+        session: "MainAgentSessionState",
+    ) -> list[dict[str, Any]]:
+        if callable(self.active_pending_approvals_for_session):
+            try:
+                payload = self.active_pending_approvals_for_session(session)
+            except Exception:
+                payload = None
+            if isinstance(payload, Sequence):
+                return [dict(item) for item in payload if isinstance(item, dict)]
+        legacy = getattr(session.runtime, "pending_approvals", None)
+        if not isinstance(legacy, list):
+            return []
+        return [dict(item) for item in legacy if isinstance(item, dict)]
 
     def build_session_summary_projection(
         self,
@@ -71,7 +88,8 @@ class RuntimeSessionReadModelBuilder:
     ) -> SessionSummaryProjection:
         memory_diagnostics = self.build_memory_diagnostics_for_session(session)
         sandbox_diagnostics = self.build_sandbox_diagnostics_for_session(session)
-        pending_approvals = tuple(self.build_pending_approval_projections(session.runtime.pending_approvals))
+        active_pending_approvals = self._pending_approvals_for_session(session)
+        pending_approvals = tuple(self.build_pending_approval_projections(active_pending_approvals))
         recovery = self.build_session_recovery_projection(
             transcript=session.transcript_state.transcript,
             origin_surface=session.projection.origin_surface,
@@ -80,7 +98,7 @@ class RuntimeSessionReadModelBuilder:
             channel_type=session.projection.channel_type,
             busy=session.projection.busy,
             running_state=session.projection.running_state,
-            pending_approvals=session.runtime.pending_approvals,
+            pending_approvals=active_pending_approvals,
             persisted_record=False,
         )
         stored_recovery = self.stored_recovery_snapshot_from_session(session)

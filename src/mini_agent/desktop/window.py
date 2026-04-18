@@ -14,6 +14,7 @@ from mini_agent.desktop.gateway_transport_binding import DesktopGatewayTransport
 from mini_agent.desktop.gateway_supervisor import DesktopGatewayConnection, DesktopGatewaySupervisor
 from mini_agent.interfaces import (
     MainAgentDefaultSessionRequest,
+    MainAgentRunApprovalRequest,
     MainAgentSessionApprovalRequest,
     MainAgentSessionControlRequest,
     MainAgentSessionCreateRequest,
@@ -33,6 +34,7 @@ from mini_agent.interfaces import (
 from mini_agent.model_manager.session_selection_service import SessionModelSelectionService
 from mini_agent.runtime.read_models.session_payload_codec import RuntimeSessionPayloadCodec
 from mini_agent.runtime.live_control.session_pending_approval_service import SessionPendingApprovalService
+from mini_agent.runtime.support.session_backed_run_id import build_session_backed_run_id
 from mini_agent.session import SessionFeedbackService
 from mini_agent.transport import (
     RemoteChatServicePort,
@@ -392,8 +394,30 @@ def collect_model_options(catalog: dict[str, Any] | None) -> list[dict[str, str]
     return options
 
 
-def first_pending_approval(detail: dict[str, Any] | None) -> dict[str, Any] | None:
+def first_pending_approval(
+    detail: dict[str, Any] | None,
+    run_summary: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
     """Return the first pending approval item from session detail."""
+    run_wait = (run_summary or {}).get("approval_wait") if isinstance(run_summary, dict) else None
+    if isinstance(run_wait, dict):
+        token = _compact_text(run_wait.get("approval_token"))
+        tool_name = _compact_text(run_wait.get("tool_name"))
+        if token or tool_name:
+            return {
+                "token": token or None,
+                "tool_name": tool_name or "tool",
+                "arguments": (
+                    dict(run_wait.get("tool_arguments_summary") or {})
+                    if isinstance(run_wait.get("tool_arguments_summary"), dict)
+                    else {}
+                ),
+                "kind": _compact_text(run_wait.get("approval_kind")) or None,
+                "reason": _compact_text(run_wait.get("policy_reason")) or None,
+                "cache_key": _compact_text(run_wait.get("cache_key")) or None,
+                "can_escalate": bool(run_wait.get("can_escalate")),
+                "wait_id": _compact_text(run_wait.get("wait_id")) or None,
+            }
     items = list((detail or {}).get("pending_approvals") or [])
     if not items:
         return None
@@ -1153,6 +1177,7 @@ def create_desktop_main_window(
             super().__init__()
             self._transport_binding = transport_binding
             self._chat_client = transport_binding.chat_client
+            self._run_client = transport_binding.run_client
             self._session_client = transport_binding.session_client
             self._system_client = transport_binding.system_client
             self._memory_client = transport_binding.memory_client
@@ -1169,6 +1194,7 @@ def create_desktop_main_window(
             self._workspace_list_payload: list[dict[str, Any]] = []
             self._model_catalog: dict[str, Any] = {}
             self._selected_session_detail: dict[str, Any] = {}
+            self._selected_run_summary: dict[str, Any] = {}
             self._conversation_messages: list[dict[str, Any]] = []
             self._activity_entries: list[dict[str, Any]] = []
             self._send_thread: Any = None
@@ -4749,6 +4775,7 @@ def create_desktop_main_window(
             if not self._session_ids_by_row:
                 self._session_list.blockSignals(False)
                 self._selected_session_detail = {}
+                self._selected_run_summary = {}
                 self._conversation_messages = []
                 self._render_conversation()
                 self._context_view.setPlainText("No sessions were found for the current workspace.")
@@ -4785,15 +4812,37 @@ def create_desktop_main_window(
                 return None
             return self._session_ids_by_row[row]
 
+        def _current_run_id(self) -> str | None:
+            session_id = self._current_session_id()
+            if not session_id:
+                return None
+            try:
+                return build_session_backed_run_id(session_id)
+            except Exception:
+                return None
+
         def _on_session_selected(self, row: int) -> None:
             if row < 0 or row >= len(self._session_ids_by_row):
                 return
             self._load_selected_session_detail()
 
+        def _load_selected_run_summary(self) -> None:
+            run_id = self._current_run_id()
+            if not run_id:
+                self._selected_run_summary = {}
+                return
+            try:
+                run = self._run_client.get_run_sync(run_id)
+            except Exception:
+                self._selected_run_summary = {}
+                return
+            self._selected_run_summary = surface_payload_from_dto(run)
+
         def _load_selected_session_detail(self, *, recent_limit: int = 80) -> None:
             session_id = self._current_session_id()
             if not session_id:
                 self._selected_session_detail = {}
+                self._selected_run_summary = {}
                 self._conversation_messages = []
                 self._render_conversation()
                 self._context_view.setPlainText("No session selected.")
@@ -4814,6 +4863,7 @@ def create_desktop_main_window(
                 return
             detail_payload = surface_payload_from_dto(detail)
             self._selected_session_detail = detail_payload
+            self._load_selected_run_summary()
             self._conversation_messages = [
                 {
                     "role": str(item.get("role") or "assistant"),
@@ -5139,11 +5189,11 @@ def create_desktop_main_window(
             self._append_activity(f"Model response status: {status}", kind="model")
 
         def _update_approval_button_state(self) -> None:
-            pending = first_pending_approval(self._selected_session_detail)
+            pending = first_pending_approval(self._selected_session_detail, self._selected_run_summary)
             self._approvals_button.setDisabled(pending is None)
 
         def _maybe_prompt_for_pending_approval(self) -> None:
-            pending = first_pending_approval(self._selected_session_detail)
+            pending = first_pending_approval(self._selected_session_detail, self._selected_run_summary)
             token = _compact_text((pending or {}).get("token"))
             if not token:
                 self._approval_dialog_token = None
@@ -5155,7 +5205,7 @@ def create_desktop_main_window(
 
         def _open_pending_approval_dialog(self, checked: bool = False) -> None:
             _ = checked
-            pending = first_pending_approval(self._selected_session_detail)
+            pending = first_pending_approval(self._selected_session_detail, self._selected_run_summary)
             session_id = self._current_session_id()
             if not pending or not session_id:
                 self.statusBar().showMessage("No pending approvals for the selected session.")
@@ -5191,19 +5241,30 @@ def create_desktop_main_window(
 
         def _resolve_pending_approval(self, approved: bool) -> None:
             session_id = self._current_session_id()
-            pending = first_pending_approval(self._selected_session_detail)
+            pending = first_pending_approval(self._selected_session_detail, self._selected_run_summary)
             token = _compact_text((pending or {}).get("token"))
             if not session_id or not token:
                 return
             try:
-                response = self._session_client.respond_to_approval_sync(
-                    session_id,
-                    MainAgentSessionApprovalRequest(
-                        approved=approved,
-                        token=token,
-                        surface="desktop",
-                    ),
-                )
+                run_id = self._current_run_id()
+                if run_id:
+                    response = self._run_client.respond_to_approval_sync(
+                        run_id,
+                        MainAgentRunApprovalRequest(
+                            approved=approved,
+                            token=token,
+                            surface="desktop",
+                        ),
+                    )
+                else:
+                    response = self._session_client.respond_to_approval_sync(
+                        session_id,
+                        MainAgentSessionApprovalRequest(
+                            approved=approved,
+                            token=token,
+                            surface="desktop",
+                        ),
+                    )
             except Exception as exc:
                 activity_title, status_text = format_desktop_approval_failure(exc)
                 self._append_activity(activity_title, kind="error")
@@ -5211,6 +5272,8 @@ def create_desktop_main_window(
                 return
 
             response_payload = surface_payload_from_dto(response)
+            if _compact_text(response_payload.get("run_id")):
+                self._selected_run_summary = response_payload
             decision = _compact_text(response_payload.get("decision")) or ("approved" if approved else "denied")
             tool_name = (
                 _compact_text(response_payload.get("tool_name"))

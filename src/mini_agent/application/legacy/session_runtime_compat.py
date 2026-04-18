@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Protocol
 
+from mini_agent.application.user_services.model_runtime_adapter import AgentModelRuntimeAdapter
 from mini_agent.application.ports.run_runtime_port import RunRuntimePort
-from mini_agent.application.ports.session_runtime_port import SessionRuntimePort
 from mini_agent.application.ports.session_task_port import SessionTaskPort
-from mini_agent.model_manager.agent_model_service import AgentModelService
-from mini_agent.application.ports.model_runtime_port import ModelRuntimePort
 from mini_agent.interfaces import (
     MainAgentSessionApprovalResponse,
     MainAgentSessionContextResponse,
@@ -17,10 +15,141 @@ from mini_agent.interfaces import (
     MainAgentSessionModelSelectionResponse,
     MainAgentSessionSkillResponse,
 )
+from mini_agent.runtime.live_control.run_control_store import (
+    CANCEL_REQUESTED_RUNNING_STATE,
+    CANCEL_REQUESTED_STATUS,
+    CANCELLING_PHASE,
+    INTERRUPT_REQUESTED_RUNNING_STATE,
+    INTERRUPT_REQUESTED_STATUS,
+    INTERRUPTING_PHASE,
+    PAUSED_PHASE,
+    PAUSED_STATUS,
+    RESUME_REQUESTED_STATUS,
+    RESUMING_PHASE,
+)
 from mini_agent.runtime.support.session_backed_run_id import resolve_session_backed_session_id
 
 from .session_agent_runtime_port import SessionAgentRuntimePort
 from .session_model_selection_runtime_port import SessionModelSelectionRuntimePort
+
+
+class SessionTaskCompatibilityRuntimeSupport(Protocol):
+    async def get_session_detail(self, session_id: str, *, recent_limit: int = 50) -> Any: ...
+
+    async def cancel_session_turn(
+        self,
+        session_id: str,
+        *,
+        reason: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> Any: ...
+
+    async def resolve_pending_approval(
+        self,
+        session_id: str,
+        *,
+        approved: bool,
+        token: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> MainAgentSessionApprovalResponse: ...
+
+
+class SessionBackedRunRuntimeSupport(SessionTaskCompatibilityRuntimeSupport, Protocol):
+    pass
+
+
+class SessionModelSelectionCompatibilityRuntimeSupport(Protocol):
+    async def update_session_model_selection(
+        self,
+        session_id: str,
+        *,
+        provider_source: str | None = None,
+        provider_id: str | None = None,
+        model_id: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> MainAgentSessionModelSelectionResponse: ...
+
+
+class SessionAgentCompatibilityRuntimeSupport(Protocol):
+    async def update_session_runtime_policy(
+        self,
+        session_id: str,
+        *,
+        approval_profile: str | None = None,
+        access_level: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> Any: ...
+
+    async def control_session_context(
+        self,
+        session_id: str,
+        *,
+        action: str,
+        reason: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> MainAgentSessionControlResponse: ...
+
+    async def update_session_context_policy(
+        self,
+        session_id: str,
+        *,
+        action: str,
+        sources: list[str] | None = None,
+        max_items: int | None = None,
+        max_total_chars: int | None = None,
+        max_items_per_source: int | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> MainAgentSessionContextResponse: ...
+
+    async def manage_session_memory(
+        self,
+        session_id: str,
+        *,
+        action: str,
+        engram_id: str | None = None,
+        content: str | None = None,
+        query: str | None = None,
+        day: str | None = None,
+        export_format: str | None = None,
+        detail_mode: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> MainAgentSessionMemoryResponse: ...
+
+    async def manage_session_skills(
+        self,
+        session_id: str,
+        *,
+        action: str,
+        skill_name: str | None = None,
+        path: str | None = None,
+        query: str | None = None,
+        mode: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> MainAgentSessionSkillResponse: ...
 
 
 class UnavailableRunRuntimeAdapter:
@@ -34,107 +163,54 @@ class UnavailableRunRuntimeAdapter:
         raise self._unsupported(run_id)
 
 
-class AgentModelRuntimeAdapter(ModelRuntimePort):
-    """Typed model-runtime adapter over the agent-owned model binding service."""
-
-    def __init__(self, model_service: AgentModelService) -> None:
-        self._model_service = model_service
-
-    async def list_model_bindings(self) -> Any:
-        return self._model_service.list_model_bindings()
-
-    async def get_model_binding(self, agent_id: str | None = None) -> Any:
-        return self._model_service.get_model_binding(agent_id)
-
-    async def update_model_binding(
-        self,
-        *,
-        agent_id: str | None = None,
-        provider_source: str | None = None,
-        provider_id: str | None = None,
-        model_id: str | None = None,
-    ) -> Any:
-        return self._model_service.update_model_binding(
-            agent_id=agent_id,
-            provider_source=provider_source,
-            provider_id=provider_id,
-            model_id=model_id,
-        )
-
-    async def list_model_capabilities(self, agent_id: str | None = None) -> Any:
-        return self._model_service.list_model_capabilities(agent_id)
-
-    async def get_model_binding_diagnostics(self, agent_id: str | None = None) -> Any:
-        return self._model_service.get_model_binding_diagnostics(agent_id)
-
-    async def interrupt_run(
-        self,
-        run_id: str,
-        *,
-        reason: str | None = None,
-        source: str | None = None,
-    ) -> Any:
-        _ = (reason, source)
-        raise self._unsupported(run_id)
-
-    async def resume_run(
-        self,
-        run_id: str,
-        *,
-        resume_token: str | None = None,
-        source: str | None = None,
-    ) -> Any:
-        _ = (resume_token, source)
-        raise self._unsupported(run_id)
-
-    async def cancel_run(
-        self,
-        run_id: str,
-        *,
-        reason: str | None = None,
-        source: str | None = None,
-    ) -> Any:
-        _ = (reason, source)
-        raise self._unsupported(run_id)
-
-    async def resolve_approval_wait(
-        self,
-        run_id: str,
-        *,
-        approved: bool,
-        token: str | None = None,
-        source: str | None = None,
-        reason: str | None = None,
-    ) -> Any:
-        _ = (approved, token, source, reason)
-        raise self._unsupported(run_id)
-
-
 class SessionBackedRunRuntimeAdapter(RunRuntimePort):
     """Transitional run-runtime adapter backed by session runtime truth."""
 
-    def __init__(self, runtime_manager: SessionRuntimePort) -> None:
+    def __init__(self, runtime_manager: SessionBackedRunRuntimeSupport) -> None:
         self._runtime_manager = runtime_manager
 
     async def get_run(self, run_id: str) -> Any:
+        direct = getattr(self._runtime_manager, "get_run", None)
+        if callable(direct):
+            return await direct(run_id)
         session_id = self._require_session_id(run_id)
         detail = await self._runtime_manager.get_session_detail(session_id, recent_limit=1)
         pending_approvals = list(self._detail_value(detail, "pending_approvals", []) or [])
         busy = bool(self._detail_value(detail, "busy", False))
         recovery = self._detail_value(detail, "recovery", None)
         running_state = str(self._detail_value(detail, "running_state", "") or "").strip().lower()
-        if running_state == "cancellation requested":
-            status = "cancel_requested"
-            phase = "cancelling"
+        control_mode = str(self._detail_value(detail, "control_mode", "") or "").strip().lower()
+        interrupt_requested = bool(self._detail_value(detail, "interrupt_requested", False))
+        cancel_requested = bool(self._detail_value(detail, "cancel_requested", False))
+        if (
+            cancel_requested
+            or control_mode == CANCEL_REQUESTED_STATUS
+            or running_state == CANCEL_REQUESTED_RUNNING_STATE
+        ):
+            status = CANCEL_REQUESTED_STATUS
+            phase = CANCELLING_PHASE
+        elif (
+            interrupt_requested
+            or control_mode == INTERRUPT_REQUESTED_STATUS
+            or running_state == INTERRUPT_REQUESTED_RUNNING_STATE
+        ):
+            status = INTERRUPT_REQUESTED_STATUS
+            phase = INTERRUPTING_PHASE
+        elif control_mode == RESUME_REQUESTED_STATUS:
+            status = RESUME_REQUESTED_STATUS
+            phase = RESUMING_PHASE
+        elif control_mode == "approval_wait":
+            status = "waiting"
+            phase = "awaiting_approval"
         elif pending_approvals:
             status = "waiting"
             phase = "awaiting_approval"
+        elif control_mode == PAUSED_STATUS or recovery is not None:
+            status = PAUSED_STATUS
+            phase = PAUSED_PHASE
         elif busy:
             status = "running"
             phase = "executing_tools"
-        elif recovery is not None:
-            status = "paused"
-            phase = "terminal"
         else:
             status = "completed"
             phase = "terminal"
@@ -160,10 +236,11 @@ class SessionBackedRunRuntimeAdapter(RunRuntimePort):
         reason: str | None = None,
         source: str | None = None,
     ) -> Any:
-        return await self.cancel_run(
-            run_id,
-            reason=reason or "interrupt requested",
-            source=source,
+        direct = getattr(self._runtime_manager, "interrupt_run", None)
+        if callable(direct):
+            return await direct(run_id, reason=reason, source=source)
+        raise LookupError(
+            f"Run {run_id!r} does not support interrupt via the current session-runtime compatibility path."
         )
 
     async def resume_run(
@@ -173,6 +250,9 @@ class SessionBackedRunRuntimeAdapter(RunRuntimePort):
         resume_token: str | None = None,
         source: str | None = None,
     ) -> Any:
+        direct = getattr(self._runtime_manager, "resume_run", None)
+        if callable(direct):
+            return await direct(run_id, resume_token=resume_token, source=source)
         session_id = self._require_session_id(run_id)
         detail = await self._runtime_manager.get_session_detail(session_id, recent_limit=1)
         pending_approvals = list(self._detail_value(detail, "pending_approvals", []) or [])
@@ -205,6 +285,9 @@ class SessionBackedRunRuntimeAdapter(RunRuntimePort):
         reason: str | None = None,
         source: str | None = None,
     ) -> Any:
+        direct = getattr(self._runtime_manager, "cancel_run", None)
+        if callable(direct):
+            return await direct(run_id, reason=reason, source=source)
         session_id = self._require_session_id(run_id)
         detail = await self._runtime_manager.get_session_detail(session_id, recent_limit=1)
         return await self._runtime_manager.cancel_session_turn(
@@ -225,6 +308,15 @@ class SessionBackedRunRuntimeAdapter(RunRuntimePort):
         source: str | None = None,
         reason: str | None = None,
     ) -> Any:
+        direct = getattr(self._runtime_manager, "resolve_approval_wait", None)
+        if callable(direct):
+            return await direct(
+                run_id,
+                approved=approved,
+                token=token,
+                source=source,
+                reason=reason,
+            )
         _ = reason
         session_id = self._require_session_id(run_id)
         detail = await self._runtime_manager.get_session_detail(session_id, recent_limit=1)
@@ -259,7 +351,7 @@ class SessionBackedRunRuntimeAdapter(RunRuntimePort):
 class SessionTaskCompatibilityAdapter(SessionTaskPort):
     """Bridge session-era runtime actions into the run-control compatibility seam."""
 
-    def __init__(self, runtime_manager: SessionRuntimePort) -> None:
+    def __init__(self, runtime_manager: SessionTaskCompatibilityRuntimeSupport) -> None:
         self._runtime_manager = runtime_manager
 
     async def get_session_task(self, session_id: str) -> Any:
@@ -313,7 +405,7 @@ class SessionTaskCompatibilityAdapter(SessionTaskPort):
 class SessionModelSelectionCompatibilityAdapter(SessionModelSelectionRuntimePort):
     """Bridge session-era model selection actions into the typed model seam."""
 
-    def __init__(self, runtime_manager: SessionRuntimePort) -> None:
+    def __init__(self, runtime_manager: SessionModelSelectionCompatibilityRuntimeSupport) -> None:
         self._runtime_manager = runtime_manager
 
     async def update_session_model_selection(
@@ -343,7 +435,7 @@ class SessionModelSelectionCompatibilityAdapter(SessionModelSelectionRuntimePort
 class SessionAgentCompatibilityAdapter(SessionAgentRuntimePort):
     """Bridge session-era agent actions into the typed agent compatibility seam."""
 
-    def __init__(self, runtime_manager: SessionRuntimePort) -> None:
+    def __init__(self, runtime_manager: SessionAgentCompatibilityRuntimeSupport) -> None:
         self._runtime_manager = runtime_manager
 
     async def update_session_runtime_policy(

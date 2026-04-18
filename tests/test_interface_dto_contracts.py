@@ -17,6 +17,12 @@ from mini_agent.interfaces import (
     MainAgentModelCandidateProviderSummary,
     MainAgentModelCandidateSummary,
     MainAgentModelCapabilities,
+    MainAgentRunApprovalWait,
+    MainAgentRunApprovalRequest,
+    MainAgentRunCancelRequest,
+    MainAgentRunInterruptRequest,
+    MainAgentRunResumeRequest,
+    MainAgentRunSummary,
     MainAgentRuntimeDiagnostics,
     MainAgentRoutingDiagnostics,
     MainAgentWorkspaceRuntimeSummary,
@@ -314,6 +320,81 @@ def test_main_agent_session_contracts() -> None:
         "details",
         "status_text",
         "sandbox_diagnostics",
+    }
+
+
+def test_main_agent_run_contracts() -> None:
+    assert _required_fields(MainAgentRunApprovalWait) == {
+        "wait_id",
+        "run_id",
+        "session_id",
+        "tool_name",
+        "tool_arguments_summary",
+        "wait_state",
+    }
+    assert _property_fields(MainAgentRunApprovalWait) >= {
+        "workspace_id",
+        "approval_token",
+        "approval_kind",
+        "policy_reason",
+        "cache_key",
+        "can_escalate",
+        "decision_result",
+        "created_at",
+        "resolved_at",
+        "invalidated_reason",
+    }
+    assert _required_fields(MainAgentRunSummary) == {
+        "run_id",
+        "session_id",
+        "status",
+        "phase",
+    }
+    assert _property_fields(MainAgentRunSummary) >= {
+        "busy",
+        "waiting_on_approval",
+        "active_surface",
+        "channel_type",
+        "conversation_id",
+        "sender_id",
+        "running_state",
+        "control_mode",
+        "interrupt_requested",
+        "cancel_requested",
+        "resumable",
+        "active_wait_id",
+        "approval_wait",
+    }
+    assert _property_fields(MainAgentRunResumeRequest) == {
+        "resume_token",
+        "surface",
+        "channel_type",
+        "conversation_id",
+        "sender_id",
+    }
+    assert _property_fields(MainAgentRunInterruptRequest) == {
+        "reason",
+        "surface",
+        "channel_type",
+        "conversation_id",
+        "sender_id",
+    }
+    assert _property_fields(MainAgentRunCancelRequest) == {
+        "reason",
+        "surface",
+        "channel_type",
+        "conversation_id",
+        "sender_id",
+    }
+    assert _required_fields(MainAgentRunApprovalRequest) == {"approved"}
+    assert _property_fields(MainAgentRunApprovalRequest) == {
+        "approved",
+        "token",
+        "reason",
+        "surface",
+        "channel_type",
+        "conversation_id",
+        "sender_id",
     }
 
 

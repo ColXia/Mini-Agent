@@ -37,6 +37,18 @@ def _session():
                 remote_last_activity_summary="",
                 remote_last_command_summary="",
                 recovery_pending_approvals=[],
+                remote_run_id="",
+                remote_run_status="",
+                remote_run_phase="",
+                remote_run_busy=False,
+                remote_run_running_state="",
+                remote_run_control_mode="",
+                remote_run_interrupt_requested=False,
+                remote_run_cancel_requested=False,
+                remote_run_resumable=False,
+                remote_run_waiting_on_approval=False,
+                remote_run_active_wait_id=None,
+                remote_run_approval_wait={},
             ),
         ),
         operator=SimpleNamespace(
@@ -214,6 +226,61 @@ def test_tui_remote_session_projector_applies_message_list_payloads() -> None:
 
     assert session.view.messages == ["remote message"]
     assert replace_calls == [True]
+
+
+def test_tui_remote_session_projector_applies_run_payloads() -> None:
+    replace_calls: list[bool] = []
+    projector = _projector(replace_calls)
+    session = _session()
+
+    assert projector.apply_run(
+        session,
+        {
+            "run_id": "session-run:sess-1",
+            "session_id": "sess-1",
+            "status": "waiting",
+            "phase": "awaiting_approval",
+            "busy": True,
+            "running_state": "approval wait",
+            "control_mode": "approval_wait",
+            "interrupt_requested": False,
+            "cancel_requested": False,
+            "resumable": True,
+            "waiting_on_approval": True,
+            "active_wait_id": "wait-1",
+            "approval_wait": {
+                "wait_id": "wait-1",
+                "approval_token": "tok-1",
+                "tool_name": "shell",
+                "tool_arguments_summary": {"command": "pytest -q"},
+                "approval_kind": "tool",
+                "policy_reason": "write access",
+                "cache_key": "shell:pytest",
+                "can_escalate": False,
+                "wait_state": "pending",
+            },
+        },
+    ) is True
+
+    supplemental = session.projection.supplemental
+    assert supplemental.remote_run_id == "session-run:sess-1"
+    assert supplemental.remote_run_status == "waiting"
+    assert supplemental.remote_run_phase == "awaiting_approval"
+    assert supplemental.remote_run_running_state == "approval wait"
+    assert supplemental.remote_run_waiting_on_approval is True
+    assert supplemental.remote_run_approval_wait == {
+        "wait_id": "wait-1",
+        "run_id": "session-run:sess-1",
+        "session_id": "sess-1",
+        "token": "tok-1",
+        "tool_name": "shell",
+        "arguments": {"command": "pytest -q"},
+        "kind": "tool",
+        "reason": "write access",
+        "cache_key": "shell:pytest",
+        "can_escalate": False,
+        "wait_state": "pending",
+    }
 
 
 def test_tui_remote_session_projector_ignores_invalid_payloads() -> None:

@@ -155,23 +155,17 @@ def resolve_surface_workspace_entry_service(
 
 def resolve_surface_run_control_service(
     session_service: object | None,
-    explicit_service: RunControlApplicationService | AgentUserService | None,
+    explicit_service: RunControlApplicationService | None,
     explicit_agent_service: AgentUserService | None,
 ):
     if explicit_service is not None:
         return explicit_service
-    if explicit_agent_service is not None and all(
-        hasattr(explicit_agent_service, attr)
-        for attr in ("cancel_session_run", "approve_session_wait", "deny_session_wait")
-    ):
-        return explicit_agent_service
+    _ = explicit_agent_service
     if session_service is None:
         raise RuntimeError("Run control service is not configured.")
     resolved_service = getattr(session_service, "run_control_service", None)
     if resolved_service is not None:
         return resolved_service
-    if all(hasattr(session_service, attr) for attr in ("cancel_session", "respond_to_approval")):
-        return LegacySurfaceRunControlAdapter(session_service)
     raise RuntimeError("Run control service is not configured.")
 
 

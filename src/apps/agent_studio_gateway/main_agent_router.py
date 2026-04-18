@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, AsyncIterator, Awaitable, Callable
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
 from mini_agent.application.support import ApplicationInteractionBinding
@@ -15,12 +15,16 @@ from mini_agent.application.facades.service_response_dto_adapter import (
     model_binding_summary_response,
     model_candidate_list_response,
     model_capabilities_response,
+    run_summary_response,
     workspace_runtime_summary_response,
     workspace_summary_response,
 )
-from mini_agent.application.use_cases import ChannelIngressUseCases, SessionTaskService
+from mini_agent.application.use_cases import (
+    ChannelIngressUseCases,
+    RunControlApplicationService,
+    SessionTaskService,
+)
 from mini_agent.application.user_services import ModelUserService, WorkspaceUserService
-from mini_agent.application.user_services.agent_user_service import AgentUserService
 from mini_agent.interfaces import (
     ApiEnvelope,
     ChannelMessageRequest,
@@ -32,6 +36,11 @@ from mini_agent.interfaces import (
     MainAgentModelBindingSummary,
     MainAgentModelCandidateListResponse,
     MainAgentModelCapabilities,
+    MainAgentRunApprovalRequest,
+    MainAgentRunCancelRequest,
+    MainAgentRunInterruptRequest,
+    MainAgentRunResumeRequest,
+    MainAgentRunSummary,
     MainAgentWorkspaceRuntimeSummary,
     MainAgentWorkspaceSummary,
     MainAgentWorkspaceSwitchRequest,
@@ -40,6 +49,7 @@ from mini_agent.interfaces import (
     MainAgentChatRequest,
     MainAgentChatResponse,
     MainAgentSessionCancelRequest,
+    MainAgentSessionInterruptRequest,
     MainAgentSessionContextRequest,
     MainAgentSessionContextResponse,
     MainAgentSessionControlRequest,
@@ -78,7 +88,7 @@ class MainAgentRouterDependencies:
     stream_main_agent_chat: StreamMainAgentChatFn
     resolve_workspace_dir: Callable[[str | None], Path]
     get_session_task_service: Callable[[], SessionTaskService]
-    get_agent_service: Callable[[], AgentUserService]
+    get_run_control_service: Callable[[], RunControlApplicationService]
     get_workspace_service: Callable[[], WorkspaceUserService | None]
     get_model_service: Callable[[], ModelUserService]
     get_channel_ingress_use_cases: Callable[[], ChannelIngressUseCases]
@@ -98,14 +108,30 @@ def create_main_agent_router(deps: MainAgentRouterDependencies) -> APIRouter:
     def _require_session_task_service() -> SessionTaskService:
         return deps.get_session_task_service()
 
+    def _require_run_control_service() -> RunControlApplicationService:
+        return deps.get_run_control_service()
+
     def _resolve_workspace_dir(workspace_dir: str | None) -> Path:
         return deps.resolve_workspace_dir(workspace_dir)
 
-    def _require_agent_service() -> AgentUserService:
-        return deps.get_agent_service()
-
     def _require_model_service() -> ModelUserService:
         return deps.get_model_service()
+
+    def _require_session_task_method(name: str) -> Callable[..., Awaitable[Any]]:
+        session_task_service = _require_session_task_service()
+        supports_entrypoint = getattr(session_task_service, "supports_entrypoint", None)
+        if callable(supports_entrypoint) and not supports_entrypoint(name):
+            raise RuntimeError(f"Session task service entrypoint is not configured: {name}")
+        method = getattr(session_task_service, name, None)
+        if not callable(method):
+            raise RuntimeError(f"Session task service entrypoint is not configured: {name}")
+        return method
+
+    def _lookup_error_status(detail: str) -> int:
+        normalized = " ".join(str(detail or "").split()).lower()
+        if "not found" in normalized:
+            return 404
+        return 409
 
     @router.get("/api/v1/system/health", response_model=ApiEnvelope[SystemHealthResponse])
     async def v1_health() -> ApiEnvelope[SystemHealthResponse]:
@@ -261,6 +287,91 @@ def create_main_agent_router(deps: MainAgentRouterDependencies) -> APIRouter:
         data = model_binding_diagnostics_response(await _require_model_service().get_model_binding_diagnostics(agent_id))
         return ApiEnvelope[MainAgentModelBindingDiagnostics](ok=True, data=data)
 
+    @router.get("/api/v1/agent/runs/{run_id}", response_model=ApiEnvelope[MainAgentRunSummary])
+    async def v1_get_run(run_id: str) -> ApiEnvelope[MainAgentRunSummary]:
+        try:
+            data = run_summary_response(await _require_run_control_service().get_run(run_id))
+        except LookupError as exc:
+            raise HTTPException(status_code=_lookup_error_status(str(exc)), detail=str(exc)) from exc
+        return ApiEnvelope[MainAgentRunSummary](ok=True, data=data)
+
+    @router.post("/api/v1/agent/runs/{run_id}/resume", response_model=ApiEnvelope[MainAgentRunSummary])
+    async def v1_resume_run(
+        run_id: str,
+        request: MainAgentRunResumeRequest,
+    ) -> ApiEnvelope[MainAgentRunSummary]:
+        binding = ApplicationInteractionBinding.from_request(request)
+        try:
+            await _require_run_control_service().resume_run(
+                run_id,
+                resume_token=request.resume_token,
+                source=binding.surface,
+            )
+            data = run_summary_response(await _require_run_control_service().get_run(run_id))
+        except LookupError as exc:
+            raise HTTPException(status_code=_lookup_error_status(str(exc)), detail=str(exc)) from exc
+        return ApiEnvelope[MainAgentRunSummary](ok=True, data=data)
+
+    @router.post("/api/v1/agent/runs/{run_id}/interrupt", response_model=ApiEnvelope[MainAgentRunSummary])
+    async def v1_interrupt_run(
+        run_id: str,
+        request: MainAgentRunInterruptRequest,
+    ) -> ApiEnvelope[MainAgentRunSummary]:
+        binding = ApplicationInteractionBinding.from_request(request)
+        try:
+            await _require_run_control_service().interrupt_run(
+                run_id,
+                reason=request.reason,
+                source=binding.surface,
+            )
+            data = run_summary_response(await _require_run_control_service().get_run(run_id))
+        except LookupError as exc:
+            raise HTTPException(status_code=_lookup_error_status(str(exc)), detail=str(exc)) from exc
+        return ApiEnvelope[MainAgentRunSummary](ok=True, data=data)
+
+    @router.post("/api/v1/agent/runs/{run_id}/cancel", response_model=ApiEnvelope[MainAgentRunSummary])
+    async def v1_cancel_run(
+        run_id: str,
+        request: MainAgentRunCancelRequest,
+    ) -> ApiEnvelope[MainAgentRunSummary]:
+        binding = ApplicationInteractionBinding.from_request(request)
+        try:
+            await _require_run_control_service().cancel_run(
+                run_id,
+                reason=request.reason,
+                source=binding.surface,
+            )
+            data = run_summary_response(await _require_run_control_service().get_run(run_id))
+        except LookupError as exc:
+            raise HTTPException(status_code=_lookup_error_status(str(exc)), detail=str(exc)) from exc
+        return ApiEnvelope[MainAgentRunSummary](ok=True, data=data)
+
+    @router.post("/api/v1/agent/runs/{run_id}/approval", response_model=ApiEnvelope[MainAgentRunSummary])
+    async def v1_resolve_run_approval(
+        run_id: str,
+        request: MainAgentRunApprovalRequest,
+    ) -> ApiEnvelope[MainAgentRunSummary]:
+        binding = ApplicationInteractionBinding.from_request(request)
+        try:
+            if request.approved:
+                await _require_run_control_service().approve_wait(
+                    run_id,
+                    token=request.token,
+                    source=binding.surface,
+                    reason=request.reason,
+                )
+            else:
+                await _require_run_control_service().deny_wait(
+                    run_id,
+                    token=request.token,
+                    source=binding.surface,
+                    reason=request.reason,
+                )
+            data = run_summary_response(await _require_run_control_service().get_run(run_id))
+        except LookupError as exc:
+            raise HTTPException(status_code=_lookup_error_status(str(exc)), detail=str(exc)) from exc
+        return ApiEnvelope[MainAgentRunSummary](ok=True, data=data)
+
     @router.delete("/api/v1/agent/sessions/{session_id}", response_model=ApiEnvelope[MainAgentSessionMutationResponse])
     async def v1_delete_session(session_id: str) -> ApiEnvelope[MainAgentSessionMutationResponse]:
         data = await _require_session_task_service().delete_session(session_id)
@@ -301,12 +412,28 @@ def create_main_agent_router(deps: MainAgentRouterDependencies) -> APIRouter:
         request: MainAgentSessionCancelRequest,
     ) -> ApiEnvelope[MainAgentSessionMutationResponse]:
         binding = ApplicationInteractionBinding.from_request(request)
-        data = await _require_agent_service().cancel_session_run(
+        data = await _require_run_control_service().cancel_session_run(
             session_id,
             reason=request.reason,
             source=binding.surface,
             **binding.as_kwargs(),
         )
+        return ApiEnvelope[MainAgentSessionMutationResponse](ok=True, data=data)
+
+    @router.post("/api/v1/agent/sessions/{session_id}/interrupt", response_model=ApiEnvelope[MainAgentSessionMutationResponse])
+    async def v1_interrupt_session(
+        session_id: str,
+        request: MainAgentSessionInterruptRequest,
+    ) -> ApiEnvelope[MainAgentSessionMutationResponse]:
+        binding = ApplicationInteractionBinding.from_request(request)
+        try:
+            data = await _require_run_control_service().interrupt_session_run(
+                session_id,
+                reason=request.reason,
+                source=binding.surface,
+            )
+        except LookupError as exc:
+            raise HTTPException(status_code=_lookup_error_status(str(exc)), detail=str(exc)) from exc
         return ApiEnvelope[MainAgentSessionMutationResponse](ok=True, data=data)
 
     @router.post("/api/v1/agent/sessions/{session_id}/control", response_model=ApiEnvelope[MainAgentSessionControlResponse])
@@ -315,7 +442,7 @@ def create_main_agent_router(deps: MainAgentRouterDependencies) -> APIRouter:
         request: MainAgentSessionControlRequest,
     ) -> ApiEnvelope[MainAgentSessionControlResponse]:
         binding = ApplicationInteractionBinding.from_request(request)
-        data = await _require_agent_service().control_session(
+        data = await _require_session_task_method("control_session")(
             session_id,
             action=request.action,
             reason=request.reason,
@@ -329,7 +456,7 @@ def create_main_agent_router(deps: MainAgentRouterDependencies) -> APIRouter:
         request: MainAgentSessionContextRequest,
     ) -> ApiEnvelope[MainAgentSessionContextResponse]:
         binding = ApplicationInteractionBinding.from_request(request)
-        data = await _require_agent_service().update_session_context(
+        data = await _require_session_task_method("update_session_context")(
             session_id,
             action=request.action,
             sources=request.sources,
@@ -346,7 +473,7 @@ def create_main_agent_router(deps: MainAgentRouterDependencies) -> APIRouter:
         request: MainAgentSessionMemoryRequest,
     ) -> ApiEnvelope[MainAgentSessionMemoryResponse]:
         binding = ApplicationInteractionBinding.from_request(request)
-        data = await _require_agent_service().manage_session_memory(
+        data = await _require_session_task_method("manage_session_memory")(
             session_id,
             action=request.action,
             engram_id=request.engram_id,
@@ -365,7 +492,7 @@ def create_main_agent_router(deps: MainAgentRouterDependencies) -> APIRouter:
         request: MainAgentSessionSkillRequest,
     ) -> ApiEnvelope[MainAgentSessionSkillResponse]:
         binding = ApplicationInteractionBinding.from_request(request)
-        data = await _require_agent_service().manage_session_skills(
+        data = await _require_session_task_method("manage_session_skills")(
             session_id,
             action=request.action,
             skill_name=request.skill_name,
@@ -385,7 +512,7 @@ def create_main_agent_router(deps: MainAgentRouterDependencies) -> APIRouter:
         request: MainAgentSessionModelSelectionRequest,
     ) -> ApiEnvelope[MainAgentSessionModelSelectionResponse]:
         binding = ApplicationInteractionBinding.from_request(request)
-        data = await _require_model_service().update_session_model_selection(
+        data = await _require_session_task_method("update_session_model_selection")(
             session_id,
             provider_source=request.provider_source,
             provider_id=request.provider_id,
@@ -400,7 +527,7 @@ def create_main_agent_router(deps: MainAgentRouterDependencies) -> APIRouter:
         request: MainAgentSessionRuntimePolicyRequest,
     ) -> ApiEnvelope[MainAgentSessionRuntimePolicyResponse]:
         binding = ApplicationInteractionBinding.from_request(request)
-        data = await _require_agent_service().update_session_runtime_policy(
+        data = await _require_session_task_method("update_session_runtime_policy")(
             session_id,
             approval_profile=request.approval_profile,
             access_level=request.access_level,
@@ -415,14 +542,14 @@ def create_main_agent_router(deps: MainAgentRouterDependencies) -> APIRouter:
     ) -> ApiEnvelope[MainAgentSessionApprovalResponse]:
         binding = ApplicationInteractionBinding.from_request(request)
         if request.approved:
-            data = await _require_agent_service().approve_session_wait(
+            data = await _require_run_control_service().approve_session_wait(
                 session_id,
                 token=request.token,
                 source=binding.surface,
                 **binding.as_kwargs(),
             )
         else:
-            data = await _require_agent_service().deny_session_wait(
+            data = await _require_run_control_service().deny_session_wait(
                 session_id,
                 token=request.token,
                 source=binding.surface,

@@ -4676,6 +4676,169 @@ def test_surface_service_prefers_injected_agent_service_for_skill_entrypoint() -
     asyncio.run(_run())
 
 
+def test_surface_service_prefers_session_task_service_for_session_compatibility_entrypoints() -> None:
+    class _SessionTaskServiceStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        async def control_session(self, session_id: str, **kwargs):
+            self.calls.append(("control_session", session_id, kwargs))
+            return MainAgentSessionControlResponse(
+                status="controlled",
+                session_id=session_id,
+                action=str(kwargs.get("action") or ""),
+                applied=True,
+                active_surface=str(kwargs.get("surface") or "desktop"),
+            )
+
+        async def update_session_context(self, session_id: str, **kwargs):
+            self.calls.append(("update_session_context", session_id, kwargs))
+            return MainAgentSessionContextResponse(
+                status="updated",
+                session_id=session_id,
+                action=str(kwargs.get("action") or ""),
+                active_surface=str(kwargs.get("surface") or "desktop"),
+                context_policy={"include_sources": list(kwargs.get("sources") or [])},
+            )
+
+        async def manage_session_memory(self, session_id: str, **kwargs):
+            self.calls.append(("manage_session_memory", session_id, kwargs))
+            return MainAgentSessionMemoryResponse(
+                status="ok",
+                session_id=session_id,
+                action=str(kwargs.get("action") or ""),
+                active_surface=str(kwargs.get("surface") or "desktop"),
+                memory_diagnostics={},
+                result={"summary": "memory ok"},
+            )
+
+        async def manage_session_skills(self, session_id: str, **kwargs):
+            self.calls.append(("manage_session_skills", session_id, kwargs))
+            return MainAgentSessionSkillResponse(
+                status="ok",
+                session_id=session_id,
+                action=str(kwargs.get("action") or ""),
+                active_surface=str(kwargs.get("surface") or "desktop"),
+                result={"summary": "skills ok"},
+            )
+
+        async def update_session_model_selection(self, session_id: str, **kwargs):
+            self.calls.append(("update_session_model_selection", session_id, kwargs))
+            return MainAgentSessionModelSelectionResponse(
+                status="selected",
+                session_id=session_id,
+                active_surface=str(kwargs.get("surface") or "desktop"),
+                applied=True,
+                queued=False,
+                selected_model_source=str(kwargs.get("provider_source") or ""),
+                selected_provider_id=str(kwargs.get("provider_id") or ""),
+                selected_model_id=str(kwargs.get("model_id") or ""),
+            )
+
+        async def update_session_runtime_policy(self, session_id: str, **kwargs):
+            self.calls.append(("update_session_runtime_policy", session_id, kwargs))
+            return MainAgentSessionRuntimePolicyResponse(
+                status="updated",
+                session_id=session_id,
+                active_surface=str(kwargs.get("surface") or "desktop"),
+                applied=True,
+                approval_profile=str(kwargs.get("approval_profile") or ""),
+                access_level=str(kwargs.get("access_level") or ""),
+                summary="policy updated",
+                details="policy updated",
+                status_text="policy updated",
+                sandbox_diagnostics={"sandbox_mode": "workspace"},
+            )
+
+    class _AgentServiceStub:
+        async def control_session(self, session_id: str, **kwargs):
+            raise AssertionError(f"agent_service.control_session should not be called: {session_id}, {kwargs}")
+
+        async def update_session_context(self, session_id: str, **kwargs):
+            raise AssertionError(f"agent_service.update_session_context should not be called: {session_id}, {kwargs}")
+
+        async def manage_session_memory(self, session_id: str, **kwargs):
+            raise AssertionError(f"agent_service.manage_session_memory should not be called: {session_id}, {kwargs}")
+
+        async def manage_session_skills(self, session_id: str, **kwargs):
+            raise AssertionError(f"agent_service.manage_session_skills should not be called: {session_id}, {kwargs}")
+
+        async def update_session_runtime_policy(self, session_id: str, **kwargs):
+            raise AssertionError(
+                f"agent_service.update_session_runtime_policy should not be called: {session_id}, {kwargs}"
+            )
+
+    class _ModelServiceStub:
+        async def update_session_model_selection(self, session_id: str, **kwargs):
+            raise AssertionError(
+                f"model_service.update_session_model_selection should not be called: {session_id}, {kwargs}"
+            )
+
+    async def _run() -> None:
+        session_task_service = _SessionTaskServiceStub()
+        use_cases = MainAgentSurfaceService(
+            session_task_service=session_task_service,
+            agent_service=_AgentServiceStub(),
+            model_service=_ModelServiceStub(),
+            resolve_workspace_dir=_resolve_workspace_dir,
+            to_utc_iso=_to_utc_iso,
+            sse_event=_sse_event,
+            format_bootstrap_error=_format_bootstrap_error,
+            stream_chunk_size=64,
+        )
+
+        controlled = await use_cases.control_session(
+            "sess-pref",
+            MainAgentSessionControlRequest(action="compact", reason="trim", surface="desktop"),
+        )
+        context = await use_cases.update_session_context(
+            "sess-pref",
+            MainAgentSessionContextRequest(action="include", sources=["workspace_memory"], surface="desktop"),
+        )
+        memory = await use_cases.manage_session_memory(
+            "sess-pref",
+            MainAgentSessionMemoryRequest(action="show", query="recent", detail_mode="brief", surface="desktop"),
+        )
+        skills = await use_cases.manage_session_skills(
+            "sess-pref",
+            MainAgentSessionSkillRequest(action="search", query="foundry", mode="allowlist", surface="desktop"),
+        )
+        model = await use_cases.update_session_model_selection(
+            "sess-pref",
+            MainAgentSessionModelSelectionRequest(
+                provider_source="preset",
+                provider_id="openai",
+                model_id="gpt-5.4",
+                surface="desktop",
+            ),
+        )
+        policy = await use_cases.update_session_runtime_policy(
+            "sess-pref",
+            MainAgentSessionRuntimePolicyRequest(
+                approval_profile="plan",
+                access_level="default",
+                surface="desktop",
+            ),
+        )
+
+        assert controlled.action == "compact"
+        assert context.context_policy["include_sources"] == ["workspace_memory"]
+        assert memory.result["summary"] == "memory ok"
+        assert skills.result["summary"] == "skills ok"
+        assert model.selected_model_id == "gpt-5.4"
+        assert policy.approval_profile == "plan"
+        assert [name for name, *_ in session_task_service.calls] == [
+            "control_session",
+            "update_session_context",
+            "manage_session_memory",
+            "manage_session_skills",
+            "update_session_model_selection",
+            "update_session_runtime_policy",
+        ]
+
+    asyncio.run(_run())
+
+
 def test_use_case_shared_session_survives_runtime_restart(tmp_path: Path) -> None:
     async def _run() -> None:
         async def _build_agent(_workspace: Path):

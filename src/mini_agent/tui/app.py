@@ -79,8 +79,9 @@ from mini_agent.agent_core.skills.command_service import SkillCommandRequest
 from mini_agent.agent_core.skills.runtime_feedback import describe_skill_runtime_reload
 from mini_agent.config import Config
 from mini_agent.interfaces import (
+    MainAgentRunApprovalRequest,
+    MainAgentRunCancelRequest,
     MainAgentSessionApprovalRequest,
-    MainAgentSessionCancelRequest,
     MainAgentSessionContextRequest,
     MainAgentSessionControlRequest,
     MainAgentSessionCreateRequest,
@@ -108,6 +109,7 @@ from mini_agent.runtime.support.sandbox_state import (
     sandbox_network_summary,
     sandbox_policy_summary,
 )
+from mini_agent.runtime.support.session_backed_run_id import build_session_backed_run_id
 from mini_agent.runtime.support.session_local_agent_runtime_handler import LocalSessionAgentRuntimeHandler
 from mini_agent.runtime.support.session_local_mcp_runtime_service import LocalSessionMcpRuntimeService
 from mini_agent.runtime.support.runtime_policy_service import SessionRuntimePolicyService
@@ -499,6 +501,18 @@ class TuiSessionSupplementalState:
     remote_last_command_summary: str = ""
     recovery_running_state: str = ""
     recovery_pending_approvals: list[dict[str, Any]] = field(default_factory=list)
+    remote_run_id: str = ""
+    remote_run_status: str = ""
+    remote_run_phase: str = ""
+    remote_run_busy: bool = False
+    remote_run_running_state: str = ""
+    remote_run_control_mode: str = ""
+    remote_run_interrupt_requested: bool = False
+    remote_run_cancel_requested: bool = False
+    remote_run_resumable: bool = False
+    remote_run_waiting_on_approval: bool = False
+    remote_run_active_wait_id: str | None = None
+    remote_run_approval_wait: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -864,6 +878,7 @@ class MiniAgentTuiApp:
         self.gateway_client = self._transport_binding.gateway_client
         self.remote_chat_service = self._transport_binding.chat_client
         self.remote_model_service = self._transport_binding.model_client
+        self.remote_run_service = self._transport_binding.run_client
         self.remote_session_service = self._transport_binding.session_client
         self.remote_workspace_service = self._transport_binding.workspace_client
         self._session_payload_codec = RuntimeSessionPayloadCodec()
@@ -2287,6 +2302,9 @@ class MiniAgentTuiApp:
     def _session_activity_summary(self, session: TuiSession, *, is_current: bool) -> str:
         projection = session.projection
         runtime = session.runtime
+        run_state = self._session_run_state_text(session)
+        if self._runs_via_gateway(session) and run_state in {"waiting", "paused", "interrupting", "cancelling"}:
+            return run_state
         if projection.busy:
             running = _safe_text(projection.running_state).lower()
             if "resum" in running:
@@ -2704,6 +2722,56 @@ class MiniAgentTuiApp:
         return bool(projection and projection.recovery_pending)
 
     @classmethod
+    def _session_run_state_text(cls, session: TuiSession | None) -> str:
+        if session is None:
+            return "idle"
+        projection = session.projection
+        supplemental = projection.supplemental
+        run_status = _safe_text(supplemental.remote_run_status).lower()
+        if projection.busy and run_status not in {"waiting", "paused", "interrupt_requested", "cancel_requested"}:
+            return "busy"
+        if cls._session_has_gateway_recovery(session):
+            return "interrupted"
+        if cls._runs_via_gateway(session) and run_status:
+            return {
+                "running": "busy",
+                "waiting": "waiting",
+                "paused": "paused",
+                "interrupt_requested": "interrupting",
+                "cancel_requested": "cancelling",
+                "completed": "idle",
+                "failed": "failed",
+            }.get(run_status, run_status)
+        if projection.busy:
+            return "busy"
+        if cls._session_has_gateway_recovery(session):
+            return "interrupted"
+        return "idle"
+
+    @classmethod
+    def _session_run_task_text(cls, session: TuiSession | None) -> str:
+        if session is None:
+            return "idle"
+        projection = session.projection
+        supplemental = projection.supplemental
+        run_wait = cls._run_approval_wait_payload(session)
+        if cls._session_has_gateway_recovery(session) and projection.supplemental.remote_recovery_summary:
+            return projection.supplemental.remote_recovery_summary
+        run_running_state = _safe_text(supplemental.remote_run_running_state)
+        if cls._runs_via_gateway(session):
+            if run_running_state:
+                return run_running_state
+            if run_wait is not None:
+                tool_name = _safe_text(run_wait.get("tool_name")) or "tool"
+                return f"approval wait for {tool_name}"
+            run_phase = _safe_text(supplemental.remote_run_phase).replace("_", " ")
+            if run_phase:
+                return run_phase
+        if projection.busy and projection.running_state:
+            return projection.running_state
+        return "idle"
+
+    @classmethod
     def _session_should_show_gateway_panel(cls, session: TuiSession | None) -> bool:
         projection = cls._terminal_session_projection(session)
         return bool(projection and projection.show_gateway_panel)
@@ -2966,11 +3034,58 @@ class MiniAgentTuiApp:
     def _apply_remote_session_messages(self, session: TuiSession, items: Sequence[dict[str, Any]]) -> None:
         self._remote_session_projector.apply_messages(session, items)
 
+    def _apply_remote_run_summary(self, session: TuiSession, payload: dict[str, Any]) -> None:
+        self._remote_session_projector.apply_run(session, payload)
+
+    def _clear_remote_run_summary(self, session: TuiSession) -> None:
+        self._remote_session_projector.clear_run(session)
+
+    @staticmethod
+    def _remote_run_id_for_session(session: TuiSession | None) -> str | None:
+        if session is None:
+            return None
+        run_id = _safe_text(session.projection.supplemental.remote_run_id)
+        if run_id:
+            return run_id
+        try:
+            return build_session_backed_run_id(session.session_id)
+        except Exception:
+            return None
+
+    async def _sync_remote_run_summary(self, session: TuiSession) -> None:
+        if self._has_local_runtime_state(session):
+            return
+        run_id = self._remote_run_id_for_session(session)
+        if not run_id:
+            self._clear_remote_run_summary(session)
+            return
+        try:
+            run = await self.remote_run_service.get_run(run_id)
+        except Exception:
+            self._clear_remote_run_summary(session)
+            return
+        self._apply_remote_run_summary(session, surface_payload_from_dto(run))
+
+    def _sync_remote_run_summary_sync(self, session: TuiSession) -> None:
+        if self._has_local_runtime_state(session):
+            return
+        run_id = self._remote_run_id_for_session(session)
+        if not run_id:
+            self._clear_remote_run_summary(session)
+            return
+        try:
+            run = self.remote_run_service.get_run_sync(run_id)
+        except Exception:
+            self._clear_remote_run_summary(session)
+            return
+        self._apply_remote_run_summary(session, surface_payload_from_dto(run))
+
     async def _sync_remote_session_detail(self, session: TuiSession, *, recent_limit: int = 80) -> None:
         if self._has_local_runtime_state(session):
             return
         detail = await self.remote_session_service.get_session_detail(session.session_id, recent_limit=recent_limit)
         self._apply_remote_session_detail(session, surface_payload_from_dto(detail))
+        await self._sync_remote_run_summary(session)
 
     async def _sync_remote_sessions_once(self, *, focus_current: bool = True) -> None:
         current_session_id = self.current_session.session_id if self.sessions else None
@@ -3012,6 +3127,7 @@ class MiniAgentTuiApp:
             if should_fetch_detail:
                 detail_payload = await self.remote_session_service.get_session_detail(session.session_id, recent_limit=80)
                 self._apply_remote_session_detail(session, surface_payload_from_dto(detail_payload))
+                await self._sync_remote_run_summary(session)
                 changed = True
             elif (
                 not local_runtime_authoritative
@@ -3022,6 +3138,11 @@ class MiniAgentTuiApp:
             ):
                 messages = await self.remote_session_service.get_session_messages(session.session_id, limit=6)
                 self._apply_remote_session_messages(session, surface_payload_list_from_dtos(messages))
+                if (
+                    focus_current
+                    and current_session_id == session.session_id
+                ) or session.projection.busy or bool(session.projection.pending_approvals):
+                    await self._sync_remote_run_summary(session)
                 changed = True
             next_sessions.append(session)
 
@@ -3168,6 +3289,7 @@ class MiniAgentTuiApp:
             detail = None
         if detail is not None:
             self._apply_remote_session_detail(self.current_session, surface_payload_from_dto(detail))
+            self._sync_remote_run_summary_sync(self.current_session)
         self._refresh_command_completer()
 
     def _persist_session_state(self) -> None:
@@ -5433,6 +5555,11 @@ class MiniAgentTuiApp:
         projection = session.projection
         supplemental = projection.supplemental
         runtime = session.runtime
+        run_wait = self._run_approval_wait_payload(session)
+        if run_wait is not None:
+            tool_name = _safe_text(run_wait.get("tool_name")) or "tool"
+            token = self._pending_approval_token(run_wait)
+            return f"1 pending | {tool_name} [{token}]" if token else f"1 pending | {tool_name}"
         approvals = [item for item in projection.pending_approvals if self._pending_approval_token(item)]
         if not approvals:
             recovered = [
@@ -5454,10 +5581,24 @@ class MiniAgentTuiApp:
             return f"1 pending | {tool_name} [{token}]"
         return f"{len(approvals)} pending"
 
+    @staticmethod
+    def _run_approval_wait_payload(session: TuiSession | None) -> dict[str, Any] | None:
+        if session is None:
+            return None
+        payload = session.projection.supplemental.remote_run_approval_wait
+        if not isinstance(payload, dict):
+            return None
+        token = MiniAgentTuiApp._pending_approval_token(payload)
+        tool_name = _safe_text(payload.get("tool_name"))
+        return payload if token or tool_name else None
+
     def _pending_approval_target(self, session: TuiSession | None = None) -> dict[str, Any] | None:
         target_session = session or (self.current_session if self.sessions else None)
         if target_session is None:
             return None
+        run_wait = self._run_approval_wait_payload(target_session)
+        if run_wait is not None:
+            return run_wait
         pending = [
             item
             for item in target_session.projection.pending_approvals
@@ -6280,9 +6421,13 @@ class MiniAgentTuiApp:
 
     def _clear_pending_approval(self, session: TuiSession, token: str | None = None) -> None:
         projection = session.projection
+        supplemental = projection.supplemental
         normalized = _safe_text(token)
         if not normalized:
             projection.pending_approvals = []
+            supplemental.remote_run_approval_wait = {}
+            supplemental.remote_run_waiting_on_approval = False
+            supplemental.remote_run_active_wait_id = None
             self._persist_session_state()
             return
         projection.pending_approvals = [
@@ -6290,6 +6435,10 @@ class MiniAgentTuiApp:
             for item in projection.pending_approvals
             if self._pending_approval_token(item) != normalized
         ]
+        if self._pending_approval_token(supplemental.remote_run_approval_wait) == normalized:
+            supplemental.remote_run_approval_wait = {}
+            supplemental.remote_run_waiting_on_approval = False
+            supplemental.remote_run_active_wait_id = None
         self._persist_session_state()
 
     def _handle_remote_stream_approval_requested(
@@ -6320,6 +6469,24 @@ class MiniAgentTuiApp:
         approved: bool,
         token: str | None,
     ) -> Any:
+        run_id = self._remote_run_id_for_session(session)
+        if run_id:
+            try:
+                response = await self.remote_run_service.respond_to_approval(
+                    run_id,
+                    MainAgentRunApprovalRequest(
+                        approved=approved,
+                        token=token,
+                        **self._remote_request_binding_kwargs(session),
+                    ),
+                )
+            except Exception as exc:
+                detail = extract_gateway_error_info(exc).detail.lower()
+                if "not a session-backed run identifier" not in detail and "run-level control is not wired" not in detail:
+                    raise
+            else:
+                self._apply_remote_run_summary(session, surface_payload_from_dto(response))
+                return response
         return await self.remote_session_service.respond_to_approval(
             session.session_id,
             MainAgentSessionApprovalRequest(
@@ -6663,13 +6830,17 @@ class MiniAgentTuiApp:
 
     async def _request_remote_cancel_turn(self, session: TuiSession, *, emit_system_when_idle: bool) -> bool:
         try:
-            await self.remote_session_service.cancel_session(
-                session.session_id,
-                MainAgentSessionCancelRequest(
+            run_id = self._remote_run_id_for_session(session)
+            if not run_id:
+                raise LookupError("Missing run identifier for remote cancel.")
+            response = await self.remote_run_service.cancel_run(
+                run_id,
+                MainAgentRunCancelRequest(
                     reason="user_cancel",
                     **self._remote_request_binding_kwargs(session),
                 ),
             )
+            self._apply_remote_run_summary(session, surface_payload_from_dto(response))
         except Exception as exc:
             detail = extract_gateway_error_info(exc).detail
             if SessionCancelService.is_no_running_turn_detail(detail):
@@ -8523,11 +8694,9 @@ class MiniAgentTuiApp:
 
     @staticmethod
     def _session_status_label(session: TuiSession) -> str:
-        projection = session.projection
-        if projection.busy:
-            return "busy"
-        if MiniAgentTuiApp._session_has_gateway_recovery(session):
-            return "interrupted"
+        run_state = MiniAgentTuiApp._session_run_state_text(session)
+        if run_state != "idle":
+            return run_state
         if session.view.tasks:
             latest_status = _safe_text(session.view.tasks[-1].status).lower()
             if latest_status in {"completed", "cancelled", "queued", "running", "resume_pending", "resuming"}:
@@ -8728,15 +8897,7 @@ class MiniAgentTuiApp:
         lines.extend(
             self._sidebar_labeled_lines(
                 "state",
-                (
-                    "busy"
-                    if projection.busy
-                    else (
-                        "interrupted"
-                        if display.recovery_pending
-                        else "idle"
-                    )
-                ),
+                self._session_run_state_text(session),
                 width=width,
                 max_lines=1,
                 label_width=8,
@@ -8745,16 +8906,7 @@ class MiniAgentTuiApp:
         lines.extend(
             self._sidebar_labeled_lines(
                 "task",
-                (
-                    projection.running_state
-                    if projection.busy and projection.running_state
-                    else (
-                        projection.supplemental.remote_recovery_summary
-                        if display.recovery_pending
-                        and projection.supplemental.remote_recovery_summary
-                        else "idle"
-                    )
-                ),
+                self._session_run_task_text(session),
                 width=width,
                 max_lines=3,
                 label_width=8,

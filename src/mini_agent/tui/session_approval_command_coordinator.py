@@ -75,6 +75,12 @@ class TuiSessionApprovalCommandCoordinator:
         normalized_token: str | None,
     ) -> bool:
         projection = session.projection
+        pending = [
+            item
+            for item in projection.pending_approvals
+            if self.pending_approval_token(item)
+        ]
+        run_wait = getattr(getattr(projection, "supplemental", None), "remote_run_approval_wait", None)
         try:
             response = await self.remote_respond_to_approval(session, approved, normalized_token)
         except Exception as exc:
@@ -89,8 +95,29 @@ class TuiSessionApprovalCommandCoordinator:
             self.render_all()
             return False
 
-        resolved_token = _safe_text(_response_value(response, "token"))
-        tool_name = _safe_text(_response_value(response, "tool_name")) or "tool"
+        fallback_target = None
+        if normalized_token:
+            fallback_target = next(
+                (
+                    item
+                    for item in pending
+                    if self.pending_approval_token(item) == normalized_token
+                ),
+                None,
+            )
+        if fallback_target is None and pending:
+            fallback_target = pending[0]
+        if fallback_target is None and isinstance(run_wait, Mapping):
+            if self.pending_approval_token(dict(run_wait)) or _safe_text(run_wait.get("tool_name")):
+                fallback_target = dict(run_wait)
+
+        resolved_token = _safe_text(_response_value(response, "token")) or _safe_text(normalized_token)
+        if not resolved_token and fallback_target is not None:
+            resolved_token = self.pending_approval_token(fallback_target)
+        tool_name = _safe_text(_response_value(response, "tool_name"))
+        if not tool_name and isinstance(fallback_target, Mapping):
+            tool_name = _safe_text(fallback_target.get("tool_name"))
+        tool_name = tool_name or "tool"
         decision = _safe_text(_response_value(response, "decision")) or ("approved" if approved else "denied")
         self.clear_pending_approval(session, resolved_token)
         try:

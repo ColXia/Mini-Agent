@@ -146,6 +146,69 @@ class TuiRemoteSessionProjector:
         state.supplemental.remote_last_command_summary = self.last_command_summary(session)
         return True
 
+    def apply_run(self, session: Any, payload: dict[str, Any]) -> bool:
+        if not isinstance(payload, dict):
+            return False
+        run_id = _safe_text(payload.get("run_id"))
+        if not run_id:
+            self.clear_run(session)
+            return False
+
+        supplemental = session.projection.supplemental
+        approval_wait_payload = payload.get("approval_wait") if isinstance(payload.get("approval_wait"), dict) else {}
+        approval_token = _safe_text(approval_wait_payload.get("approval_token"))
+        tool_name = _safe_text(approval_wait_payload.get("tool_name"))
+        tool_arguments = (
+            dict(approval_wait_payload.get("tool_arguments_summary") or {})
+            if isinstance(approval_wait_payload.get("tool_arguments_summary"), dict)
+            else {}
+        )
+        wait_payload: dict[str, Any] = {}
+        if _safe_text(approval_wait_payload.get("wait_id")) and (approval_token or tool_name):
+            wait_payload = {
+                "wait_id": _safe_text(approval_wait_payload.get("wait_id")),
+                "run_id": run_id,
+                "session_id": _safe_text(payload.get("session_id")) or session.session_id,
+                "token": approval_token or None,
+                "tool_name": tool_name or "tool",
+                "arguments": tool_arguments,
+                "kind": _safe_text(approval_wait_payload.get("approval_kind")) or None,
+                "reason": _safe_text(approval_wait_payload.get("policy_reason")) or None,
+                "cache_key": _safe_text(approval_wait_payload.get("cache_key")) or None,
+                "can_escalate": bool(approval_wait_payload.get("can_escalate")),
+                "wait_state": _safe_text(approval_wait_payload.get("wait_state")) or None,
+            }
+
+        supplemental.remote_run_id = run_id
+        supplemental.remote_run_status = _safe_text(payload.get("status"))
+        supplemental.remote_run_phase = _safe_text(payload.get("phase"))
+        supplemental.remote_run_busy = bool(payload.get("busy"))
+        supplemental.remote_run_running_state = _safe_text(payload.get("running_state"))
+        supplemental.remote_run_control_mode = _safe_text(payload.get("control_mode"))
+        supplemental.remote_run_interrupt_requested = bool(payload.get("interrupt_requested"))
+        supplemental.remote_run_cancel_requested = bool(payload.get("cancel_requested"))
+        supplemental.remote_run_resumable = bool(payload.get("resumable"))
+        supplemental.remote_run_waiting_on_approval = bool(payload.get("waiting_on_approval"))
+        supplemental.remote_run_active_wait_id = _safe_text(payload.get("active_wait_id")) or None
+        supplemental.remote_run_approval_wait = wait_payload
+        return True
+
+    @staticmethod
+    def clear_run(session: Any) -> None:
+        supplemental = session.projection.supplemental
+        supplemental.remote_run_id = ""
+        supplemental.remote_run_status = ""
+        supplemental.remote_run_phase = ""
+        supplemental.remote_run_busy = False
+        supplemental.remote_run_running_state = ""
+        supplemental.remote_run_control_mode = ""
+        supplemental.remote_run_interrupt_requested = False
+        supplemental.remote_run_cancel_requested = False
+        supplemental.remote_run_resumable = False
+        supplemental.remote_run_waiting_on_approval = False
+        supplemental.remote_run_active_wait_id = None
+        supplemental.remote_run_approval_wait = {}
+
     def apply_messages(self, session: Any, items: Sequence[dict[str, Any]]) -> None:
         self.replace_messages(
             session,

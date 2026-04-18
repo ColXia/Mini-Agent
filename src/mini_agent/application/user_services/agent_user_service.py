@@ -15,7 +15,11 @@ from mini_agent.interfaces import MainAgentChatRequest, MainAgentChatResponse, M
 
 @dataclass(slots=True)
 class AgentUserService:
-    """Thin user-service facade for agent and run-facing actions."""
+    """Thin user-service facade for agent and run-facing actions.
+
+    Session-scoped methods below are compatibility-only shims while session/task
+    entrypoints migrate behind `SessionTaskService`.
+    """
 
     application_service: AgentApplicationService | None = None
     agent_runtime: AgentRuntimePort | None = None
@@ -126,6 +130,19 @@ class AgentUserService:
             sender_id=sender_id,
         )
 
+    async def interrupt_session_run(
+        self,
+        session_id: str,
+        *,
+        reason: str | None = None,
+        source: str | None = None,
+    ) -> Any:
+        return await self._application().interrupt_session_run(
+            session_id,
+            reason=reason,
+            source=source,
+        )
+
     async def approve_session_wait(
         self,
         session_id: str,
@@ -172,6 +189,7 @@ class AgentUserService:
             sender_id=sender_id,
         )
 
+    # Compatibility-only session-scoped entrypoints. Prefer SessionTaskService when available.
     async def update_session_runtime_policy(
         self,
         session_id: str,

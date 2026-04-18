@@ -8,6 +8,7 @@ from mini_agent.transport import (
     GatewayClient,
     RemoteChatClient,
     RemoteModelCatalogClient,
+    RemoteRunClient,
     RemoteSessionClient,
     RemoteWorkspaceClient,
 )
@@ -20,6 +21,7 @@ class TuiGatewayTransportBinding:
     gateway_client: GatewayClient
     chat_client: RemoteChatClient
     model_client: RemoteModelCatalogClient
+    run_client: RemoteRunClient
     session_client: RemoteSessionClient
     workspace_client: RemoteWorkspaceClient
 
@@ -32,6 +34,7 @@ class TuiGatewayTransportBinding:
             gateway_client=gateway_client,
             chat_client=RemoteChatClient(chat_transport=gateway_client),
             model_client=RemoteModelCatalogClient(model_transport=gateway_client),
+            run_client=RemoteRunClient(run_transport=gateway_client),
             session_client=RemoteSessionClient(session_transport=gateway_client),
             workspace_client=RemoteWorkspaceClient(workspace_transport=gateway_client),
         )

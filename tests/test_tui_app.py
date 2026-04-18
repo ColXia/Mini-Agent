@@ -727,6 +727,7 @@ class FakeGatewayClient:
         self.agent_model_candidate_calls: list[dict[str, Any]] = []
         self.chat_calls: list[dict[str, Any]] = []
         self.cancel_calls: list[dict[str, Any]] = []
+        self.run_cancel_calls: list[dict[str, Any]] = []
         self.control_calls: list[dict[str, Any]] = []
         self.workspace_calls: list[dict[str, Any]] = []
         self.memory_calls: list[dict[str, Any]] = []
@@ -734,6 +735,8 @@ class FakeGatewayClient:
         self.model_calls: list[dict[str, Any]] = []
         self.policy_calls: list[dict[str, Any]] = []
         self.approval_calls: list[dict[str, Any]] = []
+        self.run_approval_calls: list[dict[str, Any]] = []
+        self.run_get_calls: list[str] = []
         self.derived_create_calls: list[dict[str, Any]] = []
         self.delete_calls: list[str] = []
         self._profile = str(profile or "qq").strip().lower() or "qq"
@@ -886,10 +889,102 @@ class FakeGatewayClient:
         assert resolved is not None, f"Unknown session: {session_id}"
         return resolved
 
+    @staticmethod
+    def _run_id_for_session(session_id: str) -> str:
+        return f"session-run:{str(session_id).strip()}"
+
+    def _run_session(self, run_id: str) -> dict[str, Any]:
+        normalized = str(run_id or "").strip()
+        assert normalized.startswith("session-run:"), f"Unknown run: {run_id}"
+        session_id = normalized[len("session-run:") :]
+        return self._session(session_id)
+
+    def _run_summary(self, detail: dict[str, Any]) -> dict[str, Any]:
+        pending = list(detail.get("pending_approvals") or [])
+        recovery = detail.get("recovery") if isinstance(detail.get("recovery"), dict) else {}
+        waiting_on_approval = bool(pending)
+        if waiting_on_approval:
+            status = "waiting"
+            phase = "awaiting_approval"
+            control_mode = "approval_wait"
+        elif recovery:
+            status = "paused"
+            phase = "paused"
+            control_mode = "paused"
+        elif bool(detail.get("busy")):
+            running_state = str(detail.get("running_state") or "").strip().lower()
+            if running_state == "cancellation requested":
+                status = "cancel_requested"
+                phase = "cancelling"
+                control_mode = "cancel_requested"
+            else:
+                status = "running"
+                phase = "executing_tools"
+                control_mode = "running"
+        else:
+            status = "completed"
+            phase = "terminal"
+            control_mode = "idle"
+        approval_wait: dict[str, Any] | None = None
+        active_wait_id = None
+        if waiting_on_approval:
+            first = pending[0] if isinstance(pending[0], dict) else {}
+            token = str(first.get("token") or "").strip() or None
+            active_wait_id = f"{self._run_id_for_session(detail['session_id'])}:approval:{token or 'wait'}"
+            approval_wait = {
+                "wait_id": active_wait_id,
+                "run_id": self._run_id_for_session(detail["session_id"]),
+                "session_id": detail["session_id"],
+                "workspace_id": str(detail.get("workspace_dir") or "").strip() or None,
+                "approval_token": token,
+                "tool_name": str(first.get("tool_name") or "tool"),
+                "tool_arguments_summary": (
+                    dict(first.get("arguments") or {})
+                    if isinstance(first.get("arguments"), dict)
+                    else {}
+                ),
+                "approval_kind": first.get("kind"),
+                "policy_reason": first.get("reason"),
+                "cache_key": first.get("cache_key"),
+                "can_escalate": bool(first.get("can_escalate")),
+                "wait_state": "pending",
+                "decision_result": None,
+                "created_at": "2026-04-08T10:00:02+00:00",
+                "resolved_at": None,
+                "invalidated_reason": None,
+            }
+        return {
+            "run_id": self._run_id_for_session(detail["session_id"]),
+            "session_id": detail["session_id"],
+            "status": status,
+            "phase": phase,
+            "busy": bool(detail.get("busy")),
+            "waiting_on_approval": waiting_on_approval,
+            "active_surface": detail.get("active_surface"),
+            "channel_type": detail.get("channel_type"),
+            "conversation_id": detail.get("conversation_id"),
+            "sender_id": detail.get("sender_id"),
+            "running_state": detail.get("running_state"),
+            "control_mode": control_mode,
+            "interrupt_requested": status == "interrupt_requested",
+            "cancel_requested": status == "cancel_requested",
+            "resumable": waiting_on_approval,
+            "active_wait_id": active_wait_id,
+            "approval_wait": approval_wait,
+        }
+
     def _summary(self, detail: dict[str, Any]) -> dict[str, Any]:
         payload = deepcopy(detail)
         payload.pop("recent_messages", None)
         return payload
+
+    async def get_run(self, run_id: str) -> dict[str, Any]:
+        normalized = str(run_id or "").strip()
+        self.run_get_calls.append(normalized)
+        return self._run_summary(self._run_session(normalized))
+
+    def get_run_sync(self, run_id: str) -> dict[str, Any]:
+        return asyncio.run(self.get_run(run_id))
 
     def _current_agent_model_identity(self) -> tuple[str, str, str] | None:
         source = str(self._detail.get("selected_model_source") or "").strip()
@@ -1621,6 +1716,37 @@ class FakeGatewayClient:
             "active_surface": detail["active_surface"],
         }
 
+    async def cancel_run(
+        self,
+        run_id: str,
+        *,
+        reason: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> dict[str, Any]:
+        detail = self._run_session(run_id)
+        self.run_cancel_calls.append(
+            {
+                "run_id": str(run_id).strip(),
+                "reason": reason,
+                "surface": surface,
+                "channel_type": channel_type,
+                "conversation_id": conversation_id,
+                "sender_id": sender_id,
+            }
+        )
+        await self.cancel_session(
+            detail["session_id"],
+            reason=reason,
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
+        return self._run_summary(detail)
+
     async def respond_to_approval(
         self,
         session_id: str,
@@ -1705,6 +1831,42 @@ class FakeGatewayClient:
             "decision": "approved" if approved else "denied",
             "active_surface": detail["active_surface"],
         }
+
+    async def resolve_run_approval(
+        self,
+        run_id: str,
+        *,
+        approved: bool,
+        token: str | None = None,
+        reason: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> dict[str, Any]:
+        detail = self._run_session(run_id)
+        self.run_approval_calls.append(
+            {
+                "run_id": str(run_id).strip(),
+                "approved": approved,
+                "token": token,
+                "reason": reason,
+                "surface": surface,
+                "channel_type": channel_type,
+                "conversation_id": conversation_id,
+                "sender_id": sender_id,
+            }
+        )
+        await self.respond_to_approval(
+            detail["session_id"],
+            approved=approved,
+            token=token,
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
+        return self._run_summary(detail)
 
     async def control_session(
         self,
@@ -4717,9 +4879,9 @@ def test_tui_remote_cancel_command_routes_through_gateway(tmp_path: Path) -> Non
 
     asyncio.run(app._run_command("cancel"))
 
-    assert gateway.cancel_calls == [
+    assert gateway.run_cancel_calls == [
         {
-            "session_id": "remote-qq-1",
+            "run_id": "session-run:remote-qq-1",
             "reason": "user_cancel",
             "surface": "tui",
             "channel_type": "qq",
@@ -4746,7 +4908,16 @@ def test_tui_remote_cancel_when_idle_uses_shared_cancel_detail(tmp_path: Path) -
 
     asyncio.run(app._run_command("cancel"))
 
-    assert gateway.cancel_calls == []
+    assert gateway.run_cancel_calls == [
+        {
+            "run_id": "session-run:remote-qq-1",
+            "reason": "user_cancel",
+            "surface": "tui",
+            "channel_type": "qq",
+            "conversation_id": "group:demo",
+            "sender_id": "user-1",
+        }
+    ]
     assert app.status == "No running turn to cancel."
     assert app.current_session.view.messages[-1].metadata["summary"] == "nothing to cancel"
     assert app.current_session.view.messages[-1].content == "No running turn to cancel."
@@ -5645,11 +5816,12 @@ def test_tui_remote_approve_command_routes_through_gateway(tmp_path: Path) -> No
 
     asyncio.run(app._run_command("approve"))
 
-    assert gateway.approval_calls == [
+    assert gateway.run_approval_calls == [
         {
-            "session_id": "remote-qq-1",
+            "run_id": "session-run:remote-qq-1",
             "approved": True,
             "token": None,
+            "reason": None,
             "surface": "tui",
             "channel_type": "qq",
             "conversation_id": "group:demo",
@@ -5677,11 +5849,12 @@ def test_tui_remote_approve_after_restart_loss_suggests_continue(tmp_path: Path)
 
     asyncio.run(app._run_command("approve"))
 
-    assert gateway.approval_calls == [
+    assert gateway.run_approval_calls == [
         {
-            "session_id": "remote-qq-1",
+            "run_id": "session-run:remote-qq-1",
             "approved": True,
             "token": None,
+            "reason": None,
             "surface": "tui",
             "channel_type": "qq",
             "conversation_id": "group:demo",
@@ -5723,11 +5896,12 @@ def test_tui_remote_approve_multiple_pending_relies_on_gateway_token_resolution(
 
     asyncio.run(app._run_command("approve"))
 
-    assert gateway.approval_calls == [
+    assert gateway.run_approval_calls == [
         {
-            "session_id": "remote-qq-1",
+            "run_id": "session-run:remote-qq-1",
             "approved": True,
             "token": None,
+            "reason": None,
             "surface": "tui",
             "channel_type": "qq",
             "conversation_id": "group:demo",

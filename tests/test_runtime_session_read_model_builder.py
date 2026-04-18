@@ -170,3 +170,54 @@ def test_runtime_session_read_model_builder_preserves_legacy_snapshot_export_fro
     assert snapshot.selected_model_source == "preset"
     assert snapshot.runtime_task_memory_payload == {"session_id": "sess-record"}
     assert snapshot.agent_messages == [{"role": "assistant", "content": "seed"}]
+
+
+def test_runtime_session_read_model_builder_prefers_active_run_pending_approvals(tmp_path: Path) -> None:
+    builder = _builder()
+    builder.active_pending_approvals_for_session = lambda _session: [
+        {
+            "token": "approval-run",
+            "tool_name": "shell",
+            "arguments": {"command": "pytest -q"},
+        }
+    ]
+    session = runtime_session_stub(
+        session_id="sess-read-run-truth",
+        workspace_dir=tmp_path,
+        created_at=_dt(),
+        updated_at=_dt(),
+        projection=runtime_projection_stub(
+            title="Run Truth",
+            origin_surface="tui",
+            active_surface="tui",
+            reply_enabled=False,
+            is_default=False,
+            channel_type=None,
+            conversation_id=None,
+            sender_id=None,
+            shared=False,
+            knowledge_base_enabled=True,
+            selected_model_source=None,
+            selected_provider_id=None,
+            selected_model_id=None,
+            pending_model_source=None,
+            pending_provider_id=None,
+            pending_model_id=None,
+            pending_skill_reload=False,
+            pending_skill_reload_reason="",
+            busy=True,
+            running_state="shell running",
+        ),
+        runtime=SimpleNamespace(
+            agent=RuntimeContractAgentStub(),
+            cancel_event=None,
+            pending_approvals=[{"token": "approval-stale", "tool_name": "bash"}],
+            pending_approval_waiters={},
+            lock=SimpleNamespace(),
+        ),
+        transcript_state=transcript_state_stub(transcript=[]),
+    )
+
+    summary = builder.build_session_summary(session)
+
+    assert [item.token for item in summary.pending_approvals] == ["approval-run"]

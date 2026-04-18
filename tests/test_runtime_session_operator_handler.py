@@ -108,3 +108,32 @@ def test_runtime_session_operator_handler_normalizes_detached_runtime_policy_wri
     assert execution.diagnostics["sandbox_mode"] == "unrestricted"
     assert session.projection.sandbox_diagnostics["normalized"] is True
     assert bind_calls == [("qq", "qq")]
+
+
+def test_runtime_session_operator_handler_runtime_policy_uses_active_run_pending_approvals() -> None:
+    handler = _build_operator_handler(
+        active_pending_approvals=lambda _session: [{"token": "approval-run", "tool_name": "shell"}],
+    )
+    session = runtime_session_stub(
+        session_id="sess-policy-wait",
+        projection=runtime_projection_stub(
+            title="Policy Session",
+            busy=True,
+            active_surface="tui",
+            origin_surface="cli",
+            sandbox_diagnostics={"backend": "none"},
+        ),
+    )
+
+    execution = handler._execute_runtime_policy_update(
+        session,
+        approval_profile="plan",
+        access_level="full-access",
+        surface="tui",
+        channel_type=None,
+        conversation_id=None,
+        sender_id=None,
+    )
+
+    assert execution.plan.approval_profile == "plan"
+    assert execution.plan.access_level == "full-access"

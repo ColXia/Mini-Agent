@@ -5,22 +5,14 @@ from __future__ import annotations
 from importlib import import_module
 
 from .facades.agent_delegation_execution_handler import AgentDelegationExecutionHandler
-from .legacy import (
-    RuntimeBackedSessionApplicationAssembly,
-    SessionApplicationService,
-    assemble_runtime_backed_session_application,
-    assemble_typed_session_application,
-    build_runtime_backed_session_service,
-    build_typed_session_service,
-)
 from .ports import (
     AgentRuntimePort,
     ModelRuntimePort,
     RunRuntimePort,
     SessionAgentRuntimePort,
     SessionModelSelectionRuntimePort,
-    SessionTaskRuntimePort,
     SessionTaskPort,
+    SessionTaskRuntimePort,
     WorkspaceRuntimePort,
 )
 from .support import ApplicationInteractionBinding, ManagedSessionTurn
@@ -45,11 +37,9 @@ from .user_services import (
     RuntimeBackedUserServicePorts,
     UserServiceAssembly,
     WorkspaceUserService,
-    assemble_runtime_backed_user_services,
     assemble_typed_user_services,
     resolve_runtime_backed_user_service_ports,
 )
-from .ports import ManagedRuntimeSessionPort, SessionRuntimePort, SessionTurnScopePort
 
 __all__ = [
     "AgentDelegationExecutionHandler",
@@ -62,7 +52,6 @@ __all__ = [
     "ChannelNovelActionHandler",
     "CommandApplicationService",
     "CommandUserService",
-    "ManagedRuntimeSessionPort",
     "ManagedSessionTurn",
     "MemoryOperationsUseCases",
     "ModelBindingApplicationService",
@@ -70,44 +59,60 @@ __all__ = [
     "OperationsPathPolicy",
     "ModelUserService",
     "ProviderOperationsUseCases",
-    "RuntimeBackedSessionApplicationAssembly",
     "RuntimeBackedUserServicePorts",
     "RunControlApplicationService",
-    "SessionTaskService",
     "RunRuntimePort",
+    "SessionTaskService",
     "UserServiceAssembly",
-    "build_typed_session_service",
-    "build_runtime_backed_session_service",
-    "assemble_typed_session_application",
-    "assemble_runtime_backed_session_application",
     "assemble_typed_user_services",
-    "assemble_runtime_backed_user_services",
     "resolve_runtime_backed_user_service_ports",
     "SessionAgentRuntimePort",
     "SessionModelSelectionRuntimePort",
-    "SessionApplicationService",
     "SessionTaskRuntimePort",
-    "SessionRuntimePort",
     "SessionTaskPort",
-    "SessionTurnScopePort",
     "WorkspaceApplicationService",
     "WorkspaceRuntimePort",
     "WorkspaceUserService",
 ]
 
 _COMPAT_EXPORTS: dict[str, tuple[str, str]] = {
+    "ManagedRuntimeSessionPort": (".session_runtime_port", "ManagedRuntimeSessionPort"),
     "MainAgentSurfaceService": (".main_agent_surface_service", "MainAgentSurfaceService"),
     "MainAgentSurfaceAssembly": (".surface_service_assembly", "MainAgentSurfaceAssembly"),
+    "RuntimeBackedSessionApplicationAssembly": (
+        ".session_service_assembly",
+        "RuntimeBackedSessionApplicationAssembly",
+    ),
+    "SessionApplicationService": (".session_service", "SessionApplicationService"),
+    "SessionRuntimePort": (".session_runtime_port", "SessionRuntimePort"),
+    "SessionTurnScopePort": (".session_runtime_port", "SessionTurnScopePort"),
     "assemble_main_agent_surface_service": (".surface_service_assembly", "assemble_main_agent_surface_service"),
+    "assemble_runtime_backed_session_application": (
+        ".session_service_assembly",
+        "assemble_runtime_backed_session_application",
+    ),
     "assemble_runtime_backed_main_agent_surface_service": (
         ".surface_service_assembly",
         "assemble_runtime_backed_main_agent_surface_service",
     ),
+    "assemble_typed_session_application": (
+        ".session_service_assembly",
+        "assemble_typed_session_application",
+    ),
     "build_main_agent_surface_service": (".surface_service_assembly", "build_main_agent_surface_service"),
+    "assemble_runtime_backed_user_services": (
+        ".user_service_assembly",
+        "assemble_runtime_backed_user_services",
+    ),
+    "build_runtime_backed_session_service": (
+        ".session_service_assembly",
+        "build_runtime_backed_session_service",
+    ),
     "build_runtime_backed_main_agent_surface_service": (
         ".surface_service_assembly",
         "build_runtime_backed_main_agent_surface_service",
     ),
+    "build_typed_session_service": (".session_service_assembly", "build_typed_session_service"),
 }
 
 

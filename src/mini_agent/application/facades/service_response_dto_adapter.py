@@ -7,6 +7,7 @@ from mini_agent.interfaces import (
     MainAgentModelBindingSummary,
     MainAgentModelCandidateListResponse,
     MainAgentModelCapabilities,
+    MainAgentRunSummary,
     MainAgentWorkspaceRuntimeSummary,
     MainAgentWorkspaceSummary,
 )
@@ -42,11 +43,16 @@ def workspace_runtime_summary_response(payload: object) -> MainAgentWorkspaceRun
     return MainAgentWorkspaceRuntimeSummary.model_validate(payload, from_attributes=True)
 
 
+def run_summary_response(payload: object) -> MainAgentRunSummary:
+    return MainAgentRunSummary.model_validate(payload, from_attributes=True)
+
+
 __all__ = [
     "model_binding_diagnostics_response",
     "model_binding_summary_response",
     "model_candidate_list_response",
     "model_capabilities_response",
+    "run_summary_response",
     "workspace_runtime_summary_response",
     "workspace_summary_response",
 ]

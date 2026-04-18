@@ -25,7 +25,11 @@ def _require_session_model_runtime(
 
 @dataclass(slots=True)
 class ModelBindingApplicationService:
-    """Owns application-layer model binding and compatibility selection flows."""
+    """Owns application-layer model binding and compatibility selection flows.
+
+    Session model-selection support remains a compatibility shim while session/task
+    entrypoints migrate behind `SessionTaskService`.
+    """
 
     model_runtime: ModelRuntimePort | None = None
     session_model_runtime: SessionModelSelectionRuntimePort | None = None
@@ -81,6 +85,7 @@ class ModelBindingApplicationService:
     async def get_model_binding_diagnostics(self, agent_id: str | None = None) -> Any:
         return await _require_model_runtime(self.model_runtime).get_model_binding_diagnostics(agent_id)
 
+    # Compatibility-only session-scoped entrypoint. Prefer SessionTaskService when available.
     async def update_session_model_selection(
         self,
         session_id: str,

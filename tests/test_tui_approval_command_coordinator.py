@@ -31,7 +31,12 @@ def test_tui_approval_command_coordinator_handles_remote_success() -> None:
     async def _remote_respond(_session: Any, approved: bool, token: str | None) -> Any:
         assert approved is True
         assert token is None
-        return SimpleNamespace(token="tok-1", tool_name="shell", decision="approved")
+        return SimpleNamespace(
+            run_id="session-run:sess-1",
+            session_id="sess-1",
+            status="running",
+            phase="executing_tools",
+        )
 
     async def _sync_remote_detail(_session: Any) -> None:
         sync_calls.append("synced")

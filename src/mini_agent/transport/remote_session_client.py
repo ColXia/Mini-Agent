@@ -8,6 +8,7 @@ from mini_agent.interfaces import (
     MainAgentSessionApprovalRequest,
     MainAgentSessionApprovalResponse,
     MainAgentSessionCancelRequest,
+    MainAgentSessionInterruptRequest,
     MainAgentSessionContextRequest,
     MainAgentSessionContextResponse,
     MainAgentSessionControlRequest,
@@ -227,6 +228,23 @@ class RemoteSessionClient:
         request: MainAgentSessionCancelRequest,
     ) -> MainAgentSessionMutationResponse:
         payload = await self._session_transport.cancel_session(
+            session_id,
+            reason=request.reason,
+            **self._binding_kwargs(
+                surface=request.surface,
+                channel_type=request.channel_type,
+                conversation_id=request.conversation_id,
+                sender_id=request.sender_id,
+            ),
+        )
+        return MainAgentSessionMutationResponse.model_validate(payload)
+
+    async def interrupt_session(
+        self,
+        session_id: str,
+        request: MainAgentSessionInterruptRequest,
+    ) -> MainAgentSessionMutationResponse:
+        payload = await self._session_transport.interrupt_session(
             session_id,
             reason=request.reason,
             **self._binding_kwargs(

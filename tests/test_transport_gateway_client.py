@@ -109,6 +109,30 @@ def test_gateway_client_get_system_health_sync_uses_health_endpoint() -> None:
     assert captured["payload"] is None
 
 
+def test_gateway_client_get_run_uses_run_route() -> None:
+    async def _run() -> None:
+        client = GatewayClient(base_url="http://127.0.0.1:8008")
+        captured: dict[str, object] = {}
+
+        def _fake_request_json(method: str, path: str, *, query=None, payload=None):  # noqa: ANN001
+            captured["method"] = method
+            captured["path"] = path
+            captured["query"] = query
+            captured["payload"] = payload
+            return {"run_id": "run:sess-1"}
+
+        client._request_json = _fake_request_json  # type: ignore[method-assign]
+        payload = await client.get_run(" run:sess-1 ")
+
+        assert payload == {"run_id": "run:sess-1"}
+        assert captured["method"] == "GET"
+        assert captured["path"] == "/api/v1/agent/runs/run%3Asess-1"
+        assert captured["query"] is None
+        assert captured["payload"] is None
+
+    asyncio.run(_run())
+
+
 def test_gateway_client_update_session_runtime_policy_sync_normalizes_binding_payload() -> None:
     client = GatewayClient(base_url="http://127.0.0.1:8008")
     captured: dict[str, object] = {}
@@ -824,6 +848,185 @@ def test_gateway_client_cancel_session_normalizes_binding_payload() -> None:
     asyncio.run(_run())
 
 
+def test_gateway_client_interrupt_session_normalizes_binding_payload() -> None:
+    async def _run() -> None:
+        client = GatewayClient(base_url="http://127.0.0.1:8008")
+        captured: dict[str, object] = {}
+
+        def _fake_request_json(method: str, path: str, *, query=None, payload=None):  # noqa: ANN001
+            captured["method"] = method
+            captured["path"] = path
+            captured["query"] = query
+            captured["payload"] = payload
+            return {"status": "interrupt_requested"}
+
+        client._request_json = _fake_request_json  # type: ignore[method-assign]
+        await client.interrupt_session(
+            " sess-1 ",
+            reason=" pause ",
+            surface=" qqbot ",
+            channel_type=" qqbot ",
+            conversation_id=" group:demo ",
+            sender_id=" user-1 ",
+        )
+
+        assert captured["method"] == "POST"
+        assert captured["path"] == "/api/v1/agent/sessions/sess-1/interrupt"
+        assert captured["payload"] == {
+            "reason": " pause ",
+            "surface": "qq",
+            "channel_type": "qq",
+            "conversation_id": "group:demo",
+            "sender_id": "user-1",
+        }
+
+    asyncio.run(_run())
+
+
+def test_gateway_client_resume_run_normalizes_binding_payload() -> None:
+    async def _run() -> None:
+        client = GatewayClient(base_url="http://127.0.0.1:8008")
+        captured: dict[str, object] = {}
+
+        def _fake_request_json(method: str, path: str, *, query=None, payload=None):  # noqa: ANN001
+            captured["method"] = method
+            captured["path"] = path
+            captured["query"] = query
+            captured["payload"] = payload
+            return {"status": "running"}
+
+        client._request_json = _fake_request_json  # type: ignore[method-assign]
+        await client.resume_run(
+            " run:sess-1 ",
+            resume_token=" approval-1 ",
+            surface=" qqbot ",
+            channel_type=" qqbot ",
+            conversation_id=" group:demo ",
+            sender_id=" user-1 ",
+        )
+
+        assert captured["method"] == "POST"
+        assert captured["path"] == "/api/v1/agent/runs/run%3Asess-1/resume"
+        assert captured["payload"] == {
+            "resume_token": "approval-1",
+            "surface": "qq",
+            "channel_type": "qq",
+            "conversation_id": "group:demo",
+            "sender_id": "user-1",
+        }
+
+    asyncio.run(_run())
+
+
+def test_gateway_client_interrupt_run_normalizes_binding_payload() -> None:
+    async def _run() -> None:
+        client = GatewayClient(base_url="http://127.0.0.1:8008")
+        captured: dict[str, object] = {}
+
+        def _fake_request_json(method: str, path: str, *, query=None, payload=None):  # noqa: ANN001
+            captured["method"] = method
+            captured["path"] = path
+            captured["query"] = query
+            captured["payload"] = payload
+            return {"status": "interrupt_requested"}
+
+        client._request_json = _fake_request_json  # type: ignore[method-assign]
+        await client.interrupt_run(
+            " run:sess-1 ",
+            reason=" pause ",
+            surface=" qqbot ",
+            channel_type=" qqbot ",
+            conversation_id=" group:demo ",
+            sender_id=" user-1 ",
+        )
+
+        assert captured["method"] == "POST"
+        assert captured["path"] == "/api/v1/agent/runs/run%3Asess-1/interrupt"
+        assert captured["payload"] == {
+            "reason": " pause ",
+            "surface": "qq",
+            "channel_type": "qq",
+            "conversation_id": "group:demo",
+            "sender_id": "user-1",
+        }
+
+    asyncio.run(_run())
+
+
+def test_gateway_client_cancel_run_normalizes_binding_payload() -> None:
+    async def _run() -> None:
+        client = GatewayClient(base_url="http://127.0.0.1:8008")
+        captured: dict[str, object] = {}
+
+        def _fake_request_json(method: str, path: str, *, query=None, payload=None):  # noqa: ANN001
+            captured["method"] = method
+            captured["path"] = path
+            captured["query"] = query
+            captured["payload"] = payload
+            return {"status": "cancel_requested"}
+
+        client._request_json = _fake_request_json  # type: ignore[method-assign]
+        await client.cancel_run(
+            " run:sess-1 ",
+            reason=" stop ",
+            surface=" qqbot ",
+            channel_type=" qqbot ",
+            conversation_id=" group:demo ",
+            sender_id=" user-1 ",
+        )
+
+        assert captured["method"] == "POST"
+        assert captured["path"] == "/api/v1/agent/runs/run%3Asess-1/cancel"
+        assert captured["payload"] == {
+            "reason": " stop ",
+            "surface": "qq",
+            "channel_type": "qq",
+            "conversation_id": "group:demo",
+            "sender_id": "user-1",
+        }
+
+    asyncio.run(_run())
+
+
+def test_gateway_client_resolve_run_approval_normalizes_binding_payload() -> None:
+    async def _run() -> None:
+        client = GatewayClient(base_url="http://127.0.0.1:8008")
+        captured: dict[str, object] = {}
+
+        def _fake_request_json(method: str, path: str, *, query=None, payload=None):  # noqa: ANN001
+            captured["method"] = method
+            captured["path"] = path
+            captured["query"] = query
+            captured["payload"] = payload
+            return {"status": "running"}
+
+        client._request_json = _fake_request_json  # type: ignore[method-assign]
+        await client.resolve_run_approval(
+            " run:sess-1 ",
+            approved=False,
+            token=" approval-1 ",
+            reason="deny for now",
+            surface=" qqbot ",
+            channel_type=" qqbot ",
+            conversation_id=" group:demo ",
+            sender_id=" user-1 ",
+        )
+
+        assert captured["method"] == "POST"
+        assert captured["path"] == "/api/v1/agent/runs/run%3Asess-1/approval"
+        assert captured["payload"] == {
+            "approved": False,
+            "token": "approval-1",
+            "reason": "deny for now",
+            "surface": "qq",
+            "channel_type": "qq",
+            "conversation_id": "group:demo",
+            "sender_id": "user-1",
+        }
+
+    asyncio.run(_run())
+
+
 def test_gateway_client_respond_to_approval_sync_uses_approval_endpoint() -> None:
     client = GatewayClient(base_url="http://127.0.0.1:8008")
     captured: dict[str, object] = {}
@@ -854,3 +1057,102 @@ def test_gateway_client_respond_to_approval_sync_uses_approval_endpoint() -> Non
         "conversation_id": None,
         "sender_id": None,
     }
+
+
+def test_gateway_client_run_sync_helpers_use_run_endpoints() -> None:
+    client = GatewayClient(base_url="http://127.0.0.1:8008")
+    calls: list[dict[str, object]] = []
+
+    def _fake_request_json(method: str, path: str, *, query=None, payload=None):  # noqa: ANN001
+        calls.append(
+            {
+                "method": method,
+                "path": path,
+                "query": query,
+                "payload": payload,
+            }
+        )
+        return {
+            "run_id": "run:sess-1",
+            "session_id": "sess-1",
+            "status": "waiting",
+            "phase": "awaiting_approval",
+        }
+
+    client._request_json = _fake_request_json  # type: ignore[method-assign]
+
+    run = client.get_run_sync(" run:sess-1 ")
+    resumed = client.resume_run_sync(" run:sess-1 ", resume_token=" tok-1 ", surface="desktop")
+    interrupted = client.interrupt_run_sync(" run:sess-1 ", reason=" pause ", surface="desktop")
+    cancelled = client.cancel_run_sync(" run:sess-1 ", reason=" stop ", surface="desktop")
+    approved = client.resolve_run_approval_sync(
+        " run:sess-1 ",
+        approved=True,
+        token=" tok-1 ",
+        reason="ok",
+        surface="desktop",
+    )
+
+    assert run["run_id"] == "run:sess-1"
+    assert resumed["status"] == "waiting"
+    assert interrupted["phase"] == "awaiting_approval"
+    assert cancelled["session_id"] == "sess-1"
+    assert approved["run_id"] == "run:sess-1"
+    assert calls == [
+        {
+            "method": "GET",
+            "path": "/api/v1/agent/runs/run%3Asess-1",
+            "query": None,
+            "payload": None,
+        },
+        {
+            "method": "POST",
+            "path": "/api/v1/agent/runs/run%3Asess-1/resume",
+            "query": None,
+            "payload": {
+                "resume_token": "tok-1",
+                "surface": "desktop",
+                "channel_type": None,
+                "conversation_id": None,
+                "sender_id": None,
+            },
+        },
+        {
+            "method": "POST",
+            "path": "/api/v1/agent/runs/run%3Asess-1/interrupt",
+            "query": None,
+            "payload": {
+                "reason": " pause ",
+                "surface": "desktop",
+                "channel_type": None,
+                "conversation_id": None,
+                "sender_id": None,
+            },
+        },
+        {
+            "method": "POST",
+            "path": "/api/v1/agent/runs/run%3Asess-1/cancel",
+            "query": None,
+            "payload": {
+                "reason": " stop ",
+                "surface": "desktop",
+                "channel_type": None,
+                "conversation_id": None,
+                "sender_id": None,
+            },
+        },
+        {
+            "method": "POST",
+            "path": "/api/v1/agent/runs/run%3Asess-1/approval",
+            "query": None,
+            "payload": {
+                "approved": True,
+                "token": "tok-1",
+                "reason": "ok",
+                "surface": "desktop",
+                "channel_type": None,
+                "conversation_id": None,
+                "sender_id": None,
+            },
+        },
+    ]

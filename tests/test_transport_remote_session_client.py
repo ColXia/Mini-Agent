@@ -6,6 +6,7 @@ from mini_agent.transport.remote_session_client import RemoteSessionClient
 from mini_agent.interfaces import (
     MainAgentSessionApprovalRequest,
     MainAgentSessionCancelRequest,
+    MainAgentSessionInterruptRequest,
     MainAgentSessionContextRequest,
     MainAgentSessionControlRequest,
     MainAgentDefaultSessionRequest,
@@ -230,6 +231,26 @@ class _DummyGatewayClient:
     ):
         return {
             "status": "cancel_requested",
+            "session_id": session_id,
+            "active_surface": surface or "tui",
+            "reason": reason,
+            "channel_type": channel_type,
+            "conversation_id": conversation_id,
+            "sender_id": sender_id,
+        }
+
+    async def interrupt_session(
+        self,
+        session_id: str,
+        *,
+        reason: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ):
+        return {
+            "status": "interrupt_requested",
             "session_id": session_id,
             "active_surface": surface or "tui",
             "reason": reason,
@@ -495,6 +516,16 @@ def test_remote_session_client_shapes_gateway_payloads_into_typed_models() -> No
                 sender_id="user-1",
             ),
         )
+        interrupted = await service.interrupt_session(
+            "sess-1",
+            MainAgentSessionInterruptRequest(
+                reason="pause",
+                surface="tui",
+                channel_type="qq",
+                conversation_id="group:demo",
+                sender_id="user-1",
+            ),
+        )
         context = await service.update_session_context(
             "sess-1",
             MainAgentSessionContextRequest(
@@ -539,6 +570,8 @@ def test_remote_session_client_shapes_gateway_payloads_into_typed_models() -> No
         assert controlled.stats["conversation_id"] == "group:demo"
         assert cancelled.status == "cancel_requested"
         assert cancelled.active_surface == "tui"
+        assert interrupted.status == "interrupt_requested"
+        assert interrupted.active_surface == "tui"
         assert context.context_policy["max_items"] == 6
         assert model.selected_provider_id == "maas"
         assert approval.decision == "approved"

@@ -113,6 +113,20 @@ class RuntimeSessionOperatorHandler:
     persist_session: Callable[["MainAgentSessionState"], None]
     queue_workspace_skill_reload: Callable[..., Awaitable[tuple[str, ...]]]
     cleanup_mcp_connections: Callable[[], Awaitable[None]]
+    active_pending_approvals: Callable[["MainAgentSessionState"], Sequence[dict[str, Any]]] | None = None
+
+    def _pending_approvals(self, session: "MainAgentSessionState") -> list[dict[str, Any]]:
+        if callable(self.active_pending_approvals):
+            try:
+                payload = self.active_pending_approvals(session)
+            except Exception:
+                payload = None
+            if isinstance(payload, Sequence):
+                return [dict(item) for item in payload if isinstance(item, dict)]
+        legacy = getattr(session.runtime, "pending_approvals", None)
+        if not isinstance(legacy, list):
+            return []
+        return [dict(item) for item in legacy if isinstance(item, dict)]
 
     async def control_session(
         self,
@@ -733,7 +747,7 @@ class RuntimeSessionOperatorHandler:
             requested_approval_profile=approval_profile,
             requested_access_level=access_level,
             busy=bool(session.projection.busy),
-            waiting_on_approval=bool(session.runtime.pending_approvals),
+            waiting_on_approval=bool(self._pending_approvals(session)),
             runtime_attached=session.runtime.agent is not None,
             sandbox_diagnostics=session.projection.sandbox_diagnostics,
             normalize_sandbox_diagnostics_payload=self.normalize_sandbox_diagnostics_payload,

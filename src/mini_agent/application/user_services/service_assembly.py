@@ -3,18 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any, Protocol, cast
 
 from mini_agent.application.ports.agent_runtime_port import AgentRuntimePort
 from mini_agent.application.ports.model_runtime_port import ModelRuntimePort
 from mini_agent.application.ports.run_runtime_port import RunRuntimePort
 from mini_agent.application.ports.session_agent_runtime_port import SessionAgentRuntimePort
 from mini_agent.application.ports.session_model_selection_runtime_port import SessionModelSelectionRuntimePort
-from mini_agent.application.ports.session_runtime_port import SessionRuntimePort
 from mini_agent.application.ports.session_task_port import SessionTaskPort
 from mini_agent.application.ports.session_task_runtime_port import SessionTaskRuntimePort
 from mini_agent.application.ports.workspace_runtime_port import WorkspaceRuntimePort
-from mini_agent.application.session_runtime_compat import (
+from mini_agent.application.legacy.session_runtime_compat import (
     SessionBackedRunRuntimeAdapter,
     SessionTaskCompatibilityAdapter,
     UnavailableRunRuntimeAdapter,
@@ -26,6 +25,42 @@ from .agent_user_service import AgentUserService
 from .command_user_service import CommandUserService
 from .model_user_service import ModelUserService
 from .workspace_user_service import WorkspaceUserService
+
+
+class RuntimeBackedUserServiceSupport(
+    SessionTaskRuntimePort,
+    SessionAgentRuntimePort,
+    SessionModelSelectionRuntimePort,
+    Protocol,
+):
+    """Narrow structural support contract for resolving runtime-backed typed ports."""
+
+    async def get_session_task(self, session_id: str) -> Any: ...
+
+    async def resolve_run_id_for_session(self, session_id: str) -> str | None: ...
+
+    async def cancel_session_turn(
+        self,
+        session_id: str,
+        *,
+        reason: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> Any: ...
+
+    async def resolve_pending_approval(
+        self,
+        session_id: str,
+        *,
+        approved: bool,
+        token: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> Any: ...
 
 
 def _require_session_task_runtime(runtime: SessionTaskRuntimePort | None) -> SessionTaskRuntimePort:
@@ -117,7 +152,7 @@ class RuntimeBackedUserServicePorts:
 
 def resolve_runtime_backed_user_service_ports(
     *,
-    runtime_manager: SessionRuntimePort,
+    runtime_manager: RuntimeBackedUserServiceSupport,
     session_task_runtime: SessionTaskRuntimePort | None = None,
     session_task_port: SessionTaskPort | None = None,
     session_agent_runtime: SessionAgentRuntimePort | None = None,
@@ -173,7 +208,9 @@ def assemble_typed_user_services(
     """Assemble explicit user services from typed ports without legacy constructor fallback."""
 
     resolved_session_task_service = session_task_service or SessionTaskService(
-        runtime_manager=_require_session_task_runtime(session_task_runtime)
+        runtime_manager=_require_session_task_runtime(session_task_runtime),
+        session_agent_runtime=_require_session_agent_runtime(session_agent_runtime),
+        session_model_runtime=_require_session_model_runtime(session_model_runtime),
     )
     resolved_run_control_service = run_control_service or RunControlApplicationService(
         run_runtime=run_runtime or UnavailableRunRuntimeAdapter(),
@@ -202,7 +239,7 @@ def assemble_typed_user_services(
 
 def assemble_runtime_backed_user_services(
     *,
-    runtime_manager: SessionRuntimePort,
+    runtime_manager: RuntimeBackedUserServiceSupport,
     session_task_runtime: SessionTaskRuntimePort | None = None,
     session_task_port: SessionTaskPort | None = None,
     session_agent_runtime: SessionAgentRuntimePort | None = None,
@@ -234,7 +271,9 @@ def assemble_runtime_backed_user_services(
         command_runtime=command_runtime,
     )
     resolved_session_task_service = session_task_service or SessionTaskService(
-        runtime_manager=_require_session_task_runtime(resolved_ports.session_task_runtime)
+        runtime_manager=_require_session_task_runtime(resolved_ports.session_task_runtime),
+        session_agent_runtime=_require_session_agent_runtime(resolved_ports.session_agent_runtime),
+        session_model_runtime=_require_session_model_runtime(resolved_ports.session_model_runtime),
     )
 
     resolved_run_control_service = run_control_service or RunControlApplicationService(
@@ -267,6 +306,7 @@ def assemble_runtime_backed_user_services(
 
 
 __all__ = [
+    "RuntimeBackedUserServiceSupport",
     "RuntimeBackedUserServicePorts",
     "UserServiceAssembly",
     "assemble_runtime_backed_user_services",

@@ -117,7 +117,7 @@ def test_stage3_surface_builder_prefers_explicit_user_service_assembly() -> None
     assert isinstance(surface_service, MainAgentSurfaceService)
     assert not hasattr(surface_service, "_session_service")
     assert surface_service._session_task_service is user_assembly.session_task_service
-    assert surface_service._run_control_service is user_assembly.agent_service
+    assert surface_service._run_control_service is user_assembly.run_control_service
     assert surface_service._agent_service is user_assembly.agent_service
     assert surface_service._model_service is user_assembly.model_service
 

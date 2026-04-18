@@ -57,7 +57,7 @@ def assemble_main_agent_surface_service(
     user_service_assembly: UserServiceAssembly | None = None,
     session_service: object | None = None,
     session_task_service: SessionTaskService | None = None,
-    run_control_service: RunControlApplicationService | AgentUserService | None = None,
+    run_control_service: RunControlApplicationService | None = None,
     agent_service: AgentUserService | None = None,
     workspace_service: WorkspaceUserService | None = None,
     model_service: ModelUserService | None = None,
@@ -80,8 +80,7 @@ def assemble_main_agent_surface_service(
         resolved_agent_service = resolved_agent_service or user_service_assembly.agent_service
         resolved_model_service = resolved_model_service or user_service_assembly.model_service
         resolved_workspace_service = resolved_workspace_service or user_service_assembly.workspace_service
-        if resolved_run_control_service is None and resolved_agent_service is None:
-            resolved_run_control_service = user_service_assembly.run_control_service
+        resolved_run_control_service = resolved_run_control_service or user_service_assembly.run_control_service
 
     if session_service is not None:
         resolved_session_task_service = resolve_surface_session_task_service(
@@ -105,11 +104,6 @@ def assemble_main_agent_surface_service(
             resolved_run_control_service,
             resolved_agent_service,
         )
-    elif resolved_run_control_service is None and resolved_agent_service is not None and all(
-        hasattr(resolved_agent_service, attr)
-        for attr in ("cancel_session_run", "approve_session_wait", "deny_session_wait")
-    ):
-        resolved_run_control_service = resolved_agent_service
 
     surface_service = MainAgentSurfaceService(
         session_task_service=resolved_session_task_service,
@@ -145,7 +139,7 @@ def assemble_runtime_backed_main_agent_surface_service(
     workspace_runtime: WorkspaceRuntimePort | None = None,
     command_runtime: Any = None,
     session_task_service: SessionTaskService | None = None,
-    run_control_service: RunControlApplicationService | AgentUserService | None = None,
+    run_control_service: RunControlApplicationService | None = None,
     agent_service: AgentUserService | None = None,
     workspace_service: WorkspaceUserService | None = None,
     model_service: ModelUserService | None = None,
@@ -199,7 +193,7 @@ def build_main_agent_surface_service(
     user_service_assembly: UserServiceAssembly | None = None,
     session_service: object | None = None,
     session_task_service: SessionTaskService | None = None,
-    run_control_service: RunControlApplicationService | AgentUserService | None = None,
+    run_control_service: RunControlApplicationService | None = None,
     agent_service: AgentUserService | None = None,
     workspace_service: WorkspaceUserService | None = None,
     model_service: ModelUserService | None = None,
@@ -242,7 +236,7 @@ def build_runtime_backed_main_agent_surface_service(
     workspace_runtime: WorkspaceRuntimePort | None = None,
     command_runtime: Any = None,
     session_task_service: SessionTaskService | None = None,
-    run_control_service: RunControlApplicationService | AgentUserService | None = None,
+    run_control_service: RunControlApplicationService | None = None,
     agent_service: AgentUserService | None = None,
     workspace_service: WorkspaceUserService | None = None,
     model_service: ModelUserService | None = None,

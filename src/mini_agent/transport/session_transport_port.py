@@ -111,6 +111,17 @@ class RemoteSessionTransportPort(Protocol):
         sender_id: str | None = None,
     ) -> dict[str, Any]: ...
 
+    async def interrupt_session(
+        self,
+        session_id: str,
+        *,
+        reason: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> dict[str, Any]: ...
+
     async def control_session(
         self,
         session_id: str,

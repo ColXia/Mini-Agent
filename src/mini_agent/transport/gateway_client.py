@@ -604,6 +604,22 @@ class GatewayClient:
             query={"recent_limit": max(1, int(recent_limit))},
         )
 
+    async def get_run(self, run_id: str) -> dict[str, Any]:
+        safe_id = quote(_safe_text(run_id), safe="")
+        return await asyncio.to_thread(
+            self._request_json,
+            "GET",
+            f"/api/v1/agent/runs/{safe_id}",
+        )
+
+    def get_run_sync(self, run_id: str) -> dict[str, Any]:
+        safe_id = quote(_safe_text(run_id), safe="")
+        data = self._request_json(
+            "GET",
+            f"/api/v1/agent/runs/{safe_id}",
+        )
+        return data if isinstance(data, dict) else {}
+
     def get_session_detail_sync(self, session_id: str, *, recent_limit: int = 80) -> dict[str, Any]:
         safe_id = quote(_safe_text(session_id), safe="")
         return self._request_json(
@@ -792,6 +808,266 @@ class GatewayClient:
             f"/api/v1/agent/sessions/{safe_id}/cancel",
             payload=payload,
         )
+
+    async def interrupt_session(
+        self,
+        session_id: str,
+        *,
+        reason: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> dict[str, Any]:
+        safe_id = quote(_safe_text(session_id), safe="")
+        binding = self._binding_payload(
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
+        payload = {
+            "reason": reason,
+            **binding,
+        }
+        return await asyncio.to_thread(
+            self._request_json,
+            "POST",
+            f"/api/v1/agent/sessions/{safe_id}/interrupt",
+            payload=payload,
+        )
+
+    async def resume_run(
+        self,
+        run_id: str,
+        *,
+        resume_token: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> dict[str, Any]:
+        safe_id = quote(_safe_text(run_id), safe="")
+        binding = self._binding_payload(
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
+        payload = {
+            "resume_token": _safe_text(resume_token) or None,
+            **binding,
+        }
+        return await asyncio.to_thread(
+            self._request_json,
+            "POST",
+            f"/api/v1/agent/runs/{safe_id}/resume",
+            payload=payload,
+        )
+
+    def resume_run_sync(
+        self,
+        run_id: str,
+        *,
+        resume_token: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> dict[str, Any]:
+        safe_id = quote(_safe_text(run_id), safe="")
+        binding = self._binding_payload(
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
+        payload = {
+            "resume_token": _safe_text(resume_token) or None,
+            **binding,
+        }
+        data = self._request_json(
+            "POST",
+            f"/api/v1/agent/runs/{safe_id}/resume",
+            payload=payload,
+        )
+        return data if isinstance(data, dict) else {}
+
+    async def interrupt_run(
+        self,
+        run_id: str,
+        *,
+        reason: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> dict[str, Any]:
+        safe_id = quote(_safe_text(run_id), safe="")
+        binding = self._binding_payload(
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
+        payload = {
+            "reason": reason,
+            **binding,
+        }
+        return await asyncio.to_thread(
+            self._request_json,
+            "POST",
+            f"/api/v1/agent/runs/{safe_id}/interrupt",
+            payload=payload,
+        )
+
+    def interrupt_run_sync(
+        self,
+        run_id: str,
+        *,
+        reason: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> dict[str, Any]:
+        safe_id = quote(_safe_text(run_id), safe="")
+        binding = self._binding_payload(
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
+        payload = {
+            "reason": reason,
+            **binding,
+        }
+        data = self._request_json(
+            "POST",
+            f"/api/v1/agent/runs/{safe_id}/interrupt",
+            payload=payload,
+        )
+        return data if isinstance(data, dict) else {}
+
+    async def cancel_run(
+        self,
+        run_id: str,
+        *,
+        reason: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> dict[str, Any]:
+        safe_id = quote(_safe_text(run_id), safe="")
+        binding = self._binding_payload(
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
+        payload = {
+            "reason": reason,
+            **binding,
+        }
+        return await asyncio.to_thread(
+            self._request_json,
+            "POST",
+            f"/api/v1/agent/runs/{safe_id}/cancel",
+            payload=payload,
+        )
+
+    def cancel_run_sync(
+        self,
+        run_id: str,
+        *,
+        reason: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> dict[str, Any]:
+        safe_id = quote(_safe_text(run_id), safe="")
+        binding = self._binding_payload(
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
+        payload = {
+            "reason": reason,
+            **binding,
+        }
+        data = self._request_json(
+            "POST",
+            f"/api/v1/agent/runs/{safe_id}/cancel",
+            payload=payload,
+        )
+        return data if isinstance(data, dict) else {}
+
+    async def resolve_run_approval(
+        self,
+        run_id: str,
+        *,
+        approved: bool,
+        token: str | None = None,
+        reason: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> dict[str, Any]:
+        safe_id = quote(_safe_text(run_id), safe="")
+        binding = self._binding_payload(
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
+        payload = {
+            "approved": bool(approved),
+            "token": _safe_text(token) or None,
+            "reason": reason,
+            **binding,
+        }
+        return await asyncio.to_thread(
+            self._request_json,
+            "POST",
+            f"/api/v1/agent/runs/{safe_id}/approval",
+            payload=payload,
+        )
+
+    def resolve_run_approval_sync(
+        self,
+        run_id: str,
+        *,
+        approved: bool,
+        token: str | None = None,
+        reason: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> dict[str, Any]:
+        safe_id = quote(_safe_text(run_id), safe="")
+        binding = self._binding_payload(
+            surface=surface,
+            channel_type=channel_type,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+        )
+        payload = {
+            "approved": bool(approved),
+            "token": _safe_text(token) or None,
+            "reason": reason,
+            **binding,
+        }
+        data = self._request_json(
+            "POST",
+            f"/api/v1/agent/runs/{safe_id}/approval",
+            payload=payload,
+        )
+        return data if isinstance(data, dict) else {}
 
     async def control_session(
         self,

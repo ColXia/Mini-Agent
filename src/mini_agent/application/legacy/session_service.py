@@ -65,15 +65,7 @@ def _require_run_control_service(service: RunControlApplicationService | None) -
 
 def _resolve_run_control_entry_service(
     run_control_service: RunControlApplicationService | None,
-    agent_service: AgentUserService | None,
 ):
-    if run_control_service is not None:
-        return run_control_service
-    if agent_service is not None and all(
-        hasattr(agent_service, attr)
-        for attr in ("cancel_session_run", "approve_session_wait", "deny_session_wait")
-    ):
-        return agent_service
     return _require_run_control_service(run_control_service)
 
 
@@ -312,7 +304,16 @@ class SessionApplicationService:
         return self._runtime_manager
 
     def _run_control_entry_service(self):
-        return _resolve_run_control_entry_service(self._run_control_service, self._agent_service)
+        return _resolve_run_control_entry_service(self._run_control_service)
+
+    def _session_task_method(self, name: str):
+        if self._session_task_service is None:
+            return None
+        supports_entrypoint = getattr(self._session_task_service, "supports_entrypoint", None)
+        if callable(supports_entrypoint) and not supports_entrypoint(name):
+            return None
+        method = getattr(self._session_task_service, name, None)
+        return method if callable(method) else None
 
     async def list_sessions(
         self,
@@ -393,6 +394,14 @@ class SessionApplicationService:
         request: MainAgentSessionControlRequest,
     ) -> MainAgentSessionControlResponse:
         binding = ApplicationInteractionBinding.from_request(request)
+        session_control = self._session_task_method("control_session")
+        if session_control is not None:
+            return await session_control(
+                session_id,
+                action=request.action,
+                reason=request.reason,
+                **binding.as_kwargs(),
+            )
         return await self.agent_service.control_session(
             session_id,
             action=request.action,
@@ -406,6 +415,17 @@ class SessionApplicationService:
         request: MainAgentSessionContextRequest,
     ) -> MainAgentSessionContextResponse:
         binding = ApplicationInteractionBinding.from_request(request)
+        session_context = self._session_task_method("update_session_context")
+        if session_context is not None:
+            return await session_context(
+                session_id,
+                action=request.action,
+                sources=request.sources,
+                max_items=request.max_items,
+                max_total_chars=request.max_total_chars,
+                max_items_per_source=request.max_items_per_source,
+                **binding.as_kwargs(),
+            )
         return await self.agent_service.update_session_context(
             session_id,
             action=request.action,
@@ -422,6 +442,19 @@ class SessionApplicationService:
         request: MainAgentSessionMemoryRequest,
     ) -> MainAgentSessionMemoryResponse:
         binding = ApplicationInteractionBinding.from_request(request)
+        session_memory = self._session_task_method("manage_session_memory")
+        if session_memory is not None:
+            return await session_memory(
+                session_id,
+                action=request.action,
+                engram_id=request.engram_id,
+                content=request.content,
+                query=request.query,
+                day=request.day,
+                export_format=request.export_format,
+                detail_mode=request.detail_mode,
+                **binding.as_kwargs(),
+            )
         return await self.agent_service.manage_session_memory(
             session_id,
             action=request.action,
@@ -440,6 +473,17 @@ class SessionApplicationService:
         request: MainAgentSessionSkillRequest,
     ) -> MainAgentSessionSkillResponse:
         binding = ApplicationInteractionBinding.from_request(request)
+        session_skills = self._session_task_method("manage_session_skills")
+        if session_skills is not None:
+            return await session_skills(
+                session_id,
+                action=request.action,
+                skill_name=request.skill_name,
+                path=request.path,
+                query=request.query,
+                mode=request.mode,
+                **binding.as_kwargs(),
+            )
         return await self.agent_service.manage_session_skills(
             session_id,
             action=request.action,
@@ -456,6 +500,15 @@ class SessionApplicationService:
         request: MainAgentSessionModelSelectionRequest,
     ) -> MainAgentSessionModelSelectionResponse:
         binding = ApplicationInteractionBinding.from_request(request)
+        session_model = self._session_task_method("update_session_model_selection")
+        if session_model is not None:
+            return await session_model(
+                session_id,
+                provider_source=request.provider_source,
+                provider_id=request.provider_id,
+                model_id=request.model_id,
+                **binding.as_kwargs(),
+            )
         return await self.model_service.update_session_model_selection(
             session_id,
             provider_source=request.provider_source,
@@ -490,6 +543,14 @@ class SessionApplicationService:
         request: MainAgentSessionRuntimePolicyRequest,
     ) -> MainAgentSessionRuntimePolicyResponse:
         binding = ApplicationInteractionBinding.from_request(request)
+        session_policy = self._session_task_method("update_session_runtime_policy")
+        if session_policy is not None:
+            return await session_policy(
+                session_id,
+                approval_profile=request.approval_profile,
+                access_level=request.access_level,
+                **binding.as_kwargs(),
+            )
         return await self.agent_service.update_session_runtime_policy(
             session_id,
             approval_profile=request.approval_profile,

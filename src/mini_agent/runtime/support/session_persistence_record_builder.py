@@ -29,6 +29,9 @@ class RuntimeSessionPersistenceRecordBuilder:
     session_token_limit: Callable[["MainAgentSessionState"], int]
     agent_last_memory_automation: Callable[[Any], dict[str, Any]] | None = None
     agent_last_runtime_task_memory: Callable[[Any], dict[str, Any]] | None = None
+    active_pending_approvals: Callable[["MainAgentSessionState"], list[dict[str, Any]]] | None = None
+    active_run_control_state: Callable[["MainAgentSessionState"], dict[str, Any] | None] | None = None
+    active_approval_wait: Callable[["MainAgentSessionState"], dict[str, Any] | None] | None = None
 
     @staticmethod
     def _normalize_agent_payload(value: Any) -> dict[str, Any]:
@@ -49,6 +52,37 @@ class RuntimeSessionPersistenceRecordBuilder:
             except Exception:
                 return {}
         return self._normalize_agent_payload(getattr(agent, "last_runtime_task_memory", {}))
+
+    def _read_active_run_control_state(self, session: "MainAgentSessionState") -> dict[str, Any] | None:
+        if not callable(self.active_run_control_state):
+            return None
+        try:
+            payload = self.active_run_control_state(session)
+        except Exception:
+            return None
+        return dict(payload) if isinstance(payload, dict) else None
+
+    def _read_active_approval_wait(self, session: "MainAgentSessionState") -> dict[str, Any] | None:
+        if not callable(self.active_approval_wait):
+            return None
+        try:
+            payload = self.active_approval_wait(session)
+        except Exception:
+            return None
+        return dict(payload) if isinstance(payload, dict) else None
+
+    def _read_active_pending_approvals(self, session: "MainAgentSessionState") -> list[dict[str, Any]]:
+        if callable(self.active_pending_approvals):
+            try:
+                payload = self.active_pending_approvals(session)
+            except Exception:
+                payload = None
+            if isinstance(payload, list):
+                return [dict(item) for item in payload if isinstance(item, dict)]
+        legacy = getattr(session.runtime, "pending_approvals", None)
+        if not isinstance(legacy, list):
+            return []
+        return [dict(item) for item in legacy if isinstance(item, dict)]
 
     @staticmethod
     def serialize_transcript_entry(entry: "MainAgentSessionTranscriptEntry") -> dict[str, Any]:
@@ -84,6 +118,7 @@ class RuntimeSessionPersistenceRecordBuilder:
         transcript_path: Path,
         sandbox_diagnostics: dict[str, Any],
     ) -> dict[str, Any]:
+        pending_approvals = self._read_active_pending_approvals(session)
         return {
             "session_id": session.session_id,
             "workspace_dir": str(session.workspace_dir),
@@ -127,11 +162,7 @@ class RuntimeSessionPersistenceRecordBuilder:
             "shared_transcript_path": str(transcript_path),
             "shared_message_count": len(session.transcript_state.transcript),
             "next_transcript_index": int(session.transcript_state.next_transcript_index),
-            "pending_approvals": [
-                self.serialize_pending_approval(item)
-                for item in session.runtime.pending_approvals
-                if isinstance(item, dict)
-            ],
+            "pending_approvals": [self.serialize_pending_approval(item) for item in pending_approvals],
             "recovery_context_pending": bool(session.projection.recovery_context_pending),
             "recovery_state": _safe_text(session.projection.recovery_state) or None,
             "recovery_summary": _safe_text(session.projection.recovery_summary) or None,
@@ -166,6 +197,8 @@ class RuntimeSessionPersistenceRecordBuilder:
             "sandbox_diagnostics": dict(sandbox_diagnostics) if isinstance(sandbox_diagnostics, dict) else {},
             "last_memory_automation": self._read_agent_last_memory_automation(session.runtime.agent),
             "last_runtime_task_memory": self._read_agent_last_runtime_task_memory(session.runtime.agent),
+            "run_control": self._read_active_run_control_state(session),
+            "approval_wait": self._read_active_approval_wait(session),
         }
 
 

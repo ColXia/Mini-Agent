@@ -24,6 +24,8 @@ from mini_agent.runtime.live_control.session_pending_approval_state_handler impo
 from mini_agent.runtime.live_control.session_recovery_reset_handler import (
     RuntimeSessionRecoveryResetHandler,
 )
+from mini_agent.runtime.live_control.run_control_store import RuntimeSessionRunControlStore
+from mini_agent.agent_core.contracts import RunControlMode
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -48,6 +50,7 @@ class RuntimeSessionLiveStateHandler:
         ["MainAgentSessionState"],
         "MainAgentSessionRecoverySnapshot | None",
     ] | None = None
+    run_control_store: RuntimeSessionRunControlStore | None = None
     pending_approval_state: RuntimeSessionPendingApprovalStateHandler | None = None
     recovery_reset: RuntimeSessionRecoveryResetHandler | None = None
 
@@ -208,9 +211,7 @@ class RuntimeSessionLiveStateHandler:
         )
         session.projection.busy = True
         session.transcript_state.current_turn_id = uuid4().hex
-        session.runtime.cancel_event = asyncio.Event()
-        session.runtime.pending_approvals = []
-        session.runtime.pending_approval_waiters.clear()
+        self._run_control_store().begin_turn(session)
         session.projection.running_state = _safe_text(detail) or f"{normalized_surface} request running"
         session.touch(now_utc=now_utc)
 
@@ -220,12 +221,32 @@ class RuntimeSessionLiveStateHandler:
         *,
         now_utc: datetime | None = None,
     ) -> None:
+        control_state = self._run_control_store().current_control_state(session)
+        running_state = _safe_text(session.projection.running_state) or None
+        pending_approvals = self._run_control_store().pending_approval_payloads(session)
         session.projection.busy = False
         session.projection.running_state = ""
         session.transcript_state.current_turn_id = None
-        session.runtime.cancel_event = None
-        session.runtime.pending_approvals = []
-        session.runtime.pending_approval_waiters.clear()
+        if (
+            control_state.control_mode is RunControlMode.INTERRUPT_REQUESTED
+            and not control_state.cancel_requested
+        ):
+            self._run_control_store().pause_turn(
+                session,
+                reason=running_state or control_state.last_pause_reason,
+            )
+            self._recovery_reset_handler().apply_interrupted_recovery(
+                session,
+                summary=self._interrupt_recovery_summary(
+                    running_state=running_state,
+                    pending_approvals=pending_approvals,
+                ),
+                last_activity=running_state,
+                pending_approvals=pending_approvals,
+                now_utc=now_utc,
+            )
+            return
+        self._run_control_store().finish_turn(session)
         session.touch(now_utc=now_utc)
 
     def record_message(
@@ -488,6 +509,25 @@ class RuntimeSessionLiveStateHandler:
         return first
 
     @staticmethod
+    def _interrupt_recovery_summary(
+        *,
+        running_state: str | None,
+        pending_approvals: list[dict[str, Any]],
+    ) -> str:
+        normalized_running_state = _safe_text(running_state)
+        normalized_pending = [
+            item for item in list(pending_approvals or []) if isinstance(item, dict)
+        ]
+        if normalized_pending:
+            if len(normalized_pending) == 1:
+                tool_name = _safe_text(normalized_pending[0].get("tool_name")) or "tool"
+                return f"interrupted after pause request: approval pending for {tool_name}"
+            return f"interrupted after pause request: {len(normalized_pending)} approvals pending"
+        if normalized_running_state:
+            return f"interrupted after pause request: {normalized_running_state}"
+        return "interrupted after pause request"
+
+    @staticmethod
     def _resolved_surface_label(
         session: "MainAgentSessionState",
         *,
@@ -524,17 +564,27 @@ class RuntimeSessionLiveStateHandler:
     def _pending_approval_state_handler(self) -> RuntimeSessionPendingApprovalStateHandler:
         if self.pending_approval_state is not None:
             return self.pending_approval_state
-        return RuntimeSessionPendingApprovalStateHandler()
+        self.pending_approval_state = RuntimeSessionPendingApprovalStateHandler(
+            run_control_store=self._run_control_store(),
+        )
+        return self.pending_approval_state
 
     def _recovery_reset_handler(self) -> RuntimeSessionRecoveryResetHandler:
         if self.recovery_reset is not None:
             return self.recovery_reset
-        return RuntimeSessionRecoveryResetHandler(
+        self.recovery_reset = RuntimeSessionRecoveryResetHandler(
             refresh_session_diagnostics=self._refresh_session_diagnostics,
             agent_knowledge_base_enabled=self._resolve_agent_knowledge_base_enabled,
             clear_runtime_task_memory_namespace=self._clear_runtime_task_memory_namespace_compat,
             stored_recovery_snapshot_from_session=self._stored_recovery_snapshot_from_session_compat,
+            run_control_store=self._run_control_store(),
         )
+        return self.recovery_reset
+
+    def _run_control_store(self) -> RuntimeSessionRunControlStore:
+        if self.run_control_store is None:
+            self.run_control_store = RuntimeSessionRunControlStore()
+        return self.run_control_store
 
     def _refresh_session_diagnostics(
         self,

@@ -11,10 +11,12 @@ from .remote_chat_service_port import RemoteChatServicePort
 from .remote_memory_client import RemoteMemoryClient
 from .remote_model_catalog_client import RemoteModelCatalogClient
 from .remote_provider_client import RemoteProviderClient
+from .remote_run_client import RemoteRunClient
 from .remote_session_client import RemoteSessionClient
 from .remote_system_client import RemoteSystemClient
 from .remote_workspace_client import RemoteWorkspaceClient
 from .remote_stream_error_service import RemoteStreamErrorService
+from .run_transport_port import RemoteRunTransportPort
 from .session_transport_port import RemoteSessionTransportPort
 from .system_transport_port import RemoteSystemTransportPort
 from .workspace_transport_port import RemoteWorkspaceTransportPort
@@ -33,6 +35,8 @@ __all__ = [
     "RemoteSessionClient",
     "RemoteProviderClient",
     "RemoteProviderTransportPort",
+    "RemoteRunClient",
+    "RemoteRunTransportPort",
     "RemoteSystemClient",
     "RemoteSystemTransportPort",
     "RemoteWorkspaceClient",
