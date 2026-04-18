@@ -106,6 +106,7 @@ from mini_agent.runtime.orchestration.session_snapshot_handler import (
     RuntimeSessionSnapshotImportCommand,
 )
 from mini_agent.runtime.support.sandbox_state import collect_sandbox_diagnostics
+from mini_agent.runtime.support.session_backed_run_id import build_session_backed_run_id
 from mini_agent.runtime.support.tooling import reconfigure_agent_runtime_policy
 from mini_agent.runtime.support.workspace_path_utils import same_workspace_path, workspace_path_key
 from mini_agent.tools.mcp_loader import cleanup_mcp_connections
@@ -124,12 +125,14 @@ class MainAgentRuntimeManager:
         policy: MainAgentRuntimePolicy | None = None,
         storage_dir: Path | None = None,
         load_runtime_config: Callable[[], Any],
+        resolve_agent_model_identity: Callable[[], tuple[str, str, str] | None] | None = None,
     ):
         self._ttl_seconds = int(ttl_seconds)
         self._build_agent = build_agent
         self._build_agent_with_selection = build_agent_with_selection
         self._policy = policy or MainAgentRuntimePolicy()
         self._load_runtime_config = load_runtime_config
+        self._resolve_agent_model_identity = resolve_agent_model_identity
         self._sessions: dict[str, MainAgentSessionState] = {}
         self._store_lock = asyncio.Lock()
         self._initialize_runtime_core(storage_dir)
@@ -302,6 +305,7 @@ class MainAgentRuntimeManager:
             normalize_surface=normalize_surface_label,
             normalize_channel_type=normalize_channel_type,
             build_agent_for_identity=self._session_agent_support.build_agent_for_identity,
+            default_model_identity=self._resolve_agent_model_identity,
             bootstrap_session_lifecycle=lambda session_id, workspace_dir, now_utc: self._session_lifecycle.bootstrap_session(
                 session_id,
                 workspace_dir,
@@ -542,7 +546,8 @@ class MainAgentRuntimeManager:
             workspace_dir,
             same_workspace=same_workspace_path,
         )
-        return await self._session_agent_support.build_agent_for_identity(workspace_dir, None)
+        identity = self._resolve_agent_model_identity() if callable(self._resolve_agent_model_identity) else None
+        return await self._session_agent_support.build_agent_for_identity(workspace_dir, identity)
 
     @property
     def turn_scope_handler(self) -> RuntimeSessionTurnScopeHandler:
@@ -752,6 +757,21 @@ class MainAgentRuntimeManager:
                 session_id=session_id,
                 limit=limit,
             )
+
+    async def get_session_task(self, session_id: str) -> MainAgentSessionDetail:
+        """Transitional Stage 5 session-task compatibility read seam."""
+
+        return await self.get_session_detail(session_id, recent_limit=1)
+
+    async def resolve_run_id_for_session(self, session_id: str) -> str | None:
+        """Resolve the transitional session-backed run identifier for an attached session."""
+
+        async with self._store_lock:
+            if session_id in self._sessions:
+                return build_session_backed_run_id(session_id)
+            if self._persistence.load_session_record(session_id) is not None:
+                return build_session_backed_run_id(session_id)
+        return None
 
     async def delete_session(self, session_id: str) -> None:
         async with self._store_lock:

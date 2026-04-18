@@ -11,6 +11,13 @@ from .agent_turn_execution_handler import (
     SurfaceAgentExecutionRequest,
 )
 from .main_agent_surface_service import MainAgentSurfaceService
+from .surface_service_assembly import (
+    MainAgentSurfaceAssembly,
+    assemble_main_agent_surface_service,
+    assemble_runtime_backed_main_agent_surface_service,
+    build_main_agent_surface_service,
+    build_runtime_backed_main_agent_surface_service,
+)
 from .surface_chat_flow_handler import (
     ExecuteSurfaceChatTurnFn,
     SurfaceChatExecutionRequest,
@@ -25,6 +32,7 @@ __all__ = [
     "AgentRouteExecutionHandler",
     "AgentTurnExecutionHandler",
     "ExecuteSurfaceChatTurnFn",
+    "MainAgentSurfaceAssembly",
     "MainAgentSurfaceService",
     "SurfaceActivityEmitter",
     "SurfaceAgentExecutionRequest",
@@ -32,4 +40,8 @@ __all__ = [
     "SurfaceChatExecutionResult",
     "SurfaceChatFlowHandler",
     "SurfaceChatStreamEvent",
+    "assemble_main_agent_surface_service",
+    "assemble_runtime_backed_main_agent_surface_service",
+    "build_main_agent_surface_service",
+    "build_runtime_backed_main_agent_surface_service",
 ]

@@ -5,13 +5,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from mini_agent.agent_core.execution.sandbox import NetworkAccessMode, NetworkDomainPolicy, SandboxManager
+from mini_agent.agent_core.execution.sandbox import SandboxManager
 from mini_agent.agent_core.execution.permissions import ApprovalEngine, PermissionDecision, PermissionPolicy, PermissionRule
 from mini_agent.agent_core.runtime_bindings import set_agent_runtime_services
 from mini_agent.commands.mcp_support import resolve_runtime_mcp_config_path
 from mini_agent.runtime.support.sandbox_state import collect_sandbox_diagnostics
 from mini_agent.agent_core.skills.path_resolver import resolve_builtin_skills_dir, resolve_workspace_skills_dir
 from mini_agent.security.policy import RuntimePolicyEngine
+from mini_agent.workspace_runtime import WorkspaceRuntimeBundle, build_direct_workspace_runtime_bundle
 
 
 def _tool_names(tools: list[Any]) -> list[str]:
@@ -93,29 +94,11 @@ def build_workspace_sandbox_manager(
     policy_engine: RuntimePolicyEngine | None = None,
 ) -> SandboxManager:
     """Build one workspace sandbox manager from the active runtime policy."""
-    active_policy = policy_engine or resolve_runtime_policy(config)
-    security = getattr(config, "security", None)
-    raw_network_mode = str(getattr(security, "network_mode", "") or "").strip().lower()
-    try:
-        network_mode = (
-            NetworkAccessMode(raw_network_mode)
-            if raw_network_mode
-            else NetworkAccessMode.ALLOW_ALL
-        )
-    except ValueError:
-        network_mode = NetworkAccessMode.ALLOW_ALL
-    network_policy = NetworkDomainPolicy(
-        mode=network_mode,
-        allow_domains=tuple(getattr(security, "network_allow_domains", []) or ()),
-        block_domains=tuple(getattr(security, "network_block_domains", []) or ()),
-    ).normalized()
-    return SandboxManager(
-        workspace_dir=workspace_dir,
-        sandbox_mode=active_policy.policy.sandbox_mode,
-        network_policy=network_policy,
-        max_processes=getattr(security, "sandbox_max_processes", None),
-        max_process_memory_mb=getattr(security, "sandbox_max_process_memory_mb", None),
-    )
+    return build_direct_workspace_runtime_bundle(
+        config,
+        workspace_dir,
+        policy_engine=policy_engine,
+    ).sandbox_manager
 
 
 def add_workspace_tools(
@@ -123,7 +106,7 @@ def add_workspace_tools(
     config,
     workspace_dir: Path,
     policy_engine: RuntimePolicyEngine | None = None,
-) -> None:
+) -> WorkspaceRuntimeBundle:
     """Add workspace-scoped tools (bash/file/note/user-modeling)."""
     from mini_agent.tools.bash_tool import BashKillTool, BashOutputTool, BashTool
     from mini_agent.tools.docling_parse import DoclingParseTool
@@ -134,11 +117,13 @@ def add_workspace_tools(
     from mini_agent.tools.user_modeling import UserModelingTool
 
     is_allowed = policy_engine.is_tool_allowed if policy_engine else (lambda _name: True)
-    sandbox_manager = build_workspace_sandbox_manager(
+    runtime_bundle = build_direct_workspace_runtime_bundle(
         config,
         workspace_dir,
         policy_engine=policy_engine,
     )
+    sandbox_manager = runtime_bundle.sandbox_manager
+    workspace_executor = runtime_bundle.executor
     feature_runtime = FeatureModelRuntime()
     embedding_provider = feature_runtime.get_embedding_provider()
     ocr_adapter = feature_runtime.get_docling_ocr_adapter()
@@ -147,6 +132,7 @@ def add_workspace_tools(
         tools.append(
             BashTool(
                 workspace_dir=str(workspace_dir),
+                workspace_executor=workspace_executor,
                 policy_engine=policy_engine,
                 sandbox_manager=sandbox_manager,
             )
@@ -157,11 +143,26 @@ def add_workspace_tools(
         tools.append(BashKillTool())
 
     if config.tools.enable_file_tools and is_allowed("read_file"):
-        tools.append(ReadTool(workspace_dir=str(workspace_dir)))
+        tools.append(
+            ReadTool(
+                workspace_dir=str(workspace_dir),
+                workspace_executor=workspace_executor,
+            )
+        )
     if config.tools.enable_file_tools and is_allowed("write_file"):
-        tools.append(WriteTool(workspace_dir=str(workspace_dir)))
+        tools.append(
+            WriteTool(
+                workspace_dir=str(workspace_dir),
+                workspace_executor=workspace_executor,
+            )
+        )
     if config.tools.enable_file_tools and is_allowed("edit_file"):
-        tools.append(EditTool(workspace_dir=str(workspace_dir)))
+        tools.append(
+            EditTool(
+                workspace_dir=str(workspace_dir),
+                workspace_executor=workspace_executor,
+            )
+        )
     if config.tools.enable_file_tools and is_allowed("docling_parse"):
         from mini_agent.tools.docling_parse import DoclingParser
 
@@ -186,6 +187,8 @@ def add_workspace_tools(
         )
     if config.tools.enable_note and is_allowed("user_modeling"):
         tools.append(UserModelingTool(memory_root=str(workspace_dir)))
+
+    return runtime_bundle
 
 
 def resolve_runtime_policy(
@@ -379,7 +382,7 @@ async def initialize_agent_tools(
         access_level_override=access_level_override,
     )
     workspace_tools: list = []
-    add_workspace_tools(workspace_tools, config, workspace_dir, policy_engine=policy_engine)
+    workspace_runtime = add_workspace_tools(workspace_tools, config, workspace_dir, policy_engine=policy_engine)
 
     shared_tools, skill_loader, shared_diagnostics = await initialize_shared_tools(
         config,
@@ -392,6 +395,7 @@ async def initialize_agent_tools(
             "count": len(_tool_names(workspace_tools)),
             "tool_names": _tool_names(workspace_tools),
         },
+        "workspace_runtime": workspace_runtime.to_summary(),
         "shared_tools": dict(shared_diagnostics.get("shared_tools", {})),
         "skills": dict(shared_diagnostics.get("skills", {})),
         "mcp": dict(shared_diagnostics.get("mcp", {})),

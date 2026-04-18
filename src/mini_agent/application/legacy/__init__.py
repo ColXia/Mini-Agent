@@ -5,7 +5,9 @@ from __future__ import annotations
 from importlib import import_module
 
 __all__ = [
+    "AgentModelRuntimeAdapter",
     "RuntimeBackedSessionApplicationAssembly",
+    "SessionBackedRunRuntimeAdapter",
     "SessionAgentRuntimePort",
     "SessionAgentCompatibilityAdapter",
     "SessionApplicationService",
@@ -20,7 +22,9 @@ __all__ = [
 ]
 
 _EXPORTS: dict[str, tuple[str, str]] = {
+    "AgentModelRuntimeAdapter": (".session_runtime_compat", "AgentModelRuntimeAdapter"),
     "RuntimeBackedSessionApplicationAssembly": (".session_service_assembly", "RuntimeBackedSessionApplicationAssembly"),
+    "SessionBackedRunRuntimeAdapter": (".session_runtime_compat", "SessionBackedRunRuntimeAdapter"),
     "SessionAgentRuntimePort": (".session_agent_runtime_port", "SessionAgentRuntimePort"),
     "SessionAgentCompatibilityAdapter": (".session_runtime_compat", "SessionAgentCompatibilityAdapter"),
     "SessionApplicationService": (".session_service", "SessionApplicationService"),

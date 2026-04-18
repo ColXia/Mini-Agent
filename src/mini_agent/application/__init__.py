@@ -1,6 +1,14 @@
 """Application-layer orchestration use cases."""
 
-from .facades import AgentDelegationExecutionHandler, MainAgentSurfaceService
+from .facades import (
+    AgentDelegationExecutionHandler,
+    MainAgentSurfaceAssembly,
+    MainAgentSurfaceService,
+    assemble_main_agent_surface_service,
+    assemble_runtime_backed_main_agent_surface_service,
+    build_main_agent_surface_service,
+    build_runtime_backed_main_agent_surface_service,
+)
 from .legacy import (
     RuntimeBackedSessionApplicationAssembly,
     SessionApplicationService,
@@ -33,7 +41,17 @@ from .use_cases import (
     SessionTaskService,
     WorkspaceApplicationService,
 )
-from .user_services import AgentUserService, CommandUserService, ModelUserService, WorkspaceUserService
+from .user_services import (
+    AgentUserService,
+    CommandUserService,
+    ModelUserService,
+    RuntimeBackedUserServicePorts,
+    UserServiceAssembly,
+    WorkspaceUserService,
+    assemble_runtime_backed_user_services,
+    assemble_typed_user_services,
+    resolve_runtime_backed_user_service_ports,
+)
 from .ports import ManagedRuntimeSessionPort, SessionRuntimePort, SessionTurnScopePort
 
 __all__ = [
@@ -46,6 +64,7 @@ __all__ = [
     "ChannelNovelActionHandler",
     "CommandApplicationService",
     "CommandUserService",
+    "MainAgentSurfaceAssembly",
     "MainAgentSurfaceService",
     "ManagedRuntimeSessionPort",
     "ManagedSessionTurn",
@@ -56,13 +75,22 @@ __all__ = [
     "ModelUserService",
     "ProviderOperationsUseCases",
     "RuntimeBackedSessionApplicationAssembly",
+    "RuntimeBackedUserServicePorts",
     "RunControlApplicationService",
     "SessionTaskService",
     "RunRuntimePort",
+    "UserServiceAssembly",
     "build_typed_session_service",
     "build_runtime_backed_session_service",
     "assemble_typed_session_application",
     "assemble_runtime_backed_session_application",
+    "assemble_main_agent_surface_service",
+    "assemble_runtime_backed_main_agent_surface_service",
+    "assemble_typed_user_services",
+    "assemble_runtime_backed_user_services",
+    "resolve_runtime_backed_user_service_ports",
+    "build_main_agent_surface_service",
+    "build_runtime_backed_main_agent_surface_service",
     "SessionAgentRuntimePort",
     "SessionModelSelectionRuntimePort",
     "SessionApplicationService",

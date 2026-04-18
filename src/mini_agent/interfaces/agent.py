@@ -33,6 +33,37 @@ class MainAgentChatResponse(BaseModel):
     delegation: dict[str, Any] | None = None
 
 
+class MainAgentWorkspaceSummary(BaseModel):
+    """Canonical workspace summary for main-agent workspace APIs."""
+
+    workspace_id: str = Field(min_length=1)
+    workspace_dir: str = Field(min_length=1)
+    title: str | None = None
+    default: bool = False
+    kind: str | None = None
+    session_count: int = Field(ge=0, default=0)
+    default_session_count: int = Field(ge=0, default=0)
+    shared_session_count: int = Field(ge=0, default=0)
+    busy_session_count: int = Field(ge=0, default=0)
+    last_updated_at: str | None = None
+    active: bool = False
+    switched: bool = False
+
+
+class MainAgentWorkspaceRuntimeSummary(MainAgentWorkspaceSummary):
+    """Detailed runtime summary for a workspace-bound execution boundary."""
+
+    runtime_policy: dict[str, Any] = Field(default_factory=dict)
+    runtime: dict[str, Any] | None = None
+    runtime_error: str | None = None
+
+
+class MainAgentWorkspaceSwitchRequest(BaseModel):
+    """Request body for switching the active workspace selection."""
+
+    workspace_id: str = Field(min_length=1)
+
+
 class MainAgentSessionRecoverySnapshot(BaseModel):
     """Compact recovery snapshot for remote/shared-session operators."""
 

@@ -204,6 +204,7 @@ def test_session_service_prepare_chat_turn_scopes_runtime_lifecycle(tmp_path: Pa
             storage_dir=tmp_path / "store",
         )
         service = _session_service(runtime)
+        assert service.runtime_manager is runtime
 
         turn = await service.prepare_chat_turn(
             workspace_dir=workspace,
@@ -416,7 +417,7 @@ def test_session_service_uses_injected_session_task_service_for_session_crud() -
 
     async def _run() -> None:
         session_task_service = _SessionTaskServiceStub()
-        service = SessionApplicationService(
+        service = SessionApplicationService.from_services(
             session_task_service=session_task_service,
         )
 
@@ -469,7 +470,7 @@ def test_session_service_uses_injected_session_task_service_for_turn_preparation
 
     async def _run() -> None:
         session_task_service = _SessionTaskServiceStub()
-        service = SessionApplicationService(
+        service = SessionApplicationService.from_services(
             session_task_service=session_task_service,
         )
 
@@ -841,6 +842,103 @@ def test_session_service_cancel_and_approval_use_injected_run_control_service() 
             (
                 "deny_session_wait",
                 "sess-1",
+                {
+                    "token": "approval-2",
+                    "source": "desktop",
+                    "surface": "desktop",
+                    "channel_type": None,
+                    "conversation_id": None,
+                    "sender_id": None,
+                },
+            ),
+        ]
+
+    asyncio.run(_run())
+
+
+def test_session_service_cancel_and_approval_prefer_injected_agent_service_entrypoints() -> None:
+    class _AgentServiceStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        async def cancel_session_run(self, session_id: str, **kwargs):
+            self.calls.append(("cancel_session_run", session_id, kwargs))
+            return MainAgentSessionMutationResponse(
+                status="cancel_requested",
+                session_id=session_id,
+                active_surface="agent",
+            )
+
+        async def approve_session_wait(self, session_id: str, **kwargs):
+            self.calls.append(("approve_session_wait", session_id, kwargs))
+            return MainAgentSessionApprovalResponse(
+                status="resolved",
+                session_id=session_id,
+                token="approval-agent",
+                tool_name="shell",
+                decision="approved",
+                active_surface="agent",
+            )
+
+        async def deny_session_wait(self, session_id: str, **kwargs):
+            self.calls.append(("deny_session_wait", session_id, kwargs))
+            return MainAgentSessionApprovalResponse(
+                status="resolved",
+                session_id=session_id,
+                token="approval-agent",
+                tool_name="shell",
+                decision="denied",
+                active_surface="agent",
+            )
+
+    async def _run() -> None:
+        agent_service = _AgentServiceStub()
+        service = SessionApplicationService.from_services(agent_service=agent_service)
+
+        cancel = await service.cancel_session(
+            "sess-agent",
+            MainAgentSessionCancelRequest(reason="stop", surface="desktop"),
+        )
+        approved = await service.respond_to_approval(
+            "sess-agent",
+            MainAgentSessionApprovalRequest(approved=True, token="approval-1", surface="desktop"),
+        )
+        denied = await service.respond_to_approval(
+            "sess-agent",
+            MainAgentSessionApprovalRequest(approved=False, token="approval-2", surface="desktop"),
+        )
+
+        assert cancel.active_surface == "agent"
+        assert approved.token == "approval-agent"
+        assert denied.token == "approval-agent"
+        assert agent_service.calls == [
+            (
+                "cancel_session_run",
+                "sess-agent",
+                {
+                    "reason": "stop",
+                    "source": "desktop",
+                    "surface": "desktop",
+                    "channel_type": None,
+                    "conversation_id": None,
+                    "sender_id": None,
+                },
+            ),
+            (
+                "approve_session_wait",
+                "sess-agent",
+                {
+                    "token": "approval-1",
+                    "source": "desktop",
+                    "surface": "desktop",
+                    "channel_type": None,
+                    "conversation_id": None,
+                    "sender_id": None,
+                },
+            ),
+            (
+                "deny_session_wait",
+                "sess-agent",
                 {
                     "token": "approval-2",
                     "source": "desktop",

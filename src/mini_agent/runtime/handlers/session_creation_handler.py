@@ -40,6 +40,7 @@ class RuntimeSessionCreationHandler:
     normalize_surface: Callable[[str | None], str]
     normalize_channel_type: Callable[[str | None], str | None]
     build_agent_for_identity: Callable[[Any, tuple[str, str, str] | None], Awaitable["Agent"]]
+    default_model_identity: Callable[[], tuple[str, str, str] | None] | None
     agent_knowledge_base_enabled: Callable[[Any], bool]
     collect_sandbox_diagnostics: Callable[[Any], dict[str, Any]]
     route_model_identity: Callable[[Any], tuple[str, str, str] | None]
@@ -60,13 +61,14 @@ class RuntimeSessionCreationHandler:
             MainAgentSessionState,
         )
 
-        agent = await self.build_agent_for_identity(command.workspace_dir, None)
+        default_identity = self.default_model_identity() if callable(self.default_model_identity) else None
+        agent = await self.build_agent_for_identity(command.workspace_dir, default_identity)
         lifecycle_state = self._bootstrap_lifecycle_state(
             session_id=command.session_id,
             workspace_dir=command.workspace_dir,
             now_utc=now_utc,
         )
-        selected_identity = self.route_model_identity(agent)
+        selected_identity = self.route_model_identity(agent) or default_identity
         knowledge_base_enabled = self.agent_knowledge_base_enabled(agent)
         sandbox_diagnostics = self.collect_sandbox_diagnostics(agent)
 

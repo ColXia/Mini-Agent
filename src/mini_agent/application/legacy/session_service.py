@@ -6,11 +6,20 @@ from pathlib import Path
 from typing import Any
 
 from mini_agent.agent_core.engine import Agent
+from mini_agent.application.ports.agent_runtime_port import AgentRuntimePort
+from mini_agent.application.ports.model_runtime_port import ModelRuntimePort
+from mini_agent.application.ports.run_runtime_port import RunRuntimePort
+from mini_agent.application.ports.session_runtime_port import SessionRuntimePort
+from mini_agent.application.ports.session_task_port import SessionTaskPort
+from mini_agent.application.ports.session_task_runtime_port import SessionTaskRuntimePort
+from mini_agent.application.ports.workspace_runtime_port import WorkspaceRuntimePort
 from mini_agent.application.support import ApplicationInteractionBinding, ManagedSessionTurn
 from mini_agent.application.use_cases.run_control_application_service import RunControlApplicationService
 from mini_agent.application.use_cases.session_task_service import SessionTaskService
 from mini_agent.application.user_services.agent_user_service import AgentUserService
+from mini_agent.application.user_services.command_user_service import CommandUserService
 from mini_agent.application.user_services.model_user_service import ModelUserService
+from mini_agent.application.user_services.workspace_user_service import WorkspaceUserService
 from mini_agent.interfaces import (
     MainAgentDefaultSessionRequest,
     MainAgentSessionApprovalRequest,
@@ -38,6 +47,9 @@ from mini_agent.interfaces import (
     MainAgentSessionSummary,
 )
 
+from .session_agent_runtime_port import SessionAgentRuntimePort
+from .session_model_selection_runtime_port import SessionModelSelectionRuntimePort
+
 
 def _require_session_task_service(service: SessionTaskService | None) -> SessionTaskService:
     if service is None:
@@ -49,6 +61,20 @@ def _require_run_control_service(service: RunControlApplicationService | None) -
     if service is None:
         raise RuntimeError("Run control application service is not configured.")
     return service
+
+
+def _resolve_run_control_entry_service(
+    run_control_service: RunControlApplicationService | None,
+    agent_service: AgentUserService | None,
+):
+    if run_control_service is not None:
+        return run_control_service
+    if agent_service is not None and all(
+        hasattr(agent_service, attr)
+        for attr in ("cancel_session_run", "approve_session_wait", "deny_session_wait")
+    ):
+        return agent_service
+    return _require_run_control_service(run_control_service)
 
 
 def _require_agent_service(service: AgentUserService | None) -> AgentUserService:
@@ -66,18 +92,201 @@ def _require_model_service(service: ModelUserService | None) -> ModelUserService
 class SessionApplicationService:
     """Legacy/transitional session-task carrier for compatibility-facing callers."""
 
+    @classmethod
+    def from_services(
+        cls,
+        *,
+        session_task_service: SessionTaskService | None = None,
+        run_control_service: RunControlApplicationService | None = None,
+        agent_service: AgentUserService | None = None,
+        model_service: ModelUserService | None = None,
+        runtime_manager: SessionRuntimePort | None = None,
+    ) -> "SessionApplicationService":
+        """Build the legacy facade from already-resolved explicit owners."""
+
+        service = cls(
+            session_task_service=session_task_service,
+            run_control_service=run_control_service,
+            agent_service=agent_service,
+            model_service=model_service,
+        )
+        service._runtime_manager = runtime_manager or getattr(session_task_service, "_runtime_manager", None)
+        return service
+
+    @classmethod
+    def from_runtime_compatibility(
+        cls,
+        *,
+        runtime_manager: SessionRuntimePort,
+        session_task_runtime: SessionTaskRuntimePort | None = None,
+        session_task_port: SessionTaskPort | None = None,
+        session_agent_runtime: SessionAgentRuntimePort | None = None,
+        session_model_runtime: SessionModelSelectionRuntimePort | None = None,
+        agent_runtime: AgentRuntimePort | None = None,
+        run_runtime: RunRuntimePort | None = None,
+        model_runtime: ModelRuntimePort | None = None,
+        workspace_runtime: WorkspaceRuntimePort | None = None,
+        command_runtime: object = None,
+        run_control_service: RunControlApplicationService | None = None,
+        agent_service: AgentUserService | None = None,
+        workspace_service: WorkspaceUserService | None = None,
+        model_service: ModelUserService | None = None,
+        command_service: CommandUserService | None = None,
+        session_task_service: SessionTaskService | None = None,
+    ) -> "SessionApplicationService":
+        """Build the legacy facade from runtime-backed compatibility seams."""
+
+        from mini_agent.application.legacy.session_service_assembly import (
+            assemble_runtime_backed_session_application,
+        )
+
+        assembly = assemble_runtime_backed_session_application(
+            runtime_manager=runtime_manager,
+            session_task_runtime=session_task_runtime,
+            session_task_port=session_task_port,
+            session_agent_runtime=session_agent_runtime,
+            session_model_runtime=session_model_runtime,
+            agent_runtime=agent_runtime,
+            run_runtime=run_runtime,
+            model_runtime=model_runtime,
+            workspace_runtime=workspace_runtime,
+            command_runtime=command_runtime,
+            session_task_service=session_task_service,
+            run_control_service=run_control_service,
+            agent_service=agent_service,
+            workspace_service=workspace_service,
+            model_service=model_service,
+            command_service=command_service,
+        )
+        return cls.from_services(
+            session_task_service=assembly.session_task_service,
+            run_control_service=assembly.run_control_service,
+            agent_service=assembly.agent_service,
+            model_service=assembly.model_service,
+            runtime_manager=runtime_manager,
+        )
+
+    @classmethod
+    def from_typed_compatibility(
+        cls,
+        *,
+        session_task_runtime: SessionTaskRuntimePort | None = None,
+        session_task_port: SessionTaskPort | None = None,
+        session_agent_runtime: SessionAgentRuntimePort | None = None,
+        session_model_runtime: SessionModelSelectionRuntimePort | None = None,
+        agent_runtime: AgentRuntimePort | None = None,
+        run_runtime: RunRuntimePort | None = None,
+        model_runtime: ModelRuntimePort | None = None,
+        workspace_runtime: WorkspaceRuntimePort | None = None,
+        command_runtime: object = None,
+        run_control_service: RunControlApplicationService | None = None,
+        agent_service: AgentUserService | None = None,
+        workspace_service: WorkspaceUserService | None = None,
+        model_service: ModelUserService | None = None,
+        command_service: CommandUserService | None = None,
+        session_task_service: SessionTaskService | None = None,
+    ) -> "SessionApplicationService":
+        """Build the legacy facade from typed compatibility seams."""
+
+        from mini_agent.application.legacy.session_service_assembly import (
+            assemble_typed_session_application,
+        )
+
+        assembly = assemble_typed_session_application(
+            session_task_runtime=session_task_runtime,
+            session_task_port=session_task_port,
+            session_agent_runtime=session_agent_runtime,
+            session_model_runtime=session_model_runtime,
+            agent_runtime=agent_runtime,
+            run_runtime=run_runtime,
+            model_runtime=model_runtime,
+            workspace_runtime=workspace_runtime,
+            command_runtime=command_runtime,
+            session_task_service=session_task_service,
+            run_control_service=run_control_service,
+            agent_service=agent_service,
+            workspace_service=workspace_service,
+            model_service=model_service,
+            command_service=command_service,
+        )
+        return cls.from_services(
+            session_task_service=assembly.session_task_service,
+            run_control_service=assembly.run_control_service,
+            agent_service=assembly.agent_service,
+            model_service=assembly.model_service,
+        )
+
     def __init__(
         self,
         *,
+        runtime_manager: SessionRuntimePort | None = None,
+        session_task_runtime: SessionTaskRuntimePort | None = None,
+        session_task_port: SessionTaskPort | None = None,
+        session_agent_runtime: SessionAgentRuntimePort | None = None,
+        session_model_runtime: SessionModelSelectionRuntimePort | None = None,
+        agent_runtime: AgentRuntimePort | None = None,
+        run_runtime: RunRuntimePort | None = None,
+        model_runtime: ModelRuntimePort | None = None,
         run_control_service: RunControlApplicationService | None = None,
         agent_service: AgentUserService | None = None,
         model_service: ModelUserService | None = None,
         session_task_service: SessionTaskService | None = None,
     ) -> None:
+        if any(
+            value is not None
+            for value in (
+                runtime_manager,
+                session_task_runtime,
+                session_task_port,
+                session_agent_runtime,
+                session_model_runtime,
+                agent_runtime,
+                run_runtime,
+                model_runtime,
+            )
+        ):
+            compatibility_service = (
+                type(self).from_runtime_compatibility(
+                    runtime_manager=runtime_manager,
+                    session_task_runtime=session_task_runtime,
+                    session_task_port=session_task_port,
+                    session_agent_runtime=session_agent_runtime,
+                    session_model_runtime=session_model_runtime,
+                    agent_runtime=agent_runtime,
+                    run_runtime=run_runtime,
+                    model_runtime=model_runtime,
+                    session_task_service=session_task_service,
+                    run_control_service=run_control_service,
+                    agent_service=agent_service,
+                    model_service=model_service,
+                )
+                if runtime_manager is not None
+                else type(self).from_typed_compatibility(
+                    session_task_runtime=session_task_runtime,
+                    session_task_port=session_task_port,
+                    session_agent_runtime=session_agent_runtime,
+                    session_model_runtime=session_model_runtime,
+                    agent_runtime=agent_runtime,
+                    run_runtime=run_runtime,
+                    model_runtime=model_runtime,
+                    session_task_service=session_task_service,
+                    run_control_service=run_control_service,
+                    agent_service=agent_service,
+                    model_service=model_service,
+                )
+            )
+            self._session_task_service = compatibility_service._session_task_service
+            self._run_control_service = compatibility_service._run_control_service
+            self._agent_service = compatibility_service._agent_service
+            self._model_service = compatibility_service._model_service
+            self._runtime_manager = compatibility_service._runtime_manager
+            return
+
         self._session_task_service = session_task_service
         self._run_control_service = run_control_service
         self._agent_service = agent_service
         self._model_service = model_service
+        self._runtime_manager = runtime_manager or getattr(session_task_service, "_runtime_manager", None)
 
     def validate_workspace(self, workspace_dir: Path) -> None:
         self.session_task_service.validate_workspace(workspace_dir)
@@ -97,6 +306,13 @@ class SessionApplicationService:
     @property
     def session_task_service(self) -> SessionTaskService:
         return _require_session_task_service(self._session_task_service)
+
+    @property
+    def runtime_manager(self) -> SessionRuntimePort | None:
+        return self._runtime_manager
+
+    def _run_control_entry_service(self):
+        return _resolve_run_control_entry_service(self._run_control_service, self._agent_service)
 
     async def list_sessions(
         self,
@@ -164,7 +380,7 @@ class SessionApplicationService:
         request: MainAgentSessionCancelRequest,
     ) -> MainAgentSessionMutationResponse:
         binding = ApplicationInteractionBinding.from_request(request)
-        return await self.run_control_service.cancel_session_run(
+        return await self._run_control_entry_service().cancel_session_run(
             session_id,
             reason=request.reason,
             source=binding.surface,
@@ -255,13 +471,13 @@ class SessionApplicationService:
     ) -> MainAgentSessionApprovalResponse:
         binding = ApplicationInteractionBinding.from_request(request)
         if request.approved:
-            return await self.run_control_service.approve_session_wait(
+            return await self._run_control_entry_service().approve_session_wait(
                 session_id,
                 token=request.token,
                 source=binding.surface,
                 **binding.as_kwargs(),
             )
-        return await self.run_control_service.deny_session_wait(
+        return await self._run_control_entry_service().deny_session_wait(
             session_id,
             token=request.token,
             source=binding.surface,

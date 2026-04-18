@@ -5,18 +5,28 @@ from typing import Any
 
 import tiktoken
 
-from mini_agent.workspace_runtime import WorkspaceBoundary
+from mini_agent.workspace_runtime import (
+    DirectWorkspaceExecutor,
+    MutationKind,
+    WorkspaceAccessScope,
+    WorkspaceExecutor,
+)
 
 from .base import Tool, ToolResult
 
 
-def _resolve_workspace_path(workspace_boundary: WorkspaceBoundary, path: str) -> Path:
-    resolved_candidate = workspace_boundary.resolve_path(path)
-    if workspace_boundary.relative_path(resolved_candidate) is None:
-        raise PermissionError(
-            f"Path escapes workspace root: {path} (workspace: {workspace_boundary.root})"
+class _WorkspaceFileToolMixin:
+    def _init_workspace_file_support(
+        self,
+        workspace_dir: str | None,
+        workspace_executor: WorkspaceExecutor | None = None,
+    ) -> None:
+        self.workspace_executor = workspace_executor or DirectWorkspaceExecutor(
+            Path(workspace_dir or ".").absolute(),
+            scope=WorkspaceAccessScope.WORKSPACE_ONLY,
         )
-    return resolved_candidate
+        self.workspace_boundary = self.workspace_executor.boundary
+        self.workspace_dir = self.workspace_boundary.root
 
 
 def truncate_text_by_tokens(
@@ -71,17 +81,20 @@ def truncate_text_by_tokens(
     return head_part + truncation_note + tail_part
 
 
-class ReadTool(Tool):
+class ReadTool(_WorkspaceFileToolMixin, Tool):
     """Read file content."""
 
-    def __init__(self, workspace_dir: str = "."):
+    def __init__(
+        self,
+        workspace_dir: str = ".",
+        workspace_executor: WorkspaceExecutor | None = None,
+    ):
         """Initialize ReadTool with workspace directory.
 
         Args:
             workspace_dir: Base directory for resolving relative paths
         """
-        self.workspace_boundary = WorkspaceBoundary(Path(workspace_dir).absolute())
-        self.workspace_dir = self.workspace_boundary.root
+        self._init_workspace_file_support(workspace_dir, workspace_executor)
 
     @property
     def name(self) -> str:
@@ -120,7 +133,12 @@ class ReadTool(Tool):
     async def execute(self, path: str, offset: int | None = None, limit: int | None = None) -> ToolResult:
         """Execute read file."""
         try:
-            file_path = _resolve_workspace_path(self.workspace_boundary, path)
+            access = self.workspace_executor.resolve_access(
+                path,
+                kind=MutationKind.READ,
+                detail="tool read_file",
+            )
+            file_path = access.resolved_path
 
             if not file_path.exists():
                 return ToolResult(
@@ -130,8 +148,7 @@ class ReadTool(Tool):
                 )
 
             # Read file content with line numbers
-            with open(file_path, encoding="utf-8") as f:
-                lines = f.readlines()
+            lines = self.workspace_executor.read_text(path).splitlines(keepends=True)
 
             # Apply offset and limit
             start = (offset - 1) if offset else 0
@@ -161,17 +178,20 @@ class ReadTool(Tool):
             return ToolResult(success=False, content="", error=str(e))
 
 
-class WriteTool(Tool):
+class WriteTool(_WorkspaceFileToolMixin, Tool):
     """Write content to a file."""
 
-    def __init__(self, workspace_dir: str = "."):
+    def __init__(
+        self,
+        workspace_dir: str = ".",
+        workspace_executor: WorkspaceExecutor | None = None,
+    ):
         """Initialize WriteTool with workspace directory.
 
         Args:
             workspace_dir: Base directory for resolving relative paths
         """
-        self.workspace_boundary = WorkspaceBoundary(Path(workspace_dir).absolute())
-        self.workspace_dir = self.workspace_boundary.root
+        self._init_workspace_file_support(workspace_dir, workspace_executor)
 
     @property
     def name(self) -> str:
@@ -205,28 +225,26 @@ class WriteTool(Tool):
     async def execute(self, path: str, content: str) -> ToolResult:
         """Execute write file."""
         try:
-            file_path = _resolve_workspace_path(self.workspace_boundary, path)
-
-            # Create parent directories if they don't exist
-            file_path.parent.mkdir(parents=True, exist_ok=True)
-
-            file_path.write_text(content, encoding="utf-8")
+            file_path = self.workspace_executor.write_text(path, content, encoding="utf-8")
             return ToolResult(success=True, content=f"Successfully wrote to {file_path}")
         except Exception as e:
             return ToolResult(success=False, content="", error=str(e))
 
 
-class EditTool(Tool):
+class EditTool(_WorkspaceFileToolMixin, Tool):
     """Edit file by replacing text."""
 
-    def __init__(self, workspace_dir: str = "."):
+    def __init__(
+        self,
+        workspace_dir: str = ".",
+        workspace_executor: WorkspaceExecutor | None = None,
+    ):
         """Initialize EditTool with workspace directory.
 
         Args:
             workspace_dir: Base directory for resolving relative paths
         """
-        self.workspace_boundary = WorkspaceBoundary(Path(workspace_dir).absolute())
-        self.workspace_dir = self.workspace_boundary.root
+        self._init_workspace_file_support(workspace_dir, workspace_executor)
 
     @property
     def name(self) -> str:
@@ -264,7 +282,12 @@ class EditTool(Tool):
     async def execute(self, path: str, old_str: str, new_str: str) -> ToolResult:
         """Execute edit file."""
         try:
-            file_path = _resolve_workspace_path(self.workspace_boundary, path)
+            access = self.workspace_executor.resolve_access(
+                path,
+                kind=MutationKind.EDIT,
+                detail="tool edit_file",
+            )
+            file_path = access.resolved_path
 
             if not file_path.exists():
                 return ToolResult(
@@ -273,17 +296,12 @@ class EditTool(Tool):
                     error=f"File not found: {path}",
                 )
 
-            content = file_path.read_text(encoding="utf-8")
-
-            if old_str not in content:
-                return ToolResult(
-                    success=False,
-                    content="",
-                    error=f"Text not found in file: {old_str}",
-                )
-
-            new_content = content.replace(old_str, new_str)
-            file_path.write_text(new_content, encoding="utf-8")
+            self.workspace_executor.replace_text(
+                path,
+                old_text=old_str,
+                new_text=new_str,
+                encoding="utf-8",
+            )
 
             return ToolResult(success=True, content=f"Successfully edited {file_path}")
         except Exception as e:

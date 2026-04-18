@@ -28,7 +28,11 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from mini_agent.agent_core.engine import TurnExecutionResult, TurnStopReason  # noqa: E402
-from mini_agent.application import MainAgentSurfaceService, SessionApplicationService  # noqa: E402
+from mini_agent.application import (  # noqa: E402
+    MainAgentSurfaceAssembly,
+    MainAgentSurfaceService,
+    assemble_runtime_backed_main_agent_surface_service,
+)
 from mini_agent.config import AgentConfig, Config, LLMConfig, ToolsConfig  # noqa: E402
 from mini_agent.interfaces import (  # noqa: E402
     MainAgentChatRequest,
@@ -222,14 +226,14 @@ def _test_runtime_config() -> Config:
 
 
 async def _import_runtime_session(
-    use_cases: MainAgentSurfaceService,
+    assembly: MainAgentSurfaceAssembly,
     *,
     workspace_dir: str | None,
     session_id: str | None = None,
     **kwargs: object,
 ):
-    resolved_workspace = use_cases._resolve_workspace_dir(workspace_dir)
-    runtime_manager = use_cases._session_service._runtime_manager
+    resolved_workspace = assembly.surface_service._resolve_workspace_dir(workspace_dir)
+    runtime_manager = assembly.runtime_manager
     runtime_manager.validate_workspace(resolved_workspace)
     session = await runtime_manager.import_session_snapshot(
         RuntimeSessionSnapshotImportCommand(
@@ -243,17 +247,17 @@ async def _import_runtime_session(
     return await runtime_manager.get_session_detail(session.session_id, recent_limit=recent_limit)
 
 
-async def _export_runtime_session(use_cases: MainAgentSurfaceService, session_id: str):
-    return await use_cases._session_service._runtime_manager.export_session_snapshot(session_id)
+async def _export_runtime_session(assembly: MainAgentSurfaceAssembly, session_id: str):
+    return await assembly.runtime_manager.export_session_snapshot(session_id)
 
 
 async def _activate_runtime_surface(
-    use_cases: MainAgentSurfaceService,
+    assembly: MainAgentSurfaceAssembly,
     session_id: str,
     *,
     surface: str,
 ):
-    return await use_cases._session_service._runtime_manager.set_active_surface(session_id, surface=surface)
+    return await assembly.runtime_manager.set_active_surface(session_id, surface=surface)
 
 
 def _clip(text: str, limit: int = 1000) -> str:
@@ -326,7 +330,7 @@ def _new_use_cases(
     storage_dir: Path,
     build_agent,
     build_agent_with_selection=None,
-) -> MainAgentSurfaceService:
+) -> MainAgentSurfaceAssembly:
     runtime = MainAgentRuntimeManager(
         ttl_seconds=3600,
         build_agent=build_agent,
@@ -334,8 +338,8 @@ def _new_use_cases(
         storage_dir=storage_dir,
         load_runtime_config=_test_runtime_config,
     )
-    return MainAgentSurfaceService(
-        session_service=SessionApplicationService(runtime_manager=runtime),
+    return assemble_runtime_backed_main_agent_surface_service(
+        runtime_manager=runtime,
         resolve_workspace_dir=_resolve_workspace_dir,
         to_utc_iso=_to_utc_iso,
         sse_event=_sse_event,
@@ -351,7 +355,8 @@ async def _check_shared_activity_and_takeover(root: Path) -> WalkthroughResult:
     async def _build_agent(_workspace: Path):
         return _HookedAgent(prefix="hooked")
 
-    use_cases = _new_use_cases(storage_dir=storage_dir, build_agent=_build_agent)
+    assembly = _new_use_cases(storage_dir=storage_dir, build_agent=_build_agent)
+    use_cases = assembly.surface_service
 
     first = await use_cases.run_chat(
         MainAgentChatRequest(
@@ -380,7 +385,7 @@ async def _check_shared_activity_and_takeover(root: Path) -> WalkthroughResult:
     latest = await use_cases.get_session_messages("sess-shared", limit=3)
     _require([item.role for item in latest] == ["user", "tool", "assistant"], "latest shared messages mismatch")
 
-    activated = await _activate_runtime_surface(use_cases, "sess-shared", surface="tui")
+    activated = await _activate_runtime_surface(assembly, "sess-shared", surface="tui")
     _require(activated.active_surface == "tui", "surface activation should switch active surface to tui")
 
     second = await use_cases.run_chat(
@@ -423,10 +428,11 @@ async def _check_shared_control_and_cancel(root: Path) -> WalkthroughResult:
     async def _build_control_agent(_workspace: Path):
         return control_agent
 
-    control_use_cases = _new_use_cases(
+    control_assembly = _new_use_cases(
         storage_dir=root / "control-runtime-store",
         build_agent=_build_control_agent,
     )
+    control_use_cases = control_assembly.surface_service
 
     response = await control_use_cases.run_chat(
         MainAgentChatRequest(
@@ -483,10 +489,11 @@ async def _check_shared_control_and_cancel(root: Path) -> WalkthroughResult:
     async def _build_cancel_agent(_workspace: Path):
         return cancel_agent
 
-    cancel_use_cases = _new_use_cases(
+    cancel_assembly = _new_use_cases(
         storage_dir=root / "cancel-runtime-store",
         build_agent=_build_cancel_agent,
     )
+    cancel_use_cases = cancel_assembly.surface_service
 
     cancel_task = asyncio.create_task(
         cancel_use_cases.run_chat(
@@ -562,11 +569,12 @@ async def _check_shared_model_selection(root: Path) -> WalkthroughResult:
             model_id=model_id or "gpt-5.4",
         )
 
-    use_cases = _new_use_cases(
+    assembly = _new_use_cases(
         storage_dir=root / "model-runtime-store",
         build_agent=_build_agent,
         build_agent_with_selection=_build_agent_with_selection,
     )
+    use_cases = assembly.surface_service
 
     first = await use_cases.run_chat(
         MainAgentChatRequest(
@@ -600,7 +608,7 @@ async def _check_shared_model_selection(root: Path) -> WalkthroughResult:
     _require(detail_after_select.selected_model_id == "gpt-5.3", "selected model detail mismatch after immediate switch")
     _require(detail_after_select.pending_model_id is None, "pending model should be empty after immediate switch")
 
-    managed_session = await use_cases._session_service._runtime_manager.get_or_create_session("sess-model", workspace)
+    managed_session = await assembly.runtime_manager.get_or_create_session("sess-model", workspace)
     managed_session.projection.busy = True
     managed_session.projection.running_state = "qq request running"
     queued = await use_cases.update_session_model_selection(
@@ -664,10 +672,11 @@ async def _check_import_export_roundtrip(root: Path) -> WalkthroughResult:
     async def _build_agent(_workspace: Path):
         return _DummyAgent(prefix="mock")
 
-    use_cases = _new_use_cases(storage_dir=storage_dir, build_agent=_build_agent)
+    assembly = _new_use_cases(storage_dir=storage_dir, build_agent=_build_agent)
+    use_cases = assembly.surface_service
 
     detail = await _import_runtime_session(
-        use_cases,
+        assembly,
         workspace_dir=str(workspace),
         title="Local Draft",
         origin_surface="tui",
@@ -685,7 +694,7 @@ async def _check_import_export_roundtrip(root: Path) -> WalkthroughResult:
     _require(detail.title == "Local Draft", "imported shared session title mismatch")
     _require(detail.origin_surface == "tui" and detail.active_surface == "tui", "imported shared session surfaces mismatch")
 
-    snapshot = await _export_runtime_session(use_cases, detail.session_id)
+    snapshot = await _export_runtime_session(assembly, detail.session_id)
     _require(snapshot.title == "Local Draft", "exported shared session title mismatch")
     _require([item.content for item in snapshot.transcript] == ["hello local", "hello shared"], "exported transcript mismatch")
 
@@ -711,7 +720,8 @@ async def _check_restart_persistence(root: Path) -> WalkthroughResult:
     async def _build_agent(_workspace: Path):
         return _DummyAgent(prefix="mock")
 
-    use_cases_first = _new_use_cases(storage_dir=storage_dir, build_agent=_build_agent)
+    assembly_first = _new_use_cases(storage_dir=storage_dir, build_agent=_build_agent)
+    use_cases_first = assembly_first.surface_service
     first = await use_cases_first.run_chat(
         MainAgentChatRequest(
             message="hello from qq",
@@ -725,14 +735,15 @@ async def _check_restart_persistence(root: Path) -> WalkthroughResult:
     )
     _require(first.session_id == "sess-persist", "persisted session id mismatch")
 
-    use_cases_second = _new_use_cases(storage_dir=storage_dir, build_agent=_build_agent)
+    assembly_second = _new_use_cases(storage_dir=storage_dir, build_agent=_build_agent)
+    use_cases_second = assembly_second.surface_service
     sessions = await use_cases_second.list_sessions()
     _require([item.session_id for item in sessions] == ["sess-persist"], "persisted shared session list mismatch after restart")
 
     detail = await use_cases_second.get_session_detail("sess-persist", recent_limit=10)
     _require([item.content for item in detail.recent_messages] == ["hello from qq", "mock:hello from qq"], "persisted transcript mismatch after restart")
 
-    activated = await _activate_runtime_surface(use_cases_second, "sess-persist", surface="tui")
+    activated = await _activate_runtime_surface(assembly_second, "sess-persist", surface="tui")
     _require(activated.active_surface == "tui", "post-restart surface activation failed")
 
     second = await use_cases_second.run_chat(
@@ -773,8 +784,8 @@ async def _check_restart_recovery_snapshot(root: Path) -> WalkthroughResult:
         storage_dir=storage_dir,
         load_runtime_config=_test_runtime_config,
     )
-    _use_cases_first = MainAgentSurfaceService(
-        session_service=SessionApplicationService(runtime_manager=runtime_first),
+    _surface_assembly_first = assemble_runtime_backed_main_agent_surface_service(
+        runtime_manager=runtime_first,
         resolve_workspace_dir=_resolve_workspace_dir,
         to_utc_iso=_to_utc_iso,
         sse_event=_sse_event,
@@ -834,7 +845,8 @@ async def _check_restart_recovery_snapshot(root: Path) -> WalkthroughResult:
         future=approval_future,
     )
 
-    use_cases_second = _new_use_cases(storage_dir=storage_dir, build_agent=_build_agent)
+    assembly_second = _new_use_cases(storage_dir=storage_dir, build_agent=_build_agent)
+    use_cases_second = assembly_second.surface_service
     sessions = await use_cases_second.list_sessions()
     _require([item.session_id for item in sessions] == ["sess-recovery"], "restart recovery session list mismatch")
     summary = sessions[0]
@@ -859,7 +871,7 @@ async def _check_restart_recovery_snapshot(root: Path) -> WalkthroughResult:
         "persisted recovery should retain lost pending approvals",
     )
 
-    activated = await _activate_runtime_surface(use_cases_second, "sess-recovery", surface="tui")
+    activated = await _activate_runtime_surface(assembly_second, "sess-recovery", surface="tui")
     _require(activated.active_surface == "tui", "interrupted session surface activation after restart failed")
     detail_after_takeover = await use_cases_second.get_session_detail("sess-recovery", recent_limit=10)
     _require(detail_after_takeover.recovery is not None, "recovery snapshot missing after takeover")
@@ -876,7 +888,7 @@ async def _check_restart_recovery_snapshot(root: Path) -> WalkthroughResult:
         )
     )
     _require(second.reply == "hooked:continue after interruption", "interrupted recovery continuation reply mismatch")
-    managed_session = await use_cases_second._session_service._runtime_manager.get_or_create_session(
+    managed_session = await assembly_second.runtime_manager.get_or_create_session(
         "sess-recovery",
         workspace,
     )

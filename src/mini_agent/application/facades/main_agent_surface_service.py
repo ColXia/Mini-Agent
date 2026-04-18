@@ -14,12 +14,21 @@ from mini_agent.application.support import (
 )
 from mini_agent.application.user_services.agent_user_service import AgentUserService
 from mini_agent.application.user_services.model_user_service import ModelUserService
+from mini_agent.application.user_services.workspace_user_service import WorkspaceUserService
 from mini_agent.application.use_cases.run_control_application_service import RunControlApplicationService
 from mini_agent.application.use_cases.session_task_service import SessionTaskService
 from mini_agent.interfaces import (
     MainAgentChatRequest,
     MainAgentChatResponse,
+    MainAgentModelBindingDiagnostics,
+    MainAgentModelBindingRequest,
+    MainAgentModelBindingSummary,
+    MainAgentModelCandidateListResponse,
+    MainAgentModelCapabilities,
     MainAgentRoutingDiagnostics,
+    MainAgentWorkspaceRuntimeSummary,
+    MainAgentWorkspaceSummary,
+    MainAgentWorkspaceSwitchRequest,
     MainAgentSessionApprovalRequest,
     MainAgentSessionApprovalResponse,
     MainAgentSessionCancelRequest,
@@ -49,141 +58,22 @@ from mini_agent.interfaces import (
 from .agent_delegation_execution_handler import AgentDelegationExecutionHandler
 from .agent_route_execution_handler import AgentRouteExecutionHandler
 from .agent_turn_execution_handler import AgentTurnExecutionHandler
+from .service_response_dto_adapter import (
+    model_binding_diagnostics_response,
+    model_binding_summary_response,
+    model_candidate_list_response,
+    model_capabilities_response,
+    workspace_runtime_summary_response,
+    workspace_summary_response,
+)
+from .surface_dependency_resolution import (
+    resolve_surface_agent_entry_service,
+    resolve_surface_model_entry_service,
+    resolve_surface_run_control_service,
+    resolve_surface_session_task_service,
+    resolve_surface_workspace_entry_service,
+)
 from .surface_chat_flow_handler import SurfaceChatExecutionRequest, SurfaceChatFlowHandler
-
-
-class _LegacySurfaceRunControlAdapter:
-    """Bridge legacy session-service run control entrypoints into the surface seam."""
-
-    def __init__(self, session_service: object) -> None:
-        self._session_service = session_service
-
-    async def cancel_session_run(
-        self,
-        session_id: str,
-        *,
-        reason: str | None = None,
-        source: str | None = None,
-        surface: str | None = None,
-        channel_type: str | None = None,
-        conversation_id: str | None = None,
-        sender_id: str | None = None,
-    ) -> MainAgentSessionMutationResponse:
-        return await self._session_service.cancel_session(
-            session_id,
-            MainAgentSessionCancelRequest(
-                reason=reason,
-                surface=surface,
-                channel_type=channel_type,
-                conversation_id=conversation_id,
-                sender_id=sender_id,
-            ),
-        )
-
-    async def approve_session_wait(
-        self,
-        session_id: str,
-        *,
-        token: str | None = None,
-        source: str | None = None,
-        reason: str | None = None,
-        surface: str | None = None,
-        channel_type: str | None = None,
-        conversation_id: str | None = None,
-        sender_id: str | None = None,
-    ) -> MainAgentSessionApprovalResponse:
-        _ = (source, reason)
-        return await self._session_service.respond_to_approval(
-            session_id,
-            MainAgentSessionApprovalRequest(
-                approved=True,
-                token=token,
-                surface=surface,
-                channel_type=channel_type,
-                conversation_id=conversation_id,
-                sender_id=sender_id,
-            ),
-        )
-
-    async def deny_session_wait(
-        self,
-        session_id: str,
-        *,
-        token: str | None = None,
-        source: str | None = None,
-        reason: str | None = None,
-        surface: str | None = None,
-        channel_type: str | None = None,
-        conversation_id: str | None = None,
-        sender_id: str | None = None,
-    ) -> MainAgentSessionApprovalResponse:
-        _ = (source, reason)
-        return await self._session_service.respond_to_approval(
-            session_id,
-            MainAgentSessionApprovalRequest(
-                approved=False,
-                token=token,
-                surface=surface,
-                channel_type=channel_type,
-                conversation_id=conversation_id,
-                sender_id=sender_id,
-            ),
-        )
-
-
-def _resolve_session_task_service(
-    session_service: object | None,
-    explicit_service: SessionTaskService | None,
-):
-    if explicit_service is not None:
-        return explicit_service
-    if session_service is None:
-        raise RuntimeError("Session task service is not configured.")
-    return getattr(session_service, "session_task_service", session_service)
-
-
-def _resolve_agent_entry_service(
-    session_service: object | None,
-    explicit_service: AgentUserService | None,
-):
-    if explicit_service is not None:
-        return explicit_service
-    if session_service is None:
-        raise RuntimeError("Agent entry service is not configured.")
-    return getattr(session_service, "agent_service", session_service)
-
-
-def _resolve_model_entry_service(
-    session_service: object | None,
-    explicit_service: ModelUserService | None,
-):
-    if explicit_service is not None:
-        return explicit_service
-    if session_service is None:
-        raise RuntimeError("Model entry service is not configured.")
-    return getattr(session_service, "model_service", session_service)
-
-
-def _resolve_run_control_service(
-    session_service: object | None,
-    explicit_service: RunControlApplicationService | None,
-    explicit_agent_service: AgentUserService | None,
-):
-    if explicit_service is not None:
-        return explicit_service
-    if explicit_agent_service is not None and all(
-        hasattr(explicit_agent_service, attr)
-        for attr in ("cancel_session_run", "approve_session_wait", "deny_session_wait")
-    ):
-        return explicit_agent_service
-    if session_service is None:
-        raise RuntimeError("Run control service is not configured.")
-    resolved_service = getattr(session_service, "run_control_service", None)
-    if resolved_service is not None:
-        return resolved_service
-    if all(hasattr(session_service, attr) for attr in ("cancel_session", "respond_to_approval")):
-        return _LegacySurfaceRunControlAdapter(session_service)
-    raise RuntimeError("Run control service is not configured.")
 
 
 class MainAgentSurfaceService:
@@ -199,9 +89,10 @@ class MainAgentSurfaceService:
         *,
         session_service: object | None = None,
         session_task_service: SessionTaskService | None = None,
-        run_control_service: RunControlApplicationService | None = None,
+        run_control_service: RunControlApplicationService | AgentUserService | None = None,
         agent_service: AgentUserService | None = None,
         model_service: ModelUserService | None = None,
+        workspace_service: WorkspaceUserService | None = None,
         resolve_workspace_dir: ResolveWorkspaceDirFn,
         to_utc_iso: ToUtcIsoFn,
         sse_event: SseEventFn,
@@ -209,13 +100,14 @@ class MainAgentSurfaceService:
         stream_chunk_size: int,
     ) -> None:
         self._session_service = session_service
-        self._session_task_service = _resolve_session_task_service(
+        self._session_task_service = resolve_surface_session_task_service(
             session_service,
             session_task_service,
         )
         self._run_control_service = run_control_service
         self._agent_service = agent_service
         self._model_service = model_service
+        self._workspace_service = workspace_service
         self._resolve_workspace_dir = resolve_workspace_dir
         self._to_utc_iso = to_utc_iso
         self._sse_event = sse_event
@@ -244,7 +136,7 @@ class MainAgentSurfaceService:
         )
 
     def _require_run_control_service(self):
-        resolved = _resolve_run_control_service(
+        resolved = resolve_surface_run_control_service(
             self._session_service,
             self._run_control_service,
             self._agent_service,
@@ -253,14 +145,47 @@ class MainAgentSurfaceService:
         return resolved
 
     def _require_agent_service(self):
-        resolved = _resolve_agent_entry_service(self._session_service, self._agent_service)
+        resolved = resolve_surface_agent_entry_service(self._session_service, self._agent_service)
         self._agent_service = resolved
         return resolved
 
     def _require_model_service(self):
-        resolved = _resolve_model_entry_service(self._session_service, self._model_service)
+        resolved = resolve_surface_model_entry_service(self._session_service, self._model_service)
         self._model_service = resolved
         return resolved
+
+    def _require_workspace_service(self):
+        resolved = resolve_surface_workspace_entry_service(self._session_service, self._workspace_service)
+        self._workspace_service = resolved
+        return resolved
+
+    async def list_model_candidates(self) -> MainAgentModelCandidateListResponse:
+        payload = await self._require_model_service().list_model_candidates()
+        return model_candidate_list_response(payload)
+
+    async def get_current_model_binding(self, agent_id: str | None = None) -> MainAgentModelBindingSummary:
+        payload = await self._require_model_service().get_current_model_binding(agent_id)
+        return model_binding_summary_response(payload)
+
+    async def set_agent_model_binding(
+        self,
+        request: MainAgentModelBindingRequest,
+    ) -> MainAgentModelBindingSummary:
+        payload = await self._require_model_service().set_agent_model_binding(
+            agent_id=request.agent_id,
+            provider_source=request.provider_source,
+            provider_id=request.provider_id,
+            model_id=request.model_id,
+        )
+        return model_binding_summary_response(payload)
+
+    async def get_current_model_capabilities(self, agent_id: str | None = None) -> MainAgentModelCapabilities:
+        payload = await self._require_model_service().get_current_model_capabilities(agent_id)
+        return model_capabilities_response(payload)
+
+    async def get_model_binding_diagnostics(self, agent_id: str | None = None) -> MainAgentModelBindingDiagnostics:
+        payload = await self._require_model_service().get_model_binding_diagnostics(agent_id)
+        return model_binding_diagnostics_response(payload)
 
     async def run_chat(self, request: MainAgentChatRequest) -> MainAgentChatResponse:
         binding = ApplicationInteractionBinding.from_main_agent_chat_request(request)
@@ -278,6 +203,33 @@ class MainAgentSurfaceService:
 
     async def get_routing_diagnostics(self) -> MainAgentRoutingDiagnostics:
         return await self._route_execution.get_routing_diagnostics()
+
+    async def list_workspaces(self) -> list[MainAgentWorkspaceSummary]:
+        payload = await self._require_workspace_service().list_workspaces()
+        return [workspace_summary_response(item) for item in list(payload or [])]
+
+    async def get_workspace(self, workspace_id: str) -> MainAgentWorkspaceSummary:
+        payload = await self._require_workspace_service().get_workspace(workspace_id)
+        return workspace_summary_response(payload)
+
+    async def get_active_workspace(self) -> MainAgentWorkspaceSummary:
+        payload = await self._require_workspace_service().get_active_workspace()
+        return workspace_summary_response(payload)
+
+    async def switch_workspace(
+        self,
+        request: MainAgentWorkspaceSwitchRequest,
+    ) -> MainAgentWorkspaceSummary:
+        payload = await self._require_workspace_service().switch_workspace(request.workspace_id)
+        return workspace_summary_response(payload)
+
+    async def get_workspace_runtime_summary(
+        self,
+        *,
+        workspace_id: str | None = None,
+    ) -> MainAgentWorkspaceRuntimeSummary:
+        payload = await self._require_workspace_service().get_workspace_runtime_summary(workspace_id)
+        return workspace_runtime_summary_response(payload)
 
     async def list_sessions(
         self,

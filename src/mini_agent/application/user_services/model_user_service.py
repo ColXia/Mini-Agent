@@ -29,8 +29,14 @@ class ModelUserService:
     async def list_model_bindings(self) -> Any:
         return await self._application().list_model_bindings()
 
+    async def list_model_candidates(self) -> Any:
+        return await self._application().list_model_candidates()
+
     async def get_model_binding(self, agent_id: str | None = None) -> Any:
         return await self._application().get_model_binding(agent_id)
+
+    async def get_current_model_binding(self, agent_id: str | None = None) -> Any:
+        return await self._application().get_current_model_binding(agent_id)
 
     async def update_model_binding(
         self,
@@ -47,8 +53,29 @@ class ModelUserService:
             model_id=model_id,
         )
 
+    async def set_agent_model_binding(
+        self,
+        *,
+        agent_id: str | None = None,
+        provider_source: str | None = None,
+        provider_id: str | None = None,
+        model_id: str | None = None,
+    ) -> Any:
+        return await self._application().set_agent_model_binding(
+            agent_id=agent_id,
+            provider_source=provider_source,
+            provider_id=provider_id,
+            model_id=model_id,
+        )
+
     async def list_model_capabilities(self, agent_id: str | None = None) -> Any:
         return await self._application().list_model_capabilities(agent_id)
+
+    async def get_current_model_capabilities(self, agent_id: str | None = None) -> Any:
+        return await self._application().get_current_model_capabilities(agent_id)
+
+    async def get_model_binding_diagnostics(self, agent_id: str | None = None) -> Any:
+        return await self._application().get_model_binding_diagnostics(agent_id)
 
     async def update_session_model_selection(
         self,

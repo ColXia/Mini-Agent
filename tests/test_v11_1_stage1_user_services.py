@@ -175,6 +175,12 @@ class ModelRuntimeStub:
     async def list_model_capabilities(self, agent_id: str | None = None):
         return {"agent_id": agent_id, "supports_tools": True}
 
+    async def get_model_binding_diagnostics(self, agent_id: str | None = None):
+        return {
+            "agent_id": agent_id,
+            "current_binding": {"agent_id": agent_id, "model_id": "model-1"},
+        }
+
 
 class SessionModelRuntimeStub:
     async def update_session_model_selection(
@@ -420,6 +426,11 @@ async def test_stage1_user_services_delegate_to_runtime_ports() -> None:
     assert await agent_service.list_agents() == [{"agent_id": "agent-1"}]
     assert await agent_service.get_active_agent() == {"agent_id": "agent-1", "active": True}
     assert await workspace_service.switch_workspace("ws-2") == {"workspace_id": "ws-2", "switched": True}
+    assert await model_service.list_model_candidates() == [{"model_id": "model-1"}]
+    assert await model_service.get_current_model_binding("agent-1") == {
+        "agent_id": "agent-1",
+        "model_id": "model-1",
+    }
     assert await model_service.update_model_binding(
         agent_id="agent-1",
         provider_source="openai",
@@ -430,6 +441,25 @@ async def test_stage1_user_services_delegate_to_runtime_ports() -> None:
         "provider_source": "openai",
         "provider_id": "primary",
         "model_id": "gpt-5",
+    }
+    assert await model_service.set_agent_model_binding(
+        agent_id="agent-1",
+        provider_source="preset",
+        provider_id="openai",
+        model_id="gpt-5.4",
+    ) == {
+        "agent_id": "agent-1",
+        "provider_source": "preset",
+        "provider_id": "openai",
+        "model_id": "gpt-5.4",
+    }
+    assert await model_service.get_current_model_capabilities("agent-1") == {
+        "agent_id": "agent-1",
+        "supports_tools": True,
+    }
+    assert await model_service.get_model_binding_diagnostics("agent-1") == {
+        "agent_id": "agent-1",
+        "current_binding": {"agent_id": "agent-1", "model_id": "model-1"},
     }
     assert await command_service.list_commands() == ["help", "session"]
     assert await command_service.dispatch_command("/help", surface="desktop") == {
@@ -619,7 +649,31 @@ async def test_stage1_application_services_delegate_to_runtime_ports() -> None:
 
     assert await agent_application.get_active_agent() == {"agent_id": "agent-1", "active": True}
     assert await workspace_application.get_active_workspace() == {"workspace_id": "ws-1", "active": True}
+    assert await model_application.list_model_candidates() == [{"model_id": "model-1"}]
     assert await model_application.get_model_binding("agent-1") == {"agent_id": "agent-1", "model_id": "model-1"}
+    assert await model_application.get_current_model_binding("agent-1") == {
+        "agent_id": "agent-1",
+        "model_id": "model-1",
+    }
+    assert await model_application.set_agent_model_binding(
+        agent_id="agent-1",
+        provider_source="preset",
+        provider_id="openai",
+        model_id="gpt-5.4",
+    ) == {
+        "agent_id": "agent-1",
+        "provider_source": "preset",
+        "provider_id": "openai",
+        "model_id": "gpt-5.4",
+    }
+    assert await model_application.get_current_model_capabilities("agent-1") == {
+        "agent_id": "agent-1",
+        "supports_tools": True,
+    }
+    assert await model_application.get_model_binding_diagnostics("agent-1") == {
+        "agent_id": "agent-1",
+        "current_binding": {"agent_id": "agent-1", "model_id": "model-1"},
+    }
     assert await command_application.complete_command("he") == ["hepletion"]
 
 

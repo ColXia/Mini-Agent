@@ -4,6 +4,7 @@ import asyncio
 from types import SimpleNamespace
 from typing import Any
 
+from mini_agent.transport import RemoteChatClient
 from mini_agent.tui.session_remote_turn_stream_coordinator import TuiRemoteTurnStreamCoordinator
 
 
@@ -25,7 +26,7 @@ def test_tui_remote_turn_stream_coordinator_consumes_stream_events() -> None:
     schedule_calls: list[str] = []
     render_calls: list[str] = []
 
-    class _Gateway:
+    class _ChatClient:
         async def stream_chat_events(
             self,
             *,
@@ -85,7 +86,7 @@ def test_tui_remote_turn_stream_coordinator_consumes_stream_events() -> None:
 
     result = asyncio.run(
         coordinator.consume(
-            gateway_client=_Gateway(),
+            chat_client=_ChatClient(),
             session=session,
             message="ship p37",
             workspace_dir="D:/file/Mini-Agent",
@@ -138,7 +139,7 @@ def test_tui_remote_turn_stream_coordinator_handles_approval_roundtrip() -> None
     cleared_tokens: list[str | None] = []
     approval_resolved: list[str] = []
 
-    class _Gateway:
+    class _ChatClient:
         async def stream_chat_events(
             self,
             *,
@@ -177,7 +178,7 @@ def test_tui_remote_turn_stream_coordinator_handles_approval_roundtrip() -> None
 
     result = asyncio.run(
         coordinator.consume(
-            gateway_client=_Gateway(),
+            chat_client=_ChatClient(),
             session=session,
             message="approve this",
             workspace_dir="D:/file/Mini-Agent",
@@ -194,7 +195,7 @@ def test_tui_remote_turn_stream_coordinator_handles_approval_roundtrip() -> None
 def test_tui_remote_turn_stream_coordinator_falls_back_to_run_chat() -> None:
     session = _session()
 
-    class _Gateway:
+    class _RunOnlyTransport:
         async def run_chat(
             self,
             *,
@@ -208,10 +209,16 @@ def test_tui_remote_turn_stream_coordinator_falls_back_to_run_chat() -> None:
             assert workspace_dir == "D:/file/Mini-Agent"
             assert surface == "tui"
             return {
+                "session_id": "remote-1",
                 "reply": "remote:fallback",
                 "stop_reason": "end_turn",
                 "message_count": 2,
+                "token_usage": 0,
+                "workspace_dir": "D:/file/Mini-Agent",
+                "updated_at": "2026-04-18T00:00:00+08:00",
             }
+
+    chat_client = RemoteChatClient(chat_transport=_RunOnlyTransport())
 
     coordinator = TuiRemoteTurnStreamCoordinator(
         append_activity_line=lambda _session, **kwargs: None,
@@ -228,7 +235,7 @@ def test_tui_remote_turn_stream_coordinator_falls_back_to_run_chat() -> None:
 
     result = asyncio.run(
         coordinator.consume(
-            gateway_client=_Gateway(),
+            chat_client=chat_client,
             session=session,
             message="fallback",
             workspace_dir="D:/file/Mini-Agent",
@@ -239,7 +246,11 @@ def test_tui_remote_turn_stream_coordinator_falls_back_to_run_chat() -> None:
     assert result.stop_reason == "end_turn"
     assert result.assistant_message_index is None
     assert result.response == {
+        "session_id": "remote-1",
         "reply": "remote:fallback",
-        "stop_reason": "end_turn",
         "message_count": 2,
+        "token_usage": 0,
+        "workspace_dir": "D:/file/Mini-Agent",
+        "updated_at": "2026-04-18T00:00:00+08:00",
+        "delegation": None,
     }

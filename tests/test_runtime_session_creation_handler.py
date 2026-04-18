@@ -24,6 +24,7 @@ async def test_runtime_session_creation_handler_supports_default_session_bootstr
         normalize_surface=lambda value: " ".join(str(value or "").strip().lower().split()) or "api",
         normalize_channel_type=lambda value: str(value).lower() if value else None,
         build_agent_for_identity=lambda _workspace_dir, _identity: _build_agent(),
+        default_model_identity=None,
         bootstrap_session_lifecycle=lambda session_id, workspace_dir, now_utc: {
             "session_id": session_id,
             "workspace_dir": workspace_dir,
@@ -58,6 +59,7 @@ async def test_runtime_session_creation_handler_supports_legacy_lifecycle_wiring
         normalize_surface=lambda value: " ".join(str(value or "").strip().lower().split()) or "api",
         normalize_channel_type=lambda value: str(value).lower() if value else None,
         build_agent_for_identity=lambda _workspace_dir, _identity: _build_agent(),
+        default_model_identity=None,
         build_session_key=lambda session_id, workspace_dir: (session_id, str(workspace_dir)),
         lifecycle_bootstrap=lambda session_key, now_utc: {
             "session_key": session_key,
@@ -89,6 +91,58 @@ async def test_runtime_session_creation_handler_supports_legacy_lifecycle_wiring
     assert session.projection.origin_surface == "qq"
 
 
+@pytest.mark.asyncio
+async def test_runtime_session_creation_handler_uses_default_model_identity_for_build_and_projection(
+    tmp_path: Path,
+) -> None:
+    seen_identities: list[tuple[str, str, str] | None] = []
+
+    async def _build_agent(
+        _workspace_dir: Path,
+        identity: tuple[str, str, str] | None,
+    ) -> RuntimeContractAgentStub:
+        seen_identities.append(identity)
+        if identity is None:
+            return RuntimeContractAgentStub(model="fallback-model")
+        provider_source, provider_id, model_id = identity
+        return RuntimeContractAgentStub(
+            model=model_id,
+            provider_source=provider_source,
+            provider_id=provider_id,
+        )
+
+    handler = RuntimeSessionCreationHandler(
+        allocate_session_title=lambda base_title, _workspace_dir: base_title,
+        normalize_surface=lambda value: " ".join(str(value or "").strip().lower().split()) or "api",
+        normalize_channel_type=lambda value: str(value).lower() if value else None,
+        build_agent_for_identity=_build_agent,
+        default_model_identity=lambda: ("custom", "maas", "astron-code-latest"),
+        bootstrap_session_lifecycle=lambda session_id, workspace_dir, now_utc: {
+            "session_id": session_id,
+            "workspace_dir": workspace_dir,
+            "now_utc": now_utc,
+        },
+        agent_knowledge_base_enabled=lambda _agent: True,
+        collect_sandbox_diagnostics=lambda _agent: {"backend": "none"},
+        route_model_identity=lambda agent: getattr(agent, "runtime_route", None)
+        and ("custom", "maas", "astron-code-latest"),
+    )
+
+    session = await handler.create(
+        RuntimeSessionCreationCommand(
+            session_id="sess-explicit",
+            workspace_dir=tmp_path,
+            title="Task",
+            default_surface="desktop",
+        ),
+        now_utc=_dt(),
+    )
+
+    assert seen_identities == [("custom", "maas", "astron-code-latest")]
+    assert session.projection.selected_model_source == "custom"
+    assert session.projection.selected_provider_id == "maas"
+    assert session.projection.selected_model_id == "astron-code-latest"
+
+
 async def _build_agent() -> RuntimeContractAgentStub:
     return RuntimeContractAgentStub()
-

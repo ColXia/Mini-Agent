@@ -106,6 +106,14 @@ class GatewayClient:
         )
         return data if isinstance(data, list) else []
 
+    async def list_workspaces(self) -> list[dict[str, Any]]:
+        data = await asyncio.to_thread(
+            self._request_json,
+            "GET",
+            "/api/v1/agent/workspaces",
+        )
+        return data if isinstance(data, list) else []
+
     async def get_system_health(self) -> dict[str, Any]:
         return await asyncio.to_thread(
             self._request_json,
@@ -139,10 +147,87 @@ class GatewayClient:
             },
         )
 
+    async def get_active_workspace(self) -> dict[str, Any]:
+        return await asyncio.to_thread(
+            self._request_json,
+            "GET",
+            "/api/v1/agent/workspaces/active",
+        )
+
+    async def get_workspace(self, workspace_id: str) -> dict[str, Any]:
+        return await asyncio.to_thread(
+            self._request_json,
+            "GET",
+            "/api/v1/agent/workspaces/resolve",
+            query={"workspace_id": _safe_text(workspace_id)},
+        )
+
+    async def switch_workspace(self, workspace_id: str) -> dict[str, Any]:
+        return await asyncio.to_thread(
+            self._request_json,
+            "POST",
+            "/api/v1/agent/workspaces/switch",
+            payload={"workspace_id": _safe_text(workspace_id)},
+        )
+
+    async def get_workspace_runtime_summary(
+        self,
+        *,
+        workspace_id: str | None = None,
+    ) -> dict[str, Any]:
+        return await asyncio.to_thread(
+            self._request_json,
+            "GET",
+            "/api/v1/agent/workspaces/runtime",
+            query={"workspace_id": _safe_text(workspace_id) or None},
+        )
+
     def get_system_health_sync(self) -> dict[str, Any]:
         data = self._request_json(
             "GET",
             "/api/v1/system/health",
+        )
+        return data if isinstance(data, dict) else {}
+
+    def list_workspaces_sync(self) -> list[dict[str, Any]]:
+        data = self._request_json(
+            "GET",
+            "/api/v1/agent/workspaces",
+        )
+        return data if isinstance(data, list) else []
+
+    def get_active_workspace_sync(self) -> dict[str, Any]:
+        data = self._request_json(
+            "GET",
+            "/api/v1/agent/workspaces/active",
+        )
+        return data if isinstance(data, dict) else {}
+
+    def get_workspace_sync(self, workspace_id: str) -> dict[str, Any]:
+        data = self._request_json(
+            "GET",
+            "/api/v1/agent/workspaces/resolve",
+            query={"workspace_id": _safe_text(workspace_id)},
+        )
+        return data if isinstance(data, dict) else {}
+
+    def switch_workspace_sync(self, workspace_id: str) -> dict[str, Any]:
+        data = self._request_json(
+            "POST",
+            "/api/v1/agent/workspaces/switch",
+            payload={"workspace_id": _safe_text(workspace_id)},
+        )
+        return data if isinstance(data, dict) else {}
+
+    def get_workspace_runtime_summary_sync(
+        self,
+        *,
+        workspace_id: str | None = None,
+    ) -> dict[str, Any]:
+        data = self._request_json(
+            "GET",
+            "/api/v1/agent/workspaces/runtime",
+            query={"workspace_id": _safe_text(workspace_id) or None},
         )
         return data if isinstance(data, dict) else {}
 
@@ -157,6 +242,74 @@ class GatewayClient:
         data = self._request_json(
             "GET",
             "/api/v1/agent/models",
+        )
+        return data if isinstance(data, dict) else {}
+
+    def list_agent_model_candidates_sync(
+        self,
+        *,
+        agent_id: str | None = None,
+    ) -> dict[str, Any]:
+        data = self._request_json(
+            "GET",
+            "/api/v1/agent/model/candidates",
+            query={"agent_id": _safe_text(agent_id) or None},
+        )
+        return data if isinstance(data, dict) else {}
+
+    def get_current_agent_model_binding_sync(
+        self,
+        *,
+        agent_id: str | None = None,
+    ) -> dict[str, Any]:
+        data = self._request_json(
+            "GET",
+            "/api/v1/agent/model/binding",
+            query={"agent_id": _safe_text(agent_id) or None},
+        )
+        return data if isinstance(data, dict) else {}
+
+    def set_agent_model_binding_sync(
+        self,
+        *,
+        agent_id: str | None = None,
+        provider_source: str | None = None,
+        provider_id: str,
+        model_id: str,
+    ) -> dict[str, Any]:
+        data = self._request_json(
+            "PUT",
+            "/api/v1/agent/model/binding",
+            payload={
+                "agent_id": _safe_text(agent_id) or None,
+                "provider_source": _safe_text(provider_source) or None,
+                "provider_id": _safe_text(provider_id),
+                "model_id": _safe_text(model_id),
+            },
+        )
+        return data if isinstance(data, dict) else {}
+
+    def get_current_agent_model_capabilities_sync(
+        self,
+        *,
+        agent_id: str | None = None,
+    ) -> dict[str, Any]:
+        data = self._request_json(
+            "GET",
+            "/api/v1/agent/model/capabilities",
+            query={"agent_id": _safe_text(agent_id) or None},
+        )
+        return data if isinstance(data, dict) else {}
+
+    def get_agent_model_binding_diagnostics_sync(
+        self,
+        *,
+        agent_id: str | None = None,
+    ) -> dict[str, Any]:
+        data = self._request_json(
+            "GET",
+            "/api/v1/agent/model/diagnostics",
+            query={"agent_id": _safe_text(agent_id) or None},
         )
         return data if isinstance(data, dict) else {}
 

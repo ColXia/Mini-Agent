@@ -93,6 +93,8 @@ from mini_agent.interfaces import (
     MainAgentSessionRuntimePolicyRequest,
     MainAgentSessionShareRequest,
     MainAgentSessionSkillRequest,
+    surface_payload_from_dto,
+    surface_payload_list_from_dtos,
 )
 from mini_agent.model_manager.model_registry_service import ModelRegistryService
 from mini_agent.model_manager.session_selection_service import (
@@ -133,6 +135,7 @@ from mini_agent.tui.session_runtime_policy_command_coordinator import (
     TuiSessionRuntimePolicyCommandCoordinator,
 )
 from mini_agent.tui.session_skill_command_coordinator import TuiSessionSkillCommandCoordinator
+from mini_agent.tui.gateway_transport_binding import TuiGatewayTransportBinding
 from mini_agent.tui.session_turn_outcome_coordinator import TuiSessionTurnOutcomeCoordinator
 from mini_agent.tui.session_turn_state_coordinator import TuiSessionTurnStateCoordinator
 from mini_agent.tui.session_projection import TerminalSessionProjection
@@ -149,7 +152,9 @@ from mini_agent.agent_core.context.control_result_service import (
 )
 from mini_agent.transport import (
     GatewayClient,
+    RemoteChatClient,
     RemoteSessionClient,
+    RemoteWorkspaceClient,
     RemoteStreamErrorService,
     extract_gateway_error_info,
 )
@@ -378,14 +383,14 @@ def _default_session_state_path(workspace: Path) -> Path:
 
 
 def _serialize_agent_message(value: Any) -> dict[str, Any]:
-    if hasattr(value, "model_dump"):
-        payload = value.model_dump()
-    elif isinstance(value, dict):
-        payload = dict(value)
-    elif hasattr(value, "__dict__"):
-        payload = dict(vars(value))
-    else:
-        payload = {"role": "assistant", "content": str(value)}
+    payload = surface_payload_from_dto(value)
+    if not payload:
+        if isinstance(value, dict):
+            payload = dict(value)
+        elif hasattr(value, "__dict__"):
+            payload = dict(vars(value))
+        else:
+            payload = {"role": "assistant", "content": str(value)}
 
     serialized = {
         "role": _safe_text(payload.get("role")) or "assistant",
@@ -853,10 +858,18 @@ class MiniAgentTuiApp:
         self.initial_prompt = initial_prompt
         self._config_loader = config_loader
         self.registry = registry or ModelRegistryService()
-        self.gateway_client = gateway_client or GatewayClient()
-        self.remote_session_service = RemoteSessionClient(session_transport=self.gateway_client)
+        self._transport_binding = TuiGatewayTransportBinding.from_gateway_client(
+            gateway_client or GatewayClient()
+        )
+        self.gateway_client = self._transport_binding.gateway_client
+        self.remote_chat_service = self._transport_binding.chat_client
+        self.remote_model_service = self._transport_binding.model_client
+        self.remote_session_service = self._transport_binding.session_client
+        self.remote_workspace_service = self._transport_binding.workspace_client
         self._session_payload_codec = RuntimeSessionPayloadCodec()
         self._session_model_identity_codec = RuntimeSessionModelIdentityCodec()
+        self._remote_workspace_summary: dict[str, Any] = {}
+        self._remote_workspace_runtime_summary: dict[str, Any] = {}
         self._remote_session_projector = TuiRemoteSessionProjector(
             resolve_session_title=lambda projection, fallback: self._remote_session_title_from_projection(
                 projection,
@@ -1847,12 +1860,13 @@ class MiniAgentTuiApp:
     def _render_header(self) -> list[tuple[str, str]]:
         title = self.current_session.title if self.sessions else "No Session"
         thread_count = len(self.sessions)
+        workspace_hint = _truncate_inline(self._workspace_header_hint(), limit=18) or "-"
         model_hint = self._current_model_hint()
         approval_profile, access_level = self._session_runtime_policy(self.current_session if self.sessions else None)
         usage = self._session_usage_stats(self.current_session if self.sessions else None)
         fragments: list[tuple[str, str]] = [
             ("class:frame.label", " Mini-Agent "),
-            ("class:frame.label", f"| {title} | threads={thread_count} | "),
+            ("class:frame.label", f"| {title} | threads={thread_count} | ws={workspace_hint} | "),
             ("class:header.metric.value", f"mode={approval_profile} "),
             ("class:frame.label", "| "),
             ("class:header.metric.value", f"access={access_level} "),
@@ -2775,14 +2789,91 @@ class MiniAgentTuiApp:
         projection = cls._terminal_session_projection(session)
         return projection.peer_summary if projection is not None else "no external peer"
 
+    def _requested_remote_workspace_id(self) -> str:
+        return str(self.workspace)
+
+    def _effective_remote_workspace_dir(self) -> str:
+        for payload in (self._remote_workspace_summary, self._remote_workspace_runtime_summary):
+            raw_workspace = _safe_text(payload.get("workspace_dir"))
+            if raw_workspace:
+                return raw_workspace
+        return str(self.workspace)
+
+    def _workspace_header_hint(self) -> str:
+        explicit_title = _safe_text(self._remote_workspace_summary.get("title"))
+        if explicit_title:
+            return explicit_title
+        raw_workspace = self._effective_remote_workspace_dir()
+        try:
+            resolved = Path(raw_workspace).expanduser().resolve()
+            return resolved.name or str(resolved)
+        except Exception:
+            return raw_workspace
+
+    async def _refresh_remote_workspace_snapshot(self) -> None:
+        requested_workspace = self._requested_remote_workspace_id()
+        try:
+            summary = await self.remote_workspace_service.get_workspace(requested_workspace)
+            self._remote_workspace_summary = surface_payload_from_dto(summary)
+        except Exception:
+            try:
+                active = await self.remote_workspace_service.get_active_workspace()
+                self._remote_workspace_summary = surface_payload_from_dto(active)
+            except Exception:
+                self._remote_workspace_summary = {}
+
+        runtime_workspace_id = (
+            _safe_text(self._remote_workspace_summary.get("workspace_id"))
+            or _safe_text(self._remote_workspace_summary.get("workspace_dir"))
+            or requested_workspace
+        )
+        try:
+            runtime_summary = await self.remote_workspace_service.get_workspace_runtime_summary(
+                workspace_id=runtime_workspace_id
+            )
+            self._remote_workspace_runtime_summary = surface_payload_from_dto(runtime_summary)
+        except Exception:
+            self._remote_workspace_runtime_summary = {}
+
+    def _refresh_remote_workspace_snapshot_sync(self) -> None:
+        requested_workspace = self._requested_remote_workspace_id()
+        try:
+            summary = self.remote_workspace_service.get_workspace_sync(requested_workspace)
+            self._remote_workspace_summary = surface_payload_from_dto(summary)
+        except Exception:
+            try:
+                active = self.remote_workspace_service.get_active_workspace_sync()
+                self._remote_workspace_summary = surface_payload_from_dto(active)
+            except Exception:
+                self._remote_workspace_summary = {}
+
+        runtime_workspace_id = (
+            _safe_text(self._remote_workspace_summary.get("workspace_id"))
+            or _safe_text(self._remote_workspace_summary.get("workspace_dir"))
+            or requested_workspace
+        )
+        try:
+            runtime_summary = self.remote_workspace_service.get_workspace_runtime_summary_sync(
+                workspace_id=runtime_workspace_id
+            )
+            self._remote_workspace_runtime_summary = surface_payload_from_dto(runtime_summary)
+        except Exception:
+            self._remote_workspace_runtime_summary = {}
+
     def _payload_workspace_matches_current(self, payload: dict[str, Any]) -> bool:
         raw_workspace = _safe_text(payload.get("workspace_dir"))
         if not raw_workspace:
             return False
-        try:
-            return Path(raw_workspace).expanduser().resolve() == self.workspace
-        except Exception:
-            return raw_workspace.lower() == str(self.workspace).lower()
+        for candidate in (str(self.workspace), self._effective_remote_workspace_dir()):
+            if not candidate:
+                continue
+            try:
+                if Path(raw_workspace).expanduser().resolve() == Path(candidate).expanduser().resolve():
+                    return True
+            except Exception:
+                if raw_workspace.lower() == candidate.lower():
+                    return True
+        return False
 
     @staticmethod
     def _remote_request_binding_kwargs(session: TuiSession) -> dict[str, str | None]:
@@ -2879,13 +2970,16 @@ class MiniAgentTuiApp:
         if self._has_local_runtime_state(session):
             return
         detail = await self.remote_session_service.get_session_detail(session.session_id, recent_limit=recent_limit)
-        self._apply_remote_session_detail(session, detail.model_dump())
+        self._apply_remote_session_detail(session, surface_payload_from_dto(detail))
 
     async def _sync_remote_sessions_once(self, *, focus_current: bool = True) -> None:
         current_session_id = self.current_session.session_id if self.sessions else None
-        remote_summaries = await self.remote_session_service.list_sessions(workspace_dir=str(self.workspace))
+        await self._refresh_remote_workspace_snapshot()
+        remote_summaries = await self.remote_session_service.list_sessions(
+            workspace_dir=self._effective_remote_workspace_dir()
+        )
         ordered_summaries = sorted(
-            [item.model_dump() for item in remote_summaries],
+            surface_payload_list_from_dtos(remote_summaries),
             key=lambda item: _safe_text(item.get("updated_at")),
             reverse=True,
         )
@@ -2917,7 +3011,7 @@ class MiniAgentTuiApp:
             )
             if should_fetch_detail:
                 detail_payload = await self.remote_session_service.get_session_detail(session.session_id, recent_limit=80)
-                self._apply_remote_session_detail(session, detail_payload.model_dump())
+                self._apply_remote_session_detail(session, surface_payload_from_dto(detail_payload))
                 changed = True
             elif (
                 not local_runtime_authoritative
@@ -2927,7 +3021,7 @@ class MiniAgentTuiApp:
                 )
             ):
                 messages = await self.remote_session_service.get_session_messages(session.session_id, limit=6)
-                self._apply_remote_session_messages(session, [item.model_dump() for item in messages])
+                self._apply_remote_session_messages(session, surface_payload_list_from_dtos(messages))
                 changed = True
             next_sessions.append(session)
 
@@ -3034,17 +3128,19 @@ class MiniAgentTuiApp:
         return self._default_session_index()
 
     def _bootstrap_runtime_sessions_sync(self) -> None:
-        summaries = self.remote_session_service.list_sessions_sync(workspace_dir=str(self.workspace))
+        self._refresh_remote_workspace_snapshot_sync()
+        effective_workspace_dir = self._effective_remote_workspace_dir()
+        summaries = self.remote_session_service.list_sessions_sync(workspace_dir=effective_workspace_dir)
         if not summaries:
             created = self.remote_session_service.ensure_default_session_sync(
                 MainAgentDefaultSessionRequest(
-                    workspace_dir=str(self.workspace),
+                    workspace_dir=effective_workspace_dir,
                     surface="tui",
                 )
             )
             summaries = [created]
         ordered = sorted(
-            [item.model_dump() for item in summaries],
+            surface_payload_list_from_dtos(summaries),
             key=lambda item: _safe_text(item.get("updated_at")),
             reverse=True,
         )
@@ -3071,7 +3167,7 @@ class MiniAgentTuiApp:
         except Exception:
             detail = None
         if detail is not None:
-            self._apply_remote_session_detail(self.current_session, detail.model_dump())
+            self._apply_remote_session_detail(self.current_session, surface_payload_from_dto(detail))
         self._refresh_command_completer()
 
     def _persist_session_state(self) -> None:
@@ -3092,15 +3188,16 @@ class MiniAgentTuiApp:
             self._set_status(f"Session persistence failed: {exc}")
 
     async def _create_runtime_session(self, *, title: str | None = None, shared: bool = False) -> TuiSession | None:
+        await self._refresh_remote_workspace_snapshot()
         response = await self.remote_session_service.create_session(
             MainAgentSessionCreateRequest(
-                workspace_dir=str(self.workspace),
+                workspace_dir=self._effective_remote_workspace_dir(),
                 title=title,
                 surface="tui",
                 shared=shared,
             )
         )
-        payload = response.model_dump()
+        payload = surface_payload_from_dto(response)
         session = self._build_runtime_session_from_summary(payload)
         if session is None:
             return None
@@ -3134,7 +3231,7 @@ class MiniAgentTuiApp:
                 surface="tui",
             ),
         )
-        payload = response.model_dump()
+        payload = surface_payload_from_dto(response)
         session = self._build_runtime_session_from_summary(payload)
         if session is None:
             return None
@@ -3153,13 +3250,14 @@ class MiniAgentTuiApp:
         return session
 
     async def _ensure_remote_default_session(self) -> TuiSession | None:
+        await self._refresh_remote_workspace_snapshot()
         response = await self.remote_session_service.ensure_default_session(
             MainAgentDefaultSessionRequest(
-                workspace_dir=str(self.workspace),
+                workspace_dir=self._effective_remote_workspace_dir(),
                 surface="tui",
             )
         )
-        payload = response.model_dump()
+        payload = surface_payload_from_dto(response)
         session = self._build_runtime_session_from_summary(payload)
         if session is None:
             return None
@@ -3244,8 +3342,7 @@ class MiniAgentTuiApp:
         self.session_index = index
         self._restore_chat_view_state()
         preferred_model = self._preferred_cursor_model_identity(self.current_session)
-        if preferred_model is not None:
-            self._set_model_cursor_by_identity(preferred_model)
+        self._refresh_registry(preferred_model=preferred_model)
         self._set_status(f"Switched to {self.current_session.title}.")
         self._schedule(self._sync_remote_session_detail(self.current_session, recent_limit=80))
         self._persist_session_state()
@@ -4647,7 +4744,7 @@ class MiniAgentTuiApp:
             previous_cursor = self.model_cursor
             session_preferred = self._preferred_cursor_model_identity(self.current_session) if self.sessions else None
             previous_model = preferred_model or session_preferred or self._selected_model_identity()
-            self.providers = self.registry.list_registry()
+            self.providers = self._load_provider_inventory()
             positions = self._model_positions()
             if not positions:
                 self.model_cursor = None
@@ -4662,6 +4759,20 @@ class MiniAgentTuiApp:
             self.providers = []
             self.model_cursor = None
             self._set_status(f"Model registry unavailable: {exc}")
+
+    def _load_provider_inventory(self) -> list[dict[str, Any]]:
+        session = self.current_session if self.sessions else None
+        if self._runs_via_gateway(session):
+            try:
+                payload = surface_payload_from_dto(
+                    self.remote_model_service.list_agent_model_candidates_sync()
+                )
+                items = list(payload.get("items") or [])
+                if items:
+                    return items
+            except Exception:
+                pass
+        return self.registry.list_registry()
 
     def _visible_provider_models(
         self,
@@ -4941,7 +5052,7 @@ class MiniAgentTuiApp:
             ),
         )
         await self._sync_remote_session_detail(session, recent_limit=80)
-        response_payload = response.model_dump()
+        response_payload = surface_payload_from_dto(response)
         normalized_identity = (
             self._normalize_remote_model_identity_payload(response_payload, prefix="pending_")
             if response.queued
@@ -5599,7 +5710,7 @@ class MiniAgentTuiApp:
             f"{context_policy_summary_line(context_policy, include_default=True) if context_policy else 'context policy updated'}"
         )
         self._persist_session_state()
-        return response.model_dump()
+        return surface_payload_from_dto(response)
 
     async def _dispatch_remote_context_update(
         self,
@@ -5715,7 +5826,7 @@ class MiniAgentTuiApp:
         }:
             await self._sync_remote_session_detail(session, recent_limit=80)
         self._persist_session_state()
-        return response.model_dump()
+        return surface_payload_from_dto(response)
 
     async def _run_memory_action_for_session(
         self,
@@ -5857,7 +5968,7 @@ class MiniAgentTuiApp:
             if _safe_text(response.status).lower() == "ok":
                 self._refresh_skill_catalog_signature_baseline()
         self._persist_session_state()
-        return response.model_dump()
+        return surface_payload_from_dto(response)
 
     @staticmethod
     def _remote_skill_feedback_level(
@@ -6635,10 +6746,10 @@ class MiniAgentTuiApp:
         try:
             self._update_task(task, status="running", note="submitted to gateway")
             stream_result = await self._remote_turn_stream.consume(
-                gateway_client=self.gateway_client,
+                chat_client=self.remote_chat_service,
                 session=session,
                 message=text,
-                workspace_dir=str(self.workspace),
+                workspace_dir=self._effective_remote_workspace_dir(),
                 surface="tui",
             )
             response = stream_result.response

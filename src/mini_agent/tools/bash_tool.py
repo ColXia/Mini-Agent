@@ -9,9 +9,12 @@ import platform
 import re
 import time
 import uuid
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, model_validator
+
+from mini_agent.workspace_runtime import DirectWorkspaceExecutor, WorkspaceAccessScope, WorkspaceExecutor
 
 from .base import Tool, ToolResult
 
@@ -242,6 +245,7 @@ class BashTool(Tool):
     def __init__(
         self,
         workspace_dir: str | None = None,
+        workspace_executor: WorkspaceExecutor | None = None,
         policy_engine: "RuntimePolicyEngine | None" = None,
         sandbox_manager: "SandboxManager | None" = None,
     ):
@@ -251,12 +255,23 @@ class BashTool(Tool):
             workspace_dir: Working directory for command execution.
                            If provided, all commands run in this directory.
                            If None, commands run in the process's cwd.
+            workspace_executor: Optional workspace-runtime execution owner used to
+                                resolve the shell cwd and record execute access.
             policy_engine: Optional runtime policy engine for sandbox/elevated checks.
             sandbox_manager: Optional sandbox command transformer for execution.
         """
         self.is_windows = platform.system() == "Windows"
         self.shell_name = "PowerShell" if self.is_windows else "bash"
-        self.workspace_dir = workspace_dir
+        self.workspace_executor = workspace_executor
+        if self.workspace_executor is None and workspace_dir is not None:
+            self.workspace_executor = DirectWorkspaceExecutor(
+                Path(workspace_dir).absolute(),
+                scope=WorkspaceAccessScope.WORKSPACE_ONLY,
+            )
+        if self.workspace_executor is not None:
+            self.workspace_dir = str(self.workspace_executor.boundary.root)
+        else:
+            self.workspace_dir = workspace_dir
         self.policy_engine = policy_engine
         self.sandbox_manager = sandbox_manager
         self._active_foreground_process: asyncio.subprocess.Process | None = None
@@ -415,6 +430,12 @@ Examples:
             transformed_cwd = self.workspace_dir
             transformed_env = os.environ.copy()
             transformed_backend = None
+            if self.workspace_executor is not None:
+                execution_access = self.workspace_executor.resolve_execution_root(
+                    approved=True if _mini_agent_host_access_approved else None,
+                    detail="tool bash execute",
+                )
+                transformed_cwd = str(execution_access.resolved_path)
             if _mini_agent_host_access_approved:
                 transformed_env["MINI_AGENT_HOST_ACCESS_APPROVED"] = "1"
             elif self.sandbox_manager is not None:

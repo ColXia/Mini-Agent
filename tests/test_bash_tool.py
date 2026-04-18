@@ -13,6 +13,7 @@ from mini_agent.config import AgentConfig, Config, LLMConfig, SecurityConfig, To
 from mini_agent.runtime.tooling import resolve_runtime_policy
 from mini_agent.security.policy import BashCommandPolicyDecision
 from mini_agent.tools.bash_tool import BackgroundShellManager, BashKillTool, BashOutputTool, BashTool
+from mini_agent.workspace_runtime import DirectWorkspaceExecutor, InMemoryMutationLedger
 
 
 @pytest.mark.asyncio
@@ -364,6 +365,52 @@ async def test_bash_tool_applies_sandbox_transform(monkeypatch, tmp_path: Path):
         assert captured["shell_command"][-1] == "echo transformed-command"
     else:
         assert captured["shell_command"] == "echo transformed-command"
+
+
+@pytest.mark.asyncio
+async def test_bash_tool_uses_workspace_runtime_execution_root(monkeypatch, tmp_path: Path):
+    captured: dict[str, object] = {}
+    ledger = InMemoryMutationLedger()
+    workspace_executor = DirectWorkspaceExecutor(tmp_path, mutation_ledger=ledger)
+
+    class _FakeProcess:
+        def __init__(self) -> None:
+            self.returncode = 0
+
+        async def communicate(self):
+            return (b"runtime-ok", b"")
+
+        def kill(self) -> None:
+            self.returncode = -9
+
+        async def wait(self) -> int:
+            return self.returncode
+
+    async def _fake_create_subprocess_shell(command, **kwargs):  # noqa: ANN001
+        captured["shell_command"] = command
+        captured["kwargs"] = kwargs
+        return _FakeProcess()
+
+    async def _fake_create_subprocess_exec(*command, **kwargs):  # noqa: ANN001
+        captured["shell_command"] = list(command)
+        captured["kwargs"] = kwargs
+        return _FakeProcess()
+
+    if platform.system() == "Windows":
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", _fake_create_subprocess_exec)
+    else:
+        monkeypatch.setattr(asyncio, "create_subprocess_shell", _fake_create_subprocess_shell)
+
+    bash_tool = BashTool(workspace_executor=workspace_executor)
+    result = await bash_tool.execute(command="echo runtime-owned")
+
+    assert result.success is True
+    kwargs = captured["kwargs"]
+    assert kwargs["cwd"] == str(tmp_path.resolve())
+    records = ledger.snapshot()
+    assert len(records) == 1
+    assert records[0].kind.value == "execute"
+    assert records[0].path == tmp_path.resolve()
 
 
 @pytest.mark.asyncio

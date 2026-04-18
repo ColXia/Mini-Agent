@@ -16,7 +16,7 @@ from mini_agent.runtime.tooling import (
 )
 from mini_agent.tools.base import ToolResult
 from mini_agent.tools.bash_tool import BashTool
-from mini_agent.tools.file_tools import ReadTool, WriteTool
+from mini_agent.tools.file_tools import EditTool, ReadTool, WriteTool
 
 
 @pytest.fixture(autouse=True)
@@ -154,7 +154,15 @@ def test_workspace_tooling_injects_sandbox_manager_into_bash(tmp_path):
     )
 
     bash_tool = next(tool for tool in tools if isinstance(tool, BashTool))
+    read_tool = next(tool for tool in tools if isinstance(tool, ReadTool))
+    write_tool = next(tool for tool in tools if isinstance(tool, WriteTool))
+    edit_tool = next(tool for tool in tools if isinstance(tool, EditTool))
     assert bash_tool.sandbox_manager is not None
+    assert bash_tool.workspace_executor is not None
+    assert bash_tool.workspace_executor.boundary.root == tmp_path.resolve()
+    assert read_tool.workspace_executor is bash_tool.workspace_executor
+    assert write_tool.workspace_executor is bash_tool.workspace_executor
+    assert edit_tool.workspace_executor is bash_tool.workspace_executor
     transformed = bash_tool.sandbox_manager.transform("echo ok", cwd=tmp_path)
     assert transformed.env_overrides["MINI_AGENT_SANDBOX_BACKEND"]
 

@@ -1,6 +1,8 @@
 """Compatibility re-export for legacy session runtime compatibility adapters."""
 
 from .legacy.session_runtime_compat import (
+    AgentModelRuntimeAdapter,
+    SessionBackedRunRuntimeAdapter,
     SessionAgentCompatibilityAdapter,
     SessionModelSelectionCompatibilityAdapter,
     SessionTaskCompatibilityAdapter,
@@ -8,6 +10,8 @@ from .legacy.session_runtime_compat import (
 )
 
 __all__ = [
+    "AgentModelRuntimeAdapter",
+    "SessionBackedRunRuntimeAdapter",
     "SessionAgentCompatibilityAdapter",
     "SessionModelSelectionCompatibilityAdapter",
     "SessionTaskCompatibilityAdapter",

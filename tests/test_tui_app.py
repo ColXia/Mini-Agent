@@ -123,6 +123,58 @@ class DummyRegistry:
         raise ValueError(f"Provider not found: {provider_id}")
 
 
+def _provider_transport_defaults(provider_id: str) -> tuple[str, str]:
+    normalized = str(provider_id or "").strip().lower()
+    if normalized == "anthropic":
+        return "anthropic", "https://api.anthropic.com"
+    if normalized == "ollama":
+        return "ollama", "http://127.0.0.1:11434/v1"
+    return "openai", "https://api.example.com/v1"
+
+
+def _agent_model_candidate_items_from_providers(
+    providers: list[dict[str, Any]],
+    *,
+    current_identity: tuple[str, str, str] | None = None,
+) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    for provider in providers:
+        source = str(provider.get("source") or "preset")
+        provider_id = str(provider.get("provider_id") or "")
+        api_type_default, api_base_default = _provider_transport_defaults(provider_id)
+        models: list[dict[str, Any]] = []
+        for model in provider.get("models", []):
+            if not isinstance(model, dict):
+                continue
+            model_id = str(model.get("model_id") or "")
+            models.append(
+                {
+                    **deepcopy(model),
+                    "display_name": str(model.get("display_name") or model_id),
+                    "is_default": bool(
+                        model.get("is_default")
+                        if model.get("is_default") is not None
+                        else model_id == str(provider.get("default_model_id") or "")
+                    ),
+                    "is_current_binding": current_identity == (source, provider_id, model_id),
+                }
+            )
+        items.append(
+            {
+                **deepcopy(provider),
+                "source": source,
+                "provider_id": provider_id,
+                "provider_name": str(provider.get("provider_name") or provider_id),
+                "api_type": str(provider.get("api_type") or api_type_default),
+                "api_base": str(provider.get("api_base") or api_base_default),
+                "models": models,
+                "enabled": bool(provider.get("enabled", True)),
+                "priority": int(provider.get("priority") or 0),
+            }
+        )
+    return items
+
+
 def _write_consolidated_memory(path: Path, *, items: list[str], last_updated_utc: str) -> None:
     section_lines = [
         "<!-- MINI_AGENT_CONSOLIDATED_MEMORY_BEGIN -->",
@@ -145,6 +197,12 @@ def _new_app(
     gateway_client: Any | None = None,
     config: Config | None = None,
 ) -> MiniAgentTuiApp:
+    resolved_registry = registry or DummyRegistry()
+    resolved_gateway_client = gateway_client or FakeGatewayClient(profile="local")
+    if isinstance(resolved_gateway_client, FakeGatewayClient):
+        resolved_gateway_client.set_agent_model_candidates_from_registry(
+            resolved_registry.list_registry()
+        )
     test_config = config or Config(
         llm=LLMConfig(
             api_key="sk-test",
@@ -169,8 +227,8 @@ def _new_app(
     return MiniAgentTuiApp(
         workspace=tmp_path,
         config_loader=lambda: test_config,
-        registry=registry or DummyRegistry(),
-        gateway_client=gateway_client or FakeGatewayClient(profile="local"),
+        registry=resolved_registry,
+        gateway_client=resolved_gateway_client,
         state_path=state_path,
         build_ui=False,
     )
@@ -666,9 +724,11 @@ def test_tui_skill_change_notice_prompts_for_refresh_and_clears_after_refresh(
 
 class FakeGatewayClient:
     def __init__(self, *, profile: str = "qq") -> None:
+        self.agent_model_candidate_calls: list[dict[str, Any]] = []
         self.chat_calls: list[dict[str, Any]] = []
         self.cancel_calls: list[dict[str, Any]] = []
         self.control_calls: list[dict[str, Any]] = []
+        self.workspace_calls: list[dict[str, Any]] = []
         self.memory_calls: list[dict[str, Any]] = []
         self.skill_calls: list[dict[str, Any]] = []
         self.model_calls: list[dict[str, Any]] = []
@@ -697,6 +757,7 @@ class FakeGatewayClient:
         self._skill_policy_mode = "all"
         self._skill_allowlist: set[str] = set()
         self._skill_denylist: set[str] = set()
+        self._agent_model_candidate_providers: list[dict[str, Any]] = []
 
     def _build_initial_detail(self, profile: str) -> dict[str, Any]:
         if profile == "local":
@@ -829,6 +890,84 @@ class FakeGatewayClient:
         payload = deepcopy(detail)
         payload.pop("recent_messages", None)
         return payload
+
+    def _current_agent_model_identity(self) -> tuple[str, str, str] | None:
+        source = str(self._detail.get("selected_model_source") or "").strip()
+        provider_id = str(self._detail.get("selected_provider_id") or "").strip()
+        model_id = str(self._detail.get("selected_model_id") or "").strip()
+        if not source or not provider_id or not model_id:
+            return None
+        return source, provider_id, model_id
+
+    def set_agent_model_candidates_from_registry(self, providers: list[dict[str, Any]]) -> None:
+        self._agent_model_candidate_providers = deepcopy(providers)
+
+    def list_agent_model_candidates_sync(self, *, agent_id: str | None = None) -> dict[str, Any]:
+        self.agent_model_candidate_calls.append({"agent_id": agent_id})
+        return {
+            "items": _agent_model_candidate_items_from_providers(
+                self._agent_model_candidate_providers,
+                current_identity=self._current_agent_model_identity(),
+            )
+        }
+
+    def _workspace_summary(self) -> dict[str, Any]:
+        detail = next(iter(self._sessions.values()))
+        workspace_dir = str(detail.get("workspace_dir") or "D:/file/Mini-Agent")
+        return {
+            "workspace_id": workspace_dir.lower(),
+            "workspace_dir": workspace_dir,
+            "title": "Mini-Agent",
+            "default": True,
+            "kind": "default",
+            "session_count": len(self._sessions),
+            "default_session_count": sum(1 for item in self._sessions.values() if bool(item.get("is_default"))),
+            "shared_session_count": sum(1 for item in self._sessions.values() if bool(item.get("shared"))),
+            "busy_session_count": sum(1 for item in self._sessions.values() if bool(item.get("busy"))),
+            "last_updated_at": "2026-04-08T10:00:01+00:00",
+            "active": True,
+            "switched": False,
+        }
+
+    def list_workspaces_sync(self) -> list[dict[str, Any]]:
+        self.workspace_calls.append({"action": "list"})
+        return [self._workspace_summary()]
+
+    async def list_workspaces(self) -> list[dict[str, Any]]:
+        return self.list_workspaces_sync()
+
+    def get_workspace_sync(self, workspace_id: str) -> dict[str, Any]:
+        self.workspace_calls.append({"action": "get", "workspace_id": workspace_id})
+        return deepcopy(self._workspace_summary())
+
+    async def get_workspace(self, workspace_id: str) -> dict[str, Any]:
+        return self.get_workspace_sync(workspace_id)
+
+    def get_active_workspace_sync(self) -> dict[str, Any]:
+        self.workspace_calls.append({"action": "active"})
+        return deepcopy(self._workspace_summary())
+
+    async def get_active_workspace(self) -> dict[str, Any]:
+        return self.get_active_workspace_sync()
+
+    def get_workspace_runtime_summary_sync(self, *, workspace_id: str | None = None) -> dict[str, Any]:
+        self.workspace_calls.append({"action": "runtime", "workspace_id": workspace_id})
+        return {
+            **self._workspace_summary(),
+            "runtime_policy": {
+                "mode": "single_main",
+                "workspace_application_required": True,
+                "main_workspace_dir": self._workspace_summary()["workspace_dir"],
+            },
+            "runtime": {
+                "workspace_root": self._workspace_summary()["workspace_dir"],
+                "mode": "direct",
+                "scope": "workspace_only",
+            },
+        }
+
+    async def get_workspace_runtime_summary(self, *, workspace_id: str | None = None) -> dict[str, Any]:
+        return self.get_workspace_runtime_summary_sync(workspace_id=workspace_id)
 
     def list_sessions_sync(self, *, workspace_dir: str | None = None, shared_only: bool = False) -> list[dict[str, Any]]:
         _ = workspace_dir
@@ -3635,6 +3774,18 @@ def test_tui_header_stays_static_without_activity_indicator(tmp_path: Path, monk
     assert "idle" not in header
 
 
+def test_tui_header_includes_remote_workspace_hint(tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    gateway = FakeGatewayClient(profile="local")
+    app = _new_app(tmp_path, state_path=state_path, gateway_client=gateway)
+
+    header = "".join(fragment for _style, fragment in app._render_header())
+
+    assert "ws=Mini-Agent" in header
+    assert any(call.get("action") == "get" for call in gateway.workspace_calls)
+    assert any(call.get("action") == "runtime" for call in gateway.workspace_calls)
+
+
 def test_tui_status_panel_omits_global_activity_bar(tmp_path: Path, monkeypatch) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     app = _new_app(tmp_path, state_path=state_path)
@@ -3649,6 +3800,17 @@ def test_tui_status_panel_omits_global_activity_bar(tmp_path: Path, monkeypatch)
     assert "working" not in header
     assert "agent | [" not in status_text
     assert "state    | busy" in status_text
+
+
+def test_tui_remote_turn_uses_effective_remote_workspace_dir(tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    gateway = FakeGatewayClient(profile="local")
+    app = _new_app(tmp_path, state_path=state_path, gateway_client=gateway)
+
+    asyncio.run(app._run_remote_chat_turn("hello remote"))
+
+    assert gateway.chat_calls
+    assert gateway.chat_calls[-1]["workspace_dir"] == "D:/file/Mini-Agent"
 
 
 def test_tui_prompt_title_shows_activity_indicator(tmp_path: Path, monkeypatch) -> None:
@@ -4042,6 +4204,60 @@ def test_tui_remote_model_use_routes_through_gateway_and_updates_hint(tmp_path: 
     assert app.current_session.projection.supplemental.remote_last_command_summary == "model use | applied openai/gpt-5.3"
 
 
+def test_tui_remote_session_switch_refreshes_registry_from_gateway_candidates(tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    registry = DummyRegistry()
+    registry.providers = [
+        {
+            "source": "preset",
+            "provider_id": "registry-only",
+            "provider_name": "Registry Only",
+            "default_model_id": "registry-model",
+            "models": [
+                {
+                    "model_id": "registry-model",
+                    "display_name": "Registry Model",
+                    "is_default": True,
+                    "context_window": 65_536,
+                }
+            ],
+        }
+    ]
+    gateway = FakeGatewayClient()
+    app = _new_app(tmp_path, state_path=state_path, registry=registry, gateway_client=gateway)
+    app._schedule = lambda coro: asyncio.run(coro)  # type: ignore[method-assign]
+
+    assert app.providers[0]["provider_id"] == "registry-only"
+
+    gateway.set_agent_model_candidates_from_registry(
+        [
+            {
+                "source": "custom",
+                "provider_id": "maas",
+                "provider_name": "MaaS",
+                "default_model_id": "astron-code-latest",
+                "models": [
+                    {
+                        "model_id": "astron-code-latest",
+                        "display_name": "Astron Code Latest",
+                        "is_default": True,
+                        "context_window": 262_144,
+                    }
+                ],
+            }
+        ]
+    )
+
+    asyncio.run(app._sync_remote_sessions_once())
+    remote_index = app._find_session_index("remote-qq-1")
+    assert remote_index is not None
+
+    assert app._activate_session_index(remote_index) is True
+    assert gateway.agent_model_candidate_calls
+    assert app.providers[0]["provider_id"] == "maas"
+    assert app.providers[0]["models"][0]["model_id"] == "astron-code-latest"
+
+
 def test_tui_remote_summary_normalizes_model_identity_payloads(tmp_path: Path) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     gateway = FakeGatewayClient()
@@ -4079,6 +4295,39 @@ def test_tui_remote_tagged_local_runtime_routes_model_use_locally(monkeypatch, t
     assert app.current_session.projection.selected_provider_id == "openai"
     assert app.current_session.projection.selected_model_id == "gpt-5.3"
     assert app._current_model_hint() == "openai/gpt-5.3"
+
+
+def test_tui_refresh_registry_falls_back_to_local_registry_when_gateway_candidates_fail(tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    registry = DummyRegistry()
+    registry.providers = [
+        {
+            "source": "custom",
+            "provider_id": "fallback",
+            "provider_name": "Fallback Provider",
+            "default_model_id": "fallback-model",
+            "models": [
+                {
+                    "model_id": "fallback-model",
+                    "display_name": "Fallback Model",
+                    "is_default": True,
+                    "context_window": 32_768,
+                }
+            ],
+        }
+    ]
+    app = _new_app(tmp_path, state_path=state_path, registry=registry)
+
+    def _boom(*, agent_id: str | None = None):  # noqa: ANN001
+        raise RuntimeError(f"gateway unavailable for {agent_id}")
+
+    app.remote_model_service.list_agent_model_candidates_sync = _boom  # type: ignore[method-assign]
+    app.providers = []
+
+    app._refresh_registry()
+
+    assert app.providers[0]["provider_id"] == "fallback"
+    assert app.providers[0]["models"][0]["model_id"] == "fallback-model"
 
 
 def test_tui_command_palette_accepts_leading_slash(tmp_path: Path) -> None:

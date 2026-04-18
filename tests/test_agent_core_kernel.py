@@ -630,6 +630,8 @@ async def test_initialize_agent_tools_reports_skill_and_mcp_bootstrap_failures(
     assert "skills boom" in str(diagnostics["skills"]["error"])
     assert diagnostics["mcp"]["enabled"] is True
     assert "mcp boom" in str(diagnostics["mcp"]["error"])
+    assert diagnostics["workspace_runtime"]["mode"] == "direct"
+    assert diagnostics["workspace_runtime"]["scope"] == "workspace_only"
 
 
 async def test_build_agent_kernel_uses_runtime_retry_config(monkeypatch, tmp_path: Path) -> None:

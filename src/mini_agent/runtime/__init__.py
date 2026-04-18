@@ -23,6 +23,7 @@ __all__ = [
     "add_workspace_tools",
     "initialize_agent_tools",
     "initialize_shared_tools",
+    "MainAgentWorkspaceRuntimeAdapter",
 ]
 
 _RUNTIME_EXPORTS = {
@@ -47,6 +48,9 @@ _TOOLING_EXPORTS = {
     "initialize_agent_tools",
     "initialize_shared_tools",
 }
+_WORKSPACE_RUNTIME_EXPORTS = {
+    "MainAgentWorkspaceRuntimeAdapter",
+}
 
 
 def __getattr__(name: str) -> Any:
@@ -64,6 +68,9 @@ def __getattr__(name: str) -> Any:
         return getattr(module, name)
     if name in _TOOLING_EXPORTS:
         module = import_module(".support.tooling", __name__)
+        return getattr(module, name)
+    if name in _WORKSPACE_RUNTIME_EXPORTS:
+        module = import_module(".workspace_runtime_adapter", __name__)
         return getattr(module, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 

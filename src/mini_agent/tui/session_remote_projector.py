@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable, Sequence
 
+from mini_agent.interfaces import surface_payload_from_dto
 from mini_agent.session import SessionDetailProjection, SessionSummaryProjection
 
 
@@ -35,9 +36,11 @@ class TuiRemoteSessionProjector:
         payloads: list[dict[str, Any]] = []
         for item in items:
             try:
-                payloads.append(item.to_transport().model_dump())
+                payload = surface_payload_from_dto(item.to_transport())
             except Exception:
                 continue
+            if payload:
+                payloads.append(payload)
         return payloads
 
     def apply_summary(self, session: Any, payload: dict[str, Any]) -> bool:
@@ -128,9 +131,16 @@ class TuiRemoteSessionProjector:
             detail.prepared_context_diagnostics
         )
         if isinstance(payload.get("recent_messages"), list):
+            recent_message_payloads = [
+                message_payload
+                for message_payload in (
+                    surface_payload_from_dto(item.to_transport()) for item in detail.recent_messages
+                )
+                if message_payload
+            ]
             self.replace_messages(
                 session,
-                self.build_chat_entries([item.to_transport().model_dump() for item in detail.recent_messages]),
+                self.build_chat_entries(recent_message_payloads),
                 preserve_follow_output,
             )
         state.supplemental.remote_last_command_summary = self.last_command_summary(session)

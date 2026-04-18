@@ -9,13 +9,30 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 
 from mini_agent.application.facades import MainAgentSurfaceService
+from mini_agent.application.facades.service_response_dto_adapter import (
+    model_binding_diagnostics_response,
+    model_binding_summary_response,
+    model_candidate_list_response,
+    model_capabilities_response,
+    workspace_runtime_summary_response,
+    workspace_summary_response,
+)
 from mini_agent.application.use_cases import ChannelIngressUseCases
+from mini_agent.application.user_services import ModelUserService, WorkspaceUserService
 from mini_agent.interfaces import (
     ApiEnvelope,
     ChannelMessageRequest,
     ChannelMessageResponse,
     MainAgentRoutingDiagnostics,
     MainAgentRuntimeDiagnostics,
+    MainAgentModelBindingDiagnostics,
+    MainAgentModelBindingRequest,
+    MainAgentModelBindingSummary,
+    MainAgentModelCandidateListResponse,
+    MainAgentModelCapabilities,
+    MainAgentWorkspaceRuntimeSummary,
+    MainAgentWorkspaceSummary,
+    MainAgentWorkspaceSwitchRequest,
     MainAgentSessionApprovalRequest,
     MainAgentSessionApprovalResponse,
     MainAgentChatRequest,
@@ -52,6 +69,8 @@ class MainAgentRouterDependencies:
     build_health_response: Callable[[], Awaitable[SystemHealthResponse]]
     get_runtime_diagnostics: Callable[[], Awaitable[MainAgentRuntimeDiagnostics]]
     get_surface_service: Callable[[], MainAgentSurfaceService]
+    get_workspace_service: Callable[[], WorkspaceUserService | None]
+    get_model_service: Callable[[], ModelUserService]
     get_channel_ingress_use_cases: Callable[[], ChannelIngressUseCases]
     list_models: Callable[[], StudioModelListResponse]
     require_ops_auth: Callable[..., Any]
@@ -59,6 +78,15 @@ class MainAgentRouterDependencies:
 
 def create_main_agent_router(deps: MainAgentRouterDependencies) -> APIRouter:
     router = APIRouter(tags=["Main Agent"])
+
+    def _require_workspace_service() -> WorkspaceUserService:
+        workspace_service = deps.get_workspace_service()
+        if workspace_service is None:
+            raise RuntimeError("Workspace service is not configured.")
+        return workspace_service
+
+    def _require_model_service() -> ModelUserService:
+        return deps.get_model_service()
 
     @router.get("/api/v1/system/health", response_model=ApiEnvelope[SystemHealthResponse])
     async def v1_health() -> ApiEnvelope[SystemHealthResponse]:
@@ -88,6 +116,41 @@ def create_main_agent_router(deps: MainAgentRouterDependencies) -> APIRouter:
     async def v1_channel_message(request: ChannelMessageRequest) -> ApiEnvelope[ChannelMessageResponse]:
         data = await deps.get_channel_ingress_use_cases().handle_message(request)
         return ApiEnvelope[ChannelMessageResponse](ok=True, data=data)
+
+    @router.get("/api/v1/agent/workspaces", response_model=ApiEnvelope[list[MainAgentWorkspaceSummary]])
+    async def v1_list_workspaces() -> ApiEnvelope[list[MainAgentWorkspaceSummary]]:
+        payload = await _require_workspace_service().list_workspaces()
+        data = [workspace_summary_response(item) for item in list(payload or [])]
+        return ApiEnvelope[list[MainAgentWorkspaceSummary]](ok=True, data=data)
+
+    @router.get("/api/v1/agent/workspaces/active", response_model=ApiEnvelope[MainAgentWorkspaceSummary])
+    async def v1_get_active_workspace() -> ApiEnvelope[MainAgentWorkspaceSummary]:
+        data = workspace_summary_response(await _require_workspace_service().get_active_workspace())
+        return ApiEnvelope[MainAgentWorkspaceSummary](ok=True, data=data)
+
+    @router.get("/api/v1/agent/workspaces/resolve", response_model=ApiEnvelope[MainAgentWorkspaceSummary])
+    async def v1_get_workspace(workspace_id: str) -> ApiEnvelope[MainAgentWorkspaceSummary]:
+        data = workspace_summary_response(await _require_workspace_service().get_workspace(workspace_id))
+        return ApiEnvelope[MainAgentWorkspaceSummary](ok=True, data=data)
+
+    @router.post("/api/v1/agent/workspaces/switch", response_model=ApiEnvelope[MainAgentWorkspaceSummary])
+    async def v1_switch_workspace(
+        request: MainAgentWorkspaceSwitchRequest,
+    ) -> ApiEnvelope[MainAgentWorkspaceSummary]:
+        data = workspace_summary_response(await _require_workspace_service().switch_workspace(request.workspace_id))
+        return ApiEnvelope[MainAgentWorkspaceSummary](ok=True, data=data)
+
+    @router.get(
+        "/api/v1/agent/workspaces/runtime",
+        response_model=ApiEnvelope[MainAgentWorkspaceRuntimeSummary],
+    )
+    async def v1_get_workspace_runtime_summary(
+        workspace_id: str | None = None,
+    ) -> ApiEnvelope[MainAgentWorkspaceRuntimeSummary]:
+        data = workspace_runtime_summary_response(
+            await _require_workspace_service().get_workspace_runtime_summary(workspace_id=workspace_id)
+        )
+        return ApiEnvelope[MainAgentWorkspaceRuntimeSummary](ok=True, data=data)
 
     @router.get("/api/v1/agent/sessions", response_model=ApiEnvelope[list[MainAgentSessionSummary]])
     async def v1_list_sessions(
@@ -130,6 +193,46 @@ def create_main_agent_router(deps: MainAgentRouterDependencies) -> APIRouter:
     @router.get("/api/v1/agent/models", response_model=ApiEnvelope[StudioModelListResponse])
     async def v1_list_agent_models() -> ApiEnvelope[StudioModelListResponse]:
         return ApiEnvelope[StudioModelListResponse](ok=True, data=deps.list_models())
+
+    @router.get("/api/v1/agent/model/candidates", response_model=ApiEnvelope[MainAgentModelCandidateListResponse])
+    async def v1_list_agent_model_candidates() -> ApiEnvelope[MainAgentModelCandidateListResponse]:
+        data = model_candidate_list_response(await _require_model_service().list_model_candidates())
+        return ApiEnvelope[MainAgentModelCandidateListResponse](ok=True, data=data)
+
+    @router.get("/api/v1/agent/model/binding", response_model=ApiEnvelope[MainAgentModelBindingSummary])
+    async def v1_get_agent_model_binding(
+        agent_id: str | None = None,
+    ) -> ApiEnvelope[MainAgentModelBindingSummary]:
+        data = model_binding_summary_response(await _require_model_service().get_current_model_binding(agent_id))
+        return ApiEnvelope[MainAgentModelBindingSummary](ok=True, data=data)
+
+    @router.put("/api/v1/agent/model/binding", response_model=ApiEnvelope[MainAgentModelBindingSummary])
+    async def v1_set_agent_model_binding(
+        request: MainAgentModelBindingRequest,
+    ) -> ApiEnvelope[MainAgentModelBindingSummary]:
+        data = model_binding_summary_response(
+            await _require_model_service().set_agent_model_binding(
+                agent_id=request.agent_id,
+                provider_source=request.provider_source,
+                provider_id=request.provider_id,
+                model_id=request.model_id,
+            )
+        )
+        return ApiEnvelope[MainAgentModelBindingSummary](ok=True, data=data)
+
+    @router.get("/api/v1/agent/model/capabilities", response_model=ApiEnvelope[MainAgentModelCapabilities])
+    async def v1_get_agent_model_capabilities(
+        agent_id: str | None = None,
+    ) -> ApiEnvelope[MainAgentModelCapabilities]:
+        data = model_capabilities_response(await _require_model_service().get_current_model_capabilities(agent_id))
+        return ApiEnvelope[MainAgentModelCapabilities](ok=True, data=data)
+
+    @router.get("/api/v1/agent/model/diagnostics", response_model=ApiEnvelope[MainAgentModelBindingDiagnostics])
+    async def v1_get_agent_model_diagnostics(
+        agent_id: str | None = None,
+    ) -> ApiEnvelope[MainAgentModelBindingDiagnostics]:
+        data = model_binding_diagnostics_response(await _require_model_service().get_model_binding_diagnostics(agent_id))
+        return ApiEnvelope[MainAgentModelBindingDiagnostics](ok=True, data=data)
 
     @router.delete("/api/v1/agent/sessions/{session_id}", response_model=ApiEnvelope[MainAgentSessionMutationResponse])
     async def v1_delete_session(session_id: str) -> ApiEnvelope[MainAgentSessionMutationResponse]:

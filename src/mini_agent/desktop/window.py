@@ -10,12 +10,35 @@ from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import urlsplit
 
+from mini_agent.desktop.gateway_transport_binding import DesktopGatewayTransportBinding
 from mini_agent.desktop.gateway_supervisor import DesktopGatewayConnection, DesktopGatewaySupervisor
+from mini_agent.interfaces import (
+    MainAgentDefaultSessionRequest,
+    MainAgentSessionApprovalRequest,
+    MainAgentSessionControlRequest,
+    MainAgentSessionCreateRequest,
+    MainAgentSessionForkRequest,
+    MainAgentSessionModelSelectionRequest,
+    MainAgentSessionRenameRequest,
+    MainAgentSessionShareRequest,
+    StudioFeatureModelBindingRequest,
+    StudioModelCapabilityProbeRequest,
+    StudioModelRoleRequest,
+    StudioProviderModelDiscoveryRequest,
+    StudioProviderUpsertRequest,
+    StudioProviderValidationRequest,
+    surface_payload_from_dto,
+    surface_payload_list_from_dtos,
+)
 from mini_agent.model_manager.session_selection_service import SessionModelSelectionService
 from mini_agent.runtime.read_models.session_payload_codec import RuntimeSessionPayloadCodec
 from mini_agent.runtime.live_control.session_pending_approval_service import SessionPendingApprovalService
 from mini_agent.session import SessionFeedbackService
-from mini_agent.transport import GatewayClient, RemoteStreamErrorService, extract_gateway_error_info
+from mini_agent.transport import (
+    RemoteChatServicePort,
+    RemoteStreamErrorService,
+    extract_gateway_error_info,
+)
 
 
 DESKTOP_PAGE_SPECS: tuple[dict[str, str], ...] = (
@@ -824,6 +847,10 @@ def format_settings_summary_text(
     *,
     connection: Any,
     selected_session_detail: dict[str, Any] | None = None,
+    workspace_summary: dict[str, Any] | None = None,
+    active_workspace: dict[str, Any] | None = None,
+    workspace_runtime_summary: dict[str, Any] | None = None,
+    workspace_list: list[dict[str, Any]] | None = None,
     model_catalog: dict[str, Any] | None = None,
     registry_payload: dict[str, Any] | None = None,
     provider_payload: dict[str, Any] | None = None,
@@ -837,6 +864,11 @@ def format_settings_summary_text(
     registry_provider_count = len(list((registry_payload or {}).get("items") or []))
     catalog_items = len(list((model_catalog or {}).get("items") or []))
     workspace = str(getattr(connection, "workspace", "") or "")
+    requested_workspace = workspace_summary or {}
+    resolved_active_workspace = active_workspace or {}
+    runtime_summary = workspace_runtime_summary or {}
+    runtime_policy = runtime_summary.get("runtime_policy") if isinstance(runtime_summary, dict) else {}
+    runtime_details = runtime_summary.get("runtime") if isinstance(runtime_summary, dict) else {}
     lines = [
         "Desktop Overview:",
         f"- gateway: {_compact_text(getattr(connection, 'base_url', None)) or '-'}",
@@ -851,6 +883,16 @@ def format_settings_summary_text(
         f"- selected_provider: {_compact_text(session.get('selected_provider_id')) or '-'}",
         f"- selected_model: {_compact_text(session.get('selected_model_id')) or '-'}",
         f"- pending_approvals: {len(list(session.get('pending_approvals') or []))}",
+        "",
+        "Workspace:",
+        f"- active_title: {_compact_text(resolved_active_workspace.get('title')) or '-'}",
+        f"- active_workspace: {_compact_text(resolved_active_workspace.get('workspace_dir')) or '-'}",
+        f"- requested_workspace: {_compact_text(requested_workspace.get('workspace_dir')) or _compact_text(workspace) or '-'}",
+        f"- known_workspaces: {len(list(workspace_list or []))}",
+        f"- workspace_sessions: {requested_workspace.get('session_count') if requested_workspace.get('session_count') is not None else '-'}",
+        f"- shared_workspace_sessions: {requested_workspace.get('shared_session_count') if requested_workspace.get('shared_session_count') is not None else '-'}",
+        f"- runtime_mode: {_compact_text(runtime_policy.get('mode')) or _compact_text(runtime_details.get('mode')) or '-'}",
+        f"- runtime_scope: {_compact_text(runtime_details.get('scope')) or '-'}",
         "",
         "Model Supply:",
         f"- runtime_catalog_items: {catalog_items}",
@@ -936,7 +978,7 @@ def create_desktop_main_window(
     *,
     qtwidgets: Any,
     qtcore: Any,
-    gateway_client: GatewayClient,
+    transport_binding: DesktopGatewayTransportBinding,
     supervisor: DesktopGatewaySupervisor,
     connection: DesktopGatewayConnection,
     reconnect_handler: Callable[[], DesktopGatewayConnection],
@@ -1024,18 +1066,12 @@ def create_desktop_main_window(
         def __init__(
             self,
             *,
-            client: GatewayClient,
-            session_id: str,
-            message: str,
-            workspace_dir: str,
-            surface: str,
+            chat_client: RemoteChatServicePort,
+            request: MainAgentChatRequest,
         ) -> None:
             super().__init__()
-            self._client = client
-            self._session_id = session_id
-            self._message = message
-            self._workspace_dir = workspace_dir
-            self._surface = surface
+            self._chat_client = chat_client
+            self._request = request
 
         @qtcore.Slot()
         def run(self) -> None:
@@ -1047,93 +1083,90 @@ def create_desktop_main_window(
                 self.finished.emit()
 
         async def _consume(self) -> None:
-            stream_chat = getattr(self._client, "stream_chat_events", None)
-            if callable(stream_chat):
-                async for event_type, payload in stream_chat(
-                    session_id=self._session_id,
-                    message=self._message,
-                    workspace_dir=self._workspace_dir,
-                    surface=self._surface,
-                ):
-                    event = _compact_text(event_type).lower() or "message"
-                    data = payload if isinstance(payload, dict) else {}
-                    if event == "delta":
-                        chunk = str(data.get("chunk") or "")
-                        if chunk:
-                            self.chunk_received.emit(chunk)
-                        continue
-                    if event == "activity":
-                        label = _compact_text(data.get("label")) or "activity"
-                        detail = _compact_text(data.get("detail")) or "running"
-                        preview = _compact_text(data.get("preview"))
-                        self.activity_received.emit(
-                            {
-                                "kind": label,
-                                "title": detail,
-                                "preview": preview,
-                            }
-                        )
-                        continue
-                    if event == "status":
-                        stage = _compact_text(data.get("stage")) or "running"
-                        self.activity_received.emit({"kind": "status", "title": stage})
-                        continue
-                    if event == "approval_requested":
-                        tool_name = _compact_text(data.get("tool_name")) or "tool"
-                        self.activity_received.emit(
-                            {
-                                "kind": "approval",
-                                "title": f"{tool_name} needs approval",
-                                "detail": _compact_text(data.get("reason")),
-                            }
-                        )
-                        self.approval_requested.emit(data)
-                        continue
-                    if event == "approval_resolved":
-                        self.activity_received.emit({"kind": "approval", "title": "Approval resolved"})
-                        self.approval_resolved.emit()
-                        continue
-                    if event.startswith("delegation."):
-                        detail = event.split(".", 1)[-1] or "delegation"
-                        owner = _compact_text(data.get("worker_id") or data.get("owner"))
-                        self.activity_received.emit(
-                            {
-                                "kind": "delegation",
-                                "title": detail,
-                                "preview": owner,
-                            }
-                        )
-                        continue
-                    if event == "error":
-                        detail = RemoteStreamErrorService.payload_detail(data)
-                        self.activity_received.emit(
-                            {
-                                "kind": "error",
-                                "title": detail,
-                            }
-                        )
-                        raise RuntimeError(detail)
-                    if event == "done":
-                        self.done_received.emit(data)
-                        return
-            response = await self._client.run_chat(
-                session_id=self._session_id,
-                message=self._message,
-                workspace_dir=self._workspace_dir,
-                surface=self._surface,
-            )
-            self.done_received.emit(response)
+            async for event_type, payload in self._chat_client.stream_chat_events(self._request):
+                event = _compact_text(event_type).lower() or "message"
+                data = payload if isinstance(payload, dict) else {}
+                if event == "delta":
+                    chunk = str(data.get("chunk") or "")
+                    if chunk:
+                        self.chunk_received.emit(chunk)
+                    continue
+                if event == "activity":
+                    label = _compact_text(data.get("label")) or "activity"
+                    detail = _compact_text(data.get("detail")) or "running"
+                    preview = _compact_text(data.get("preview"))
+                    self.activity_received.emit(
+                        {
+                            "kind": label,
+                            "title": detail,
+                            "preview": preview,
+                        }
+                    )
+                    continue
+                if event == "status":
+                    stage = _compact_text(data.get("stage")) or "running"
+                    self.activity_received.emit({"kind": "status", "title": stage})
+                    continue
+                if event == "approval_requested":
+                    tool_name = _compact_text(data.get("tool_name")) or "tool"
+                    self.activity_received.emit(
+                        {
+                            "kind": "approval",
+                            "title": f"{tool_name} needs approval",
+                            "detail": _compact_text(data.get("reason")),
+                        }
+                    )
+                    self.approval_requested.emit(data)
+                    continue
+                if event == "approval_resolved":
+                    self.activity_received.emit({"kind": "approval", "title": "Approval resolved"})
+                    self.approval_resolved.emit()
+                    continue
+                if event.startswith("delegation."):
+                    detail = event.split(".", 1)[-1] or "delegation"
+                    owner = _compact_text(data.get("worker_id") or data.get("owner"))
+                    self.activity_received.emit(
+                        {
+                            "kind": "delegation",
+                            "title": detail,
+                            "preview": owner,
+                        }
+                    )
+                    continue
+                if event == "error":
+                    detail = RemoteStreamErrorService.payload_detail(data)
+                    self.activity_received.emit(
+                        {
+                            "kind": "error",
+                            "title": detail,
+                        }
+                    )
+                    raise RuntimeError(detail)
+                if event == "done":
+                    self.done_received.emit(data)
+                    return
 
     class DesktopMainWindow(qtwidgets.QMainWindow):
         REFRESH_INTERVAL_MS = 5000
 
         def __init__(self) -> None:
             super().__init__()
-            self._client = gateway_client
+            self._transport_binding = transport_binding
+            self._chat_client = transport_binding.chat_client
+            self._session_client = transport_binding.session_client
+            self._system_client = transport_binding.system_client
+            self._memory_client = transport_binding.memory_client
+            self._model_client = transport_binding.model_client
+            self._provider_client = transport_binding.provider_client
+            self._workspace_client = transport_binding.workspace_client
             self._supervisor = supervisor
             self._connection = connection
             self._reconnect_handler = reconnect_handler
             self._session_ids_by_row: list[str] = []
+            self._workspace_summary_payload: dict[str, Any] = {}
+            self._active_workspace_summary_payload: dict[str, Any] = {}
+            self._workspace_runtime_payload: dict[str, Any] = {}
+            self._workspace_list_payload: list[dict[str, Any]] = []
             self._model_catalog: dict[str, Any] = {}
             self._selected_session_detail: dict[str, Any] = {}
             self._conversation_messages: list[dict[str, Any]] = []
@@ -2113,14 +2146,79 @@ def create_desktop_main_window(
 
         def _refresh_runtime_identity(self) -> None:
             gateway_text = self._connection.base_url
-            workspace_text = str(self._connection.workspace)
+            workspace_text = self._effective_workspace_dir()
             mode_text = self._mode_text()
             self._gateway_value.setText(_truncate_text(gateway_text, limit=34))
             self._gateway_value.setToolTip(gateway_text)
             self._workspace_value.setText(workspace_text)
-            self._workspace_value.setToolTip(workspace_text)
+            workspace_tooltip_lines = [workspace_text]
+            active_title = _compact_text(self._active_workspace_summary_payload.get("title"))
+            if active_title:
+                workspace_tooltip_lines.insert(0, active_title)
+            runtime_mode = _compact_text(
+                (self._workspace_runtime_payload.get("runtime_policy") or {}).get("mode")
+            ) or _compact_text((self._workspace_runtime_payload.get("runtime") or {}).get("mode"))
+            runtime_scope = _compact_text((self._workspace_runtime_payload.get("runtime") or {}).get("scope"))
+            runtime_hint = " / ".join(part for part in (runtime_mode, runtime_scope) if part)
+            if runtime_hint:
+                workspace_tooltip_lines.append(runtime_hint)
+            self._workspace_value.setToolTip("\n".join(line for line in workspace_tooltip_lines if line))
             self._mode_value.setText(_truncate_text(mode_text, limit=18))
             self._mode_value.setToolTip(mode_text)
+
+        def _requested_workspace_id(self) -> str:
+            return str(self._connection.workspace)
+
+        def _effective_workspace_dir(self) -> str:
+            for payload in (
+                self._workspace_summary_payload,
+                self._active_workspace_summary_payload,
+                self._workspace_runtime_payload,
+            ):
+                raw_workspace = _compact_text(payload.get("workspace_dir"))
+                if raw_workspace:
+                    return raw_workspace
+            return str(self._connection.workspace)
+
+        def _refresh_workspace_snapshot(self) -> None:
+            requested_workspace = self._requested_workspace_id()
+            try:
+                self._workspace_list_payload = surface_payload_list_from_dtos(
+                    self._workspace_client.list_workspaces_sync()
+                )
+            except Exception:
+                pass
+
+            try:
+                self._workspace_summary_payload = surface_payload_from_dto(
+                    self._workspace_client.get_workspace_sync(requested_workspace)
+                )
+            except Exception:
+                pass
+
+            try:
+                self._active_workspace_summary_payload = surface_payload_from_dto(
+                    self._workspace_client.get_active_workspace_sync()
+                )
+            except Exception:
+                pass
+
+            runtime_workspace_id = (
+                _compact_text(self._workspace_summary_payload.get("workspace_id"))
+                or _compact_text(self._workspace_summary_payload.get("workspace_dir"))
+                or _compact_text(self._active_workspace_summary_payload.get("workspace_id"))
+                or _compact_text(self._active_workspace_summary_payload.get("workspace_dir"))
+                or requested_workspace
+            )
+            try:
+                self._workspace_runtime_payload = surface_payload_from_dto(
+                    self._workspace_client.get_workspace_runtime_summary_sync(
+                        workspace_id=runtime_workspace_id
+                    )
+                )
+            except Exception:
+                pass
+            self._refresh_runtime_identity()
 
         def _refresh_chat_workspace_summary(self) -> None:
             if not hasattr(self, "_chat_session_title_label"):
@@ -3472,11 +3570,13 @@ def create_desktop_main_window(
             provider_id, entry = target
             model_role = _compact_text(self._provider_draft_model_role_combo.currentText()) or "unclassified"
             try:
-                self._client.set_model_role_sync(
-                    source="custom",
-                    provider_id=provider_id,
-                    model_id=str(entry.get("model_id") or ""),
-                    model_role=model_role,
+                self._model_client.set_model_role_sync(
+                    StudioModelRoleRequest(
+                        source="custom",
+                        provider_id=provider_id,
+                        model_id=str(entry.get("model_id") or ""),
+                        model_role=model_role,
+                    )
                 )
             except Exception as exc:
                 detail = desktop_error_detail(exc)
@@ -3499,11 +3599,13 @@ def create_desktop_main_window(
             provider_id, entry = target
             feature_role = _compact_text(self._provider_draft_feature_combo.currentText()) or "embedding"
             try:
-                self._client.bind_feature_model_sync(
-                    feature_role=feature_role,
-                    source="custom",
-                    provider_id=provider_id,
-                    model_id=str(entry.get("model_id") or ""),
+                self._model_client.bind_feature_model_sync(
+                    StudioFeatureModelBindingRequest(
+                        feature_role=feature_role,
+                        source="custom",
+                        provider_id=provider_id,
+                        model_id=str(entry.get("model_id") or ""),
+                    )
                 )
             except Exception as exc:
                 detail = desktop_error_detail(exc)
@@ -3625,7 +3727,7 @@ def create_desktop_main_window(
             self._settings_refresh_interval_spin.blockSignals(True)
             self._settings_refresh_interval_spin.setValue(int(self._refresh_interval_ms))
             self._settings_refresh_interval_spin.blockSignals(False)
-            self._settings_workspace_path.setText(str(self._connection.workspace))
+            self._settings_workspace_path.setText(self._effective_workspace_dir())
             self._settings_gateway_path.setText(self._connection.base_url)
             status = "Auto refresh active." if self._auto_refresh_enabled else "Auto refresh paused."
             self._settings_pref_status.setText(
@@ -3652,6 +3754,7 @@ def create_desktop_main_window(
 
         def refresh_snapshot(self, checked: bool = False) -> None:
             _ = checked
+            self._refresh_workspace_snapshot()
             self._refresh_health()
             self._refresh_models()
             self._refresh_ops_registry_snapshot()
@@ -3698,8 +3801,12 @@ def create_desktop_main_window(
             _ = checked
             selected_ref = self._registry_model_ref(self._current_registry_model_entry())
             try:
-                self._ops_registry_payload = self._client.list_ops_models_sync()
-                self._feature_bindings = self._client.list_feature_model_bindings_sync()
+                self._ops_registry_payload = surface_payload_from_dto(
+                    self._model_client.list_registry_models_sync()
+                )
+                self._feature_bindings = surface_payload_from_dto(
+                    self._model_client.list_feature_model_bindings_sync()
+                )
                 self._feature_bindings_view.setPlainText(format_feature_bindings_text(self._feature_bindings))
                 self._refresh_registry_model_list(preferred_ref=selected_ref)
                 self._refresh_provider_model_shortcuts()
@@ -3782,11 +3889,13 @@ def create_desktop_main_window(
                 return
             model_role = _compact_text(self._registry_model_role_combo.currentText()) or "unclassified"
             try:
-                self._client.set_model_role_sync(
-                    source=str(entry.get("source") or ""),
-                    provider_id=str(entry.get("provider_id") or ""),
-                    model_id=str(entry.get("model_id") or ""),
-                    model_role=model_role,
+                self._model_client.set_model_role_sync(
+                    StudioModelRoleRequest(
+                        source=str(entry.get("source") or ""),
+                        provider_id=str(entry.get("provider_id") or ""),
+                        model_id=str(entry.get("model_id") or ""),
+                        model_role=model_role,
+                    )
                 )
             except Exception as exc:
                 detail = desktop_error_detail(exc)
@@ -3807,18 +3916,22 @@ def create_desktop_main_window(
                 self.statusBar().showMessage("Select a registry model first.")
                 return
             try:
-                payload = self._client.probe_model_capabilities_sync(
-                    source=str(entry.get("source") or ""),
-                    provider_id=str(entry.get("provider_id") or ""),
-                    model_id=str(entry.get("model_id") or ""),
+                payload = surface_payload_from_dto(
+                    self._model_client.probe_model_capabilities_sync(
+                        StudioModelCapabilityProbeRequest(
+                            source=str(entry.get("source") or ""),
+                            provider_id=str(entry.get("provider_id") or ""),
+                            model_id=str(entry.get("model_id") or ""),
+                        )
+                    )
                 )
+                notes = ", ".join(str(item) for item in list(payload.get("notes") or [])[:3])
+                updated_fields = ", ".join(str(item) for item in list(payload.get("updated_fields") or []))
             except Exception as exc:
                 detail = desktop_error_detail(exc)
                 self._append_activity(f"Capability probe failed: {detail}", kind="error")
                 self.statusBar().showMessage("Capability probe failed.")
                 return
-            notes = ", ".join(str(item) for item in list(payload.get("notes") or [])[:3])
-            updated_fields = ", ".join(str(item) for item in list(payload.get("updated_fields") or []))
             detail = "\n".join(part for part in [updated_fields, notes] if part)
             self._append_activity(
                 f"Capability probe completed for {entry.get('model_id')}",
@@ -3836,11 +3949,13 @@ def create_desktop_main_window(
                 return
             feature_role = _compact_text(self._feature_binding_role_combo.currentText()) or "embedding"
             try:
-                self._client.bind_feature_model_sync(
-                    feature_role=feature_role,
-                    source=str(entry.get("source") or ""),
-                    provider_id=str(entry.get("provider_id") or ""),
-                    model_id=str(entry.get("model_id") or ""),
+                self._model_client.bind_feature_model_sync(
+                    StudioFeatureModelBindingRequest(
+                        feature_role=feature_role,
+                        source=str(entry.get("source") or ""),
+                        provider_id=str(entry.get("provider_id") or ""),
+                        model_id=str(entry.get("model_id") or ""),
+                    )
                 )
             except Exception as exc:
                 detail = desktop_error_detail(exc)
@@ -3858,7 +3973,7 @@ def create_desktop_main_window(
             _ = checked
             feature_role = _compact_text(self._feature_binding_role_combo.currentText()) or "embedding"
             try:
-                self._client.clear_feature_model_binding_sync(feature_role=feature_role)
+                self._model_client.clear_feature_model_binding_sync(feature_role=feature_role)
             except Exception as exc:
                 detail = desktop_error_detail(exc)
                 self._append_activity(f"Clear feature binding failed: {detail}", kind="error")
@@ -3872,7 +3987,9 @@ def create_desktop_main_window(
             _ = checked
             selected_provider_id = self._current_provider_id() or self._provider_form_existing_id
             try:
-                self._ops_provider_payload = self._client.list_ops_providers_sync()
+                self._ops_provider_payload = surface_payload_from_dto(
+                    self._provider_client.list_providers_sync()
+                )
             except Exception as exc:
                 detail = desktop_error_detail(exc)
                 self._provider_detail_view.setPlainText(f"Failed to load providers.\n{detail}")
@@ -4067,10 +4184,14 @@ def create_desktop_main_window(
                 self.statusBar().showMessage("API key is required before testing the connection.")
                 return
             try:
-                payload = self._client.validate_provider_connection_sync(
-                    api_type=api_type,
-                    api_base=api_base,
-                    api_key=api_key or None,
+                payload = surface_payload_from_dto(
+                    self._provider_client.validate_provider_connection_sync(
+                        StudioProviderValidationRequest(
+                            api_type=api_type,
+                            api_base=api_base,
+                            api_key=api_key or None,
+                        )
+                    )
                 )
             except Exception as exc:
                 detail = desktop_error_detail(exc)
@@ -4095,7 +4216,9 @@ def create_desktop_main_window(
                 self.statusBar().showMessage("Select a provider first.")
                 return
             try:
-                health = self._client.get_provider_health_sync(provider_id=provider_id)
+                health = surface_payload_from_dto(
+                    self._provider_client.get_provider_health_sync(provider_id)
+                )
             except Exception as exc:
                 detail = desktop_error_detail(exc)
                 self._append_activity(f"Provider health refresh failed: {detail}", kind="error")
@@ -4143,19 +4266,22 @@ def create_desktop_main_window(
 
             try:
                 if self._provider_form_existing_id:
-                    saved = self._client.update_provider_sync(
-                        provider_id=self._provider_form_existing_id,
-                        payload=payload,
+                    saved = self._provider_client.update_provider_sync(
+                        self._provider_form_existing_id,
+                        StudioProviderUpsertRequest.model_validate(payload),
                     )
                 else:
-                    saved = self._client.create_provider_sync(payload=payload)
+                    saved = self._provider_client.create_provider_sync(
+                        StudioProviderUpsertRequest.model_validate(payload)
+                    )
             except Exception as exc:
                 detail = desktop_error_detail(exc)
                 self._append_activity(f"Provider save failed: {detail}", kind="error")
                 self.statusBar().showMessage("Provider save failed.")
                 return
 
-            saved_id = _compact_text(saved.get("id")) or payload["id"]
+            saved_payload = surface_payload_from_dto(saved)
+            saved_id = _compact_text(saved_payload.get("id")) or payload["id"]
             self._append_activity(f"Provider saved: {saved_id}", kind="health")
             self.statusBar().showMessage(f"Provider saved: {saved_id}")
             self._provider_form_existing_id = saved_id
@@ -4182,7 +4308,7 @@ def create_desktop_main_window(
             if answer != qtwidgets.QMessageBox.StandardButton.Yes:
                 return
             try:
-                self._client.delete_provider_sync(provider_id=provider_id)
+                self._provider_client.delete_provider_sync(provider_id)
             except Exception as exc:
                 detail = desktop_error_detail(exc)
                 self._append_activity(f"Provider delete failed: {detail}", kind="error")
@@ -4208,10 +4334,14 @@ def create_desktop_main_window(
                 self.statusBar().showMessage("API key is required for discovery.")
                 return
             try:
-                payload = self._client.discover_provider_models_sync(
-                    api_type=api_type,
-                    api_base=api_base,
-                    api_key=api_key,
+                payload = surface_payload_from_dto(
+                    self._provider_client.discover_provider_models_sync(
+                        StudioProviderModelDiscoveryRequest(
+                            api_type=api_type,
+                            api_base=api_base,
+                            api_key=api_key,
+                        )
+                    )
                 )
             except Exception as exc:
                 detail = desktop_error_detail(exc)
@@ -4260,6 +4390,10 @@ def create_desktop_main_window(
                 format_settings_summary_text(
                     connection=self._connection,
                     selected_session_detail=self._selected_session_detail,
+                    workspace_summary=self._workspace_summary_payload,
+                    active_workspace=self._active_workspace_summary_payload,
+                    workspace_runtime_summary=self._workspace_runtime_payload,
+                    workspace_list=self._workspace_list_payload,
                     model_catalog=self._model_catalog,
                     registry_payload=self._ops_registry_payload,
                     provider_payload=self._ops_provider_payload,
@@ -4304,15 +4438,17 @@ def create_desktop_main_window(
             self._select_page_by_id("chat")
 
         def _memory_workspace_dir(self) -> str:
-            return str(self._connection.workspace)
+            return self._effective_workspace_dir()
 
         def _refresh_memory_page(self, checked: bool = False) -> None:
             _ = checked
             selected_path = self._selected_memory_file_path
             workspace_dir = self._memory_workspace_dir()
             try:
-                self._memory_summary_payload = self._client.get_ops_memory_summary_sync(
-                    workspace_dir=workspace_dir
+                self._memory_summary_payload = surface_payload_from_dto(
+                    self._memory_client.get_ops_memory_summary_sync(
+                        workspace_dir=workspace_dir
+                    )
                 )
             except Exception as exc:
                 self._memory_summary_view.setPlainText(
@@ -4361,10 +4497,12 @@ def create_desktop_main_window(
             workspace_dir = self._memory_workspace_dir()
             query = self._memory_search_input.text()
             try:
-                self._memory_search_payload = self._client.search_ops_memory_sync(
-                    query=query,
-                    limit=50,
-                    workspace_dir=workspace_dir,
+                self._memory_search_payload = surface_payload_from_dto(
+                    self._memory_client.search_ops_memory_sync(
+                        query=query,
+                        limit=50,
+                        workspace_dir=workspace_dir,
+                    )
                 )
             except Exception as exc:
                 self._append_activity(f"Memory search failed: {desktop_error_detail(exc)}", kind="error")
@@ -4459,9 +4597,11 @@ def create_desktop_main_window(
             _ = checked
             workspace_dir = self._memory_workspace_dir()
             try:
-                day_payload = self._client.get_ops_memory_daily_sync(
-                    day=datetime.now().date().isoformat(),
-                    workspace_dir=workspace_dir,
+                day_payload = surface_payload_from_dto(
+                    self._memory_client.get_ops_memory_daily_sync(
+                        day=datetime.now().date().isoformat(),
+                        workspace_dir=workspace_dir,
+                    )
                 )
                 target_path = _compact_text(day_payload.get("path"))
             except Exception:
@@ -4474,7 +4614,7 @@ def create_desktop_main_window(
 
         def _refresh_health(self) -> None:
             try:
-                payload = self._client.get_system_health_sync()
+                payload = surface_payload_from_dto(self._system_client.get_system_health_sync())
                 runtime = payload.get("runtime") if isinstance(payload, dict) else {}
                 active_sessions = int((runtime or {}).get("active_sessions", 0))
                 max_sessions = int((runtime or {}).get("max_active_sessions", 0))
@@ -4494,7 +4634,9 @@ def create_desktop_main_window(
 
         def _refresh_models(self) -> None:
             try:
-                self._model_catalog = self._client.list_agent_models_sync()
+                self._model_catalog = surface_payload_from_dto(
+                    self._model_client.list_agent_model_candidates_sync()
+                )
                 self._model_options = collect_model_options(self._model_catalog)
                 self._rebuild_model_combo()
                 self._models_view.setPlainText(
@@ -4559,7 +4701,9 @@ def create_desktop_main_window(
         def _refresh_sessions(self, preferred_session_id: str | None = None) -> None:
             selected_session_id = preferred_session_id or self._current_session_id()
             try:
-                sessions = self._client.list_sessions_sync(workspace_dir=str(self._connection.workspace))
+                sessions = self._session_client.list_sessions_sync(
+                    workspace_dir=self._effective_workspace_dir()
+                )
             except Exception as exc:
                 self._append_activity(f"Session refresh failed: {desktop_error_detail(exc)}", kind="error")
                 self._refresh_sessions_overview()
@@ -4567,20 +4711,23 @@ def create_desktop_main_window(
 
             if not sessions:
                 try:
-                    detail = self._client.ensure_default_session_sync(
-                        workspace_dir=str(self._connection.workspace),
-                        surface="desktop",
+                    detail = self._session_client.ensure_default_session_sync(
+                        MainAgentDefaultSessionRequest(
+                            workspace_dir=self._effective_workspace_dir(),
+                            surface="desktop",
+                        )
                     )
                 except Exception as exc:
                     self._append_activity(f"Default session ensure failed: {desktop_error_detail(exc)}", kind="error")
-                    detail = {}
-                sessions = [detail] if isinstance(detail, dict) and detail.get("session_id") else []
+                    detail = None
+                sessions = [detail] if detail is not None and detail.session_id else []
 
             self._sessions_value.setText(str(len(sessions)))
             self._session_ids_by_row = []
             self._session_list.blockSignals(True)
             self._session_list.clear()
-            for session in sessions:
+            session_payloads = surface_payload_list_from_dtos(sessions)
+            for session in session_payloads:
                 session_id = str(session.get("session_id") or "").strip()
                 if not session_id:
                     continue
@@ -4622,7 +4769,7 @@ def create_desktop_main_window(
                     target_row = next(
                         (
                             index
-                            for index, session in enumerate(sessions)
+                            for index, session in enumerate(session_payloads)
                             if bool(session.get("is_default"))
                         ),
                         0,
@@ -4658,26 +4805,27 @@ def create_desktop_main_window(
                 self._refresh_memory_page()
                 return
             try:
-                detail = self._client.get_session_detail_sync(session_id, recent_limit=recent_limit)
+                detail = self._session_client.get_session_detail_sync(session_id, recent_limit=recent_limit)
             except Exception as exc:
                 resolved = desktop_error_detail(exc)
                 self._context_view.setPlainText(f"Failed to load session detail.\n{resolved}")
                 self._sessions_overview_detail_view.setPlainText(f"Failed to load session detail.\n{resolved}")
                 self._append_activity(f"Session detail load failed for {session_id}: {resolved}", kind="error")
                 return
-            self._selected_session_detail = detail
+            detail_payload = surface_payload_from_dto(detail)
+            self._selected_session_detail = detail_payload
             self._conversation_messages = [
                 {
                     "role": str(item.get("role") or "assistant"),
                     "content": str(item.get("content") or ""),
                     "surface": str(item.get("surface") or "-"),
                 }
-                for item in list(detail.get("recent_messages") or [])
+                for item in list(detail_payload.get("recent_messages") or [])
             ]
             self._render_conversation()
-            self._context_view.setPlainText(format_chat_context_text(detail))
-            self._sessions_overview_detail_view.setPlainText(format_session_context_text(detail))
-            self._models_view.setPlainText(format_chat_runtime_text(self._model_catalog, detail))
+            self._context_view.setPlainText(format_chat_context_text(detail_payload))
+            self._sessions_overview_detail_view.setPlainText(format_session_context_text(detail_payload))
+            self._models_view.setPlainText(format_chat_runtime_text(self._model_catalog, detail_payload))
             self._sync_model_combo_selection()
             self._refresh_chat_workspace_summary()
             self._update_approval_button_state()
@@ -4753,17 +4901,25 @@ def create_desktop_main_window(
             if not accepted or not renamed_title:
                 return
             try:
-                response = self._client.rename_session_sync(session_id, title=renamed_title)
+                response = self._session_client.rename_session_sync(
+                    session_id,
+                    MainAgentSessionRenameRequest(title=renamed_title),
+                )
             except Exception as exc:
                 self._append_activity(f"Rename failed: {desktop_error_detail(exc)}", kind="error")
                 self.statusBar().showMessage("Rename failed.")
                 return
 
-            applied_title = _compact_text(response.get("title")) or renamed_title
+            response_payload = surface_payload_from_dto(response)
+            applied_title = _compact_text(response_payload.get("title")) or renamed_title
             feedback = SessionFeedbackService.mutation_feedback(
-                status=str(response.get("status") or "renamed"),
+                status=str(response_payload.get("status") or "renamed"),
                 title=applied_title,
-                shared=response.get("shared") if isinstance(response.get("shared"), bool) else None,
+                shared=(
+                    response_payload.get("shared")
+                    if isinstance(response_payload.get("shared"), bool)
+                    else None
+                ),
             )
             self._append_activity(feedback.status_text, kind="session")
             self.statusBar().showMessage(feedback.status_text)
@@ -4777,16 +4933,20 @@ def create_desktop_main_window(
                 return
             next_shared = not bool(self._selected_session_detail.get("shared"))
             try:
-                response = self._client.set_session_shared_sync(session_id, shared=next_shared)
+                response = self._session_client.set_session_shared_sync(
+                    session_id,
+                    MainAgentSessionShareRequest(shared=next_shared),
+                )
             except Exception as exc:
                 self._append_activity(f"Share toggle failed: {desktop_error_detail(exc)}", kind="error")
                 self.statusBar().showMessage("Share toggle failed.")
                 return
 
-            shared = bool(response.get("shared"))
-            title = _compact_text(response.get("title")) or self._selected_session_title()
+            response_payload = surface_payload_from_dto(response)
+            shared = bool(response_payload.get("shared"))
+            title = _compact_text(response_payload.get("title")) or self._selected_session_title()
             feedback = SessionFeedbackService.mutation_feedback(
-                status=str(response.get("status") or ("shared" if shared else "unshared")),
+                status=str(response_payload.get("status") or ("shared" if shared else "unshared")),
                 title=title,
                 shared=shared,
             )
@@ -4810,18 +4970,21 @@ def create_desktop_main_window(
             if not accepted:
                 return
             try:
-                response = self._client.create_derived_session_sync(
+                response = self._session_client.create_derived_session_sync(
                     session_id,
-                    title=_compact_text(title) or None,
-                    surface="desktop",
+                    MainAgentSessionForkRequest(
+                        title=_compact_text(title) or None,
+                        surface="desktop",
+                    ),
                 )
             except Exception as exc:
                 self._append_activity(f"Fork failed: {desktop_error_detail(exc)}", kind="error")
                 self.statusBar().showMessage("Fork failed.")
                 return
 
-            created_id = _compact_text(response.get("session_id"))
-            created_title = _compact_text(response.get("title")) or created_id or "derived session"
+            response_payload = surface_payload_from_dto(response)
+            created_id = _compact_text(response_payload.get("session_id"))
+            created_title = _compact_text(response_payload.get("title")) or created_id or "derived session"
             feedback = SessionFeedbackService.fork_feedback(
                 title=created_title,
                 parent_title=self._selected_session_title(),
@@ -4837,20 +5000,23 @@ def create_desktop_main_window(
                 self.statusBar().showMessage("Select a session first.")
                 return
             try:
-                response = self._client.control_session_sync(
+                response = self._session_client.control_session_sync(
                     session_id,
-                    action="compact",
-                    reason="desktop compact request",
-                    surface="desktop",
+                    MainAgentSessionControlRequest(
+                        action="compact",
+                        reason="desktop compact request",
+                        surface="desktop",
+                    ),
                 )
             except Exception as exc:
                 self._append_activity(f"Compact failed: {desktop_error_detail(exc)}", kind="error")
                 self.statusBar().showMessage("Compact failed.")
                 return
 
-            applied = bool(response.get("applied"))
-            before = int(response.get("message_count_before") or 0)
-            after = int(response.get("message_count_after") or 0)
+            response_payload = surface_payload_from_dto(response)
+            applied = bool(response_payload.get("applied"))
+            before = int(response_payload.get("message_count_before") or 0)
+            after = int(response_payload.get("message_count_after") or 0)
             title = self._selected_session_title()
             if applied:
                 self._append_activity(
@@ -4873,24 +5039,29 @@ def create_desktop_main_window(
             current_session_id = self._current_session_id()
             try:
                 if current_session_id:
-                    created = self._client.create_derived_session_sync(
+                    created = self._session_client.create_derived_session_sync(
                         current_session_id,
-                        title="Session",
-                        surface="desktop",
+                        MainAgentSessionForkRequest(
+                            title="Session",
+                            surface="desktop",
+                        ),
                     )
                 else:
-                    created = self._client.create_session_sync(
-                        workspace_dir=str(self._connection.workspace),
-                        surface="desktop",
-                        shared=False,
+                    created = self._session_client.create_session_sync(
+                        MainAgentSessionCreateRequest(
+                            workspace_dir=self._effective_workspace_dir(),
+                            surface="desktop",
+                            shared=False,
+                        )
                     )
             except Exception as exc:
                 self._append_activity(f"Create session failed: {desktop_error_detail(exc)}", kind="error")
                 self.statusBar().showMessage("Create session failed.")
                 return None
 
-            session_id = _compact_text(created.get("session_id"))
-            created_title = _compact_text(created.get("title")) or session_id or "unknown"
+            created_payload = surface_payload_from_dto(created)
+            session_id = _compact_text(created_payload.get("session_id"))
+            created_title = _compact_text(created_payload.get("title")) or session_id or "unknown"
             create_feedback = SessionFeedbackService.creation_feedback(
                 title=created_title,
                 derived=bool(current_session_id),
@@ -4919,28 +5090,31 @@ def create_desktop_main_window(
                 self.statusBar().showMessage("No model option selected.")
                 return
             try:
-                response = self._client.update_session_model_sync(
+                response = self._session_client.update_session_model_sync(
                     session_id,
-                    provider_source=option.get("provider_source"),
-                    provider_id=str(option.get("provider_id") or ""),
-                    model_id=str(option.get("model_id") or ""),
-                    surface="desktop",
+                    MainAgentSessionModelSelectionRequest(
+                        provider_source=option.get("provider_source"),
+                        provider_id=str(option.get("provider_id") or ""),
+                        model_id=str(option.get("model_id") or ""),
+                        surface="desktop",
+                    ),
                 )
             except Exception as exc:
                 self._append_activity(f"Model switch failed: {desktop_error_detail(exc)}", kind="error")
                 self.statusBar().showMessage("Model switch failed.")
                 return
 
-            status = _compact_text(response.get("status")) or "selected"
+            response_payload = surface_payload_from_dto(response)
+            status = _compact_text(response_payload.get("status")) or "selected"
             selected_provider = _compact_text(
-                response.get("selected_provider_id") or option.get("provider_id")
+                response_payload.get("selected_provider_id") or option.get("provider_id")
             )
             selected_model = _compact_text(
-                response.get("selected_model_id") or option.get("model_id")
+                response_payload.get("selected_model_id") or option.get("model_id")
             )
-            queued = bool(response.get("queued"))
+            queued = bool(response_payload.get("queued"))
             if queued:
-                pending_model = _compact_text(response.get("pending_model_id")) or selected_model
+                pending_model = _compact_text(response_payload.get("pending_model_id")) or selected_model
                 feedback = SessionModelSelectionService.queued_feedback(
                     model_label=f"{selected_provider}/{pending_model}",
                     session_title=self._selected_session_title(),
@@ -5022,11 +5196,13 @@ def create_desktop_main_window(
             if not session_id or not token:
                 return
             try:
-                response = self._client.respond_to_approval_sync(
+                response = self._session_client.respond_to_approval_sync(
                     session_id,
-                    approved=approved,
-                    token=token,
-                    surface="desktop",
+                    MainAgentSessionApprovalRequest(
+                        approved=approved,
+                        token=token,
+                        surface="desktop",
+                    ),
                 )
             except Exception as exc:
                 activity_title, status_text = format_desktop_approval_failure(exc)
@@ -5034,8 +5210,13 @@ def create_desktop_main_window(
                 self.statusBar().showMessage(status_text)
                 return
 
-            decision = _compact_text(response.get("decision")) or ("approved" if approved else "denied")
-            tool_name = _compact_text(response.get("tool_name")) or _compact_text((pending or {}).get("tool_name")) or "tool"
+            response_payload = surface_payload_from_dto(response)
+            decision = _compact_text(response_payload.get("decision")) or ("approved" if approved else "denied")
+            tool_name = (
+                _compact_text(response_payload.get("tool_name"))
+                or _compact_text((pending or {}).get("tool_name"))
+                or "tool"
+            )
             self._approval_dialog_token = None
             self._append_activity(f"Approval {decision}: {tool_name}", kind="approval")
             self.statusBar().showMessage(f"Approval {decision}: {tool_name}")
@@ -5126,11 +5307,13 @@ def create_desktop_main_window(
             self._stream_target_session_id = session_id
             self._send_thread = qtcore.QThread(self)
             self._send_worker = ChatStreamWorker(
-                client=self._client,
-                session_id=session_id,
-                message=message,
-                workspace_dir=str(self._connection.workspace),
-                surface="desktop",
+                chat_client=self._chat_client,
+                request=MainAgentChatRequest(
+                    session_id=session_id,
+                    message=message,
+                    workspace_dir=self._effective_workspace_dir(),
+                    surface="desktop",
+                ),
             )
             self._send_worker.moveToThread(self._send_thread)
             self._send_thread.started.connect(self._send_worker.run)
@@ -5202,7 +5385,7 @@ def create_desktop_main_window(
             self._load_selected_session_detail()
 
         def _on_stream_done(self, payload: object) -> None:
-            response = payload if isinstance(payload, dict) else {}
+            response = surface_payload_from_dto(payload)
             reply = str(response.get("reply") or "")
             if (
                 reply
@@ -5262,7 +5445,7 @@ def create_desktop_main_window(
                 return
             try:
                 self._connection = self._reconnect_handler()
-                self._client.base_url = self._connection.base_url
+                self._transport_binding.bind_connection(self._connection)
                 self._refresh_runtime_identity()
                 self._set_runtime_note(self._connection.note or "-")
                 self._append_activity(

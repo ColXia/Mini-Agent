@@ -9,7 +9,19 @@ from mini_agent.interfaces import (
     MainAgentChatRequest,
     MainAgentChatResponse,
     MainAgentDefaultSessionRequest,
+    MainAgentModelBindingDiagnostics,
+    MainAgentModelBindingRecord,
+    MainAgentModelBindingRequest,
+    MainAgentModelBindingSummary,
+    MainAgentModelCandidateListResponse,
+    MainAgentModelCandidateProviderSummary,
+    MainAgentModelCandidateSummary,
+    MainAgentModelCapabilities,
+    MainAgentRuntimeDiagnostics,
     MainAgentRoutingDiagnostics,
+    MainAgentWorkspaceRuntimeSummary,
+    MainAgentWorkspaceSummary,
+    MainAgentWorkspaceSwitchRequest,
     MainAgentSessionContextRequest,
     MainAgentSessionContextResponse,
     MainAgentSessionControlRequest,
@@ -29,6 +41,11 @@ from mini_agent.interfaces import (
     MainAgentSessionSkillResponse,
     NovelCoverRequest,
     NovelSetupRequest,
+    StudioProviderListResponse,
+    StudioProviderSummary,
+    SystemHealthResponse,
+    surface_payload_from_dto,
+    surface_payload_list_from_dtos,
 )
 
 
@@ -84,6 +101,33 @@ def test_main_agent_runtime_session_request_contracts() -> None:
     }
     assert _required_fields(MainAgentSessionShareRequest) == {"shared"}
     assert _property_fields(MainAgentSessionShareRequest) == {"shared"}
+
+
+def test_main_agent_workspace_contracts() -> None:
+    assert _required_fields(MainAgentWorkspaceSummary) == {
+        "workspace_id",
+        "workspace_dir",
+    }
+    assert _property_fields(MainAgentWorkspaceSummary) == {
+        "workspace_id",
+        "workspace_dir",
+        "title",
+        "default",
+        "kind",
+        "session_count",
+        "default_session_count",
+        "shared_session_count",
+        "busy_session_count",
+        "last_updated_at",
+        "active",
+        "switched",
+    }
+    assert _property_fields(MainAgentWorkspaceRuntimeSummary) >= {
+        "runtime_policy",
+        "runtime",
+        "runtime_error",
+    }
+    assert _required_fields(MainAgentWorkspaceSwitchRequest) == {"workspace_id"}
 
 
 def test_channel_message_request_contract() -> None:
@@ -295,6 +339,78 @@ def test_system_diagnostics_contracts() -> None:
     }
 
 
+def test_main_agent_model_contracts() -> None:
+    assert _required_fields(MainAgentModelBindingRequest) == {"provider_id", "model_id"}
+    assert _property_fields(MainAgentModelBindingRequest) == {
+        "agent_id",
+        "provider_source",
+        "provider_id",
+        "model_id",
+    }
+    assert _required_fields(MainAgentModelCandidateSummary) == {
+        "model_id",
+        "display_name",
+        "is_default",
+    }
+    assert _property_fields(MainAgentModelCandidateSummary) >= {
+        "is_current_binding",
+        "context_window",
+        "supports_tools",
+        "supports_thinking",
+    }
+    assert _required_fields(MainAgentModelCandidateProviderSummary) == {
+        "source",
+        "provider_id",
+        "provider_name",
+        "api_type",
+        "api_base",
+    }
+    assert _property_fields(MainAgentModelCandidateProviderSummary) >= {
+        "models",
+        "default_model_id",
+        "enabled",
+        "priority",
+    }
+    assert _property_fields(MainAgentModelCandidateListResponse) == {"items"}
+    assert _required_fields(MainAgentModelBindingRecord) == {
+        "agent_id",
+        "provider_source",
+        "provider_id",
+        "model_id",
+        "binding_kind",
+    }
+    assert _required_fields(MainAgentModelBindingSummary) == {
+        "agent_id",
+        "binding_kind",
+    }
+    assert _property_fields(MainAgentModelBindingSummary) >= {
+        "provider_source",
+        "provider_id",
+        "model_id",
+        "switch_generation",
+        "supports_tools",
+        "supports_thinking",
+    }
+    assert _property_fields(MainAgentModelCapabilities) >= {
+        "agent_id",
+        "binding_kind",
+        "provider_source",
+        "provider_id",
+        "model_id",
+        "supports_tools",
+        "supports_thinking",
+    }
+    assert _required_fields(MainAgentModelBindingDiagnostics) == {
+        "current_binding",
+    }
+    assert _property_fields(MainAgentModelBindingDiagnostics) >= {
+        "agent_id",
+        "configured_binding",
+        "configured_binding_error",
+        "latest_route",
+    }
+
+
 def test_novel_setup_and_cover_contract() -> None:
     assert _required_fields(NovelSetupRequest) == {"topic", "genre"}
     assert _property_fields(NovelSetupRequest) == {
@@ -315,3 +431,230 @@ def test_api_envelope_contract() -> None:
     envelope = ApiEnvelope[dict](ok=True, data={"status": "ok"}, error=None)
     payload = envelope.model_dump()
     assert set(payload.keys()) == {"ok", "data", "error"}
+
+
+def test_surface_payload_from_dto_preserves_nested_model_candidate_shape() -> None:
+    payload = surface_payload_from_dto(
+        MainAgentModelCandidateListResponse(
+            items=[
+                MainAgentModelCandidateProviderSummary(
+                    source="preset",
+                    provider_id="openai",
+                    provider_name="OpenAI",
+                    api_type="openai",
+                    api_base="https://api.openai.com/v1",
+                    default_model_id="gpt-5.4",
+                    models=[
+                        MainAgentModelCandidateSummary(
+                            model_id="gpt-5.4",
+                            display_name="GPT-5.4",
+                            is_default=True,
+                            is_current_binding=True,
+                        )
+                    ],
+                )
+            ]
+        )
+    )
+
+    assert payload == {
+        "items": [
+            {
+                "source": "preset",
+                "provider_id": "openai",
+                "provider_name": "OpenAI",
+                "api_type": "openai",
+                "api_base": "https://api.openai.com/v1",
+                "provider_family": None,
+                "provider_variant": None,
+                "default_model_id": "gpt-5.4",
+                "default_model_strategy": None,
+                "default_model_confidence": None,
+                "models": [
+                    {
+                        "model_id": "gpt-5.4",
+                        "display_name": "GPT-5.4",
+                        "is_default": True,
+                        "is_current_binding": True,
+                        "model_role": None,
+                        "context_window": None,
+                        "learned_token_limit": None,
+                        "token_limit": None,
+                        "supports_tools": None,
+                        "supports_tools_truth": None,
+                        "supports_tools_confidence": None,
+                        "supports_tools_source": None,
+                        "supports_thinking": None,
+                        "supports_thinking_truth": None,
+                        "supports_thinking_confidence": None,
+                        "supports_thinking_source": None,
+                        "discovered_at": None,
+                        "discovery_source": None,
+                        "discovery_confidence": None,
+                    }
+                ],
+                "enabled": True,
+                "priority": 0,
+            }
+        ]
+    }
+
+
+def test_surface_payload_list_from_dtos_projects_workspace_summaries() -> None:
+    payloads = surface_payload_list_from_dtos(
+        [
+            MainAgentWorkspaceSummary(
+                workspace_id="ws-1",
+                workspace_dir="D:/file/Mini-Agent",
+                title="Default Workspace",
+                default=True,
+                active=True,
+            )
+        ]
+    )
+
+    assert payloads == [
+        {
+            "workspace_id": "ws-1",
+            "workspace_dir": "D:/file/Mini-Agent",
+            "title": "Default Workspace",
+            "default": True,
+            "kind": None,
+            "session_count": 0,
+            "default_session_count": 0,
+            "shared_session_count": 0,
+            "busy_session_count": 0,
+            "last_updated_at": None,
+            "active": True,
+            "switched": False,
+        }
+    ]
+
+
+def test_surface_payload_from_dto_preserves_session_detail_recent_messages() -> None:
+    payload = surface_payload_from_dto(
+        MainAgentSessionDetail(
+            session_id="sess-1",
+            workspace_dir="D:/file/Mini-Agent",
+            created_at="2026-04-18T08:00:00+00:00",
+            updated_at="2026-04-18T08:00:01+00:00",
+            message_count=1,
+            origin_surface="desktop",
+            active_surface="desktop",
+            reply_enabled=True,
+            recent_messages=[
+                MainAgentSessionMessage(
+                    index=1,
+                    role="user",
+                    content="hello",
+                    surface="desktop",
+                    created_at="2026-04-18T08:00:01+00:00",
+                )
+            ],
+        )
+    )
+
+    assert payload["session_id"] == "sess-1"
+    assert payload["recent_messages"] == [
+        {
+            "index": 1,
+            "role": "user",
+            "content": "hello",
+            "surface": "desktop",
+            "created_at": "2026-04-18T08:00:01+00:00",
+            "channel_type": None,
+            "conversation_id": None,
+            "sender_id": None,
+            "metadata": None,
+        }
+    ]
+
+
+def test_surface_payload_from_dto_preserves_provider_list_items() -> None:
+    payload = surface_payload_from_dto(
+        StudioProviderListResponse(
+            catalog_path="D:/file/Mini-Agent/providers.json",
+            provider_count=1,
+            items=[
+                StudioProviderSummary(
+                    id="ollama-local",
+                    name="Ollama Local",
+                    api_type="openai",
+                    api_base="http://127.0.0.1:11434/v1",
+                    api_key_masked="",
+                    models=["qwen3.5:9b"],
+                    enabled=True,
+                    priority=10,
+                    timeout=45,
+                    headers={},
+                    catalog_path="D:/file/Mini-Agent/providers.json",
+                    health_status="healthy",
+                    breaker_state="closed",
+                    selected_count=0,
+                    error_rate=0.0,
+                    consecutive_failures=0,
+                )
+            ],
+        )
+    )
+
+    assert payload["provider_count"] == 1
+    assert payload["items"] == [
+        {
+            "id": "ollama-local",
+            "name": "Ollama Local",
+            "api_type": "openai",
+            "api_base": "http://127.0.0.1:11434/v1",
+            "api_key_masked": "",
+            "models": ["qwen3.5:9b"],
+            "model_display_names": {},
+            "enabled": True,
+            "priority": 10,
+            "timeout": 45,
+            "headers": {},
+            "catalog_path": "D:/file/Mini-Agent/providers.json",
+            "health_status": "healthy",
+            "breaker_state": "closed",
+            "selected_count": 0,
+            "error_rate": 0.0,
+            "consecutive_failures": 0,
+        }
+    ]
+
+
+def test_surface_payload_from_dto_preserves_system_health_runtime_snapshot() -> None:
+    payload = surface_payload_from_dto(
+        SystemHealthResponse(
+            status="ok",
+            now_utc="2026-04-18T08:00:00+00:00",
+            workspace_root="D:/file/Mini-Agent",
+            runtime=MainAgentRuntimeDiagnostics(
+                mode="single_main",
+                active_sessions=2,
+                max_active_sessions=8,
+                available_session_slots=6,
+                reserved_team_slots=1,
+                workspace_application_required=True,
+            ),
+        )
+    )
+
+    assert payload == {
+        "status": "ok",
+        "now_utc": "2026-04-18T08:00:00+00:00",
+        "workspace_root": "D:/file/Mini-Agent",
+        "runtime": {
+            "mode": "single_main",
+            "active_sessions": 2,
+            "max_active_sessions": 8,
+            "available_session_slots": 6,
+            "reserved_team_slots": 1,
+            "workspace_application_required": True,
+            "team_saturation_rejections": 0,
+            "team_workspace_conflict_rejections": 0,
+            "lifecycle_auto_resets": 0,
+            "session_reset_mode": "none",
+            "session_idle_seconds": 1800,
+            "main_workspace_dir": None,
+        },
+    }

@@ -163,6 +163,24 @@ class RemoteSessionClient:
         )
         return MainAgentSessionDetail.model_validate(payload)
 
+    def create_derived_session_sync(
+        self,
+        parent_session_id: str,
+        request: MainAgentSessionForkRequest,
+    ) -> MainAgentSessionDetail:
+        payload = self._session_transport.create_derived_session_sync(
+            parent_session_id,
+            title=request.title,
+            **self._binding_kwargs(
+                surface=request.surface,
+                channel_type=request.channel_type,
+                conversation_id=request.conversation_id,
+                sender_id=request.sender_id,
+                default_surface="tui",
+            ),
+        )
+        return MainAgentSessionDetail.model_validate(payload)
+
     async def rename_session(
         self,
         session_id: str,
@@ -171,12 +189,28 @@ class RemoteSessionClient:
         payload = await self._session_transport.rename_session(session_id, title=request.title)
         return MainAgentSessionMutationResponse.model_validate(payload)
 
+    def rename_session_sync(
+        self,
+        session_id: str,
+        request: MainAgentSessionRenameRequest,
+    ) -> MainAgentSessionMutationResponse:
+        payload = self._session_transport.rename_session_sync(session_id, title=request.title)
+        return MainAgentSessionMutationResponse.model_validate(payload)
+
     async def set_session_shared(
         self,
         session_id: str,
         request: MainAgentSessionShareRequest,
     ) -> MainAgentSessionMutationResponse:
         payload = await self._session_transport.set_session_shared(session_id, shared=request.shared)
+        return MainAgentSessionMutationResponse.model_validate(payload)
+
+    def set_session_shared_sync(
+        self,
+        session_id: str,
+        request: MainAgentSessionShareRequest,
+    ) -> MainAgentSessionMutationResponse:
+        payload = self._session_transport.set_session_shared_sync(session_id, shared=request.shared)
         return MainAgentSessionMutationResponse.model_validate(payload)
 
     async def reset_session(self, session_id: str) -> MainAgentSessionMutationResponse:
@@ -210,6 +244,24 @@ class RemoteSessionClient:
         request: MainAgentSessionControlRequest,
     ) -> MainAgentSessionControlResponse:
         payload = await self._session_transport.control_session(
+            session_id,
+            action=request.action,
+            reason=request.reason,
+            **self._binding_kwargs(
+                surface=request.surface,
+                channel_type=request.channel_type,
+                conversation_id=request.conversation_id,
+                sender_id=request.sender_id,
+            ),
+        )
+        return MainAgentSessionControlResponse.model_validate(payload)
+
+    def control_session_sync(
+        self,
+        session_id: str,
+        request: MainAgentSessionControlRequest,
+    ) -> MainAgentSessionControlResponse:
+        payload = self._session_transport.control_session_sync(
             session_id,
             action=request.action,
             reason=request.reason,
@@ -306,6 +358,25 @@ class RemoteSessionClient:
         )
         return MainAgentSessionModelSelectionResponse.model_validate(payload)
 
+    def update_session_model_sync(
+        self,
+        session_id: str,
+        request: MainAgentSessionModelSelectionRequest,
+    ) -> MainAgentSessionModelSelectionResponse:
+        payload = self._session_transport.update_session_model_sync(
+            session_id,
+            provider_source=request.provider_source,
+            provider_id=request.provider_id,
+            model_id=request.model_id,
+            **self._binding_kwargs(
+                surface=request.surface,
+                channel_type=request.channel_type,
+                conversation_id=request.conversation_id,
+                sender_id=request.sender_id,
+            ),
+        )
+        return MainAgentSessionModelSelectionResponse.model_validate(payload)
+
     async def update_session_runtime_policy(
         self,
         session_id: str,
@@ -330,6 +401,24 @@ class RemoteSessionClient:
         request: MainAgentSessionApprovalRequest,
     ) -> MainAgentSessionApprovalResponse:
         payload = await self._session_transport.respond_to_approval(
+            session_id,
+            approved=request.approved,
+            token=request.token,
+            **self._binding_kwargs(
+                surface=request.surface,
+                channel_type=request.channel_type,
+                conversation_id=request.conversation_id,
+                sender_id=request.sender_id,
+            ),
+        )
+        return MainAgentSessionApprovalResponse.model_validate(payload)
+
+    def respond_to_approval_sync(
+        self,
+        session_id: str,
+        request: MainAgentSessionApprovalRequest,
+    ) -> MainAgentSessionApprovalResponse:
+        payload = self._session_transport.respond_to_approval_sync(
             session_id,
             approved=request.approved,
             token=request.token,

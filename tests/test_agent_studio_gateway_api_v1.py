@@ -15,6 +15,10 @@ from mini_agent.application.use_cases import ChannelIngressUseCases
 from mini_agent.interfaces import (
     MainAgentChatRequest,
     MainAgentChatResponse,
+    MainAgentModelBindingDiagnostics,
+    MainAgentModelBindingSummary,
+    MainAgentModelCandidateListResponse,
+    MainAgentModelCapabilities,
     MainAgentSessionApprovalResponse,
     MainAgentSessionContextResponse,
     MainAgentSessionDetail,
@@ -283,6 +287,125 @@ def test_v1_agent_sessions_envelope_empty() -> None:
         assert isinstance(payload["data"], list)
 
 
+def test_v1_agent_workspace_routes(monkeypatch) -> None:
+    class _WorkspaceServiceStub:
+        async def list_workspaces(self):
+            return [
+                {
+                    "workspace_id": "ws-default",
+                    "workspace_dir": "D:/file/Mini-Agent",
+                    "title": "Default Workspace",
+                    "default": True,
+                    "active": True,
+                }
+            ]
+
+        async def get_active_workspace(self):
+            return {
+                "workspace_id": "ws-default",
+                "workspace_dir": "D:/file/Mini-Agent",
+                "title": "Default Workspace",
+                "default": True,
+                "active": True,
+            }
+
+        async def get_workspace(self, workspace_id: str):
+            assert workspace_id == "D:/file/Mini-Agent"
+            return {
+                "workspace_id": "ws-default",
+                "workspace_dir": workspace_id,
+                "title": "Resolved Workspace",
+                "default": True,
+                "active": True,
+            }
+
+        async def switch_workspace(self, workspace_id: str):
+            assert workspace_id == "D:/file/Mini-Agent"
+            return {
+                "workspace_id": "ws-default",
+                "workspace_dir": workspace_id,
+                "title": "Switched Workspace",
+                "default": True,
+                "active": True,
+                "switched": True,
+            }
+
+        async def get_workspace_runtime_summary(self, *, workspace_id: str | None = None):
+            assert workspace_id == "D:/file/Mini-Agent"
+            return {
+                "workspace_id": "ws-default",
+                "workspace_dir": workspace_id,
+                "title": "Runtime Workspace",
+                "default": True,
+                "active": True,
+                "runtime_policy": {"mode": "single_main"},
+                "runtime": {"mode": "direct", "scope": "workspace_only"},
+            }
+
+    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_workspace_service", _WorkspaceServiceStub())
+
+    with TestClient(app) as client:
+        list_response = client.get("/api/v1/agent/workspaces")
+        assert list_response.status_code == 200
+        list_payload = list_response.json()
+        assert list_payload["ok"] is True
+        assert list_payload["data"][0]["workspace_id"] == "ws-default"
+        assert list_payload["data"][0]["active"] is True
+
+        active_response = client.get("/api/v1/agent/workspaces/active")
+        assert active_response.status_code == 200
+        active_payload = active_response.json()
+        assert active_payload["ok"] is True
+        assert active_payload["data"]["default"] is True
+
+        resolve_response = client.get(
+            "/api/v1/agent/workspaces/resolve",
+            params={"workspace_id": "D:/file/Mini-Agent"},
+        )
+        assert resolve_response.status_code == 200
+        resolve_payload = resolve_response.json()
+        assert resolve_payload["ok"] is True
+        assert resolve_payload["data"]["workspace_dir"] == "D:/file/Mini-Agent"
+
+        switch_response = client.post(
+            "/api/v1/agent/workspaces/switch",
+            json={"workspace_id": "D:/file/Mini-Agent"},
+        )
+        assert switch_response.status_code == 200
+        switch_payload = switch_response.json()
+        assert switch_payload["ok"] is True
+        assert switch_payload["data"]["switched"] is True
+
+        runtime_response = client.get(
+            "/api/v1/agent/workspaces/runtime",
+            params={"workspace_id": "D:/file/Mini-Agent"},
+        )
+        assert runtime_response.status_code == 200
+        runtime_payload = runtime_response.json()
+        assert runtime_payload["ok"] is True
+        assert runtime_payload["data"]["runtime_policy"]["mode"] == "single_main"
+        assert runtime_payload["data"]["runtime"]["scope"] == "workspace_only"
+
+
+def test_v1_agent_workspace_switch_propagates_conflict(monkeypatch) -> None:
+    class _WorkspaceServiceStub:
+        async def switch_workspace(self, workspace_id: str):
+            raise HTTPException(
+                status_code=409,
+                detail=f"single-main workspace only: {workspace_id}",
+            )
+
+    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_workspace_service", _WorkspaceServiceStub())
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/agent/workspaces/switch",
+            json={"workspace_id": "D:/file/Mini-Agent/workspace-b"},
+        )
+        assert response.status_code == 409
+        assert "single-main workspace only" in response.json()["detail"]
+
+
 def test_v1_agent_models_envelope(monkeypatch) -> None:
     class _OpsStub:
         def list_models(self, *, catalog_path=None):
@@ -320,6 +443,135 @@ def test_v1_agent_models_envelope(monkeypatch) -> None:
         assert payload["data"]["items"][0]["provider_id"] == "openai"
         assert payload["data"]["items"][0]["models"][0]["model_id"] == "gpt-5.4"
         assert payload["data"]["items"][0]["models"][0]["context_window"] == 1_050_000
+
+
+def test_v1_agent_model_binding_routes_use_model_service(monkeypatch) -> None:
+    class _ModelServiceStub:
+        async def list_model_candidates(self):
+            return MainAgentModelCandidateListResponse(
+                items=[
+                    {
+                        "source": "custom",
+                        "provider_id": "maas",
+                        "provider_name": "MaaS",
+                        "api_type": "openai",
+                        "api_base": "https://maas.example.com/v1",
+                        "models": [
+                            {
+                                "model_id": "astron-code-latest",
+                                "display_name": "astron-code-latest",
+                                "is_default": True,
+                                "is_current_binding": True,
+                            }
+                        ],
+                    }
+                ]
+            )
+
+        async def get_current_model_binding(self, agent_id: str | None = None):
+            assert agent_id == "main-agent"
+            return MainAgentModelBindingSummary(
+                agent_id="main-agent",
+                binding_kind="explicit",
+                provider_source="custom",
+                provider_id="maas",
+                model_id="astron-code-latest",
+                switch_generation=2,
+            )
+
+        async def set_agent_model_binding(
+            self,
+            *,
+            agent_id: str | None = None,
+            provider_source: str | None = None,
+            provider_id: str | None = None,
+            model_id: str | None = None,
+        ):
+            assert agent_id == "main-agent"
+            assert provider_source == "custom"
+            assert provider_id == "maas"
+            assert model_id == "astron-code-stable"
+            return MainAgentModelBindingSummary(
+                agent_id="main-agent",
+                binding_kind="explicit",
+                provider_source="custom",
+                provider_id="maas",
+                model_id="astron-code-stable",
+                switch_generation=3,
+            )
+
+        async def get_current_model_capabilities(self, agent_id: str | None = None):
+            assert agent_id == "main-agent"
+            return MainAgentModelCapabilities(
+                agent_id="main-agent",
+                binding_kind="explicit",
+                provider_source="custom",
+                provider_id="maas",
+                model_id="astron-code-latest",
+                supports_tools=True,
+                supports_thinking=True,
+            )
+
+        async def get_model_binding_diagnostics(self, agent_id: str | None = None):
+            assert agent_id == "main-agent"
+            return MainAgentModelBindingDiagnostics(
+                agent_id="main-agent",
+                current_binding=MainAgentModelBindingSummary(
+                    agent_id="main-agent",
+                    binding_kind="explicit",
+                    provider_source="custom",
+                    provider_id="maas",
+                    model_id="astron-code-latest",
+                    switch_generation=2,
+                ),
+                latest_route={
+                    "selected_provider_id": "maas",
+                    "selected_model": "astron-code-latest",
+                    "candidate_count": 1,
+                    "candidates": [],
+                },
+            )
+
+    monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_model_service", _ModelServiceStub())
+
+    with TestClient(app) as client:
+        candidates = client.get("/api/v1/agent/model/candidates")
+        assert candidates.status_code == 200
+        candidates_payload = candidates.json()
+        assert candidates_payload["ok"] is True
+        assert candidates_payload["data"]["items"][0]["models"][0]["is_current_binding"] is True
+
+        binding = client.get("/api/v1/agent/model/binding", params={"agent_id": "main-agent"})
+        assert binding.status_code == 200
+        binding_payload = binding.json()
+        assert binding_payload["ok"] is True
+        assert binding_payload["data"]["model_id"] == "astron-code-latest"
+
+        updated = client.put(
+            "/api/v1/agent/model/binding",
+            json={
+                "agent_id": "main-agent",
+                "provider_source": "custom",
+                "provider_id": "maas",
+                "model_id": "astron-code-stable",
+            },
+        )
+        assert updated.status_code == 200
+        updated_payload = updated.json()
+        assert updated_payload["ok"] is True
+        assert updated_payload["data"]["switch_generation"] == 3
+
+        capabilities = client.get("/api/v1/agent/model/capabilities", params={"agent_id": "main-agent"})
+        assert capabilities.status_code == 200
+        capabilities_payload = capabilities.json()
+        assert capabilities_payload["ok"] is True
+        assert capabilities_payload["data"]["supports_tools"] is True
+
+        diagnostics = client.get("/api/v1/agent/model/diagnostics", params={"agent_id": "main-agent"})
+        assert diagnostics.status_code == 200
+        diagnostics_payload = diagnostics.json()
+        assert diagnostics_payload["ok"] is True
+        assert diagnostics_payload["data"]["latest_route"]["selected_model"] == "astron-code-latest"
 
 
 def test_v1_agent_session_detail_and_operation_routes(monkeypatch) -> None:

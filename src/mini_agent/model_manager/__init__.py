@@ -55,11 +55,20 @@ from mini_agent.model_manager.runtime import (
     reset_model_manager_runtime_state,
     resolve_routed_llm_candidates,
     resolve_provider_catalog,
+    resolve_pinned_llm_candidate,
     resolve_routed_llm_settings,
 )
+from mini_agent.model_manager.agent_model_binding import (
+    AgentModelBindingRecord,
+    AgentModelBindingStore,
+)
+from mini_agent.model_manager.agent_model_service import AgentModelService
 from mini_agent.model_manager.model_registry_service import ModelRegistryService
 
 __all__ = [
+    "AgentModelBindingRecord",
+    "AgentModelBindingStore",
+    "AgentModelService",
     "ProviderAPIType",
     "ProviderConfig",
     "ProviderCatalog",
@@ -93,6 +102,7 @@ __all__ = [
     "reset_rectifier_metrics",
     "ProviderCatalogResolution",
     "RoutedLLMSettings",
+    "resolve_pinned_llm_candidate",
     "resolve_provider_catalog",
     "resolve_routed_llm_candidates",
     "resolve_routed_llm_settings",

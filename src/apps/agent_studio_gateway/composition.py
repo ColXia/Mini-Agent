@@ -13,22 +13,25 @@ from fastapi import HTTPException
 
 from mini_agent.agent_core.engine import Agent
 from mini_agent.agent_core.kernel import AgentKernelBuildOptions, build_agent_kernel
-from mini_agent.application.facades import MainAgentSurfaceService
-from mini_agent.application.legacy import (
-    RuntimeBackedSessionApplicationAssembly,
-    assemble_runtime_backed_session_application,
-    build_runtime_backed_session_service,
+from mini_agent.application.facades import MainAgentSurfaceService, build_main_agent_surface_service
+from mini_agent.application.session_runtime_compat import AgentModelRuntimeAdapter
+from mini_agent.application.user_service_assembly import (
+    UserServiceAssembly,
+    assemble_runtime_backed_user_services,
 )
 from mini_agent.application.use_cases import ChannelIngressUseCases, ChannelNovelActionHandler
 from mini_agent.application.use_cases.run_control_application_service import RunControlApplicationService
 from mini_agent.application.use_cases.session_task_service import SessionTaskService
 from mini_agent.application.user_services.agent_user_service import AgentUserService
 from mini_agent.application.user_services.model_user_service import ModelUserService
+from mini_agent.application.user_services.workspace_user_service import WorkspaceUserService
 from mini_agent.config_bootstrap import load_entry_config, load_noninteractive_config
 from mini_agent.interfaces import MainAgentChatRequest, MainAgentChatResponse, MainAgentRuntimeDiagnostics, SystemHealthResponse
+from mini_agent.model_manager import AgentModelService
 from mini_agent.novel.runtime import get_novel_use_cases, reset_novel_runtime_state
 from mini_agent.runtime.main_agent_runtime_manager import MainAgentRuntimeManager
 from mini_agent.runtime.support.main_agent_runtime_policy_loader import load_main_agent_runtime_policy
+from mini_agent.runtime.workspace_runtime_adapter import MainAgentWorkspaceRuntimeAdapter
 from mini_agent.session.binding import conversation_binding_store
 from mini_agent.session.conversation_binding_service import ConversationBindingService
 from mini_agent.tools.mcp_loader import cleanup_mcp_connections
@@ -64,12 +67,16 @@ class GatewayComposition:
         self._instance_lock: GatewayInstanceLock | None = None
         self._runtime_manager: MainAgentRuntimeManager | None = None
         self._session_task_service: SessionTaskService | None = None
-        self._session_application_assembly: RuntimeBackedSessionApplicationAssembly | None = None
+        self._user_service_assembly: UserServiceAssembly | None = None
         # Legacy/transitional facade: surfaces now assemble from explicit owners directly.
         self._session_service: SessionApplicationService | None = None
         self._run_control_service: RunControlApplicationService | None = None
         self._agent_service: AgentUserService | None = None
         self._model_service: ModelUserService | None = None
+        self._workspace_service: WorkspaceUserService | None = None
+        self._workspace_runtime: MainAgentWorkspaceRuntimeAdapter | None = None
+        self._agent_model_binding_service: AgentModelService | None = None
+        self._model_runtime_adapter: AgentModelRuntimeAdapter | None = None
         self._surface_service: MainAgentSurfaceService | Any | None = None
         self._channel_ingress_use_cases: ChannelIngressUseCases | Any | None = None
 
@@ -144,6 +151,7 @@ class GatewayComposition:
                 load_runtime_config=load_noninteractive_config,
                 policy=load_main_agent_runtime_policy(self.settings.repo_root),
                 storage_dir=self.settings.session_store_dir,
+                resolve_agent_model_identity=self.get_agent_model_binding_service().explicit_model_identity,
             )
         return self._runtime_manager
 
@@ -152,51 +160,81 @@ class GatewayComposition:
             self._session_task_service = SessionTaskService(runtime_manager=self.get_runtime_manager())
         return self._session_task_service
 
-    def _ensure_session_application_assembly(self) -> RuntimeBackedSessionApplicationAssembly:
-        if self._session_application_assembly is None:
-            self._session_application_assembly = assemble_runtime_backed_session_application(
+    def get_workspace_runtime(self) -> MainAgentWorkspaceRuntimeAdapter:
+        if self._workspace_runtime is None:
+            self._workspace_runtime = MainAgentWorkspaceRuntimeAdapter(
+                runtime_manager=self.get_runtime_manager(),
+                config_loader=load_noninteractive_config,
+                repo_root=self.settings.repo_root,
+            )
+        return self._workspace_runtime
+
+    def get_agent_model_binding_service(self) -> AgentModelService:
+        if self._agent_model_binding_service is None:
+            self._agent_model_binding_service = AgentModelService(
+                load_runtime_config=load_noninteractive_config,
+            )
+        return self._agent_model_binding_service
+
+    def get_model_runtime_adapter(self) -> AgentModelRuntimeAdapter:
+        if self._model_runtime_adapter is None:
+            self._model_runtime_adapter = AgentModelRuntimeAdapter(
+                self.get_agent_model_binding_service()
+            )
+        return self._model_runtime_adapter
+
+    def _ensure_user_service_assembly(self) -> UserServiceAssembly:
+        if self._user_service_assembly is None:
+            self._user_service_assembly = assemble_runtime_backed_user_services(
                 runtime_manager=self.get_runtime_manager(),
                 session_task_service=self.get_session_task_service(),
+                model_runtime=self.get_model_runtime_adapter(),
+                workspace_runtime=self.get_workspace_runtime(),
             )
-            self._run_control_service = self._session_application_assembly.run_control_service
-            self._agent_service = self._session_application_assembly.agent_service
-            self._model_service = self._session_application_assembly.model_service
-        return self._session_application_assembly
+            self._run_control_service = self._user_service_assembly.run_control_service
+            self._agent_service = self._user_service_assembly.agent_service
+            self._model_service = self._user_service_assembly.model_service
+            self._workspace_service = self._user_service_assembly.workspace_service
+        return self._user_service_assembly
 
     def get_session_service(self) -> SessionApplicationService:
         if self._session_service is None:
-            assembly = self._ensure_session_application_assembly()
-            self._session_service = build_runtime_backed_session_service(
-                runtime_manager=self.get_runtime_manager(),
+            from mini_agent.application.legacy import SessionApplicationService
+
+            assembly = self._ensure_user_service_assembly()
+            self._session_service = SessionApplicationService.from_services(
                 session_task_service=assembly.session_task_service,
                 run_control_service=assembly.run_control_service,
                 agent_service=assembly.agent_service,
                 model_service=assembly.model_service,
+                runtime_manager=self.get_runtime_manager(),
             )
         return self._session_service
 
     def get_run_control_service(self) -> RunControlApplicationService:
         if self._run_control_service is None:
-            self._run_control_service = self._ensure_session_application_assembly().run_control_service
+            self._run_control_service = self._ensure_user_service_assembly().run_control_service
         return self._run_control_service
 
     def get_agent_service(self) -> AgentUserService:
         if self._agent_service is None:
-            self._agent_service = self._ensure_session_application_assembly().agent_service
+            self._agent_service = self._ensure_user_service_assembly().agent_service
         return self._agent_service
 
     def get_model_service(self) -> ModelUserService:
         if self._model_service is None:
-            self._model_service = self._ensure_session_application_assembly().model_service
+            self._model_service = self._ensure_user_service_assembly().model_service
         return self._model_service
+
+    def get_workspace_service(self) -> WorkspaceUserService | None:
+        if self._workspace_service is None:
+            self._workspace_service = self._ensure_user_service_assembly().workspace_service
+        return self._workspace_service
 
     def get_surface_service(self) -> MainAgentSurfaceService:
         if self._surface_service is None:
-            self._surface_service = MainAgentSurfaceService(
-                session_task_service=self.get_session_task_service(),
-                run_control_service=self.get_run_control_service(),
-                agent_service=self.get_agent_service(),
-                model_service=self.get_model_service(),
+            self._surface_service = build_main_agent_surface_service(
+                user_service_assembly=self._ensure_user_service_assembly(),
                 resolve_workspace_dir=self.resolve_workspace_dir,
                 to_utc_iso=self.to_utc_iso,
                 sse_event=self.sse_event,
@@ -260,11 +298,15 @@ class GatewayComposition:
                     await self._runtime_manager.clear()
                 self._runtime_manager = None
                 self._session_task_service = None
-                self._session_application_assembly = None
+                self._user_service_assembly = None
                 self._session_service = None
                 self._run_control_service = None
                 self._agent_service = None
                 self._model_service = None
+                self._workspace_service = None
+                self._workspace_runtime = None
+                self._agent_model_binding_service = None
+                self._model_runtime_adapter = None
                 self._surface_service = None
                 self._channel_ingress_use_cases = None
                 reset_novel_runtime_state()
@@ -286,6 +328,8 @@ class GatewayComposition:
             build_health_response=self.build_health_response,
             get_runtime_diagnostics=self.get_runtime_diagnostics,
             get_surface_service=self.get_surface_service,
+            get_workspace_service=self.get_workspace_service,
+            get_model_service=self.get_model_service,
             get_channel_ingress_use_cases=self.get_channel_ingress_use_cases,
             list_models=list_models,
             require_ops_auth=self._require_ops_auth,

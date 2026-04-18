@@ -4,8 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from mini_agent.application.ports.run_runtime_port import RunRuntimePort
 from mini_agent.application.ports.session_runtime_port import SessionRuntimePort
 from mini_agent.application.ports.session_task_port import SessionTaskPort
+from mini_agent.model_manager.agent_model_service import AgentModelService
+from mini_agent.application.ports.model_runtime_port import ModelRuntimePort
 from mini_agent.interfaces import (
     MainAgentSessionApprovalResponse,
     MainAgentSessionContextResponse,
@@ -14,6 +17,7 @@ from mini_agent.interfaces import (
     MainAgentSessionModelSelectionResponse,
     MainAgentSessionSkillResponse,
 )
+from mini_agent.runtime.support.session_backed_run_id import resolve_session_backed_session_id
 
 from .session_agent_runtime_port import SessionAgentRuntimePort
 from .session_model_selection_runtime_port import SessionModelSelectionRuntimePort
@@ -28,6 +32,40 @@ class UnavailableRunRuntimeAdapter:
 
     async def get_run(self, run_id: str) -> Any:
         raise self._unsupported(run_id)
+
+
+class AgentModelRuntimeAdapter(ModelRuntimePort):
+    """Typed model-runtime adapter over the agent-owned model binding service."""
+
+    def __init__(self, model_service: AgentModelService) -> None:
+        self._model_service = model_service
+
+    async def list_model_bindings(self) -> Any:
+        return self._model_service.list_model_bindings()
+
+    async def get_model_binding(self, agent_id: str | None = None) -> Any:
+        return self._model_service.get_model_binding(agent_id)
+
+    async def update_model_binding(
+        self,
+        *,
+        agent_id: str | None = None,
+        provider_source: str | None = None,
+        provider_id: str | None = None,
+        model_id: str | None = None,
+    ) -> Any:
+        return self._model_service.update_model_binding(
+            agent_id=agent_id,
+            provider_source=provider_source,
+            provider_id=provider_id,
+            model_id=model_id,
+        )
+
+    async def list_model_capabilities(self, agent_id: str | None = None) -> Any:
+        return self._model_service.list_model_capabilities(agent_id)
+
+    async def get_model_binding_diagnostics(self, agent_id: str | None = None) -> Any:
+        return self._model_service.get_model_binding_diagnostics(agent_id)
 
     async def interrupt_run(
         self,
@@ -70,6 +108,152 @@ class UnavailableRunRuntimeAdapter:
     ) -> Any:
         _ = (approved, token, source, reason)
         raise self._unsupported(run_id)
+
+
+class SessionBackedRunRuntimeAdapter(RunRuntimePort):
+    """Transitional run-runtime adapter backed by session runtime truth."""
+
+    def __init__(self, runtime_manager: SessionRuntimePort) -> None:
+        self._runtime_manager = runtime_manager
+
+    async def get_run(self, run_id: str) -> Any:
+        session_id = self._require_session_id(run_id)
+        detail = await self._runtime_manager.get_session_detail(session_id, recent_limit=1)
+        pending_approvals = list(self._detail_value(detail, "pending_approvals", []) or [])
+        busy = bool(self._detail_value(detail, "busy", False))
+        recovery = self._detail_value(detail, "recovery", None)
+        running_state = str(self._detail_value(detail, "running_state", "") or "").strip().lower()
+        if running_state == "cancellation requested":
+            status = "cancel_requested"
+            phase = "cancelling"
+        elif pending_approvals:
+            status = "waiting"
+            phase = "awaiting_approval"
+        elif busy:
+            status = "running"
+            phase = "executing_tools"
+        elif recovery is not None:
+            status = "paused"
+            phase = "terminal"
+        else:
+            status = "completed"
+            phase = "terminal"
+        return {
+            "run_id": run_id,
+            "session_id": session_id,
+            "status": status,
+            "phase": phase,
+            "busy": busy,
+            "waiting_on_approval": bool(pending_approvals),
+            "pending_approvals": pending_approvals,
+            "active_surface": self._detail_value(detail, "active_surface", None),
+            "channel_type": self._detail_value(detail, "channel_type", None),
+            "conversation_id": self._detail_value(detail, "conversation_id", None),
+            "sender_id": self._detail_value(detail, "sender_id", None),
+            "running_state": self._detail_value(detail, "running_state", None),
+        }
+
+    async def interrupt_run(
+        self,
+        run_id: str,
+        *,
+        reason: str | None = None,
+        source: str | None = None,
+    ) -> Any:
+        return await self.cancel_run(
+            run_id,
+            reason=reason or "interrupt requested",
+            source=source,
+        )
+
+    async def resume_run(
+        self,
+        run_id: str,
+        *,
+        resume_token: str | None = None,
+        source: str | None = None,
+    ) -> Any:
+        session_id = self._require_session_id(run_id)
+        detail = await self._runtime_manager.get_session_detail(session_id, recent_limit=1)
+        pending_approvals = list(self._detail_value(detail, "pending_approvals", []) or [])
+        if pending_approvals:
+            return await self._runtime_manager.resolve_pending_approval(
+                session_id,
+                approved=True,
+                token=resume_token,
+                surface=self._resolve_surface(detail, source=source),
+                channel_type=self._detail_value(detail, "channel_type", None),
+                conversation_id=self._detail_value(detail, "conversation_id", None),
+                sender_id=self._detail_value(detail, "sender_id", None),
+            )
+
+        if self._detail_value(detail, "recovery", None) is not None:
+            raise LookupError(
+                f"Run {run_id!r} is in recovery state and cannot be resumed directly. "
+                "Send a new message to continue with recovery context."
+            )
+
+        if bool(self._detail_value(detail, "busy", False)):
+            raise LookupError(f"Run {run_id!r} is already active and cannot be resumed.")
+
+        raise LookupError(f"Run {run_id!r} is not waiting for resume input.")
+
+    async def cancel_run(
+        self,
+        run_id: str,
+        *,
+        reason: str | None = None,
+        source: str | None = None,
+    ) -> Any:
+        session_id = self._require_session_id(run_id)
+        detail = await self._runtime_manager.get_session_detail(session_id, recent_limit=1)
+        return await self._runtime_manager.cancel_session_turn(
+            session_id,
+            reason=reason,
+            surface=self._resolve_surface(detail, source=source),
+            channel_type=self._detail_value(detail, "channel_type", None),
+            conversation_id=self._detail_value(detail, "conversation_id", None),
+            sender_id=self._detail_value(detail, "sender_id", None),
+        )
+
+    async def resolve_approval_wait(
+        self,
+        run_id: str,
+        *,
+        approved: bool,
+        token: str | None = None,
+        source: str | None = None,
+        reason: str | None = None,
+    ) -> Any:
+        _ = reason
+        session_id = self._require_session_id(run_id)
+        detail = await self._runtime_manager.get_session_detail(session_id, recent_limit=1)
+        return await self._runtime_manager.resolve_pending_approval(
+            session_id,
+            approved=approved,
+            token=token,
+            surface=self._resolve_surface(detail, source=source),
+            channel_type=self._detail_value(detail, "channel_type", None),
+            conversation_id=self._detail_value(detail, "conversation_id", None),
+            sender_id=self._detail_value(detail, "sender_id", None),
+        )
+
+    @staticmethod
+    def _detail_value(detail: Any, field: str, default: Any = None) -> Any:
+        if isinstance(detail, dict):
+            return detail.get(field, default)
+        return getattr(detail, field, default)
+
+    @classmethod
+    def _resolve_surface(cls, detail: Any, *, source: str | None = None) -> str | None:
+        return str(source or cls._detail_value(detail, "active_surface", None) or "").strip() or None
+
+    @staticmethod
+    def _require_session_id(run_id: str) -> str:
+        session_id = resolve_session_backed_session_id(run_id)
+        if session_id is None:
+            raise LookupError(f"Run {run_id!r} is not a session-backed run identifier.")
+        return session_id
 
 
 class SessionTaskCompatibilityAdapter(SessionTaskPort):
@@ -291,6 +475,8 @@ class SessionAgentCompatibilityAdapter(SessionAgentRuntimePort):
 
 
 __all__ = [
+    "AgentModelRuntimeAdapter",
+    "SessionBackedRunRuntimeAdapter",
     "SessionAgentCompatibilityAdapter",
     "SessionModelSelectionCompatibilityAdapter",
     "SessionTaskCompatibilityAdapter",

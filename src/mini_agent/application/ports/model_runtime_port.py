@@ -23,5 +23,7 @@ class ModelRuntimePort(Protocol):
 
     async def list_model_capabilities(self, agent_id: str | None = None) -> Any: ...
 
+    async def get_model_binding_diagnostics(self, agent_id: str | None = None) -> Any: ...
+
 
 __all__ = ["ModelRuntimePort"]

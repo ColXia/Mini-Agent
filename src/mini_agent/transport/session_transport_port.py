@@ -77,9 +77,24 @@ class RemoteSessionTransportPort(Protocol):
         sender_id: str | None = None,
     ) -> dict[str, Any]: ...
 
+    def create_derived_session_sync(
+        self,
+        parent_session_id: str,
+        *,
+        title: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> dict[str, Any]: ...
+
     async def rename_session(self, session_id: str, *, title: str) -> dict[str, Any]: ...
 
+    def rename_session_sync(self, session_id: str, *, title: str) -> dict[str, Any]: ...
+
     async def set_session_shared(self, session_id: str, *, shared: bool) -> dict[str, Any]: ...
+
+    def set_session_shared_sync(self, session_id: str, *, shared: bool) -> dict[str, Any]: ...
 
     async def reset_session(self, session_id: str) -> dict[str, Any]: ...
 
@@ -97,6 +112,18 @@ class RemoteSessionTransportPort(Protocol):
     ) -> dict[str, Any]: ...
 
     async def control_session(
+        self,
+        session_id: str,
+        *,
+        action: str,
+        reason: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> dict[str, Any]: ...
+
+    def control_session_sync(
         self,
         session_id: str,
         *,
@@ -168,6 +195,19 @@ class RemoteSessionTransportPort(Protocol):
         sender_id: str | None = None,
     ) -> dict[str, Any]: ...
 
+    def update_session_model_sync(
+        self,
+        session_id: str,
+        *,
+        provider_source: str | None = None,
+        provider_id: str | None = None,
+        model_id: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> dict[str, Any]: ...
+
     async def update_session_runtime_policy(
         self,
         session_id: str,
@@ -181,6 +221,18 @@ class RemoteSessionTransportPort(Protocol):
     ) -> dict[str, Any]: ...
 
     async def respond_to_approval(
+        self,
+        session_id: str,
+        *,
+        approved: bool,
+        token: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ) -> dict[str, Any]: ...
+
+    def respond_to_approval_sync(
         self,
         session_id: str,
         *,

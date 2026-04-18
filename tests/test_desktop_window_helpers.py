@@ -526,6 +526,20 @@ def test_format_settings_summary_text_includes_connection_and_supply_counts() ->
             "selected_model_id": "astron-code-latest",
             "pending_approvals": [{"token": "a"}],
         },
+        workspace_summary={
+            "workspace_dir": "D:/file/Mini-Agent",
+            "session_count": 3,
+            "shared_session_count": 1,
+        },
+        active_workspace={
+            "title": "Default Workspace",
+            "workspace_dir": "D:/file/Mini-Agent",
+        },
+        workspace_runtime_summary={
+            "runtime_policy": {"mode": "single_main"},
+            "runtime": {"scope": "workspace_only"},
+        },
+        workspace_list=[{"workspace_id": "ws-1"}],
         model_catalog={"items": [{"provider_id": "maas"}]},
         registry_payload={"items": [{"provider_id": "maas"}, {"provider_id": "ollama"}]},
         provider_payload={"items": [{"id": "maas"}]},
@@ -538,6 +552,9 @@ def test_format_settings_summary_text_includes_connection_and_supply_counts() ->
     assert "- mode: managed" in text
     assert "- auto_refresh: paused" in text
     assert "- selected_model: astron-code-latest" in text
+    assert "- active_title: Default Workspace" in text
+    assert "- runtime_mode: single_main" in text
+    assert "- runtime_scope: workspace_only" in text
     assert "- provider_count: 1" in text
     assert "- registry_provider_count: 2" in text
 

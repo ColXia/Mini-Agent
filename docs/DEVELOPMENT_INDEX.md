@@ -135,6 +135,8 @@ Latest stage sync:
 - `2026-04-17`: the transport/DTO/read-model boundary is now captured in `docs/V11_1_TRANSPORT_DTO_AND_READ_MODEL_CONTRACT_2026-04-17.md`; treat truth objects, internal projections, interface DTOs, and raw transport payloads as four distinct shapes with explicit conversion boundaries.
 - `2026-04-17`: the staged migration order is now captured in `docs/V11_1_ARCHITECTURE_MIGRATION_EXECUTION_ORDER_2026-04-17.md`; use it to sequence future code migration so truth movement, service introduction, compatibility retention, and cleanup happen in the correct order.
 - `2026-04-17`: the concrete target tree is now captured in `docs/V11_1_CONCRETE_MODULE_TREE_2026-04-17.md`; use it as the file-level landing map for Stage 1-3 implementation so new code stops drifting into transitional owners.
+- `2026-04-18`: the surface DTO-read boundary is tightened again: TUI/desktop surface paths now route DTO-to-payload conversion through `mini_agent.interfaces.surface_payload_adapter`, and `tests/test_surface_payload_boundary_hygiene.py` guards against new direct `.model_dump()` transport serialization inside surface modules.
+- `2026-04-18`: gateway workspace/model routes now consume `WorkspaceUserService` and `ModelUserService` directly instead of routing those entrypoints through `MainAgentSurfaceService`; shared HTTP DTO normalization for those services lives in `src/mini_agent/application/facades/service_response_dto_adapter.py`.
 
 ## 3. Active Plan: P22 Core Agent Minimal (Started 2026-04-07)
 

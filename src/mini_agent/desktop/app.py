@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from mini_agent.desktop.gateway_supervisor import DesktopGatewaySupervisor
+from mini_agent.desktop.gateway_transport_binding import DesktopGatewayTransportBinding
 from mini_agent.desktop.window import create_desktop_main_window
 from mini_agent.transport import GatewayClient
 
@@ -59,10 +60,11 @@ def launch_desktop_ui(
         )
 
     connection = _ensure_connection()
-    client = GatewayClient(
+    gateway_client = GatewayClient(
         base_url=connection.base_url,
         timeout_seconds=DESKTOP_GATEWAY_TIMEOUT_SECONDS,
     )
+    transport_binding = DesktopGatewayTransportBinding.from_gateway_client(gateway_client)
 
     app = qtwidgets.QApplication.instance()
     if app is None:
@@ -73,7 +75,7 @@ def launch_desktop_ui(
     window = create_desktop_main_window(
         qtwidgets=qtwidgets,
         qtcore=qtcore,
-        gateway_client=client,
+        transport_binding=transport_binding,
         supervisor=supervisor,
         connection=connection,
         reconnect_handler=_ensure_connection,

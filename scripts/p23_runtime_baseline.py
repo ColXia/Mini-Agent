@@ -23,7 +23,7 @@ SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from mini_agent.application import MainAgentSurfaceService, SessionApplicationService  # noqa: E402
+from mini_agent.application import build_runtime_backed_main_agent_surface_service  # noqa: E402
 from mini_agent.config import AgentConfig, Config, LLMConfig, ToolsConfig  # noqa: E402
 from mini_agent.interfaces import MainAgentChatRequest  # noqa: E402
 from mini_agent.runtime.main_agent_runtime_manager import MainAgentRuntimeManager  # noqa: E402
@@ -112,8 +112,8 @@ async def _run_benchmark(workspace: Path, runs: int) -> dict[str, Any]:
         build_agent=_build_agent,
         load_runtime_config=_test_runtime_config,
     )
-    use_cases = MainAgentSurfaceService(
-        session_service=SessionApplicationService(runtime_manager=runtime),
+    use_cases = build_runtime_backed_main_agent_surface_service(
+        runtime_manager=runtime,
         resolve_workspace_dir=_resolve_workspace_dir,
         to_utc_iso=_to_utc_iso,
         sse_event=_sse_event,

@@ -9,8 +9,11 @@ from mini_agent.interfaces import (
     MainAgentSessionContextRequest,
     MainAgentSessionControlRequest,
     MainAgentDefaultSessionRequest,
+    MainAgentSessionCreateRequest,
     MainAgentSessionForkRequest,
     MainAgentSessionModelSelectionRequest,
+    MainAgentSessionRenameRequest,
+    MainAgentSessionShareRequest,
 )
 
 
@@ -33,7 +36,49 @@ class _DummyGatewayClient:
             }
         ]
 
+    def list_sessions_sync(self, *, workspace_dir: str | None = None, shared_only: bool = False):
+        return [
+            {
+                "session_id": "sess-1",
+                "workspace_dir": workspace_dir or ".",
+                "created_at": "2026-04-12T08:00:00+00:00",
+                "updated_at": "2026-04-12T08:00:01+00:00",
+                "title": "nyonyo",
+                "message_count": 3,
+                "origin_surface": "qq",
+                "active_surface": "qq",
+                "reply_enabled": True,
+                "busy": False,
+                "shared": True,
+                "knowledge_base_enabled": True,
+            }
+        ]
+
     async def get_session_detail(self, session_id: str, *, recent_limit: int = 80):
+        return {
+            "session_id": session_id,
+            "workspace_dir": ".",
+            "created_at": "2026-04-12T08:00:00+00:00",
+            "updated_at": "2026-04-12T08:00:01+00:00",
+            "message_count": 1,
+            "origin_surface": "qq",
+            "active_surface": "qq",
+            "reply_enabled": True,
+            "busy": False,
+            "shared": True,
+            "knowledge_base_enabled": True,
+            "recent_messages": [
+                {
+                    "index": 1,
+                    "role": "user",
+                    "content": "hello",
+                    "surface": "qq",
+                    "created_at": "2026-04-12T08:00:01+00:00",
+                }
+            ],
+        }
+
+    def get_session_detail_sync(self, session_id: str, *, recent_limit: int = 80):
         return {
             "session_id": session_id,
             "workspace_dir": ".",
@@ -86,7 +131,65 @@ class _DummyGatewayClient:
             "recent_messages": [],
         }
 
+    def ensure_default_session_sync(
+        self,
+        *,
+        workspace_dir: str,
+        surface: str = "tui",
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ):
+        return {
+            "session_id": "default",
+            "workspace_dir": workspace_dir,
+            "created_at": "2026-04-12T08:00:00+00:00",
+            "updated_at": "2026-04-12T08:00:01+00:00",
+            "title": "Session 1",
+            "message_count": 0,
+            "origin_surface": surface,
+            "active_surface": surface,
+            "is_default": True,
+            "reply_enabled": False,
+            "busy": False,
+            "shared": False,
+            "channel_type": channel_type,
+            "conversation_id": conversation_id,
+            "sender_id": sender_id,
+            "knowledge_base_enabled": True,
+            "recent_messages": [],
+        }
+
     async def control_session(
+        self,
+        session_id: str,
+        *,
+        action: str,
+        reason: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ):
+        return {
+            "status": "controlled",
+            "session_id": session_id,
+            "action": action,
+            "applied": True,
+            "active_surface": surface or "tui",
+            "reason": reason,
+            "message_count_before": 10,
+            "message_count_after": 6,
+            "token_count_before": 1000,
+            "token_count_after": 600,
+            "stats": {
+                "channel_type": channel_type,
+                "conversation_id": conversation_id,
+                "sender_id": sender_id,
+            },
+        }
+
+    def control_session_sync(
         self,
         session_id: str,
         *,
@@ -244,6 +347,127 @@ class _DummyGatewayClient:
             "recent_messages": [],
         }
 
+    def create_derived_session_sync(
+        self,
+        parent_session_id: str,
+        *,
+        title: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ):
+        return {
+            "session_id": f"{parent_session_id}:child",
+            "workspace_dir": ".",
+            "created_at": "2026-04-12T08:00:00+00:00",
+            "updated_at": "2026-04-12T08:00:01+00:00",
+            "title": title,
+            "message_count": 0,
+            "origin_surface": surface or "tui",
+            "active_surface": surface or "tui",
+            "channel_type": channel_type,
+            "conversation_id": conversation_id,
+            "sender_id": sender_id,
+            "shared": False,
+            "knowledge_base_enabled": True,
+            "recent_messages": [],
+        }
+
+    def rename_session_sync(self, session_id: str, *, title: str):
+        return {
+            "status": "renamed",
+            "session_id": session_id,
+            "active_surface": "desktop",
+            "title": title,
+            "shared": False,
+        }
+
+    def set_session_shared_sync(self, session_id: str, *, shared: bool):
+        return {
+            "status": "shared" if shared else "unshared",
+            "session_id": session_id,
+            "active_surface": "desktop",
+            "title": "nyonyo",
+            "shared": shared,
+        }
+
+    def create_session_sync(
+        self,
+        *,
+        workspace_dir: str,
+        title: str | None = None,
+        surface: str = "tui",
+        shared: bool = False,
+    ):
+        return {
+            "session_id": "sess-new",
+            "workspace_dir": workspace_dir,
+            "created_at": "2026-04-12T08:00:00+00:00",
+            "updated_at": "2026-04-12T08:00:01+00:00",
+            "title": title or "Session",
+            "message_count": 0,
+            "origin_surface": surface,
+            "active_surface": surface,
+            "reply_enabled": False,
+            "busy": False,
+            "shared": shared,
+            "knowledge_base_enabled": True,
+            "recent_messages": [],
+        }
+
+    def update_session_model_sync(
+        self,
+        session_id: str,
+        *,
+        provider_source: str | None,
+        provider_id: str,
+        model_id: str,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ):
+        return {
+            "status": "ok",
+            "session_id": session_id,
+            "active_surface": surface or "tui",
+            "applied": True,
+            "queued": False,
+            "selected_model_source": provider_source,
+            "selected_provider_id": provider_id,
+            "selected_model_id": model_id,
+            "pending_model_source": None,
+            "pending_provider_id": None,
+            "pending_model_id": None,
+            "channel_type": channel_type,
+            "conversation_id": conversation_id,
+            "sender_id": sender_id,
+        }
+
+    def respond_to_approval_sync(
+        self,
+        session_id: str,
+        *,
+        approved: bool,
+        token: str | None = None,
+        surface: str | None = None,
+        channel_type: str | None = None,
+        conversation_id: str | None = None,
+        sender_id: str | None = None,
+    ):
+        return {
+            "status": "ok",
+            "session_id": session_id,
+            "token": token or "tok-1",
+            "tool_name": "shell",
+            "decision": "approved" if approved else "denied",
+            "active_surface": surface or "tui",
+            "channel_type": channel_type,
+            "conversation_id": conversation_id,
+            "sender_id": sender_id,
+        }
+
 def test_remote_session_client_shapes_gateway_payloads_into_typed_models() -> None:
     async def _run() -> None:
         service = RemoteSessionClient(session_transport=_DummyGatewayClient())
@@ -320,6 +544,77 @@ def test_remote_session_client_shapes_gateway_payloads_into_typed_models() -> No
         assert approval.decision == "approved"
 
     asyncio.run(_run())
+
+
+def test_remote_session_client_sync_helpers_return_typed_models() -> None:
+    service = RemoteSessionClient(session_transport=_DummyGatewayClient())
+
+    listed = service.list_sessions_sync(workspace_dir="D:/file/Mini-Agent")
+    ensured = service.ensure_default_session_sync(
+        MainAgentDefaultSessionRequest(
+            workspace_dir="D:/file/Mini-Agent",
+            surface="desktop",
+        )
+    )
+    detail = service.get_session_detail_sync("sess-1", recent_limit=20)
+    renamed = service.rename_session_sync(
+        "sess-1",
+        MainAgentSessionRenameRequest(title="Desk Session"),
+    )
+    shared = service.set_session_shared_sync(
+        "sess-1",
+        MainAgentSessionShareRequest(shared=True),
+    )
+    forked = service.create_derived_session_sync(
+        "sess-1",
+        MainAgentSessionForkRequest(
+            title="Desk Fork",
+            surface="desktop",
+        ),
+    )
+    created = service.create_session_sync(
+        MainAgentSessionCreateRequest(
+            workspace_dir="D:/file/Mini-Agent",
+            title="Fresh",
+            surface="desktop",
+        )
+    )
+    controlled = service.control_session_sync(
+        "sess-1",
+        MainAgentSessionControlRequest(
+            action="compact",
+            reason="desktop trim",
+            surface="desktop",
+        ),
+    )
+    model = service.update_session_model_sync(
+        "sess-1",
+        MainAgentSessionModelSelectionRequest(
+            provider_source="custom",
+            provider_id="maas",
+            model_id="astron-code-latest",
+            surface="desktop",
+        ),
+    )
+    approval = service.respond_to_approval_sync(
+        "sess-1",
+        MainAgentSessionApprovalRequest(
+            approved=False,
+            token="tok-2",
+            surface="desktop",
+        ),
+    )
+
+    assert listed[0].title == "nyonyo"
+    assert ensured.session_id == "default"
+    assert detail.recent_messages[0].content == "hello"
+    assert renamed.title == "Desk Session"
+    assert shared.shared is True
+    assert forked.title == "Desk Fork"
+    assert created.title == "Fresh"
+    assert controlled.action == "compact"
+    assert model.selected_model_id == "astron-code-latest"
+    assert approval.decision == "denied"
 
 
 def test_remote_session_client_derived_session_prefers_remote_channel_when_surface_missing() -> None:

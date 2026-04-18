@@ -3,6 +3,9 @@
 from .agent import (
     MainAgentChatRequest,
     MainAgentChatResponse,
+    MainAgentWorkspaceRuntimeSummary,
+    MainAgentWorkspaceSummary,
+    MainAgentWorkspaceSwitchRequest,
     MainAgentSessionApprovalRequest,
     MainAgentSessionApprovalResponse,
     MainAgentSessionContextRequest,
@@ -32,6 +35,16 @@ from .agent import (
 )
 from .channel import ChannelMessageRequest, ChannelMessageResponse
 from .common import ApiEnvelope, ApiError
+from .model import (
+    MainAgentModelBindingDiagnostics,
+    MainAgentModelBindingRecord,
+    MainAgentModelBindingRequest,
+    MainAgentModelBindingSummary,
+    MainAgentModelCandidateListResponse,
+    MainAgentModelCandidateProviderSummary,
+    MainAgentModelCandidateSummary,
+    MainAgentModelCapabilities,
+)
 from .novel import (
     ChapterRollbackRequest,
     ChapterVersionMetaUpdateRequest,
@@ -77,14 +90,29 @@ from .system import (
     ModelRouteDiagnostics,
     SystemHealthResponse,
 )
+from .surface_payload_adapter import (
+    surface_payload_from_dto,
+    surface_payload_list_from_dtos,
+)
 
 __all__ = [
     "ApiEnvelope",
     "ApiError",
     "ChannelMessageRequest",
     "ChannelMessageResponse",
+    "MainAgentModelBindingDiagnostics",
+    "MainAgentModelBindingRecord",
+    "MainAgentModelBindingRequest",
+    "MainAgentModelBindingSummary",
+    "MainAgentModelCandidateListResponse",
+    "MainAgentModelCandidateProviderSummary",
+    "MainAgentModelCandidateSummary",
+    "MainAgentModelCapabilities",
     "MainAgentChatRequest",
     "MainAgentChatResponse",
+    "MainAgentWorkspaceRuntimeSummary",
+    "MainAgentWorkspaceSummary",
+    "MainAgentWorkspaceSwitchRequest",
     "MainAgentSessionApprovalRequest",
     "MainAgentSessionApprovalResponse",
     "MainAgentSessionContextRequest",
@@ -149,5 +177,7 @@ __all__ = [
     "MainAgentRuntimeDiagnostics",
     "ModelRouteCandidateDiagnostics",
     "ModelRouteDiagnostics",
+    "surface_payload_from_dto",
+    "surface_payload_list_from_dtos",
     "SystemHealthResponse",
 ]

@@ -27,7 +27,13 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from mini_agent.agent_core.engine import TurnExecutionResult, TurnStopReason
-from mini_agent.application import ChannelIngressUseCases, ChannelNovelActionHandler, MainAgentSurfaceService, SessionApplicationService
+from mini_agent.application import (
+    ChannelIngressUseCases,
+    ChannelNovelActionHandler,
+    MainAgentSurfaceAssembly,
+    MainAgentSurfaceService,
+    assemble_runtime_backed_main_agent_surface_service,
+)
 from mini_agent.config import AgentConfig, Config, LLMConfig, ToolsConfig
 from mini_agent.interfaces import ChannelMessageRequest, MainAgentChatRequest
 from mini_agent.runtime.main_agent_runtime_manager import MainAgentRuntimeManager
@@ -155,12 +161,12 @@ def _test_runtime_config() -> Config:
 
 
 async def _activate_runtime_surface(
-    use_cases: MainAgentSurfaceService,
+    assembly: MainAgentSurfaceAssembly,
     session_id: str,
     *,
     surface: str,
 ):
-    return await use_cases._session_service._runtime_manager.set_active_surface(session_id, surface=surface)
+    return await assembly.runtime_manager.set_active_surface(session_id, surface=surface)
 
 
 def _clip(text: str, limit: int = 1000) -> str:
@@ -211,15 +217,15 @@ def _new_gateway_use_cases(
     *,
     storage_dir: Path,
     build_agent,
-) -> MainAgentSurfaceService:
+) -> MainAgentSurfaceAssembly:
     runtime = MainAgentRuntimeManager(
         ttl_seconds=3600,
         build_agent=build_agent,
         storage_dir=storage_dir,
         load_runtime_config=_test_runtime_config,
     )
-    return MainAgentSurfaceService(
-        session_service=SessionApplicationService(runtime_manager=runtime),
+    return assemble_runtime_backed_main_agent_surface_service(
+        runtime_manager=runtime,
         resolve_workspace_dir=_resolve_workspace_dir,
         to_utc_iso=_to_utc_iso,
         sse_event=_sse_event,
@@ -249,7 +255,8 @@ async def _check_channel_reuse_and_continue_contract(root: Path) -> WalkthroughR
     async def _build_agent(_workspace: Path):
         return _DummyAgent(prefix="qq")
 
-    gateway_use_cases = _new_gateway_use_cases(storage_dir=storage_dir, build_agent=_build_agent)
+    gateway_assembly = _new_gateway_use_cases(storage_dir=storage_dir, build_agent=_build_agent)
+    gateway_use_cases = gateway_assembly.surface_service
     channel_use_cases = _new_channel_use_cases(gateway_use_cases, root=root)
 
     first = await channel_use_cases.handle_message(
@@ -328,7 +335,8 @@ async def _check_channel_activity_and_takeover(root: Path) -> WalkthroughResult:
     async def _build_agent(_workspace: Path):
         return _HookedAgent(prefix="hooked")
 
-    gateway_use_cases = _new_gateway_use_cases(storage_dir=storage_dir, build_agent=_build_agent)
+    gateway_assembly = _new_gateway_use_cases(storage_dir=storage_dir, build_agent=_build_agent)
+    gateway_use_cases = gateway_assembly.surface_service
     channel_use_cases = _new_channel_use_cases(gateway_use_cases, root=root)
 
     first = await channel_use_cases.handle_message(
@@ -353,7 +361,7 @@ async def _check_channel_activity_and_takeover(root: Path) -> WalkthroughResult:
     labels = [item.get("label") for item in metadata.get("activity_items", [])]
     _require(labels == ["thinking", "shell"], "channel-origin activity labels mismatch")
 
-    activated = await _activate_runtime_surface(gateway_use_cases, first.session_id, surface="tui")
+    activated = await _activate_runtime_surface(gateway_assembly, first.session_id, surface="tui")
     _require(activated.active_surface == "tui", "tui surface activation should switch active surface")
 
     second = await gateway_use_cases.run_chat(
