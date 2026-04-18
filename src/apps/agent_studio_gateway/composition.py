@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from fastapi import HTTPException
 
@@ -39,9 +39,6 @@ from gateway.security.instance_lock import GatewayInstanceLock, GatewayInstanceL
 
 from .main_agent_router import MainAgentRouterDependencies
 
-if TYPE_CHECKING:
-    from mini_agent.application.legacy import SessionApplicationService
-
 
 @dataclass(frozen=True, slots=True)
 class GatewayCompositionSettings:
@@ -68,8 +65,6 @@ class GatewayComposition:
         self._runtime_manager: MainAgentRuntimeManager | None = None
         self._session_task_service: SessionTaskService | None = None
         self._user_service_assembly: UserServiceAssembly | None = None
-        # Legacy/transitional facade: surfaces now assemble from explicit owners directly.
-        self._session_service: SessionApplicationService | None = None
         self._run_control_service: RunControlApplicationService | None = None
         self._agent_service: AgentUserService | None = None
         self._model_service: ModelUserService | None = None
@@ -197,20 +192,6 @@ class GatewayComposition:
             self._workspace_service = self._user_service_assembly.workspace_service
         return self._user_service_assembly
 
-    def get_session_service(self) -> SessionApplicationService:
-        if self._session_service is None:
-            from mini_agent.application.legacy import SessionApplicationService
-
-            assembly = self._ensure_user_service_assembly()
-            self._session_service = SessionApplicationService.from_services(
-                session_task_service=assembly.session_task_service,
-                run_control_service=assembly.run_control_service,
-                agent_service=assembly.agent_service,
-                model_service=assembly.model_service,
-                runtime_manager=self.get_runtime_manager(),
-            )
-        return self._session_service
-
     def get_run_control_service(self) -> RunControlApplicationService:
         if self._run_control_service is None:
             self._run_control_service = self._ensure_user_service_assembly().run_control_service
@@ -299,7 +280,6 @@ class GatewayComposition:
                 self._runtime_manager = None
                 self._session_task_service = None
                 self._user_service_assembly = None
-                self._session_service = None
                 self._run_control_service = None
                 self._agent_service = None
                 self._model_service = None
