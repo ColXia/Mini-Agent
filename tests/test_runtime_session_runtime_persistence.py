@@ -104,3 +104,43 @@ def test_main_agent_runtime_persistence_captures_workspace_runtime_snapshot(tmp_
     assert record["workspace_runtime_snapshot"]["mutation_count"] >= 1
     assert record["workspace_runtime_snapshot"]["metadata"]["trigger"] == "session_persist"
     assert record["workspace_runtime_snapshot"]["metadata"]["session_id"] == session.session_id
+
+
+def test_main_agent_runtime_persistence_prefers_runtime_model_identity_over_projection(tmp_path: Path) -> None:
+    session = _build_session(tmp_path)
+    session.projection.selected_model_source = "preset"
+    session.projection.selected_provider_id = "openai"
+    session.projection.selected_model_id = "gpt-5.4"
+    session.runtime.agent = RuntimeContractAgentStub(
+        model="astron-code-latest",
+        provider_source="custom",
+        provider_id="maas",
+        messages=[],
+    )
+    persistence = MainAgentRuntimePersistence(
+        storage_dir=tmp_path / "state",
+        record_loader=RuntimeSessionPersistenceLoader(
+            session_kind="main-agent-runtime",
+            read_shared_transcript=lambda _session_id, _record: [],
+        ),
+        record_builder=RuntimeSessionPersistenceRecordBuilder(
+            session_kind="main-agent-runtime",
+            session_token_usage=lambda _session: 0,
+            session_token_limit=lambda _session: 0,
+            selected_model_identity_for_session=lambda current_session: (
+                "custom",
+                "maas",
+                "astron-code-latest",
+            )
+            if current_session is session
+            else None,
+        ),
+    )
+
+    persistence.save_session(session)
+    record = persistence.load_session_record(session.session_id)
+
+    assert record is not None
+    assert record["selected_model_source"] == "custom"
+    assert record["selected_provider_id"] == "maas"
+    assert record["selected_model_id"] == "astron-code-latest"

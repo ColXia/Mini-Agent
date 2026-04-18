@@ -177,6 +177,8 @@ class MainAgentRuntimeManager:
             active_approval_wait=lambda session: self._session_run_control.serialize_approval_wait(
                 self._session_run_control.current_approval_wait(session)
             ),
+            selected_model_identity_for_session=self._model_identity_codec.selected_model_identity,
+            pending_model_identity_for_session=self._model_identity_codec.pending_model_identity,
         )
         self._session_persistence_loader = RuntimeSessionPersistenceLoader(
             session_kind=_RUNTIME_SESSION_KIND,

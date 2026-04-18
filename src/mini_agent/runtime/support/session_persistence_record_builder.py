@@ -32,6 +32,12 @@ class RuntimeSessionPersistenceRecordBuilder:
     active_pending_approvals: Callable[["MainAgentSessionState"], list[dict[str, Any]]] | None = None
     active_run_control_state: Callable[["MainAgentSessionState"], dict[str, Any] | None] | None = None
     active_approval_wait: Callable[["MainAgentSessionState"], dict[str, Any] | None] | None = None
+    selected_model_identity_for_session: (
+        Callable[["MainAgentSessionState"], tuple[str, str, str] | None] | None
+    ) = None
+    pending_model_identity_for_session: (
+        Callable[["MainAgentSessionState"], tuple[str, str, str] | None] | None
+    ) = None
 
     @staticmethod
     def _normalize_agent_payload(value: Any) -> dict[str, Any]:
@@ -84,6 +90,42 @@ class RuntimeSessionPersistenceRecordBuilder:
             return []
         return [dict(item) for item in legacy if isinstance(item, dict)]
 
+    def _read_selected_model_identity(
+        self,
+        session: "MainAgentSessionState",
+    ) -> tuple[str, str, str] | None:
+        if callable(self.selected_model_identity_for_session):
+            try:
+                identity = self.selected_model_identity_for_session(session)
+            except Exception:
+                identity = None
+            if isinstance(identity, tuple) and len(identity) == 3:
+                return identity
+        source = _safe_text(session.projection.selected_model_source) or None
+        provider_id = _safe_text(session.projection.selected_provider_id) or None
+        model_id = _safe_text(session.projection.selected_model_id) or None
+        if source and provider_id and model_id:
+            return source, provider_id, model_id
+        return None
+
+    def _read_pending_model_identity(
+        self,
+        session: "MainAgentSessionState",
+    ) -> tuple[str, str, str] | None:
+        if callable(self.pending_model_identity_for_session):
+            try:
+                identity = self.pending_model_identity_for_session(session)
+            except Exception:
+                identity = None
+            if isinstance(identity, tuple) and len(identity) == 3:
+                return identity
+        source = _safe_text(session.projection.pending_model_source) or None
+        provider_id = _safe_text(session.projection.pending_provider_id) or None
+        model_id = _safe_text(session.projection.pending_model_id) or None
+        if source and provider_id and model_id:
+            return source, provider_id, model_id
+        return None
+
     @staticmethod
     def serialize_transcript_entry(entry: "MainAgentSessionTranscriptEntry") -> dict[str, Any]:
         return {
@@ -120,6 +162,8 @@ class RuntimeSessionPersistenceRecordBuilder:
         workspace_runtime_snapshot: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         pending_approvals = self._read_active_pending_approvals(session)
+        selected_identity = self._read_selected_model_identity(session)
+        pending_identity = self._read_pending_model_identity(session)
         return {
             "session_id": session.session_id,
             "workspace_dir": str(session.workspace_dir),
@@ -141,12 +185,12 @@ class RuntimeSessionPersistenceRecordBuilder:
             "token_limit": self.session_token_limit(session),
             "shared": bool(session.projection.shared),
             "knowledge_base_enabled": bool(session.projection.knowledge_base_enabled),
-            "selected_model_source": _safe_text(session.projection.selected_model_source) or None,
-            "selected_provider_id": _safe_text(session.projection.selected_provider_id) or None,
-            "selected_model_id": _safe_text(session.projection.selected_model_id) or None,
-            "pending_model_source": _safe_text(session.projection.pending_model_source) or None,
-            "pending_provider_id": _safe_text(session.projection.pending_provider_id) or None,
-            "pending_model_id": _safe_text(session.projection.pending_model_id) or None,
+            "selected_model_source": selected_identity[0] if selected_identity is not None else None,
+            "selected_provider_id": selected_identity[1] if selected_identity is not None else None,
+            "selected_model_id": selected_identity[2] if selected_identity is not None else None,
+            "pending_model_source": pending_identity[0] if pending_identity is not None else None,
+            "pending_provider_id": pending_identity[1] if pending_identity is not None else None,
+            "pending_model_id": pending_identity[2] if pending_identity is not None else None,
             "lineage_parent_session_id": _safe_text(session.lineage_state.parent_session_id) or None,
             "lineage_root_session_id": (
                 _safe_text(session.lineage_state.root_session_id) or session.session_id
