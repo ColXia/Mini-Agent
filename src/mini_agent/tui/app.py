@@ -4497,6 +4497,9 @@ class MiniAgentTuiApp:
 
     @staticmethod
     def _session_selected_model_identity(session: TuiSession) -> tuple[str, str, str] | None:
+        routed = RuntimeSessionModelIdentityCodec.route_model_identity(session.runtime.agent)
+        if routed is not None:
+            return routed
         return RuntimeSessionModelIdentityCodec.selected_identity_from_projection(session.projection)
 
     @staticmethod
@@ -4538,8 +4541,6 @@ class MiniAgentTuiApp:
         selected = self._session_selected_model_identity(session)
         if selected is not None:
             return selected
-        if session.runtime.agent is not None:
-            return self._route_model_identity(getattr(session.runtime.agent, "runtime_route", None))
         return None
 
     def _preferred_cursor_model_identity(self, session: TuiSession | None) -> tuple[str, str, str] | None:

@@ -3844,6 +3844,22 @@ def test_tui_local_model_use_already_selected_clears_stale_pending(tmp_path: Pat
     assert restored.current_session.operator.pending_model_id is None
 
 
+def test_tui_live_session_model_identity_prefers_runtime_route_over_projection(tmp_path: Path) -> None:
+    state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
+    app = _new_app(tmp_path, state_path=state_path)
+    app.current_session.projection.selected_model_source = "preset"
+    app.current_session.projection.selected_provider_id = "openai"
+    app.current_session.projection.selected_model_id = "gpt-5.4"
+    app.current_session.runtime.agent = _runtime_test_agent(
+        model="gpt-5.3",
+        provider_source="preset",
+        provider_id="openai",
+    )
+
+    assert app._session_selected_model_identity(app.current_session) == ("preset", "openai", "gpt-5.3")
+    assert app._session_active_model_identity(app.current_session) == ("preset", "openai", "gpt-5.3")
+
+
 def test_tui_model_limit_show_uses_selected_model(tmp_path: Path) -> None:
     state_path = tmp_path / ".mini-agent" / "tui_sessions.json"
     registry = DummyRegistry()
