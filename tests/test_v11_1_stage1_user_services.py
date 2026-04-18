@@ -44,6 +44,7 @@ from mini_agent.application.main_agent_surface_service import MainAgentSurfaceSe
 from mini_agent.application.session_runtime_compat import SessionTaskCompatibilityAdapter
 from mini_agent.application.session_service import SessionApplicationService
 from mini_agent.application.session_service_assembly import build_runtime_backed_session_service
+from mini_agent.interfaces import MainAgentChatRequest
 
 
 class RunRuntimeStub:
@@ -711,3 +712,32 @@ async def test_stage1_user_services_can_delegate_to_injected_application_service
         "kwargs": {"surface": "desktop"},
         "source": "command-app",
     }
+
+
+@pytest.mark.asyncio
+async def test_stage1_agent_user_service_exposes_interaction_entrypoints() -> None:
+    class _InteractionStub:
+        async def submit_message(self, request: MainAgentChatRequest):
+            return {"kind": "chat", "message": request.message, "surface": request.surface}
+
+        async def get_routing_diagnostics(self):
+            return {"kind": "routing", "total_resolutions": 3}
+
+        def stream_message(self, **kwargs):
+            async def _stream():
+                yield f"event: session data={kwargs['message']}"
+                yield "event: done"
+
+            return _stream()
+
+    agent_service = AgentUserService(interaction_service=_InteractionStub())
+
+    reply = await agent_service.submit_message(
+        MainAgentChatRequest(message="hello", workspace_dir=".", surface="desktop")
+    )
+    diagnostics = await agent_service.get_routing_diagnostics()
+    streamed = [item async for item in agent_service.stream_message(message="stream hello", workspace_dir=".")]
+
+    assert reply == {"kind": "chat", "message": "hello", "surface": "desktop"}
+    assert diagnostics == {"kind": "routing", "total_resolutions": 3}
+    assert streamed == ["event: session data=stream hello", "event: done"]

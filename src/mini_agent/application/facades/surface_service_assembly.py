@@ -21,6 +21,7 @@ from mini_agent.application.support import (
     SseEventFn,
     ToUtcIsoFn,
 )
+from mini_agent.application.use_cases.agent_interaction_application_service import AgentInteractionApplicationService
 from mini_agent.application.use_cases.run_control_application_service import RunControlApplicationService
 from mini_agent.application.use_cases.session_task_service import SessionTaskService
 from mini_agent.application.user_service_assembly import (
@@ -54,6 +55,7 @@ def assemble_main_agent_surface_service(
     agent_service: AgentUserService | None = None,
     workspace_service: WorkspaceUserService | None = None,
     model_service: ModelUserService | None = None,
+    interaction_service: AgentInteractionApplicationService | None = None,
     resolve_workspace_dir: ResolveWorkspaceDirFn,
     to_utc_iso: ToUtcIsoFn,
     sse_event: SseEventFn,
@@ -90,6 +92,7 @@ def assemble_main_agent_surface_service(
         agent_service=resolved_agent_service,
         model_service=resolved_model_service,
         workspace_service=resolved_workspace_service,
+        interaction_service=interaction_service,
         resolve_workspace_dir=resolve_workspace_dir,
         to_utc_iso=to_utc_iso,
         sse_event=sse_event,
@@ -122,6 +125,7 @@ def assemble_runtime_backed_main_agent_surface_service(
     workspace_service: WorkspaceUserService | None = None,
     model_service: ModelUserService | None = None,
     command_service: CommandUserService | None = None,
+    interaction_service: AgentInteractionApplicationService | None = None,
     resolve_workspace_dir: ResolveWorkspaceDirFn,
     to_utc_iso: ToUtcIsoFn,
     sse_event: SseEventFn,
@@ -150,6 +154,7 @@ def assemble_runtime_backed_main_agent_surface_service(
     )
     assembly = assemble_main_agent_surface_service(
         user_service_assembly=user_service_assembly,
+        interaction_service=interaction_service,
         resolve_workspace_dir=resolve_workspace_dir,
         to_utc_iso=to_utc_iso,
         sse_event=sse_event,
@@ -173,6 +178,7 @@ def build_main_agent_surface_service(
     agent_service: AgentUserService | None = None,
     workspace_service: WorkspaceUserService | None = None,
     model_service: ModelUserService | None = None,
+    interaction_service: AgentInteractionApplicationService | None = None,
     resolve_workspace_dir: ResolveWorkspaceDirFn,
     to_utc_iso: ToUtcIsoFn,
     sse_event: SseEventFn,
@@ -189,6 +195,7 @@ def build_main_agent_surface_service(
         agent_service=agent_service,
         workspace_service=workspace_service,
         model_service=model_service,
+        interaction_service=interaction_service,
         resolve_workspace_dir=resolve_workspace_dir,
         to_utc_iso=to_utc_iso,
         sse_event=sse_event,
@@ -215,6 +222,7 @@ def build_runtime_backed_main_agent_surface_service(
     workspace_service: WorkspaceUserService | None = None,
     model_service: ModelUserService | None = None,
     command_service: CommandUserService | None = None,
+    interaction_service: AgentInteractionApplicationService | None = None,
     resolve_workspace_dir: ResolveWorkspaceDirFn,
     to_utc_iso: ToUtcIsoFn,
     sse_event: SseEventFn,
@@ -240,6 +248,7 @@ def build_runtime_backed_main_agent_surface_service(
         workspace_service=workspace_service,
         model_service=model_service,
         command_service=command_service,
+        interaction_service=interaction_service,
         resolve_workspace_dir=resolve_workspace_dir,
         to_utc_iso=to_utc_iso,
         sse_event=sse_event,

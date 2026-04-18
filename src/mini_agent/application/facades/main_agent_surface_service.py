@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from typing import AsyncIterator, Awaitable, Callable
+from typing import AsyncIterator
 
 from mini_agent.application.support import (
     ApplicationInteractionBinding,
     FormatBootstrapErrorFn,
-    ManagedSessionTurn,
     ResolveWorkspaceDirFn,
     SseEventFn,
     ToUtcIsoFn,
@@ -15,6 +14,7 @@ from mini_agent.application.support import (
 from mini_agent.application.user_services.agent_user_service import AgentUserService
 from mini_agent.application.user_services.model_user_service import ModelUserService
 from mini_agent.application.user_services.workspace_user_service import WorkspaceUserService
+from mini_agent.application.use_cases.agent_interaction_application_service import AgentInteractionApplicationService
 from mini_agent.application.use_cases.run_control_application_service import RunControlApplicationService
 from mini_agent.application.use_cases.session_task_service import SessionTaskService
 from mini_agent.interfaces import (
@@ -54,10 +54,6 @@ from mini_agent.interfaces import (
     MainAgentSessionSkillResponse,
     MainAgentSessionSummary,
 )
-
-from .agent_delegation_execution_handler import AgentDelegationExecutionHandler
-from .agent_route_execution_handler import AgentRouteExecutionHandler
-from .agent_turn_execution_handler import AgentTurnExecutionHandler
 from .service_response_dto_adapter import (
     model_binding_diagnostics_response,
     model_binding_summary_response,
@@ -73,16 +69,10 @@ from .surface_dependency_resolution import (
     resolve_surface_session_task_service,
     resolve_surface_workspace_entry_service,
 )
-from .surface_chat_flow_handler import SurfaceChatExecutionRequest, SurfaceChatFlowHandler
 
 
 class MainAgentSurfaceService:
     """Transitional cross-surface facade over explicit session/agent/model owners."""
-
-    _ROUTE_AGENT_MAIN = "main-agent"
-    _ROUTE_AGENT_DELEGATE = "delegate-agent"
-    _DELEGATION_COMMAND = "/delegate"
-    _DELEGATION_OWNER = "sub-agent"
 
     def __init__(
         self,
@@ -93,6 +83,7 @@ class MainAgentSurfaceService:
         agent_service: AgentUserService | None = None,
         model_service: ModelUserService | None = None,
         workspace_service: WorkspaceUserService | None = None,
+        interaction_service: AgentInteractionApplicationService | None = None,
         resolve_workspace_dir: ResolveWorkspaceDirFn,
         to_utc_iso: ToUtcIsoFn,
         sse_event: SseEventFn,
@@ -109,31 +100,18 @@ class MainAgentSurfaceService:
         self._model_service = model_service
         self._workspace_service = workspace_service
         self._resolve_workspace_dir = resolve_workspace_dir
-        self._to_utc_iso = to_utc_iso
-        self._sse_event = sse_event
-        self._format_bootstrap_error = format_bootstrap_error
-        self._stream_chunk_size = max(1, int(stream_chunk_size))
-        self._chat_flow = SurfaceChatFlowHandler(
+        self._interaction_service = interaction_service or AgentInteractionApplicationService(
             session_task_service=self._session_task_service,
-            to_utc_iso=self._to_utc_iso,
-            sse_event=self._sse_event,
-            format_bootstrap_error=self._format_bootstrap_error,
-            stream_chunk_size=self._stream_chunk_size,
+            resolve_workspace_dir=resolve_workspace_dir,
+            to_utc_iso=to_utc_iso,
+            sse_event=sse_event,
+            format_bootstrap_error=format_bootstrap_error,
+            stream_chunk_size=stream_chunk_size,
         )
-        self._agent_execution = AgentTurnExecutionHandler()
-        self._delegation_execution = AgentDelegationExecutionHandler(
-            session_task_service=self._session_task_service,
-            agent_execution=self._agent_execution,
-            delegation_owner=self._DELEGATION_OWNER,
-            fallback_worker_id=self._ROUTE_AGENT_MAIN,
-        )
-        self._route_execution = AgentRouteExecutionHandler(
-            agent_execution=self._agent_execution,
-            delegation_execution=self._delegation_execution,
-            route_agent_main=self._ROUTE_AGENT_MAIN,
-            route_agent_delegate=self._ROUTE_AGENT_DELEGATE,
-            delegation_command=self._DELEGATION_COMMAND,
-        )
+        # Keep compatibility-visible handler attributes stable while chat ownership
+        # migrates out of this transitional facade.
+        self._chat_flow = self._interaction_service.chat_flow
+        self._route_execution = self._interaction_service.route_execution
 
     def _require_run_control_service(self):
         resolved = resolve_surface_run_control_service(
@@ -188,21 +166,10 @@ class MainAgentSurfaceService:
         return model_binding_diagnostics_response(payload)
 
     async def run_chat(self, request: MainAgentChatRequest) -> MainAgentChatResponse:
-        binding = ApplicationInteractionBinding.from_main_agent_chat_request(request)
-        return await self._chat_flow.run_chat(
-            binding.to_surface_chat_execution_request(
-                message=request.message,
-                workspace_dir=self._resolve_workspace_dir(request.workspace_dir),
-                session_id=request.session_id,
-                session_title_hint=request.session_title_hint,
-                dry_run=bool(request.dry_run),
-                running_detail=f"{binding.surface or 'api'} request running",
-            ),
-            execute_turn=self._execute_chat_turn,
-        )
+        return await self._interaction_service.submit_message(request)
 
     async def get_routing_diagnostics(self) -> MainAgentRoutingDiagnostics:
-        return await self._route_execution.get_routing_diagnostics()
+        return await self._interaction_service.get_routing_diagnostics()
 
     async def list_workspaces(self) -> list[MainAgentWorkspaceSummary]:
         payload = await self._require_workspace_service().list_workspaces()
@@ -422,37 +389,18 @@ class MainAgentSurfaceService:
         conversation_id: str | None = None,
         sender_id: str | None = None,
     ) -> AsyncIterator[str]:
-        binding = ApplicationInteractionBinding.from_values(
+        async for item in self._interaction_service.stream_message(
+            message=message,
+            session_id=session_id,
+            session_title_hint=session_title_hint,
+            workspace_dir=workspace_dir,
+            dry_run=dry_run,
             surface=surface,
             channel_type=channel_type,
             conversation_id=conversation_id,
             sender_id=sender_id,
-        )
-        async for item in self._chat_flow.stream_chat_events(
-            binding.to_surface_chat_execution_request(
-                message=message,
-                workspace_dir=self._resolve_workspace_dir(workspace_dir),
-                session_id=session_id,
-                session_title_hint=session_title_hint,
-                dry_run=bool(dry_run),
-                running_detail=f"{binding.surface or 'api'} stream running",
-            ),
-            execute_turn=self._execute_chat_turn,
         ):
             yield item
-
-    async def _execute_chat_turn(
-        self,
-        turn: ManagedSessionTurn,
-        request: SurfaceChatExecutionRequest,
-        activity_emitter: Callable[[str, dict[str, object]], Awaitable[None] | None] | None = None,
-    ):
-        return await self._route_execution.execute_chat_turn(
-            turn,
-            request,
-            recovery_context=turn.recovery_context,
-            activity_emitter=activity_emitter,
-        )
 
 
 # Keep the compatibility-visible module path stable while the implementation

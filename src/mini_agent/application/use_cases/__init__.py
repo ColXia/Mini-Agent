@@ -1,6 +1,7 @@
 """Application use-case exports for staged architecture migration."""
 
 from .agent_application_service import AgentApplicationService
+from .agent_interaction_application_service import AgentInteractionApplicationService
 from .channel_ingress_use_cases import ChannelIngressUseCases
 from .channel_novel_action_handler import ChannelNovelActionHandler
 from .command_application_service import CommandApplicationService
@@ -14,6 +15,7 @@ from .workspace_application_service import WorkspaceApplicationService
 
 __all__ = [
     "AgentApplicationService",
+    "AgentInteractionApplicationService",
     "ChannelIngressUseCases",
     "ChannelNovelActionHandler",
     "CommandApplicationService",

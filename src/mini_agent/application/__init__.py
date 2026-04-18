@@ -30,6 +30,7 @@ from .ports import (
 from .support import ApplicationInteractionBinding, ManagedSessionTurn
 from .use_cases import (
     AgentApplicationService,
+    AgentInteractionApplicationService,
     ChannelIngressUseCases,
     ChannelNovelActionHandler,
     CommandApplicationService,
@@ -57,6 +58,7 @@ from .ports import ManagedRuntimeSessionPort, SessionRuntimePort, SessionTurnSco
 __all__ = [
     "AgentDelegationExecutionHandler",
     "AgentApplicationService",
+    "AgentInteractionApplicationService",
     "AgentRuntimePort",
     "AgentUserService",
     "ApplicationInteractionBinding",

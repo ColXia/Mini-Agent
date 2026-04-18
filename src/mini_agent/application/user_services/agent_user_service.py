@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, AsyncIterator
 
 from mini_agent.application.legacy.session_agent_runtime_port import SessionAgentRuntimePort
 from mini_agent.application.ports.agent_runtime_port import AgentRuntimePort
 from mini_agent.application.use_cases.agent_application_service import AgentApplicationService
+from mini_agent.application.use_cases.agent_interaction_application_service import AgentInteractionApplicationService
 from mini_agent.application.use_cases.run_control_application_service import RunControlApplicationService
+from mini_agent.interfaces import MainAgentChatRequest, MainAgentChatResponse, MainAgentRoutingDiagnostics
 
 
 @dataclass(slots=True)
@@ -19,6 +21,7 @@ class AgentUserService:
     agent_runtime: AgentRuntimePort | None = None
     run_control: RunControlApplicationService | None = None
     session_agent_runtime: SessionAgentRuntimePort | None = None
+    interaction_service: AgentInteractionApplicationService | None = None
 
     def _application(self) -> AgentApplicationService:
         if self.application_service is None:
@@ -26,7 +29,10 @@ class AgentUserService:
                 agent_runtime=self.agent_runtime,
                 run_control=self.run_control,
                 session_agent_runtime=self.session_agent_runtime,
+                interaction_service=self.interaction_service,
             )
+        elif self.interaction_service is not None and self.application_service.interaction_service is None:
+            self.application_service.interaction_service = self.interaction_service
         return self.application_service
 
     async def list_agents(self) -> Any:
@@ -40,6 +46,15 @@ class AgentUserService:
 
     async def get_run(self, run_id: str) -> Any:
         return await self._application().get_run(run_id)
+
+    async def submit_message(self, request: MainAgentChatRequest) -> MainAgentChatResponse:
+        return await self._application().submit_message(request)
+
+    async def get_routing_diagnostics(self) -> MainAgentRoutingDiagnostics:
+        return await self._application().get_routing_diagnostics()
+
+    def stream_message(self, **kwargs: Any) -> AsyncIterator[str]:
+        return self._application().stream_message(**kwargs)
 
     async def interrupt_run(self, run_id: str, *, reason: str | None = None, source: str | None = None) -> Any:
         return await self._application().interrupt_run(run_id, reason=reason, source=source)

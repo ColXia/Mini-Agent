@@ -20,6 +20,7 @@ from mini_agent.application.user_service_assembly import (
     assemble_runtime_backed_user_services,
 )
 from mini_agent.application.use_cases import ChannelIngressUseCases, ChannelNovelActionHandler
+from mini_agent.application.use_cases.agent_interaction_application_service import AgentInteractionApplicationService
 from mini_agent.application.use_cases.run_control_application_service import RunControlApplicationService
 from mini_agent.application.use_cases.session_task_service import SessionTaskService
 from mini_agent.application.user_services.agent_user_service import AgentUserService
@@ -72,6 +73,7 @@ class GatewayComposition:
         self._workspace_runtime: MainAgentWorkspaceRuntimeAdapter | None = None
         self._agent_model_binding_service: AgentModelService | None = None
         self._model_runtime_adapter: AgentModelRuntimeAdapter | None = None
+        self._agent_interaction_service: AgentInteractionApplicationService | None = None
         self._surface_service: MainAgentSurfaceService | Any | None = None
         self._channel_ingress_use_cases: ChannelIngressUseCases | Any | None = None
 
@@ -178,6 +180,18 @@ class GatewayComposition:
             )
         return self._model_runtime_adapter
 
+    def get_agent_interaction_service(self) -> AgentInteractionApplicationService:
+        if self._agent_interaction_service is None:
+            self._agent_interaction_service = AgentInteractionApplicationService(
+                session_task_service=self.get_session_task_service(),
+                resolve_workspace_dir=self.resolve_workspace_dir,
+                to_utc_iso=self.to_utc_iso,
+                sse_event=self.sse_event,
+                format_bootstrap_error=self.format_agent_bootstrap_error,
+                stream_chunk_size=self.settings.chat_stream_chunk_size,
+            )
+        return self._agent_interaction_service
+
     def _ensure_user_service_assembly(self) -> UserServiceAssembly:
         if self._user_service_assembly is None:
             self._user_service_assembly = assemble_runtime_backed_user_services(
@@ -190,6 +204,7 @@ class GatewayComposition:
             self._agent_service = self._user_service_assembly.agent_service
             self._model_service = self._user_service_assembly.model_service
             self._workspace_service = self._user_service_assembly.workspace_service
+            self._agent_service.interaction_service = self.get_agent_interaction_service()
         return self._user_service_assembly
 
     def get_run_control_service(self) -> RunControlApplicationService:
@@ -216,6 +231,7 @@ class GatewayComposition:
         if self._surface_service is None:
             self._surface_service = build_main_agent_surface_service(
                 user_service_assembly=self._ensure_user_service_assembly(),
+                interaction_service=self.get_agent_interaction_service(),
                 resolve_workspace_dir=self.resolve_workspace_dir,
                 to_utc_iso=self.to_utc_iso,
                 sse_event=self.sse_event,
@@ -225,13 +241,13 @@ class GatewayComposition:
         return self._surface_service
 
     async def run_main_agent_chat(self, request: MainAgentChatRequest) -> MainAgentChatResponse:
-        return await self.get_surface_service().run_chat(request)
+        return await self.get_agent_service().submit_message(request)
 
     async def get_routing_diagnostics(self) -> MainAgentRoutingDiagnostics:
-        return await self.get_surface_service().get_routing_diagnostics()
+        return await self.get_agent_service().get_routing_diagnostics()
 
     def stream_main_agent_chat(self, **kwargs: Any) -> AsyncIterator[str]:
-        return self.get_surface_service().stream_chat_events(**kwargs)
+        return self.get_agent_service().stream_message(**kwargs)
 
     def get_channel_ingress_use_cases(self) -> ChannelIngressUseCases:
         if self._channel_ingress_use_cases is None:
@@ -293,6 +309,7 @@ class GatewayComposition:
                 self._workspace_runtime = None
                 self._agent_model_binding_service = None
                 self._model_runtime_adapter = None
+                self._agent_interaction_service = None
                 self._surface_service = None
                 self._channel_ingress_use_cases = None
                 reset_novel_runtime_state()

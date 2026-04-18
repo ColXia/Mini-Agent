@@ -25,6 +25,7 @@ def test_gateway_composition_wires_explicit_session_task_service(tmp_path: Path)
     )
 
     session_task_service = composition.get_session_task_service()
+    interaction_service = composition.get_agent_interaction_service()
     run_control_service = composition.get_run_control_service()
     surface_service = composition.get_surface_service()
     workspace_service = composition.get_workspace_service()
@@ -34,6 +35,9 @@ def test_gateway_composition_wires_explicit_session_task_service(tmp_path: Path)
     assert composition.get_session_task_service() is session_task_service
     assert composition.get_run_control_service() is run_control_service
     assert composition.get_workspace_service() is workspace_service
+    assert composition.get_agent_interaction_service() is interaction_service
+    assert composition.get_agent_service().interaction_service is interaction_service
+    assert surface_service._interaction_service is interaction_service
     assert surface_service._session_task_service is session_task_service
     assert surface_service._run_control_service is surface_service._agent_service
     assert surface_service._run_control_service is composition.get_agent_service()
@@ -67,8 +71,11 @@ def test_gateway_composition_reuses_preassembled_session_owners_across_access_or
     agent_service = composition.get_agent_service()
     model_service = composition.get_model_service()
     workspace_service = composition.get_workspace_service()
+    interaction_service = composition.get_agent_interaction_service()
     surface_service = composition.get_surface_service()
 
+    assert agent_service.interaction_service is interaction_service
+    assert surface_service._interaction_service is interaction_service
     assert surface_service._session_task_service is session_task_service
     assert surface_service._run_control_service is surface_service._agent_service
     assert surface_service._run_control_service is agent_service
@@ -99,6 +106,7 @@ def test_gateway_composition_builds_surface_without_materializing_session_facade
     surface_service = composition.get_surface_service()
 
     assert surface_service is composition.get_surface_service()
+    assert composition.get_agent_interaction_service() is surface_service._interaction_service
     assert surface_service._session_service is None
     assert composition._run_control_service is not None
     assert composition._agent_service is not None
