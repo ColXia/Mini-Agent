@@ -20,8 +20,6 @@ from .agent_user_service import AgentUserService
 from .command_user_service import CommandUserService
 from .model_user_service import ModelUserService
 from .session_runtime_compat_adapters import (
-    SessionBackedRunRuntimeAdapter,
-    SessionTaskCompatibilityAdapter,
     UnavailableRunRuntimeAdapter,
 )
 from .workspace_user_service import WorkspaceUserService
@@ -29,6 +27,7 @@ from .workspace_user_service import WorkspaceUserService
 
 class RuntimeBackedUserServiceSupport(
     SessionTaskRuntimePort,
+    RunRuntimePort,
     SessionAgentRuntimePort,
     SessionModelSelectionRuntimePort,
     Protocol,
@@ -101,6 +100,19 @@ def _supports_session_task_port(candidate: object) -> bool:
     )
 
 
+def _supports_run_runtime(candidate: object) -> bool:
+    return all(
+        hasattr(candidate, attr)
+        for attr in (
+            "get_run",
+            "interrupt_run",
+            "resume_run",
+            "cancel_run",
+            "resolve_approval_wait",
+        )
+    )
+
+
 def _resolve_workspace_service(
     workspace_service: WorkspaceUserService | None,
     workspace_runtime: WorkspaceRuntimePort | None,
@@ -167,23 +179,38 @@ def resolve_runtime_backed_user_service_ports(
 
     return RuntimeBackedUserServicePorts(
         session_task_runtime=session_task_runtime or cast(SessionTaskRuntimePort, runtime_manager),
-        # Run attachment remains transitional, but a real runtime manager can now satisfy the
-        # session-task compatibility contract directly without an extra adapter layer.
-        session_task_port=(
-            session_task_port
-            or (
-                cast(SessionTaskPort, runtime_manager)
-                if _supports_session_task_port(runtime_manager)
-                else SessionTaskCompatibilityAdapter(runtime_manager)
-            )
+        session_task_port=session_task_port
+        or (
+            cast(SessionTaskPort, runtime_manager)
+            if _supports_session_task_port(runtime_manager)
+            else (_raise_missing_session_task_port())
         ),
         session_agent_runtime=session_agent_runtime or cast(SessionAgentRuntimePort, runtime_manager),
         session_model_runtime=session_model_runtime or cast(SessionModelSelectionRuntimePort, runtime_manager),
-        run_runtime=run_runtime or SessionBackedRunRuntimeAdapter(runtime_manager),
+        run_runtime=run_runtime
+        or (
+            cast(RunRuntimePort, runtime_manager)
+            if _supports_run_runtime(runtime_manager)
+            else (_raise_missing_run_runtime())
+        ),
         agent_runtime=agent_runtime,
         model_runtime=model_runtime,
         workspace_runtime=workspace_runtime,
         command_runtime=command_runtime,
+    )
+
+
+def _raise_missing_session_task_port() -> SessionTaskPort:
+    raise RuntimeError(
+        "Runtime-backed user-service assembly requires direct session-task methods; "
+        "session compatibility adapters are no longer an active path."
+    )
+
+
+def _raise_missing_run_runtime() -> RunRuntimePort:
+    raise RuntimeError(
+        "Runtime-backed user-service assembly requires direct run-runtime methods; "
+        "session-derived run compatibility is no longer an active path."
     )
 
 

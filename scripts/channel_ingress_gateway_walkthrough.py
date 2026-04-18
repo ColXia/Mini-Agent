@@ -28,11 +28,12 @@ if str(SRC_ROOT) not in sys.path:
 
 from mini_agent.agent_core.engine import TurnExecutionResult, TurnStopReason
 from mini_agent.application import (
+    AgentInteractionApplicationService,
     ChannelIngressUseCases,
     ChannelNovelActionHandler,
-    MainAgentSurfaceAssembly,
-    MainAgentSurfaceService,
-    assemble_runtime_backed_main_agent_surface_service,
+    RunControlApplicationService,
+    SessionTaskService,
+    resolve_runtime_backed_user_service_ports,
 )
 from mini_agent.config import AgentConfig, Config, LLMConfig, ToolsConfig
 from mini_agent.interfaces import ChannelMessageRequest, MainAgentChatRequest
@@ -46,6 +47,33 @@ class WalkthroughResult:
     ok: bool
     note: str
     excerpts: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class GatewayWalkthroughAssembly:
+    runtime_manager: MainAgentRuntimeManager
+    surface_service: "GatewayWalkthroughSurface"
+
+
+@dataclass(slots=True)
+class GatewayWalkthroughSurface:
+    interaction_service: AgentInteractionApplicationService
+    session_task_service: SessionTaskService
+    run_control_service: RunControlApplicationService
+    _resolve_workspace_dir: Any
+
+    async def run_chat(self, request: MainAgentChatRequest):
+        return await self.interaction_service.submit_message(request)
+
+    async def list_sessions(self, *, workspace_dir: str | None = None, shared_only: bool = False):
+        resolved = self._resolve_workspace_dir(workspace_dir) if workspace_dir is not None else None
+        return await self.session_task_service.list_sessions(workspace_dir=resolved, shared_only=shared_only)
+
+    async def get_session_detail(self, session_id: str, *, recent_limit: int = 50):
+        return await self.session_task_service.get_session_detail(session_id, recent_limit=recent_limit)
+
+    async def get_session_messages(self, session_id: str, *, limit: int = 10):
+        return await self.session_task_service.get_session_messages(session_id, limit=limit)
 
 
 class _DummyAgent:
@@ -161,7 +189,7 @@ def _test_runtime_config() -> Config:
 
 
 async def _activate_runtime_surface(
-    assembly: MainAgentSurfaceAssembly,
+    assembly: GatewayWalkthroughAssembly,
     session_id: str,
     *,
     surface: str,
@@ -217,24 +245,41 @@ def _new_gateway_use_cases(
     *,
     storage_dir: Path,
     build_agent,
-) -> MainAgentSurfaceAssembly:
+) -> GatewayWalkthroughAssembly:
     runtime = MainAgentRuntimeManager(
         ttl_seconds=3600,
         build_agent=build_agent,
         storage_dir=storage_dir,
         load_runtime_config=_test_runtime_config,
     )
-    return assemble_runtime_backed_main_agent_surface_service(
-        runtime_manager=runtime,
+    ports = resolve_runtime_backed_user_service_ports(runtime_manager=runtime)
+    session_task_service = SessionTaskService(
+        runtime_manager=ports.session_task_runtime,
+        session_agent_runtime=ports.session_agent_runtime,
+        session_model_runtime=ports.session_model_runtime,
+    )
+    run_control_service = RunControlApplicationService(
+        run_runtime=ports.run_runtime,
+        session_tasks=ports.session_task_port,
+    )
+    interaction_service = AgentInteractionApplicationService(
+        session_task_service=session_task_service,
         resolve_workspace_dir=_resolve_workspace_dir,
         to_utc_iso=_to_utc_iso,
         sse_event=_sse_event,
         format_bootstrap_error=_format_bootstrap_error,
         stream_chunk_size=64,
     )
+    surface_service = GatewayWalkthroughSurface(
+        interaction_service=interaction_service,
+        session_task_service=session_task_service,
+        run_control_service=run_control_service,
+        _resolve_workspace_dir=_resolve_workspace_dir,
+    )
+    return GatewayWalkthroughAssembly(runtime_manager=runtime, surface_service=surface_service)
 
 
-def _new_channel_use_cases(gateway_use_cases: MainAgentSurfaceService, *, root: Path) -> ChannelIngressUseCases:
+def _new_channel_use_cases(gateway_use_cases: GatewayWalkthroughSurface, *, root: Path) -> ChannelIngressUseCases:
     return ChannelIngressUseCases(
         run_main_agent_chat=gateway_use_cases.run_chat,
         novel_action_handler=ChannelNovelActionHandler(

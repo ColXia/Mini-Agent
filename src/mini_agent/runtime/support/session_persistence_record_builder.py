@@ -32,6 +32,7 @@ class RuntimeSessionPersistenceRecordBuilder:
     active_pending_approvals: Callable[["MainAgentSessionState"], list[dict[str, Any]]] | None = None
     active_run_control_state: Callable[["MainAgentSessionState"], dict[str, Any] | None] | None = None
     active_approval_wait: Callable[["MainAgentSessionState"], dict[str, Any] | None] | None = None
+    active_kernel_state: Callable[["MainAgentSessionState"], dict[str, Any] | None] | None = None
     selected_model_identity_for_session: (
         Callable[["MainAgentSessionState"], tuple[str, str, str] | None] | None
     ) = None
@@ -73,6 +74,15 @@ class RuntimeSessionPersistenceRecordBuilder:
             return None
         try:
             payload = self.active_approval_wait(session)
+        except Exception:
+            return None
+        return dict(payload) if isinstance(payload, dict) else None
+
+    def _read_active_kernel_state(self, session: "MainAgentSessionState") -> dict[str, Any] | None:
+        if not callable(self.active_kernel_state):
+            return None
+        try:
+            payload = self.active_kernel_state(session)
         except Exception:
             return None
         return dict(payload) if isinstance(payload, dict) else None
@@ -249,6 +259,7 @@ class RuntimeSessionPersistenceRecordBuilder:
             "last_runtime_task_memory": self._read_agent_last_runtime_task_memory(session.runtime.agent),
             "run_control": self._read_active_run_control_state(session),
             "approval_wait": self._read_active_approval_wait(session),
+            "kernel_state": self._read_active_kernel_state(session),
         }
 
 

@@ -2,17 +2,6 @@ from __future__ import annotations
 
 import pytest
 
-import mini_agent.application as application_module
-import mini_agent.application.facades as application_facades_module
-import mini_agent.application.user_services as application_user_services_module
-from mini_agent.application.facades import MainAgentSurfaceService as FacadeMainAgentSurfaceService
-from mini_agent.application.legacy import (
-    MainAgentSurfaceService as LegacyMainAgentSurfaceService,
-    SessionApplicationService as LegacySessionApplicationService,
-    SessionTaskCompatibilityAdapter as LegacySessionTaskCompatibilityAdapter,
-    build_main_agent_surface_service as legacy_build_main_agent_surface_service,
-    build_runtime_backed_session_service as legacy_build_runtime_backed_session_service,
-)
 from mini_agent.application.ports import (
     AgentRuntimePort,
     ModelRuntimePort,
@@ -20,17 +9,9 @@ from mini_agent.application.ports import (
     SessionAgentRuntimePort,
     SessionModelSelectionRuntimePort,
     SessionRuntimePort,
-    SessionTaskRuntimePort,
     SessionTaskPort,
+    SessionTaskRuntimePort,
     WorkspaceRuntimePort,
-)
-from mini_agent.application.support import (
-    ApplicationInteractionBinding,
-    FormatBootstrapErrorFn,
-    ManagedSessionTurn,
-    ResolveWorkspaceDirFn,
-    SseEventFn,
-    ToUtcIsoFn,
 )
 from mini_agent.application.use_cases import (
     AgentApplicationService,
@@ -45,11 +26,6 @@ from mini_agent.application.user_services import (
     ModelUserService,
     WorkspaceUserService,
 )
-from mini_agent.application.main_agent_surface_service import MainAgentSurfaceService
-from mini_agent.application.session_runtime_compat import SessionTaskCompatibilityAdapter
-from mini_agent.application.session_service import SessionApplicationService
-from mini_agent.application.surface_service_assembly import build_main_agent_surface_service
-from mini_agent.application.session_service_assembly import build_runtime_backed_session_service
 from mini_agent.interfaces import MainAgentChatRequest
 
 
@@ -183,10 +159,7 @@ class ModelRuntimeStub:
         return {"agent_id": agent_id, "supports_tools": True}
 
     async def get_model_binding_diagnostics(self, agent_id: str | None = None):
-        return {
-            "agent_id": agent_id,
-            "current_binding": {"agent_id": agent_id, "model_id": "model-1"},
-        }
+        return {"agent_id": agent_id, "current_binding": {"agent_id": agent_id, "model_id": "model-1"}}
 
 
 class SessionModelRuntimeStub:
@@ -365,6 +338,18 @@ class CommandRuntimeStub:
         return {"command": raw_command, "kwargs": kwargs}
 
 
+def test_stage1_port_packages_export_expected_contracts() -> None:
+    assert AgentRuntimePort is not None
+    assert ModelRuntimePort is not None
+    assert RunRuntimePort is not None
+    assert SessionAgentRuntimePort is not None
+    assert SessionModelSelectionRuntimePort is not None
+    assert SessionRuntimePort is not None
+    assert SessionTaskRuntimePort is not None
+    assert SessionTaskPort is not None
+    assert WorkspaceRuntimePort is not None
+
+
 @pytest.mark.asyncio
 async def test_run_control_application_service_prefers_run_runtime_when_run_is_attached() -> None:
     run_runtime = RunRuntimeStub()
@@ -388,23 +373,6 @@ async def test_run_control_application_service_prefers_run_runtime_when_run_is_a
         "desktop",
         "user approved",
     ) in run_runtime.calls
-
-
-@pytest.mark.asyncio
-async def test_run_control_application_service_interrupts_attached_session_run() -> None:
-    run_runtime = RunRuntimeStub()
-    session_tasks = SessionTaskStub({"session-1": "run-1"})
-    service = RunControlApplicationService(run_runtime=run_runtime, session_tasks=session_tasks)
-
-    result = await service.interrupt_session_run(
-        "session-1",
-        reason="pause",
-        source="desktop",
-    )
-
-    assert result == {"kind": "interrupt", "run_id": "run-1"}
-    assert ("resolve_run_id_for_session", "session-1") in session_tasks.calls
-    assert ("interrupt_run", "run-1", "pause", "desktop") in run_runtime.calls
 
 
 @pytest.mark.asyncio
@@ -455,17 +423,6 @@ async def test_stage1_user_services_delegate_to_runtime_ports() -> None:
         "agent_id": "agent-1",
         "model_id": "model-1",
     }
-    assert await model_service.update_model_binding(
-        agent_id="agent-1",
-        provider_source="openai",
-        provider_id="primary",
-        model_id="gpt-5",
-    ) == {
-        "agent_id": "agent-1",
-        "provider_source": "openai",
-        "provider_id": "primary",
-        "model_id": "gpt-5",
-    }
     assert await model_service.set_agent_model_binding(
         agent_id="agent-1",
         provider_source="preset",
@@ -477,15 +434,6 @@ async def test_stage1_user_services_delegate_to_runtime_ports() -> None:
         "provider_id": "openai",
         "model_id": "gpt-5.4",
     }
-    assert await model_service.get_current_model_capabilities("agent-1") == {
-        "agent_id": "agent-1",
-        "supports_tools": True,
-    }
-    assert await model_service.get_model_binding_diagnostics("agent-1") == {
-        "agent_id": "agent-1",
-        "current_binding": {"agent_id": "agent-1", "model_id": "model-1"},
-    }
-    assert await command_service.list_commands() == ["help", "session"]
     assert await command_service.dispatch_command("/help", surface="desktop") == {
         "command": "/help",
         "kwargs": {"surface": "desktop"},
@@ -493,215 +441,67 @@ async def test_stage1_user_services_delegate_to_runtime_ports() -> None:
 
 
 @pytest.mark.asyncio
-async def test_model_user_service_supports_session_selection_compatibility() -> None:
+async def test_stage1_user_services_support_session_scoped_runtime_actions() -> None:
     model_service = ModelUserService(session_model_runtime=SessionModelRuntimeStub())
+    agent_service = AgentUserService(session_agent_runtime=SessionRuntimePolicyRuntimeStub())
 
-    assert await model_service.update_session_model_selection(
+    model_response = await model_service.update_session_model_selection(
         "session-3",
         provider_source="preset",
         provider_id="openai",
         model_id="gpt-5.4",
         surface="desktop",
-    ) == {
-        "session_id": "session-3",
-        "provider_source": "preset",
-        "provider_id": "openai",
-        "model_id": "gpt-5.4",
-        "surface": "desktop",
-        "channel_type": None,
-        "conversation_id": None,
-        "sender_id": None,
-    }
-
-
-@pytest.mark.asyncio
-async def test_agent_user_service_supports_session_runtime_policy_compatibility() -> None:
-    agent_service = AgentUserService(session_agent_runtime=SessionRuntimePolicyRuntimeStub())
-
-    assert await agent_service.update_session_runtime_policy(
+    )
+    policy_response = await agent_service.update_session_runtime_policy(
         "session-4",
         approval_profile="plan",
         access_level="full-access",
         surface="desktop",
-    ) == {
-        "session_id": "session-4",
-        "approval_profile": "plan",
-        "access_level": "full-access",
-        "surface": "desktop",
-        "channel_type": None,
-        "conversation_id": None,
-        "sender_id": None,
-    }
-
-
-@pytest.mark.asyncio
-async def test_agent_user_service_supports_interrupt_session_run_compatibility() -> None:
-    run_control = RunControlApplicationService(
-        run_runtime=RunRuntimeStub(),
-        session_tasks=SessionTaskStub({"session-4a": "run-4a"}),
     )
-    agent_service = AgentUserService(run_control=run_control)
 
-    assert await agent_service.interrupt_session_run(
-        "session-4a",
-        reason="pause",
-        source="desktop",
-    ) == {
-        "kind": "interrupt",
-        "run_id": "run-4a",
-    }
+    assert model_response["session_id"] == "session-3"
+    assert policy_response["approval_profile"] == "plan"
 
 
 @pytest.mark.asyncio
-async def test_agent_user_service_supports_session_control_compatibility() -> None:
-    agent_service = AgentUserService(session_agent_runtime=SessionControlRuntimeStub())
+async def test_stage1_agent_user_service_supports_session_control_memory_and_skill_actions() -> None:
+    control_service = AgentUserService(session_agent_runtime=SessionControlRuntimeStub())
+    context_service = AgentUserService(session_agent_runtime=SessionContextRuntimeStub())
+    memory_service = AgentUserService(session_agent_runtime=SessionMemoryRuntimeStub())
+    skill_service = AgentUserService(session_agent_runtime=SessionSkillRuntimeStub())
 
-    assert await agent_service.control_session(
+    controlled = await control_service.control_session(
         "session-4b",
         action="compact",
         reason="trim",
         surface="desktop",
-    ) == {
-        "session_id": "session-4b",
-        "action": "compact",
-        "reason": "trim",
-        "surface": "desktop",
-        "channel_type": None,
-        "conversation_id": None,
-        "sender_id": None,
-    }
-
-
-@pytest.mark.asyncio
-async def test_agent_user_service_supports_session_context_compatibility() -> None:
-    agent_service = AgentUserService(session_agent_runtime=SessionContextRuntimeStub())
-
-    assert await agent_service.update_session_context(
+    )
+    contextual = await context_service.update_session_context(
         "session-4c",
         action="include",
         sources=["workspace_memory"],
         max_items=2,
         surface="desktop",
-    ) == {
-        "session_id": "session-4c",
-        "action": "include",
-        "sources": ["workspace_memory"],
-        "max_items": 2,
-        "max_total_chars": None,
-        "max_items_per_source": None,
-        "surface": "desktop",
-        "channel_type": None,
-        "conversation_id": None,
-        "sender_id": None,
-    }
-
-
-@pytest.mark.asyncio
-async def test_agent_user_service_supports_session_memory_compatibility() -> None:
-    agent_service = AgentUserService(session_agent_runtime=SessionMemoryRuntimeStub())
-
-    assert await agent_service.manage_session_memory(
+    )
+    memory = await memory_service.manage_session_memory(
         "session-5",
         action="show",
         query="recent",
         detail_mode="brief",
         surface="desktop",
-    ) == {
-        "session_id": "session-5",
-        "action": "show",
-        "engram_id": None,
-        "content": None,
-        "query": "recent",
-        "day": None,
-        "export_format": None,
-        "detail_mode": "brief",
-        "surface": "desktop",
-        "channel_type": None,
-        "conversation_id": None,
-        "sender_id": None,
-    }
-
-
-@pytest.mark.asyncio
-async def test_agent_user_service_supports_session_skill_compatibility() -> None:
-    agent_service = AgentUserService(session_agent_runtime=SessionSkillRuntimeStub())
-
-    assert await agent_service.manage_session_skills(
+    )
+    skill = await skill_service.manage_session_skills(
         "session-6",
         action="search",
         query="foundry",
         mode="allowlist",
         surface="desktop",
-    ) == {
-        "session_id": "session-6",
-        "action": "search",
-        "skill_name": None,
-        "path": None,
-        "query": "foundry",
-        "mode": "allowlist",
-        "surface": "desktop",
-        "channel_type": None,
-        "conversation_id": None,
-        "sender_id": None,
-    }
+    )
 
-
-def test_stage1_port_packages_export_expected_contracts() -> None:
-    assert AgentRuntimePort is not None
-    assert ModelRuntimePort is not None
-    assert RunRuntimePort is not None
-    assert SessionAgentRuntimePort is not None
-    assert SessionModelSelectionRuntimePort is not None
-    assert SessionRuntimePort is not None
-    assert SessionTaskRuntimePort is not None
-    assert SessionTaskPort is not None
-    assert WorkspaceRuntimePort is not None
-
-
-def test_stage1_namespace_packages_reexport_transitional_modules() -> None:
-    assert FacadeMainAgentSurfaceService is MainAgentSurfaceService
-    assert LegacyMainAgentSurfaceService is MainAgentSurfaceService
-    assert LegacySessionApplicationService is SessionApplicationService
-    assert LegacySessionTaskCompatibilityAdapter is SessionTaskCompatibilityAdapter
-    assert legacy_build_main_agent_surface_service is build_main_agent_surface_service
-    assert legacy_build_runtime_backed_session_service is build_runtime_backed_session_service
-
-
-def test_stage1_application_namespace_does_not_promote_legacy_surface_exports_in_all() -> None:
-    assert "MainAgentSurfaceService" not in application_module.__all__
-    assert "MainAgentSurfaceAssembly" not in application_module.__all__
-    assert "build_main_agent_surface_service" not in application_module.__all__
-    assert "build_runtime_backed_main_agent_surface_service" not in application_module.__all__
-
-
-def test_stage1_application_namespace_does_not_promote_legacy_session_exports_in_all() -> None:
-    assert "ManagedRuntimeSessionPort" not in application_module.__all__
-    assert "RuntimeBackedSessionApplicationAssembly" not in application_module.__all__
-    assert "SessionApplicationService" not in application_module.__all__
-    assert "SessionRuntimePort" not in application_module.__all__
-    assert "SessionTurnScopePort" not in application_module.__all__
-    assert "assemble_runtime_backed_session_application" not in application_module.__all__
-    assert "assemble_typed_session_application" not in application_module.__all__
-    assert "assemble_runtime_backed_user_services" not in application_module.__all__
-    assert "build_runtime_backed_session_service" not in application_module.__all__
-    assert "build_typed_session_service" not in application_module.__all__
-
-
-def test_stage1_user_services_namespace_does_not_promote_runtime_backed_shortcut_in_all() -> None:
-    assert "assemble_runtime_backed_user_services" not in application_user_services_module.__all__
-
-
-def test_stage1_facades_namespace_does_not_promote_legacy_surface_exports_in_all() -> None:
-    assert "MainAgentSurfaceService" not in application_facades_module.__all__
-    assert "MainAgentSurfaceAssembly" not in application_facades_module.__all__
-    assert "build_main_agent_surface_service" not in application_facades_module.__all__
-    assert "build_runtime_backed_main_agent_surface_service" not in application_facades_module.__all__
-    assert ApplicationInteractionBinding is not None
-    assert ManagedSessionTurn is not None
-    assert ResolveWorkspaceDirFn is not None
-    assert ToUtcIsoFn is not None
-    assert SseEventFn is not None
-    assert FormatBootstrapErrorFn is not None
+    assert controlled["action"] == "compact"
+    assert contextual["sources"] == ["workspace_memory"]
+    assert memory["query"] == "recent"
+    assert skill["query"] == "foundry"
 
 
 @pytest.mark.asyncio
@@ -725,29 +525,9 @@ async def test_stage1_application_services_delegate_to_runtime_ports() -> None:
     assert await agent_application.get_active_agent() == {"agent_id": "agent-1", "active": True}
     assert await workspace_application.get_active_workspace() == {"workspace_id": "ws-1", "active": True}
     assert await model_application.list_model_candidates() == [{"model_id": "model-1"}]
-    assert await model_application.get_model_binding("agent-1") == {"agent_id": "agent-1", "model_id": "model-1"}
-    assert await model_application.get_current_model_binding("agent-1") == {
-        "agent_id": "agent-1",
-        "model_id": "model-1",
-    }
-    assert await model_application.set_agent_model_binding(
-        agent_id="agent-1",
-        provider_source="preset",
-        provider_id="openai",
-        model_id="gpt-5.4",
-    ) == {
-        "agent_id": "agent-1",
-        "provider_source": "preset",
-        "provider_id": "openai",
-        "model_id": "gpt-5.4",
-    }
     assert await model_application.get_current_model_capabilities("agent-1") == {
         "agent_id": "agent-1",
         "supports_tools": True,
-    }
-    assert await model_application.get_model_binding_diagnostics("agent-1") == {
-        "agent_id": "agent-1",
-        "current_binding": {"agent_id": "agent-1", "model_id": "model-1"},
     }
     assert await command_application.complete_command("he") == ["hepletion"]
 

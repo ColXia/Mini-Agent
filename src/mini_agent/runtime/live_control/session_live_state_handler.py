@@ -211,7 +211,11 @@ class RuntimeSessionLiveStateHandler:
         )
         session.projection.busy = True
         session.transcript_state.current_turn_id = uuid4().hex
-        self._run_control_store().begin_turn(session)
+        self._run_control_store().begin_turn(
+            session,
+            surface=normalized_surface,
+            detail=detail,
+        )
         session.projection.running_state = _safe_text(detail) or f"{normalized_surface} request running"
         session.touch(now_utc=now_utc)
 

@@ -29,9 +29,10 @@ if str(SRC_ROOT) not in sys.path:
 
 from mini_agent.agent_core.engine import TurnExecutionResult, TurnStopReason  # noqa: E402
 from mini_agent.application import (  # noqa: E402
-    MainAgentSurfaceAssembly,
-    MainAgentSurfaceService,
-    assemble_runtime_backed_main_agent_surface_service,
+    AgentInteractionApplicationService,
+    RunControlApplicationService,
+    SessionTaskService,
+    resolve_runtime_backed_user_service_ports,
 )
 from mini_agent.config import AgentConfig, Config, LLMConfig, ToolsConfig  # noqa: E402
 from mini_agent.interfaces import (  # noqa: E402
@@ -39,6 +40,8 @@ from mini_agent.interfaces import (  # noqa: E402
     MainAgentSessionCancelRequest,
     MainAgentSessionControlRequest,
     MainAgentSessionModelSelectionRequest,
+    MainAgentSessionRenameRequest,
+    MainAgentSessionShareRequest,
 )
 from mini_agent.runtime.main_agent_runtime_manager import MainAgentRuntimeManager  # noqa: E402
 from mini_agent.runtime.session_snapshot_handler import RuntimeSessionSnapshotImportCommand  # noqa: E402
@@ -50,6 +53,83 @@ class WalkthroughResult:
     ok: bool
     note: str
     excerpts: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class WalkthroughAssembly:
+    runtime_manager: MainAgentRuntimeManager
+    surface_service: "WalkthroughSurface"
+
+
+@dataclass(slots=True)
+class WalkthroughSurface:
+    interaction_service: AgentInteractionApplicationService
+    session_task_service: SessionTaskService
+    run_control_service: RunControlApplicationService
+    _resolve_workspace_dir: Any
+
+    async def run_chat(self, request: MainAgentChatRequest):
+        return await self.interaction_service.submit_message(request)
+
+    async def list_sessions(self, *, workspace_dir: str | None = None, shared_only: bool = False):
+        resolved = self._resolve_workspace_dir(workspace_dir) if workspace_dir is not None else None
+        return await self.session_task_service.list_sessions(workspace_dir=resolved, shared_only=shared_only)
+
+    async def get_session_detail(self, session_id: str, *, recent_limit: int = 50):
+        return await self.session_task_service.get_session_detail(session_id, recent_limit=recent_limit)
+
+    async def get_session_messages(self, session_id: str, *, limit: int = 10):
+        return await self.session_task_service.get_session_messages(session_id, limit=limit)
+
+    async def control_session(self, session_id: str, request: MainAgentSessionControlRequest):
+        return await self.session_task_service.control_session(
+            session_id,
+            action=request.action,
+            reason=request.reason,
+            surface=request.surface,
+            channel_type=request.channel_type,
+            conversation_id=request.conversation_id,
+            sender_id=request.sender_id,
+        )
+
+    async def cancel_session(self, session_id: str, request: MainAgentSessionCancelRequest):
+        return await self.run_control_service.cancel_session_run(
+            session_id,
+            reason=request.reason,
+            source=request.surface,
+            surface=request.surface,
+            channel_type=request.channel_type,
+            conversation_id=request.conversation_id,
+            sender_id=request.sender_id,
+        )
+
+    async def update_session_model_selection(
+        self,
+        session_id: str,
+        request: MainAgentSessionModelSelectionRequest,
+    ):
+        return await self.session_task_service.update_session_model_selection(
+            session_id,
+            provider_source=request.provider_source,
+            provider_id=request.provider_id,
+            model_id=request.model_id,
+            surface=request.surface,
+            channel_type=request.channel_type,
+            conversation_id=request.conversation_id,
+            sender_id=request.sender_id,
+        )
+
+    async def delete_session(self, session_id: str):
+        return await self.session_task_service.delete_session(session_id)
+
+    async def rename_session(self, session_id: str, request: MainAgentSessionRenameRequest):
+        return await self.session_task_service.rename_session(session_id, request)
+
+    async def set_session_shared(self, session_id: str, request: MainAgentSessionShareRequest):
+        return await self.session_task_service.set_session_shared(session_id, request)
+
+    async def reset_session(self, session_id: str):
+        return await self.session_task_service.reset_session(session_id)
 
 
 class _DummyAgent:
@@ -226,7 +306,7 @@ def _test_runtime_config() -> Config:
 
 
 async def _import_runtime_session(
-    assembly: MainAgentSurfaceAssembly,
+    assembly: WalkthroughAssembly,
     *,
     workspace_dir: str | None,
     session_id: str | None = None,
@@ -247,12 +327,12 @@ async def _import_runtime_session(
     return await runtime_manager.get_session_detail(session.session_id, recent_limit=recent_limit)
 
 
-async def _export_runtime_session(assembly: MainAgentSurfaceAssembly, session_id: str):
+async def _export_runtime_session(assembly: WalkthroughAssembly, session_id: str):
     return await assembly.runtime_manager.export_session_snapshot(session_id)
 
 
 async def _activate_runtime_surface(
-    assembly: MainAgentSurfaceAssembly,
+    assembly: WalkthroughAssembly,
     session_id: str,
     *,
     surface: str,
@@ -330,7 +410,7 @@ def _new_use_cases(
     storage_dir: Path,
     build_agent,
     build_agent_with_selection=None,
-) -> MainAgentSurfaceAssembly:
+) -> WalkthroughAssembly:
     runtime = MainAgentRuntimeManager(
         ttl_seconds=3600,
         build_agent=build_agent,
@@ -338,14 +418,31 @@ def _new_use_cases(
         storage_dir=storage_dir,
         load_runtime_config=_test_runtime_config,
     )
-    return assemble_runtime_backed_main_agent_surface_service(
-        runtime_manager=runtime,
+    ports = resolve_runtime_backed_user_service_ports(runtime_manager=runtime)
+    session_task_service = SessionTaskService(
+        runtime_manager=ports.session_task_runtime,
+        session_agent_runtime=ports.session_agent_runtime,
+        session_model_runtime=ports.session_model_runtime,
+    )
+    run_control_service = RunControlApplicationService(
+        run_runtime=ports.run_runtime,
+        session_tasks=ports.session_task_port,
+    )
+    interaction_service = AgentInteractionApplicationService(
+        session_task_service=session_task_service,
         resolve_workspace_dir=_resolve_workspace_dir,
         to_utc_iso=_to_utc_iso,
         sse_event=_sse_event,
         format_bootstrap_error=_format_bootstrap_error,
         stream_chunk_size=64,
     )
+    surface_service = WalkthroughSurface(
+        interaction_service=interaction_service,
+        session_task_service=session_task_service,
+        run_control_service=run_control_service,
+        _resolve_workspace_dir=_resolve_workspace_dir,
+    )
+    return WalkthroughAssembly(runtime_manager=runtime, surface_service=surface_service)
 
 
 async def _check_shared_activity_and_takeover(root: Path) -> WalkthroughResult:
@@ -783,14 +880,6 @@ async def _check_restart_recovery_snapshot(root: Path) -> WalkthroughResult:
         build_agent=_build_agent,
         storage_dir=storage_dir,
         load_runtime_config=_test_runtime_config,
-    )
-    _surface_assembly_first = assemble_runtime_backed_main_agent_surface_service(
-        runtime_manager=runtime_first,
-        resolve_workspace_dir=_resolve_workspace_dir,
-        to_utc_iso=_to_utc_iso,
-        sse_event=_sse_event,
-        format_bootstrap_error=_format_bootstrap_error,
-        stream_chunk_size=64,
     )
     session = await runtime_first.get_or_create_session("sess-recovery", workspace)
     runtime_first.bind_session_surface(

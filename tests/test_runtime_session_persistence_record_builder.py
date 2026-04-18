@@ -308,6 +308,84 @@ def test_runtime_session_persistence_record_builder_can_include_run_control_trut
     }
 
 
+def test_runtime_session_persistence_record_builder_can_include_kernel_state_payload(tmp_path: Path) -> None:
+    builder = RuntimeSessionPersistenceRecordBuilder(
+        session_kind="shared",
+        session_token_usage=lambda _session: 1,
+        session_token_limit=lambda _session: 2,
+        active_kernel_state=lambda _session: {
+            "agent_profile": {"agent_profile_id": "agent-profile:main-agent"},
+            "agent_instance": {"agent_instance_id": "agent-instance:sess-kernel"},
+            "run": {"run_id": "run:sess-kernel", "status": "running", "phase": "planning"},
+            "workspace_attachment": {"workspace_attachment_id": "workspace-attachment:run:sess-kernel"},
+            "session_attachment": {"session_attachment_id": "session-attachment:run:sess-kernel"},
+            "capability_snapshot": {"capability_snapshot_id": "capability-snapshot:run:sess-kernel"},
+            "checkpoint": {"checkpoint_id": "checkpoint:run:sess-kernel:1"},
+            "journal": {"journal_stream_id": "journal:run:sess-kernel", "last_event_seq": 3},
+            "run_control": {"run_id": "run:sess-kernel", "control_mode": "normal"},
+            "approval_wait": None,
+        },
+    )
+    session = runtime_session_stub(
+        session_id="sess-kernel",
+        workspace_dir=tmp_path,
+        created_at=_dt(),
+        updated_at=_dt(),
+        projection=runtime_projection_stub(
+            title="Kernel payload",
+            origin_surface="tui",
+            active_surface="tui",
+            reply_enabled=False,
+            is_default=False,
+            busy=True,
+            running_state="running",
+            channel_type=None,
+            conversation_id=None,
+            sender_id=None,
+            shared=False,
+            knowledge_base_enabled=True,
+            selected_model_source=None,
+            selected_provider_id=None,
+            selected_model_id=None,
+            pending_model_source=None,
+            pending_provider_id=None,
+            pending_model_id=None,
+            pending_skill_reload=False,
+            pending_skill_reload_reason="",
+            recovery_context_pending=False,
+            recovery_state="",
+            recovery_summary="",
+            recovery_last_activity=None,
+            recovery_last_user_message=None,
+            recovery_last_assistant_message=None,
+            recovery_pending_approvals=[],
+            context_policy={},
+            last_prepared_context={},
+            prepared_context_diagnostics={},
+            memory_diagnostics={},
+            sandbox_diagnostics={},
+        ),
+        lineage_state=lineage_state_stub(
+            root_session_id="sess-kernel",
+            created_at=_dt(),
+        ),
+        transcript_state=transcript_state_stub(transcript=[], next_transcript_index=1),
+        agent=RuntimeContractAgentStub(),
+    )
+
+    record = builder.build_metadata_record(
+        session,
+        transcript_path=tmp_path / "transcript.jsonl",
+        sandbox_diagnostics={},
+    )
+
+    assert record["kernel_state"] is not None
+    assert record["kernel_state"]["agent_profile"]["agent_profile_id"] == "agent-profile:main-agent"
+    assert record["kernel_state"]["agent_instance"]["agent_instance_id"] == "agent-instance:sess-kernel"
+    assert record["kernel_state"]["run"]["run_id"] == "run:sess-kernel"
+    assert record["kernel_state"]["journal"]["last_event_seq"] == 3
+
+
 def test_runtime_session_persistence_record_builder_prefers_active_run_pending_approvals(tmp_path: Path) -> None:
     builder = RuntimeSessionPersistenceRecordBuilder(
         session_kind="shared",

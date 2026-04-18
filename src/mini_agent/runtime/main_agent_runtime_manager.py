@@ -177,6 +177,7 @@ class MainAgentRuntimeManager:
             active_approval_wait=lambda session: self._session_run_control.serialize_approval_wait(
                 self._session_run_control.current_approval_wait(session)
             ),
+            active_kernel_state=lambda session: self._session_run_control.build_kernel_state_payload(session),
             selected_model_identity_for_session=self._model_identity_codec.selected_model_identity,
             pending_model_identity_for_session=self._model_identity_codec.pending_model_identity,
         )
@@ -208,7 +209,9 @@ class MainAgentRuntimeManager:
             agent_last_memory_automation=self._session_agent_support.agent_last_memory_automation,
             agent_last_runtime_task_memory=self._session_agent_support.agent_last_runtime_task_memory,
         )
-        self._session_run_control = RuntimeSessionRunControlStore()
+        self._session_run_control = RuntimeSessionRunControlStore(
+            selected_model_identity_for_session=self._model_identity_codec.selected_model_identity,
+        )
         self._runtime_task_memory_backend = WorkspaceRuntimeMemoryBackend()
         self._session_runtime_state_hydrator = RuntimeSessionStateHydrator(
             agent_knowledge_base_enabled=self._session_agent_support.agent_knowledge_base_enabled,

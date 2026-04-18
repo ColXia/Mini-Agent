@@ -5,7 +5,6 @@ from pathlib import Path
 
 from apps.agent_studio_gateway.composition import GatewayComposition, GatewayCompositionSettings
 from mini_agent.application import RuntimeBackedUserServicePorts, SessionTaskService
-from mini_agent.application.session_runtime_compat import SessionBackedRunRuntimeAdapter
 from mini_agent.application.user_services.model_runtime_adapter import AgentModelRuntimeAdapter
 from mini_agent.application.user_services import WorkspaceUserService
 
@@ -53,7 +52,7 @@ def test_gateway_composition_wires_explicit_session_task_service(tmp_path: Path)
     assert session_task_service._session_agent_runtime is runtime_backed_ports.session_agent_runtime
     assert session_task_service._session_model_runtime is runtime_backed_ports.session_model_runtime
     assert run_control_service.session_tasks is runtime_backed_ports.session_task_port
-    assert isinstance(run_control_service.run_runtime, SessionBackedRunRuntimeAdapter)
+    assert run_control_service.run_runtime is composition.get_runtime_manager()
     assert run_control_service.run_runtime is runtime_backed_ports.run_runtime
     assert agent_service.session_agent_runtime is runtime_backed_ports.session_agent_runtime
     assert composition.get_model_service().session_model_runtime is runtime_backed_ports.session_model_runtime

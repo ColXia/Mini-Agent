@@ -6,12 +6,10 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = REPO_ROOT / "src"
+DELETED_LEGACY_PATH = Path("src/mini_agent/application/legacy/session_agent_runtime_port.py")
 ALLOWED_PATHS = {
     Path("src/mini_agent/application/ports/session_agent_runtime_port.py"),
 }
-ALLOWED_PARENT_PREFIXES = (
-    Path("src/mini_agent/application/legacy"),
-)
 FORBIDDEN_MODULES = {
     "legacy.session_agent_runtime_port",
     "mini_agent.application.legacy.session_agent_runtime_port",
@@ -19,10 +17,7 @@ FORBIDDEN_MODULES = {
 
 
 def _is_allowed(path: Path) -> bool:
-    relative = path.relative_to(REPO_ROOT)
-    if relative in ALLOWED_PATHS:
-        return True
-    return any(relative.is_relative_to(prefix) for prefix in ALLOWED_PARENT_PREFIXES)
+    return path.relative_to(REPO_ROOT) in ALLOWED_PATHS
 
 
 def _collect_violations(path: Path) -> list[str]:
@@ -39,10 +34,12 @@ def _collect_violations(path: Path) -> list[str]:
     violations: list[str] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and (node.module or "") in FORBIDDEN_MODULES:
-            violations.append(
-                f"{relative}:{node.lineno}: forbidden active import from {node.module}"
-            )
+            violations.append(f"{relative}:{node.lineno}: forbidden legacy session-agent port import from {node.module}")
     return violations
+
+
+def test_legacy_session_agent_runtime_port_file_is_absent() -> None:
+    assert not (REPO_ROOT / DELETED_LEGACY_PATH).exists()
 
 
 def test_active_source_tree_does_not_import_legacy_session_agent_runtime_port() -> None:

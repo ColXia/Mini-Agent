@@ -6,7 +6,12 @@ from pathlib import Path
 from mini_agent.agent_core.contracts import ApprovalWaitState, RunControlMode
 from mini_agent.runtime.live_control.run_control_store import RuntimeSessionRunControlStore
 from mini_agent.workspace_runtime import capture_shared_workspace_snapshot
-from tests.runtime_contract_fixtures import runtime_projection_stub, runtime_session_stub, runtime_state_stub
+from tests.runtime_contract_fixtures import (
+    RuntimeContractAgentStub,
+    runtime_projection_stub,
+    runtime_session_stub,
+    runtime_state_stub,
+)
 
 
 def _session(tmp_path: Path):
@@ -232,3 +237,106 @@ def test_run_control_store_persisted_projection_exposes_checkpoint_summary(tmp_p
     assert projection["checkpoint"]["kind"] == "workspace_runtime_snapshot"
     assert projection["checkpoint"]["source"] == "persisted_workspace_runtime"
     assert projection["checkpoint"]["mutation_count"] == 4
+
+
+def test_run_control_store_persisted_projection_prefers_kernel_state_when_present(tmp_path: Path) -> None:
+    run_id = RuntimeSessionRunControlStore.run_id_for_session("sess-persisted-kernel")
+    record = {
+        "session_id": "sess-persisted-kernel",
+        "busy": False,
+        "kernel_state": {
+            "run": {
+                "run_id": run_id,
+                "status": "cancelled",
+                "phase": "terminal",
+            },
+            "run_control": {
+                "run_id": run_id,
+                "control_mode": "terminal",
+                "cancel_requested": True,
+            },
+            "checkpoint": {
+                "checkpoint_id": "checkpoint:sess-persisted-kernel:1",
+                "created_at": "2026-04-18T09:15:00+00:00",
+            },
+            "workspace_attachment": {
+                "root_dir": str((tmp_path / "workspace").resolve()),
+                "runtime_backend": "direct",
+            },
+        },
+    }
+
+    projection = RuntimeSessionRunControlStore.build_persisted_run_projection(run_id=run_id, record=record)
+
+    assert projection["status"] == "cancelled"
+    assert projection["phase"] == "terminal"
+    assert projection["cancel_requested"] is True
+    assert projection["checkpoint"] is not None
+    assert projection["checkpoint"]["kind"] == "kernel_checkpoint"
+    assert projection["checkpoint"]["source"] == "persisted_kernel_state"
+
+
+def test_run_control_store_cancelled_finish_projects_cancelled_terminal_state(tmp_path: Path) -> None:
+    async def _run() -> None:
+        store = RuntimeSessionRunControlStore()
+        session = _session(tmp_path)
+        session.projection.busy = True
+
+        store.begin_turn(session, surface="desktop", detail="running")
+        store.request_cancel(session, reason="stop now", source="desktop")
+
+        session.projection.busy = False
+        session.projection.running_state = ""
+        finished = store.finish_turn(session)
+        projection = store.build_active_run_projection(session)
+
+        assert finished.control_mode is RunControlMode.TERMINAL
+        assert finished.cancel_requested is True
+        assert projection["status"] == "cancelled"
+        assert projection["phase"] == "terminal"
+        assert projection["control_mode"] == "terminal"
+        assert projection["cancel_requested"] is True
+        assert projection["checkpoint"] is not None
+        assert projection["checkpoint"]["kind"] == "kernel_checkpoint"
+        assert session.runtime.cancel_event is None
+
+    asyncio.run(_run())
+
+
+def test_run_control_store_builds_kernel_state_payload(tmp_path: Path) -> None:
+    agent = RuntimeContractAgentStub()
+    agent.tools["shell"] = object()
+    session = runtime_session_stub(
+        session_id="sess-kernel-payload",
+        workspace_dir=tmp_path / "workspace",
+        projection=runtime_projection_stub(
+            busy=True,
+            active_surface="desktop",
+            origin_surface="desktop",
+            running_state="",
+            selected_model_source="custom",
+            selected_provider_id="maas",
+            selected_model_id="astron-code-latest",
+        ),
+        runtime=runtime_state_stub(
+            agent=agent,
+            pending_approvals=[],
+            pending_approval_waiters={},
+        ),
+    )
+    store = RuntimeSessionRunControlStore()
+    store.begin_turn(session, surface="desktop", detail="kernel payload")
+
+    payload = store.build_kernel_state_payload(session)
+
+    assert payload is not None
+    assert payload["agent_profile"]["agent_profile_id"] == "agent-profile:main-agent"
+    assert payload["agent_profile"]["built_in_tool_names"] == ["shell"]
+    assert payload["agent_instance"]["agent_instance_id"] == "agent-instance:sess-kernel-payload"
+    assert payload["run"]["run_id"] == RuntimeSessionRunControlStore.run_id_for_session("sess-kernel-payload")
+    assert payload["run"]["status"] == "running"
+    assert payload["workspace_attachment"]["runtime_backend"] == "direct"
+    assert payload["session_attachment"]["approval_scope_ref"] == "approval-scope:sess-kernel-payload"
+    assert payload["capability_snapshot"]["agent_model_provider_id"] == "maas"
+    assert payload["capability_snapshot"]["agent_model_id"] == "astron-code-latest"
+    assert payload["journal"]["latest_event_type"] == "run.turn_started"

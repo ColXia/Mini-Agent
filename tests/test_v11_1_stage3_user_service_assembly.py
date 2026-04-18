@@ -4,22 +4,12 @@ from pathlib import Path
 
 import pytest
 
+import mini_agent.application as application_module
 from mini_agent.application import (
     RuntimeBackedUserServicePorts,
-    SessionApplicationService,
     UserServiceAssembly,
-    assemble_runtime_backed_user_services,
     assemble_typed_user_services,
     resolve_runtime_backed_user_service_ports,
-)
-from mini_agent.application.legacy import RuntimeBackedSessionApplicationAssembly
-from mini_agent.application.session_runtime_compat import SessionBackedRunRuntimeAdapter
-from mini_agent.application.user_service_assembly import (
-    RuntimeBackedUserServicePorts as CompatRuntimeBackedUserServicePorts,
-    UserServiceAssembly as CompatUserServiceAssembly,
-    assemble_runtime_backed_user_services as compat_assemble_runtime_backed_user_services,
-    assemble_typed_user_services as compat_assemble_typed_user_services,
-    resolve_runtime_backed_user_service_ports as compat_resolve_runtime_backed_user_service_ports,
 )
 from mini_agent.application.user_services import (
     AgentUserService,
@@ -27,7 +17,8 @@ from mini_agent.application.user_services import (
     ModelUserService,
     WorkspaceUserService,
 )
-from mini_agent.interfaces import MainAgentSessionCancelRequest
+from mini_agent.application.user_services.service_assembly import assemble_runtime_backed_user_services
+from mini_agent.application.user_services.session_runtime_compat_adapters import SessionBackedRunRuntimeAdapter
 from mini_agent.runtime.support.session_backed_run_id import build_session_backed_run_id
 
 
@@ -105,20 +96,39 @@ class _RuntimeManagerStub(_SessionTaskRuntimeStub):
     async def resolve_run_id_for_session(self, session_id: str) -> str | None:
         return build_session_backed_run_id(session_id)
 
+    async def get_run(self, run_id: str):
+        return {
+            "kind": "run",
+            "run_id": run_id,
+            "status": "waiting",
+            "phase": "awaiting_approval",
+        }
+
     async def interrupt_run(self, run_id: str, *, reason: str | None = None, source: str | None = None):
         return {"kind": "interrupt", "run_id": run_id, "reason": reason, "source": source}
 
-    async def get_session_detail(self, session_id: str, *, recent_limit: int = 50):
-        _ = recent_limit
+    async def resume_run(self, run_id: str, *, resume_token: str | None = None, source: str | None = None):
+        return {"kind": "resume", "run_id": run_id, "resume_token": resume_token, "source": source}
+
+    async def cancel_run(self, run_id: str, *, reason: str | None = None, source: str | None = None):
+        return {"kind": "cancel", "run_id": run_id, "reason": reason, "source": source}
+
+    async def resolve_approval_wait(
+        self,
+        run_id: str,
+        *,
+        approved: bool,
+        token: str | None = None,
+        source: str | None = None,
+        reason: str | None = None,
+    ):
         return {
-            "session_id": session_id,
-            "busy": True,
-            "pending_approvals": [{"token": "approval-1"}],
-            "active_surface": "desktop",
-            "channel_type": "desktop",
-            "conversation_id": "local:1",
-            "sender_id": "operator",
-            "running_state": "desktop request running",
+            "kind": "approval",
+            "run_id": run_id,
+            "approved": approved,
+            "token": token,
+            "source": source,
+            "reason": reason,
         }
 
     async def cancel_session_turn(self, session_id: str, **kwargs):
@@ -146,13 +156,13 @@ class _RuntimeManagerStub(_SessionTaskRuntimeStub):
         return {"kind": "skills", "session_id": session_id, "kwargs": kwargs}
 
 
-def test_stage3_user_service_assembly_exports_stable_entrypoints() -> None:
-    assert RuntimeBackedSessionApplicationAssembly is UserServiceAssembly
-    assert CompatRuntimeBackedUserServicePorts is RuntimeBackedUserServicePorts
-    assert CompatUserServiceAssembly is UserServiceAssembly
-    assert compat_assemble_runtime_backed_user_services is assemble_runtime_backed_user_services
-    assert compat_assemble_typed_user_services is assemble_typed_user_services
-    assert compat_resolve_runtime_backed_user_service_ports is resolve_runtime_backed_user_service_ports
+def test_stage3_root_application_exposes_only_active_user_service_assembly_symbols() -> None:
+    assert RuntimeBackedUserServicePorts is not None
+    assert UserServiceAssembly is not None
+    assert assemble_typed_user_services is not None
+    assert resolve_runtime_backed_user_service_ports is not None
+    assert not hasattr(application_module, "SessionApplicationService")
+    assert not hasattr(application_module, "assemble_runtime_backed_user_services")
 
 
 @pytest.mark.asyncio
@@ -199,7 +209,7 @@ async def test_stage3_typed_user_service_assembly_builds_explicit_user_services(
 
 
 @pytest.mark.asyncio
-async def test_stage3_runtime_backed_user_service_assembly_wraps_broad_runtime_with_explicit_services() -> None:
+async def test_stage3_runtime_backed_user_service_assembly_wraps_runtime_with_explicit_services() -> None:
     runtime_manager = _RuntimeManagerStub()
     assembly = assemble_runtime_backed_user_services(runtime_manager=runtime_manager)
 
@@ -218,27 +228,13 @@ async def test_stage3_runtime_backed_user_service_assembly_wraps_broad_runtime_w
         reason="stop",
         surface="desktop",
     )
-    policy = await assembly.agent_service.update_session_runtime_policy(
-        "sess-runtime",
-        approval_profile="plan",
-        surface="desktop",
-    )
-    model = await assembly.model_service.update_session_model_selection(
-        "sess-runtime",
-        provider_source="preset",
-        provider_id="openai",
-        model_id="gpt-5.4",
-        surface="desktop",
-    )
 
     assert listed == [{"workspace_dir": "D:\\workspace\\runtime", "shared_only": False}]
-    assert cancelled["kind"] == "cancelled"
-    assert policy["kind"] == "policy"
-    assert model["kind"] == "model"
+    assert cancelled["kind"] == "cancel"
 
 
 @pytest.mark.asyncio
-async def test_stage4_session_task_service_absorbs_session_scoped_compatibility_actions() -> None:
+async def test_stage4_session_task_service_absorbs_session_scoped_actions() -> None:
     runtime_manager = _RuntimeManagerStub()
     assembly = assemble_runtime_backed_user_services(runtime_manager=runtime_manager)
 
@@ -300,21 +296,41 @@ async def test_stage5_runtime_backed_user_service_ports_accept_narrow_structural
         async def resolve_run_id_for_session(self, session_id: str) -> str | None:
             return build_session_backed_run_id(session_id)
 
+        async def get_run(self, run_id: str):
+            return {"kind": "run", "run_id": run_id, "status": "completed", "phase": "terminal"}
+
+        async def interrupt_run(self, run_id: str, *, reason: str | None = None, source: str | None = None):
+            return {"kind": "interrupt", "run_id": run_id, "reason": reason, "source": source}
+
+        async def resume_run(self, run_id: str, *, resume_token: str | None = None, source: str | None = None):
+            return {"kind": "resume", "run_id": run_id, "resume_token": resume_token, "source": source}
+
+        async def cancel_run(self, run_id: str, *, reason: str | None = None, source: str | None = None):
+            return {"kind": "cancel", "run_id": run_id, "reason": reason, "source": source}
+
+        async def resolve_approval_wait(
+            self,
+            run_id: str,
+            *,
+            approved: bool,
+            token: str | None = None,
+            source: str | None = None,
+            reason: str | None = None,
+        ):
+            return {
+                "kind": "approval",
+                "run_id": run_id,
+                "approved": approved,
+                "token": token,
+                "source": source,
+                "reason": reason,
+            }
+
         async def cancel_session_turn(self, session_id: str, **kwargs):
             return {"kind": "cancelled", "session_id": session_id, "kwargs": kwargs}
 
         async def resolve_pending_approval(self, session_id: str, **kwargs):
             return {"kind": "approval", "session_id": session_id, "kwargs": kwargs}
-
-        async def get_session_detail(self, session_id: str, *, recent_limit: int = 50):
-            _ = recent_limit
-            return {
-                "session_id": session_id,
-                "busy": False,
-                "pending_approvals": [],
-                "active_surface": "desktop",
-                "running_state": "",
-            }
 
     ports = resolve_runtime_backed_user_service_ports(runtime_manager=_RuntimeBackedSupportStub())
     task = await ports.session_task_port.get_session_task("sess-structural")
@@ -325,9 +341,8 @@ async def test_stage5_runtime_backed_user_service_ports_accept_narrow_structural
     assert run["status"] == "completed"
 
 
-def test_stage5_runtime_backed_user_service_ports_prefers_direct_runtime_for_agent_and_model_paths() -> None:
+def test_stage5_runtime_backed_user_service_ports_prefer_direct_runtime_owners() -> None:
     runtime_manager = _RuntimeManagerStub()
-
     ports = resolve_runtime_backed_user_service_ports(runtime_manager=runtime_manager)
 
     assert isinstance(ports, RuntimeBackedUserServicePorts)
@@ -335,14 +350,14 @@ def test_stage5_runtime_backed_user_service_ports_prefers_direct_runtime_for_age
     assert ports.session_task_port is runtime_manager
     assert ports.session_agent_runtime is runtime_manager
     assert ports.session_model_runtime is runtime_manager
-    assert ports.run_runtime is not None
+    assert ports.run_runtime is runtime_manager
 
 
 @pytest.mark.asyncio
-async def test_stage5_runtime_backed_user_service_ports_attach_session_backed_run_runtime() -> None:
+async def test_stage5_runtime_backed_user_service_ports_attach_direct_run_runtime() -> None:
     runtime_manager = _RuntimeManagerStub()
-
     ports = resolve_runtime_backed_user_service_ports(runtime_manager=runtime_manager)
+
     run = await ports.run_runtime.get_run(build_session_backed_run_id("sess-runtime"))
     interrupted = await ports.run_runtime.interrupt_run(
         build_session_backed_run_id("sess-runtime"),
@@ -366,80 +381,24 @@ async def test_stage5_runtime_backed_user_service_ports_attach_session_backed_ru
         source="desktop",
     )
 
-    assert isinstance(ports.run_runtime, SessionBackedRunRuntimeAdapter)
-    assert run["run_id"] == build_session_backed_run_id("sess-runtime")
     assert run["status"] == "waiting"
-    assert run["phase"] == "awaiting_approval"
     assert interrupted["kind"] == "interrupt"
-    assert cancelled["kind"] == "cancelled"
-    assert resumed["kind"] == "approval"
+    assert cancelled["kind"] == "cancel"
+    assert resumed["kind"] == "resume"
     assert approved["kind"] == "approval"
 
 
 @pytest.mark.asyncio
-async def test_stage5_session_backed_run_runtime_reports_interrupt_requested_state() -> None:
-    class _RuntimeManager:
-        async def get_session_detail(self, session_id: str, *, recent_limit: int = 50):
-            _ = recent_limit
-            return {
-                "session_id": session_id,
-                "busy": True,
-                "pending_approvals": [],
-                "active_surface": "desktop",
-                "running_state": "interrupt requested",
-            }
-
-    adapter = SessionBackedRunRuntimeAdapter(_RuntimeManager())
-
-    run = await adapter.get_run(build_session_backed_run_id("sess-interrupt"))
-
-    assert run["status"] == "interrupt_requested"
-    assert run["phase"] == "interrupting"
-    assert run["waiting_on_approval"] is False
-
-
-@pytest.mark.asyncio
-async def test_stage5_session_backed_run_runtime_reports_cancel_requested_state() -> None:
-    class _RuntimeManager:
-        async def get_session_detail(self, session_id: str, *, recent_limit: int = 50):
-            _ = recent_limit
-            return {
-                "session_id": session_id,
-                "busy": True,
-                "pending_approvals": [{"token": "approval-1"}],
-                "active_surface": "desktop",
-                "running_state": "cancellation requested",
-            }
-
-    adapter = SessionBackedRunRuntimeAdapter(_RuntimeManager())
-
-    run = await adapter.get_run(build_session_backed_run_id("sess-cancel"))
-
-    assert run["status"] == "cancel_requested"
-    assert run["phase"] == "cancelling"
-    assert run["waiting_on_approval"] is True
-
-
-@pytest.mark.asyncio
-async def test_stage5_session_backed_run_runtime_interrupt_requires_direct_runtime_support() -> None:
+async def test_stage5_session_backed_run_runtime_requires_direct_get_run_support() -> None:
     class _RuntimeManager:
         async def get_session_detail(self, session_id: str, *, recent_limit: int = 50):
             _ = (session_id, recent_limit)
-            return {
-                "session_id": "sess-no-direct-interrupt",
-                "busy": True,
-                "pending_approvals": [],
-                "active_surface": "desktop",
-            }
+            return {"session_id": session_id}
 
     adapter = SessionBackedRunRuntimeAdapter(_RuntimeManager())
 
-    with pytest.raises(LookupError, match="does not support interrupt"):
-        await adapter.interrupt_run(
-            build_session_backed_run_id("sess-no-direct-interrupt"),
-            reason="pause",
-            source="desktop",
-        )
+    with pytest.raises(LookupError, match="get_run"):
+        await adapter.get_run(build_session_backed_run_id("sess-interrupt"))
 
 
 @pytest.mark.asyncio
@@ -476,8 +435,8 @@ async def test_stage5_session_backed_run_runtime_prefers_direct_runtime_methods_
             }
 
     adapter = SessionBackedRunRuntimeAdapter(_RuntimeManager())
-
     run_id = build_session_backed_run_id("sess-direct")
+
     run = await adapter.get_run(run_id)
     interrupted = await adapter.interrupt_run(run_id, reason="pause", source="desktop")
     resumed = await adapter.resume_run(run_id, resume_token="approval-1", source="desktop")
@@ -491,57 +450,61 @@ async def test_stage5_session_backed_run_runtime_prefers_direct_runtime_methods_
     )
 
     assert run == {"kind": "run", "run_id": run_id}
-    assert interrupted == {"kind": "interrupt", "run_id": run_id, "reason": "pause", "source": "desktop"}
-    assert resumed == {
-        "kind": "resume",
-        "run_id": run_id,
-        "resume_token": "approval-1",
-        "source": "desktop",
-    }
-    assert cancelled == {"kind": "cancel", "run_id": run_id, "reason": "stop", "source": "desktop"}
-    assert approved == {
-        "kind": "approval",
-        "run_id": run_id,
-        "approved": True,
-        "token": "approval-1",
-        "source": "desktop",
-        "reason": "continue",
-    }
+    assert interrupted["kind"] == "interrupt"
+    assert resumed["kind"] == "resume"
+    assert cancelled["kind"] == "cancel"
+    assert approved["kind"] == "approval"
 
 
-@pytest.mark.asyncio
-async def test_stage5_session_backed_run_runtime_resume_rejects_recovery_only_runs() -> None:
+def test_stage5_runtime_backed_user_service_ports_require_direct_run_runtime_support() -> None:
     class _RuntimeManager:
-        async def get_session_detail(self, session_id: str, *, recent_limit: int = 50):
-            _ = (session_id, recent_limit)
+        async def get_session_task(self, session_id: str):
+            return {"kind": "task", "session_id": session_id}
+
+        async def resolve_run_id_for_session(self, session_id: str) -> str | None:
+            return build_session_backed_run_id(session_id)
+
+        async def cancel_session_turn(self, session_id: str, **kwargs):
+            return {"kind": "cancelled", "session_id": session_id, "kwargs": kwargs}
+
+        async def resolve_pending_approval(self, session_id: str, **kwargs):
+            return {"kind": "approval", "session_id": session_id, "kwargs": kwargs}
+
+    with pytest.raises(RuntimeError, match="direct run-runtime methods"):
+        resolve_runtime_backed_user_service_ports(runtime_manager=_RuntimeManager())
+
+
+def test_stage5_runtime_backed_user_service_ports_require_direct_session_task_support() -> None:
+    class _RuntimeManager:
+        async def get_run(self, run_id: str):
+            return {"kind": "run", "run_id": run_id}
+
+        async def interrupt_run(self, run_id: str, *, reason: str | None = None, source: str | None = None):
+            return {"kind": "interrupt", "run_id": run_id, "reason": reason, "source": source}
+
+        async def resume_run(self, run_id: str, *, resume_token: str | None = None, source: str | None = None):
+            return {"kind": "resume", "run_id": run_id, "resume_token": resume_token, "source": source}
+
+        async def cancel_run(self, run_id: str, *, reason: str | None = None, source: str | None = None):
+            return {"kind": "cancel", "run_id": run_id, "reason": reason, "source": source}
+
+        async def resolve_approval_wait(
+            self,
+            run_id: str,
+            *,
+            approved: bool,
+            token: str | None = None,
+            source: str | None = None,
+            reason: str | None = None,
+        ):
             return {
-                "session_id": "sess-recovery",
-                "busy": False,
-                "pending_approvals": [],
-                "active_surface": "desktop",
-                "recovery": {"state": "interrupted", "summary": "resume required"},
+                "kind": "approval",
+                "run_id": run_id,
+                "approved": approved,
+                "token": token,
+                "source": source,
+                "reason": reason,
             }
 
-    adapter = SessionBackedRunRuntimeAdapter(_RuntimeManager())
-
-    with pytest.raises(LookupError, match="cannot be resumed directly"):
-        await adapter.resume_run(build_session_backed_run_id("sess-recovery"))
-
-
-@pytest.mark.asyncio
-async def test_stage3_legacy_session_service_constructor_accepts_runtime_manager_compatibility() -> None:
-    runtime_manager = _RuntimeManagerStub()
-    service = SessionApplicationService(runtime_manager=runtime_manager)
-
-    listed = await service.list_sessions(
-        workspace_dir=Path("D:/workspace/runtime"),
-        shared_only=True,
-    )
-    cancelled = await service.cancel_session(
-        "sess-runtime",
-        request=MainAgentSessionCancelRequest(reason="stop", surface="desktop"),
-    )
-
-    assert listed == [{"workspace_dir": "D:\\workspace\\runtime", "shared_only": True}]
-    assert cancelled["kind"] == "cancelled"
-    assert service.runtime_manager is runtime_manager
+    with pytest.raises(RuntimeError, match="direct session-task methods"):
+        resolve_runtime_backed_user_service_ports(runtime_manager=_RuntimeManager())

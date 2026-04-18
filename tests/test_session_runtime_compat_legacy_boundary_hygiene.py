@@ -6,27 +6,14 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = REPO_ROOT / "src"
-ALLOWED_PATHS: set[Path] = set()
-ALLOWED_PARENT_PREFIXES = (
-    Path("src/mini_agent/application/legacy"),
-)
+DELETED_LEGACY_PATH = Path("src/mini_agent/application/legacy")
 FORBIDDEN_MODULES = {
     "legacy.session_runtime_compat",
     "mini_agent.application.legacy.session_runtime_compat",
 }
 
 
-def _is_allowed(path: Path) -> bool:
-    relative = path.relative_to(REPO_ROOT)
-    if relative in ALLOWED_PATHS:
-        return True
-    return any(relative.is_relative_to(prefix) for prefix in ALLOWED_PARENT_PREFIXES)
-
-
 def _collect_violations(path: Path) -> list[str]:
-    if _is_allowed(path):
-        return []
-
     relative = path.relative_to(REPO_ROOT)
     try:
         source = path.read_text(encoding="utf-8-sig")
@@ -37,18 +24,20 @@ def _collect_violations(path: Path) -> list[str]:
     violations: list[str] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and (node.module or "") in FORBIDDEN_MODULES:
-            violations.append(
-                f"{relative}:{node.lineno}: forbidden active import from {node.module}"
-            )
+            violations.append(f"{relative}:{node.lineno}: forbidden deleted legacy compat import from {node.module}")
     return violations
 
 
-def test_active_source_tree_does_not_import_legacy_session_runtime_compat_module() -> None:
+def test_deleted_legacy_application_tree_is_absent() -> None:
+    assert not (REPO_ROOT / DELETED_LEGACY_PATH).exists()
+
+
+def test_active_source_tree_does_not_import_deleted_legacy_session_runtime_compat_module() -> None:
     violations: list[str] = []
     for path in sorted(SRC_ROOT.rglob("*.py")):
         violations.extend(_collect_violations(path))
 
     assert violations == [], (
-        "Active source files must not depend on the legacy session runtime compat module:\n"
+        "Active source files must not depend on the deleted legacy session runtime compat module:\n"
         + "\n".join(violations)
     )
