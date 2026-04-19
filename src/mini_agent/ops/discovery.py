@@ -1,16 +1,11 @@
-"""Auto-discovery scanner for subprograms and channels.
+"""Operational discovery helpers for subprograms and channels."""
 
-This module provides automatic scanning and discovery of:
-- Subprograms in the `subprograms/` directory
-- Channels in the `channels/` directory
-
-Each subprogram/channel can expose a manifest file describing its capabilities.
-"""
+from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 
 @dataclass
@@ -23,10 +18,10 @@ class DiscoveredModule:
     enabled: bool = True
     description: str = ""
     version: str = "0.0.0"
-    entry_point: Optional[str] = None
-    router_module: Optional[str] = None
+    entry_point: str | None = None
+    router_module: str | None = None
     config: dict[str, Any] = field(default_factory=dict)
-    error: Optional[str] = None
+    error: str | None = None
 
 
 @dataclass
@@ -39,17 +34,17 @@ class DiscoveryResult:
     @property
     def enabled_modules(self) -> list[DiscoveredModule]:
         """Get all enabled modules."""
-        return [m for m in self.modules if m.enabled and not m.error]
+        return [item for item in self.modules if item.enabled and not item.error]
 
     @property
     def subprograms(self) -> list[DiscoveredModule]:
-        """Get all subprograms."""
-        return [m for m in self.modules if m.module_type == "subprogram"]
+        """Get all discovered subprograms."""
+        return [item for item in self.modules if item.module_type == "subprogram"]
 
     @property
     def channels(self) -> list[DiscoveredModule]:
-        """Get all channels."""
-        return [m for m in self.modules if m.module_type == "channel"]
+        """Get all discovered channels."""
+        return [item for item in self.modules if item.module_type == "channel"]
 
 
 class BaseScanner:
@@ -57,14 +52,8 @@ class BaseScanner:
 
     MANIFEST_FILE = "manifest.json"
 
-    def __init__(self, base_path: Optional[Path] = None):
-        """Initialize the scanner.
-
-        Args:
-            base_path: Base path to scan from. Defaults to repo root.
-        """
+    def __init__(self, base_path: Path | None = None):
         if base_path is None:
-            # Find repo root by looking for pyproject.toml
             current = Path(__file__).resolve()
             for parent in current.parents:
                 if (parent / "pyproject.toml").exists():
@@ -75,43 +64,20 @@ class BaseScanner:
         self.base_path = base_path
 
     def _read_manifest(self, manifest_path: Path) -> dict[str, Any]:
-        """Read a manifest file.
-
-        Args:
-            manifest_path: Path to the manifest file
-
-        Returns:
-            Manifest data as dictionary
-        """
         if not manifest_path.exists():
             return {}
-
         try:
             content = manifest_path.read_text(encoding="utf-8")
             return json.loads(content)
-        except (json.JSONDecodeError, OSError) as e:
-            return {"error": str(e)}
+        except (json.JSONDecodeError, OSError) as exc:
+            return {"error": str(exc)}
 
-    def _check_python_module(self, path: Path) -> bool:
-        """Check if a path contains a valid Python module.
-
-        Args:
-            path: Directory path to check
-
-        Returns:
-            True if it's a valid Python module
-        """
+    @staticmethod
+    def _check_python_module(path: Path) -> bool:
         return (path / "__init__.py").exists() or (path / "main.py").exists()
 
-    def _check_node_module(self, path: Path) -> bool:
-        """Check if a path contains a valid Node.js module.
-
-        Args:
-            path: Directory path to check
-
-        Returns:
-            True if it's a valid Node.js module
-        """
+    @staticmethod
+    def _check_node_module(path: Path) -> bool:
         return (path / "package.json").exists()
 
     def scan_directory(
@@ -119,62 +85,38 @@ class BaseScanner:
         directory_name: str,
         module_type: str,
     ) -> list[DiscoveredModule]:
-        """Scan a directory for modules.
-
-        Args:
-            directory_name: Name of the directory to scan (e.g., "subprograms")
-            module_type: Type of module (e.g., "subprogram", "channel")
-
-        Returns:
-            List of discovered modules
-        """
-        modules = []
+        modules: list[DiscoveredModule] = []
         scan_path = self.base_path / directory_name
-
         if not scan_path.exists():
             return modules
 
         for item in scan_path.iterdir():
             if not item.is_dir():
                 continue
-
-            # Skip hidden directories and node_modules
             if item.name.startswith(".") or item.name == "node_modules":
                 continue
-
             module = self._discover_module(item, module_type)
-            if module:
+            if module is not None:
                 modules.append(module)
-
         return modules
 
     def _discover_module(
         self,
         path: Path,
         module_type: str,
-    ) -> Optional[DiscoveredModule]:
-        """Discover a module at the given path.
-
-        Args:
-            path: Path to the module directory
-            module_type: Type of module
-
-        Returns:
-            DiscoveredModule if valid, None otherwise
-        """
+    ) -> DiscoveredModule | None:
         manifest_path = path / self.MANIFEST_FILE
         manifest = self._read_manifest(manifest_path)
 
-        # Determine module type (Python or Node.js)
         is_python = self._check_python_module(path)
         is_node = self._check_node_module(path)
-
         if not is_python and not is_node:
-            # Try to infer from structure
             is_python = bool(list(path.glob("*.py")))
             is_node = bool(list(path.glob("*.ts"))) or bool(list(path.glob("*.js")))
 
-        # Build module info
+        if not is_python and not is_node:
+            return None
+
         name = manifest.get("name", path.name)
         description = manifest.get("description", "")
         version = manifest.get("version", "0.0.0")
@@ -184,23 +126,20 @@ class BaseScanner:
         config = manifest.get("config", {})
         error = manifest.get("error")
 
-        # Auto-detect entry point if not specified
         if not entry_point:
             if is_python:
                 if (path / "main.py").exists():
                     entry_point = f"{path.name}.main:main"
                 elif (path / "__init__.py").exists():
-                    entry_point = f"{path.name}"
+                    entry_point = path.name
             elif is_node:
                 if (path / "dist" / "index.js").exists():
                     entry_point = "node dist/index.js"
                 elif (path / "index.js").exists():
                     entry_point = "node index.js"
 
-        # Auto-detect router module for subprograms
-        if module_type == "subprogram" and not router_module:
-            if (path / "gateway" / "router.py").exists():
-                router_module = f"{path.name}.gateway.router:router"
+        if module_type == "subprogram" and not router_module and (path / "gateway" / "router.py").exists():
+            router_module = f"{path.name}.gateway.router:router"
 
         return DiscoveredModule(
             name=name,
@@ -220,38 +159,28 @@ class SubprogramScanner(BaseScanner):
     """Scanner for discovering subprograms."""
 
     def scan(self) -> DiscoveryResult:
-        """Scan for subprograms.
-
-        Returns:
-            DiscoveryResult with discovered subprograms
-        """
-        modules = self.scan_directory("subprograms", "subprogram")
-        return DiscoveryResult(modules=modules)
+        return DiscoveryResult(modules=self.scan_directory("subprograms", "subprogram"))
 
 
 class ChannelScanner(BaseScanner):
     """Scanner for discovering channels."""
 
     def scan(self) -> DiscoveryResult:
-        """Scan for channels.
-
-        Returns:
-            DiscoveryResult with discovered channels
-        """
-        modules = self.scan_directory("channels", "channel")
-        return DiscoveryResult(modules=modules)
+        return DiscoveryResult(modules=self.scan_directory("channels", "channel"))
 
 
-def discover_all(base_path: Optional[Path] = None) -> tuple[DiscoveryResult, DiscoveryResult]:
-    """Discover all subprograms and channels.
+def discover_all(base_path: Path | None = None) -> tuple[DiscoveryResult, DiscoveryResult]:
+    """Discover all subprograms and channels from the repo root."""
 
-    Args:
-        base_path: Base path to scan from
-
-    Returns:
-        Tuple of (subprograms_result, channels_result)
-    """
     subprogram_scanner = SubprogramScanner(base_path)
     channel_scanner = ChannelScanner(base_path)
-
     return subprogram_scanner.scan(), channel_scanner.scan()
+
+
+__all__ = [
+    "ChannelScanner",
+    "DiscoveredModule",
+    "DiscoveryResult",
+    "SubprogramScanner",
+    "discover_all",
+]

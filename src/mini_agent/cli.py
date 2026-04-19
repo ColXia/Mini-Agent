@@ -2226,7 +2226,7 @@ def run_list_command(args: argparse.Namespace) -> None:
     Args:
         args: Parsed arguments
     """
-    from .launcher.scanner import discover_all
+    from .ops.discovery import discover_all
 
     print_banner()
 
