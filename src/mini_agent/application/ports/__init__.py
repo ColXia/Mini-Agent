@@ -1,6 +1,6 @@
-"""Application port exports for staged runtime separation."""
+"""Application port exports for active v11.1 runtime separation."""
 
-from .session_runtime_port import ManagedRuntimeSessionPort, SessionRuntimePort, SessionTurnScopePort
+from .session_runtime_port import ManagedRuntimeSessionPort, SessionTurnScopePort
 
 from .agent_runtime_port import AgentRuntimePort
 from .model_runtime_port import ModelRuntimePort
@@ -17,7 +17,6 @@ __all__ = [
     "RunRuntimePort",
     "SessionAgentRuntimePort",
     "SessionTaskRuntimePort",
-    "SessionRuntimePort",
     "SessionTaskPort",
     "SessionTurnScopePort",
     "WorkspaceRuntimePort",

@@ -11,7 +11,7 @@ from mini_agent.application.ports.session_task_port import SessionTaskPort
 
 @dataclass(slots=True)
 class RunControlApplicationService:
-    """Resolve user control actions against run truth with session compatibility."""
+    """Resolve user control actions against run truth."""
 
     run_runtime: RunRuntimePort
     session_tasks: SessionTaskPort | None = None
@@ -110,17 +110,9 @@ class RunControlApplicationService:
         sender_id: str | None = None,
     ) -> Any:
         run_id = await self._try_resolve_run_id(session_id)
-        if run_id:
-            return await self.cancel_run(run_id, reason=reason, source=source)
-        session_tasks = self._require_session_tasks()
-        return await session_tasks.cancel_session_turn(
-            session_id,
-            reason=reason,
-            surface=surface,
-            channel_type=channel_type,
-            conversation_id=conversation_id,
-            sender_id=sender_id,
-        )
+        if run_id is None:
+            raise LookupError(f"Session {session_id!r} is not attached to a run.")
+        return await self.cancel_run(run_id, reason=reason, source=source)
 
     async def approve_session_wait(
         self,
@@ -135,17 +127,9 @@ class RunControlApplicationService:
         sender_id: str | None = None,
     ) -> Any:
         run_id = await self._try_resolve_run_id(session_id)
-        if run_id:
-            return await self.approve_wait(run_id, token=token, source=source, reason=reason)
-        return await self._resolve_session_approval(
-            session_id,
-            approved=True,
-            token=token,
-            surface=surface,
-            channel_type=channel_type,
-            conversation_id=conversation_id,
-            sender_id=sender_id,
-        )
+        if run_id is None:
+            raise LookupError(f"Session {session_id!r} is not attached to a run.")
+        return await self.approve_wait(run_id, token=token, source=source, reason=reason)
 
     async def deny_session_wait(
         self,
@@ -160,17 +144,9 @@ class RunControlApplicationService:
         sender_id: str | None = None,
     ) -> Any:
         run_id = await self._try_resolve_run_id(session_id)
-        if run_id:
-            return await self.deny_wait(run_id, token=token, source=source, reason=reason)
-        return await self._resolve_session_approval(
-            session_id,
-            approved=False,
-            token=token,
-            surface=surface,
-            channel_type=channel_type,
-            conversation_id=conversation_id,
-            sender_id=sender_id,
-        )
+        if run_id is None:
+            raise LookupError(f"Session {session_id!r} is not attached to a run.")
+        return await self.deny_wait(run_id, token=token, source=source, reason=reason)
 
     async def _try_resolve_run_id(self, session_id: str) -> str | None:
         if self.session_tasks is None:
@@ -182,33 +158,6 @@ class RunControlApplicationService:
         if run_id:
             return run_id
         raise LookupError(f"Session {session_id!r} is not attached to a run.")
-
-    def _require_session_tasks(self) -> SessionTaskPort:
-        if self.session_tasks is None:
-            raise LookupError("Session task compatibility port is not configured.")
-        return self.session_tasks
-
-    async def _resolve_session_approval(
-        self,
-        session_id: str,
-        *,
-        approved: bool,
-        token: str | None = None,
-        surface: str | None = None,
-        channel_type: str | None = None,
-        conversation_id: str | None = None,
-        sender_id: str | None = None,
-    ) -> Any:
-        session_tasks = self._require_session_tasks()
-        return await session_tasks.resolve_pending_approval(
-            session_id,
-            approved=approved,
-            token=token,
-            surface=surface,
-            channel_type=channel_type,
-            conversation_id=conversation_id,
-            sender_id=sender_id,
-        )
 
 
 __all__ = ["RunControlApplicationService"]

@@ -7,9 +7,6 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = REPO_ROOT / "src"
 ALLOWED_PATHS = {
-    Path("src/mini_agent/application/__init__.py"),
-    Path("src/mini_agent/application/session_runtime_port.py"),
-    Path("src/mini_agent/application/ports/__init__.py"),
     Path("src/mini_agent/application/ports/session_runtime_port.py"),
 }
 ALLOWED_PARENT_PREFIXES = (
@@ -60,3 +57,7 @@ def test_active_source_tree_does_not_import_broad_session_runtime_port_outside_c
         "Active source files must resolve narrower runtime support protocols instead of importing "
         "SessionRuntimePort directly:\n" + "\n".join(violations)
     )
+
+
+def test_stage_hard_cut_deletes_root_session_runtime_wrapper() -> None:
+    assert not (REPO_ROOT / "src/mini_agent/application/session_runtime_port.py").exists()

@@ -18,7 +18,6 @@ from mini_agent.application.user_services import (
     WorkspaceUserService,
 )
 from mini_agent.application.user_services.service_assembly import assemble_runtime_backed_user_services
-from mini_agent.application.user_services.session_runtime_compat_adapters import SessionBackedRunRuntimeAdapter
 from mini_agent.runtime.support.session_backed_run_id import build_session_backed_run_id
 
 
@@ -192,6 +191,7 @@ async def test_stage3_typed_user_service_assembly_builds_explicit_user_services(
         session_task_runtime=_SessionTaskRuntimeStub(),
         session_task_port=_SessionTaskPortStub(),
         session_agent_runtime=_SessionAgentRuntimeStub(),
+        run_runtime=_RuntimeManagerStub(),
         model_runtime=_ModelRuntimeStub(),
         workspace_runtime=_WorkspaceRuntimeStub(),
         command_runtime=_CommandRuntimeStub(),
@@ -396,74 +396,6 @@ async def test_stage5_runtime_backed_user_service_ports_attach_direct_run_runtim
     assert interrupted["kind"] == "interrupt"
     assert cancelled["kind"] == "cancel"
     assert resumed["kind"] == "resume"
-    assert approved["kind"] == "approval"
-
-
-@pytest.mark.asyncio
-async def test_stage5_session_backed_run_runtime_requires_direct_get_run_support() -> None:
-    class _RuntimeManager:
-        async def get_session_detail(self, session_id: str, *, recent_limit: int = 50):
-            _ = (session_id, recent_limit)
-            return {"session_id": session_id}
-
-    adapter = SessionBackedRunRuntimeAdapter(_RuntimeManager())
-
-    with pytest.raises(LookupError, match="get_run"):
-        await adapter.get_run(build_session_backed_run_id("sess-interrupt"))
-
-
-@pytest.mark.asyncio
-async def test_stage5_session_backed_run_runtime_prefers_direct_runtime_methods_when_available() -> None:
-    class _RuntimeManager:
-        async def get_run(self, run_id: str):
-            return {"kind": "run", "run_id": run_id}
-
-        async def interrupt_run(self, run_id: str, *, reason: str | None = None, source: str | None = None):
-            return {"kind": "interrupt", "run_id": run_id, "reason": reason, "source": source}
-
-        async def resume_run(self, run_id: str, *, resume_token: str | None = None, source: str | None = None):
-            return {"kind": "resume", "run_id": run_id, "resume_token": resume_token, "source": source}
-
-        async def cancel_run(self, run_id: str, *, reason: str | None = None, source: str | None = None):
-            return {"kind": "cancel", "run_id": run_id, "reason": reason, "source": source}
-
-        async def resolve_approval_wait(
-            self,
-            run_id: str,
-            *,
-            approved: bool,
-            token: str | None = None,
-            source: str | None = None,
-            reason: str | None = None,
-        ):
-            return {
-                "kind": "approval",
-                "run_id": run_id,
-                "approved": approved,
-                "token": token,
-                "source": source,
-                "reason": reason,
-            }
-
-    adapter = SessionBackedRunRuntimeAdapter(_RuntimeManager())
-    run_id = build_session_backed_run_id("sess-direct")
-
-    run = await adapter.get_run(run_id)
-    interrupted = await adapter.interrupt_run(run_id, reason="pause", source="desktop")
-    resumed = await adapter.resume_run(run_id, resume_token="approval-1", source="desktop")
-    cancelled = await adapter.cancel_run(run_id, reason="stop", source="desktop")
-    approved = await adapter.resolve_approval_wait(
-        run_id,
-        approved=True,
-        token="approval-1",
-        source="desktop",
-        reason="continue",
-    )
-
-    assert run == {"kind": "run", "run_id": run_id}
-    assert interrupted["kind"] == "interrupt"
-    assert resumed["kind"] == "resume"
-    assert cancelled["kind"] == "cancel"
     assert approved["kind"] == "approval"
 
 

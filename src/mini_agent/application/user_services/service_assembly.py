@@ -18,9 +18,6 @@ from mini_agent.application.use_cases.session_task_service import SessionTaskSer
 from .agent_user_service import AgentUserService
 from .command_user_service import CommandUserService
 from .model_user_service import ModelUserService
-from .session_runtime_compat_adapters import (
-    UnavailableRunRuntimeAdapter,
-)
 from .workspace_user_service import WorkspaceUserService
 
 
@@ -68,13 +65,19 @@ def _require_session_task_runtime(runtime: SessionTaskRuntimePort | None) -> Ses
 
 def _require_session_task_port(port: SessionTaskPort | None) -> SessionTaskPort:
     if port is None:
-        raise RuntimeError("Session task compatibility port is not configured.")
+        raise RuntimeError("Session task port is not configured.")
     return port
 
 
 def _require_session_agent_runtime(runtime: SessionAgentRuntimePort | None) -> SessionAgentRuntimePort:
     if runtime is None:
-        raise RuntimeError("Session agent compatibility runtime is not configured.")
+        raise RuntimeError("Session agent runtime is not configured.")
+    return runtime
+
+
+def _require_run_runtime(runtime: RunRuntimePort | None) -> RunRuntimePort:
+    if runtime is None:
+        raise RuntimeError("Run runtime is not configured.")
     return runtime
 
 
@@ -163,7 +166,7 @@ def resolve_runtime_backed_user_service_ports(
     workspace_runtime: WorkspaceRuntimePort | None = None,
     command_runtime: Any = None,
 ) -> RuntimeBackedUserServicePorts:
-    """Resolve direct runtime-backed typed ports while isolating remaining compatibility seams."""
+    """Resolve direct runtime-backed typed ports from the active runtime owner."""
 
     return RuntimeBackedUserServicePorts(
         session_task_runtime=session_task_runtime or cast(SessionTaskRuntimePort, runtime_manager),
@@ -218,14 +221,14 @@ def assemble_typed_user_services(
     model_service: ModelUserService | None = None,
     command_service: CommandUserService | None = None,
 ) -> UserServiceAssembly:
-    """Assemble explicit user services from typed ports without legacy constructor fallback."""
+    """Assemble explicit user services from typed ports only."""
 
     resolved_session_task_service = session_task_service or SessionTaskService(
         runtime_manager=_require_session_task_runtime(session_task_runtime),
         session_agent_runtime=_require_session_agent_runtime(session_agent_runtime),
     )
     resolved_run_control_service = run_control_service or RunControlApplicationService(
-        run_runtime=run_runtime or UnavailableRunRuntimeAdapter(),
+        run_runtime=_require_run_runtime(run_runtime),
         session_tasks=_require_session_task_port(session_task_port),
     )
     resolved_agent_service = agent_service or AgentUserService(

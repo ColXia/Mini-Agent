@@ -6,9 +6,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = REPO_ROOT / "src"
-ALLOWED_PATHS = {
-    Path("src/mini_agent/application/user_service_assembly.py"),
-}
+ALLOWED_PATHS: set[Path] = set()
 ALLOWED_PARENT_PREFIXES = (
     Path("src/mini_agent/application/legacy"),
 )
@@ -53,3 +51,7 @@ def test_active_source_tree_does_not_import_user_service_assembly_compat_module(
         "Active source files must not import the compatibility-only user_service_assembly module:\n"
         + "\n".join(violations)
     )
+
+
+def test_stage_hard_cut_deletes_user_service_assembly_wrapper() -> None:
+    assert not (REPO_ROOT / "src/mini_agent/application/user_service_assembly.py").exists()

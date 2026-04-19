@@ -11,7 +11,6 @@ ALLOWED_PARENT_PREFIXES = (
 )
 ALLOWED_PATHS = {
     Path("src/mini_agent/application/__init__.py"),
-    Path("src/mini_agent/application/user_service_assembly.py"),
     Path("src/mini_agent/application/user_services/__init__.py"),
     Path("src/mini_agent/application/user_services/service_assembly.py"),
 }
@@ -76,3 +75,7 @@ def test_active_source_tree_uses_typed_user_service_assembly_instead_of_runtime_
         "Active source files must resolve typed runtime ports before assembling user services:\n"
         + "\n".join(violations)
     )
+
+
+def test_stage_hard_cut_deletes_root_user_service_assembly_wrapper() -> None:
+    assert not (REPO_ROOT / "src/mini_agent/application/user_service_assembly.py").exists()

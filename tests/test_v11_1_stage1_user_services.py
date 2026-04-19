@@ -7,7 +7,6 @@ from mini_agent.application.ports import (
     ModelRuntimePort,
     RunRuntimePort,
     SessionAgentRuntimePort,
-    SessionRuntimePort,
     SessionTaskPort,
     SessionTaskRuntimePort,
     WorkspaceRuntimePort,
@@ -317,7 +316,6 @@ def test_stage1_port_packages_export_expected_contracts() -> None:
     assert ModelRuntimePort is not None
     assert RunRuntimePort is not None
     assert SessionAgentRuntimePort is not None
-    assert SessionRuntimePort is not None
     assert SessionTaskRuntimePort is not None
     assert SessionTaskPort is not None
     assert WorkspaceRuntimePort is not None
@@ -349,32 +347,27 @@ async def test_run_control_application_service_prefers_run_runtime_when_run_is_a
 
 
 @pytest.mark.asyncio
-async def test_run_control_application_service_falls_back_to_session_compatibility() -> None:
+async def test_run_control_application_service_requires_run_attachment_for_session_control() -> None:
     run_runtime = RunRuntimeStub()
     session_tasks = SessionTaskStub()
     service = RunControlApplicationService(run_runtime=run_runtime, session_tasks=session_tasks)
 
-    cancel_result = await service.cancel_session_run(
-        "session-2",
-        reason="stop",
-        surface="desktop",
-        channel_type="desktop",
-    )
-    deny_result = await service.deny_session_wait(
-        "session-2",
-        token="approval-2",
-        surface="desktop",
-    )
+    with pytest.raises(LookupError, match="not attached to a run"):
+        await service.cancel_session_run(
+            "session-2",
+            reason="stop",
+            surface="desktop",
+            channel_type="desktop",
+        )
 
-    assert cancel_result == {"kind": "session-cancel", "session_id": "session-2"}
-    assert deny_result == {
-        "kind": "session-approval",
-        "session_id": "session-2",
-        "approved": False,
-        "token": "approval-2",
-    }
+    with pytest.raises(LookupError, match="not attached to a run"):
+        await service.deny_session_wait(
+            "session-2",
+            token="approval-2",
+            surface="desktop",
+        )
+
     assert not [call for call in run_runtime.calls if call[0] == "cancel_run"]
-    assert ("cancel_session_turn", "session-2", "stop", "desktop", "desktop", None, None) in session_tasks.calls
 
 
 @pytest.mark.asyncio
