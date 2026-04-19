@@ -3,23 +3,17 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
 from dataclasses import dataclass, field, replace
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 
 from mini_agent.agent_core.contracts import (
-    AgentInstance,
     AgentInstanceLifecycleState,
-    AgentProfile,
     ApprovalDecision,
     ApprovalWait,
-    ApprovalWaitState,
-    CapabilitySnapshot,
     Checkpoint,
     CheckpointType,
-    ExecutionJournal,
     Run,
     RunControlMode,
     RunControlState,
@@ -27,10 +21,18 @@ from mini_agent.agent_core.contracts import (
     RunPhase,
     RunStatus,
     RunWaitKind,
-    SessionAttachment,
-    WorkspaceAttachment,
-    WorkspaceKind,
-    WorkspaceRuntimeBackend,
+)
+from mini_agent.agent_core.kernel_state import (
+    AgentKernelStateRecord,
+    AgentKernelStateSeed,
+    build_agent_kernel_state_record,
+    build_checkpoint_for_record,
+    deserialize_agent_kernel_state_record,
+    deserialize_approval_wait as deserialize_kernel_approval_wait,
+    deserialize_run_control_state as deserialize_kernel_run_control_state,
+    serialize_agent_kernel_state_record,
+    serialize_approval_wait as serialize_kernel_approval_wait,
+    serialize_run_control_state as serialize_kernel_run_control_state,
 )
 from mini_agent.runtime.support.session_backed_run_id import build_session_backed_run_id
 from mini_agent.workspace_runtime import (
@@ -70,11 +72,6 @@ def _parse_datetime(value: object) -> datetime | None:
         return None
 
 
-def _stable_ref(prefix: str, value: str) -> str:
-    digest = hashlib.sha1(value.encode("utf-8")).hexdigest()[:12]
-    return f"{prefix}:{digest}"
-
-
 def _projection_text(session: "MainAgentSessionState", field: str) -> str:
     projection = getattr(session, "projection", None)
     return _safe_text(getattr(projection, field, ""))
@@ -111,25 +108,6 @@ class RuntimeKernelControlBridge:
     pending_approval_waiters: dict[str, asyncio.Future[bool | None]] = field(default_factory=dict)
 
 
-@dataclass(slots=True)
-class RuntimeKernelStateRecord:
-    """Live v11.1 kernel object family for one session-backed run."""
-
-    run_id: str
-    session_id: str
-    agent_profile: AgentProfile
-    agent_instance: AgentInstance
-    run: Run
-    workspace_attachment: WorkspaceAttachment
-    session_attachment: SessionAttachment
-    capability_snapshot: CapabilitySnapshot
-    execution_journal: ExecutionJournal
-    run_control: RunControlState
-    approval_wait: ApprovalWait | None = None
-    approval_payload: dict[str, Any] | None = None
-    checkpoint: Checkpoint | None = None
-
-
 class RuntimeKernelStateRegistry:
     """Runtime owner for active kernel truth while exposing session compatibility projections."""
 
@@ -140,7 +118,7 @@ class RuntimeKernelStateRegistry:
             Callable[["MainAgentSessionState"], tuple[str, str, str] | None] | None
         ) = None,
     ) -> None:
-        self._records: dict[str, RuntimeKernelStateRecord] = {}
+        self._records: dict[str, AgentKernelStateRecord] = {}
         self._bridges: dict[str, RuntimeKernelControlBridge] = {}
         self._selected_model_identity_for_session = selected_model_identity_for_session
 
@@ -157,7 +135,7 @@ class RuntimeKernelStateRegistry:
         self._records.pop(run_id, None)
         self._bridges.pop(run_id, None)
 
-    def current_record(self, session: "MainAgentSessionState") -> RuntimeKernelStateRecord:
+    def current_record(self, session: "MainAgentSessionState") -> AgentKernelStateRecord:
         return self._adopt_session_compat_state(session)
 
     def current_control_state(self, session: "MainAgentSessionState") -> RunControlState:
@@ -200,7 +178,7 @@ class RuntimeKernelStateRegistry:
         *,
         surface: str | None = None,
         detail: str | None = None,
-    ) -> RuntimeKernelStateRecord:
+    ) -> AgentKernelStateRecord:
         run_id = self.run_id_for_session(session.session_id)
         record = self._build_live_record(
             session,
@@ -228,7 +206,7 @@ class RuntimeKernelStateRegistry:
         self._bridges[run_id] = RuntimeKernelControlBridge(cancel_event=asyncio.Event())
         return record
 
-    def finish_turn(self, session: "MainAgentSessionState") -> RuntimeKernelStateRecord:
+    def finish_turn(self, session: "MainAgentSessionState") -> AgentKernelStateRecord:
         record = self.current_record(session)
         if record.approval_wait is not None and record.approval_wait.is_pending:
             record.approval_wait = record.approval_wait.invalidate("turn finished before approval resolved")
@@ -272,7 +250,7 @@ class RuntimeKernelStateRegistry:
         session: "MainAgentSessionState",
         *,
         reason: str | None = None,
-    ) -> RuntimeKernelStateRecord:
+    ) -> AgentKernelStateRecord:
         record = self.current_record(session)
         if record.approval_wait is not None and record.approval_wait.is_pending:
             record.approval_wait = record.approval_wait.invalidate(
@@ -319,7 +297,7 @@ class RuntimeKernelStateRegistry:
         *,
         source: str | None = None,
         reason: str | None = None,
-    ) -> RuntimeKernelStateRecord:
+    ) -> AgentKernelStateRecord:
         record = self.current_record(session)
         record.run_control = record.run_control.request_interrupt(source=source, reason=reason)
         record.run = replace(record.run, interrupt_state=RunInterruptState.REQUESTED)
@@ -346,7 +324,7 @@ class RuntimeKernelStateRegistry:
         source: str | None = None,
         reason: str | None = None,
         force_stop: bool = False,
-    ) -> RuntimeKernelStateRecord:
+    ) -> AgentKernelStateRecord:
         record = self.current_record(session)
         record.run_control = record.run_control.request_cancel(
             source=source,
@@ -380,7 +358,7 @@ class RuntimeKernelStateRegistry:
         *,
         source: str | None = None,
         resume_token: str | None = None,
-    ) -> RuntimeKernelStateRecord:
+    ) -> AgentKernelStateRecord:
         record = self.current_record(session)
         record.run_control = record.run_control.clear_wait().request_resume(
             source=source,
@@ -409,7 +387,7 @@ class RuntimeKernelStateRegistry:
         *,
         payload: dict[str, Any],
         future: asyncio.Future[bool | None],
-    ) -> RuntimeKernelStateRecord:
+    ) -> AgentKernelStateRecord:
         record = self.current_record(session)
         bridge = self._adopt_runtime_bridge(session)
         normalized = _normalize_pending_approval_payload(payload)
@@ -690,311 +668,23 @@ class RuntimeKernelStateRegistry:
         }
 
     def build_kernel_state_payload(self, session: "MainAgentSessionState") -> dict[str, Any] | None:
-        record = self._records.get(self.run_id_for_session(session.session_id))
-        if record is None:
-            return None
-        return {
-            "agent_profile": self.serialize_agent_profile(record.agent_profile),
-            "agent_instance": self.serialize_agent_instance(record.agent_instance),
-            "run": self.serialize_run(record.run),
-            "workspace_attachment": self.serialize_workspace_attachment(record.workspace_attachment),
-            "session_attachment": self.serialize_session_attachment(record.session_attachment),
-            "capability_snapshot": self.serialize_capability_snapshot(record.capability_snapshot),
-            "checkpoint": self.serialize_checkpoint(record.checkpoint),
-            "journal": self.serialize_execution_journal(record.execution_journal),
-            "run_control": self.serialize_run_control_state(record.run_control),
-            "approval_wait": self.serialize_approval_wait(record.approval_wait),
-        }
+        return serialize_agent_kernel_state_record(self.current_record(session))
 
     @staticmethod
     def serialize_run_control_state(state: RunControlState | None) -> dict[str, Any] | None:
-        if state is None:
-            return None
-        return {
-            "run_id": state.run_id,
-            "control_mode": state.control_mode.value,
-            "active_wait_kind": state.active_wait_kind.value,
-            "active_wait_id": state.active_wait_id,
-            "interrupt_requested": bool(state.interrupt_requested),
-            "cancel_requested": bool(state.cancel_requested),
-            "resumable": bool(state.resumable),
-            "last_command": state.last_command,
-            "last_command_source": state.last_command_source,
-            "last_command_at": state.last_command_at.isoformat() if state.last_command_at is not None else None,
-            "control_updated_at": state.control_updated_at.isoformat()
-            if state.control_updated_at is not None
-            else None,
-            "force_stop_requested": bool(state.force_stop_requested),
-            "last_resume_token": state.last_resume_token,
-            "last_pause_reason": state.last_pause_reason,
-            "last_cancel_reason": state.last_cancel_reason,
-            "last_approval_token": state.last_approval_token,
-        }
+        return serialize_kernel_run_control_state(state)
 
     @staticmethod
     def serialize_approval_wait(wait: ApprovalWait | None) -> dict[str, Any] | None:
-        if wait is None:
-            return None
-        return {
-            "wait_id": wait.wait_id,
-            "run_id": wait.run_id,
-            "session_id": wait.session_id,
-            "workspace_id": wait.workspace_id,
-            "approval_token": wait.approval_token,
-            "tool_name": wait.tool_name,
-            "tool_arguments_summary": dict(wait.tool_arguments_summary),
-            "approval_kind": wait.approval_kind,
-            "policy_reason": wait.policy_reason,
-            "cache_key": wait.cache_key,
-            "can_escalate": bool(wait.can_escalate),
-            "wait_state": wait.wait_state.value,
-            "decision_result": wait.decision_result.value if wait.decision_result is not None else None,
-            "created_at": wait.created_at.isoformat() if wait.created_at is not None else None,
-            "resolved_at": wait.resolved_at.isoformat() if wait.resolved_at is not None else None,
-            "invalidated_reason": wait.invalidated_reason,
-        }
-
-    @staticmethod
-    def serialize_agent_profile(profile: AgentProfile) -> dict[str, Any]:
-        return {
-            "agent_profile_id": profile.agent_profile_id,
-            "role": profile.role,
-            "identity_label": profile.identity_label,
-            "static_policy_hints": dict(profile.static_policy_hints or {}),
-            "built_in_tool_names": list(profile.built_in_tool_names),
-            "built_in_internal_skill_names": list(profile.built_in_internal_skill_names),
-            "default_model_routing_intent": profile.default_model_routing_intent,
-            "stable_behavior_defaults": dict(profile.stable_behavior_defaults or {}),
-            "capability_hints": list(profile.capability_hints),
-            "created_at": profile.created_at.isoformat() if profile.created_at is not None else None,
-            "updated_at": profile.updated_at.isoformat() if profile.updated_at is not None else None,
-        }
-
-    @staticmethod
-    def serialize_agent_instance(instance: AgentInstance) -> dict[str, Any]:
-        return {
-            "agent_instance_id": instance.agent_instance_id,
-            "agent_profile_id": instance.agent_profile_id,
-            "lifecycle_state": instance.lifecycle_state.value,
-            "active_run_id": instance.active_run_id,
-            "current_workspace_id": instance.current_workspace_id,
-            "current_session_id": instance.current_session_id,
-            "current_workspace_attachment_id": instance.current_workspace_attachment_id,
-            "current_session_attachment_id": instance.current_session_attachment_id,
-            "checkpoint_head_id": instance.checkpoint_head_id,
-            "journal_head_seq": instance.journal_head_seq,
-            "interrupt_requested": bool(instance.interrupt_requested),
-            "cancel_requested": bool(instance.cancel_requested),
-            "pending_wait_kind": instance.pending_wait_kind.value,
-            "pending_wait_id": instance.pending_wait_id,
-            "restored_from_checkpoint_id": instance.restored_from_checkpoint_id,
-            "created_at": instance.created_at.isoformat() if instance.created_at is not None else None,
-            "updated_at": instance.updated_at.isoformat() if instance.updated_at is not None else None,
-            "retired_at": instance.retired_at.isoformat() if instance.retired_at is not None else None,
-        }
-
-    @staticmethod
-    def serialize_run(run: Run) -> dict[str, Any]:
-        return {
-            "run_id": run.run_id,
-            "agent_instance_id": run.agent_instance_id,
-            "agent_profile_id": run.agent_profile_id,
-            "workspace_id": run.workspace_id,
-            "session_id": run.session_id,
-            "trigger_source": run.trigger_source,
-            "status": run.status.value,
-            "phase": run.phase.value,
-            "step_index": run.step_index,
-            "waiting_reason": run.waiting_reason,
-            "interrupt_state": run.interrupt_state.value,
-            "terminal_reason": run.terminal_reason,
-            "workspace_attachment_id": run.workspace_attachment_id,
-            "session_attachment_id": run.session_attachment_id,
-            "capability_snapshot_id": run.capability_snapshot_id,
-            "active_checkpoint_id": run.active_checkpoint_id,
-            "last_checkpoint_seq": run.last_checkpoint_seq,
-            "journal_stream_id": run.journal_stream_id,
-            "restorable": bool(run.restorable),
-            "created_at": run.created_at.isoformat() if run.created_at is not None else None,
-            "started_at": run.started_at.isoformat() if run.started_at is not None else None,
-            "updated_at": run.updated_at.isoformat() if run.updated_at is not None else None,
-            "ended_at": run.ended_at.isoformat() if run.ended_at is not None else None,
-            "last_error_code": run.last_error_code,
-            "last_error_summary": run.last_error_summary,
-            "last_model_request_id": run.last_model_request_id,
-            "last_tool_batch_id": run.last_tool_batch_id,
-            "last_mutation_ledger_seq": run.last_mutation_ledger_seq,
-        }
-
-    @staticmethod
-    def serialize_workspace_attachment(attachment: WorkspaceAttachment) -> dict[str, Any]:
-        return {
-            "workspace_attachment_id": attachment.workspace_attachment_id,
-            "workspace_id": attachment.workspace_id,
-            "workspace_kind": attachment.workspace_kind.value,
-            "root_dir": attachment.root_dir,
-            "runtime_backend": attachment.runtime_backend.value,
-            "runtime_ref": attachment.runtime_ref,
-            "boundary_manifest_hash": attachment.boundary_manifest_hash,
-            "permission_table_ref": attachment.permission_table_ref,
-            "outside_zone_policy_ref": attachment.outside_zone_policy_ref,
-            "mutation_ledger_ref": attachment.mutation_ledger_ref,
-            "mounted_at": attachment.mounted_at.isoformat() if attachment.mounted_at is not None else None,
-            "snapshot_strategy": attachment.snapshot_strategy,
-            "network_policy_ref": attachment.network_policy_ref,
-            "resource_policy_ref": attachment.resource_policy_ref,
-            "attachment_note": attachment.attachment_note,
-        }
-
-    @staticmethod
-    def serialize_session_attachment(attachment: SessionAttachment) -> dict[str, Any]:
-        return {
-            "session_attachment_id": attachment.session_attachment_id,
-            "session_id": attachment.session_id,
-            "workspace_id": attachment.workspace_id,
-            "transcript_ref": attachment.transcript_ref,
-            "session_memory_ref": attachment.session_memory_ref,
-            "approval_scope_ref": attachment.approval_scope_ref,
-            "context_policy_ref": attachment.context_policy_ref,
-            "lineage_ref": attachment.lineage_ref,
-            "attached_at": attachment.attached_at.isoformat() if attachment.attached_at is not None else None,
-            "task_summary_ref": attachment.task_summary_ref,
-            "recovery_context_ref": attachment.recovery_context_ref,
-            "operator_override_ref": attachment.operator_override_ref,
-            "attachment_note": attachment.attachment_note,
-        }
-
-    @staticmethod
-    def serialize_capability_snapshot(snapshot: CapabilitySnapshot) -> dict[str, Any]:
-        return {
-            "capability_snapshot_id": snapshot.capability_snapshot_id,
-            "agent_profile_id": snapshot.agent_profile_id,
-            "agent_instance_id": snapshot.agent_instance_id,
-            "run_id": snapshot.run_id,
-            "workspace_id": snapshot.workspace_id,
-            "session_id": snapshot.session_id,
-            "resolved_tool_names": list(snapshot.resolved_tool_names),
-            "resolved_tool_policies": dict(snapshot.resolved_tool_policies or {}),
-            "visible_skill_names": list(snapshot.visible_skill_names),
-            "visible_memory_scopes": list(snapshot.visible_memory_scopes),
-            "enabled_external_capabilities": list(snapshot.enabled_external_capabilities),
-            "agent_model_provider_id": snapshot.agent_model_provider_id,
-            "agent_model_id": snapshot.agent_model_id,
-            "agent_model_capability_profile": dict(snapshot.agent_model_capability_profile or {}),
-            "workspace_runtime_mode": snapshot.workspace_runtime_mode,
-            "approval_profile": dict(snapshot.approval_profile or {}),
-            "context_policy": dict(snapshot.context_policy or {}),
-            "refresh_reason": snapshot.refresh_reason,
-            "created_at": snapshot.created_at.isoformat() if snapshot.created_at is not None else None,
-            "revision": snapshot.revision,
-        }
-
-    @staticmethod
-    def serialize_checkpoint(checkpoint: Checkpoint | None) -> dict[str, Any] | None:
-        if checkpoint is None:
-            return None
-        return {
-            "checkpoint_id": checkpoint.checkpoint_id,
-            "run_id": checkpoint.run_id,
-            "agent_instance_id": checkpoint.agent_instance_id,
-            "checkpoint_seq": checkpoint.checkpoint_seq,
-            "checkpoint_type": checkpoint.checkpoint_type.value,
-            "status": checkpoint.status.value,
-            "phase": checkpoint.phase.value,
-            "step_index": checkpoint.step_index,
-            "workspace_attachment_id": checkpoint.workspace_attachment_id,
-            "session_attachment_id": checkpoint.session_attachment_id,
-            "capability_snapshot_hash": checkpoint.capability_snapshot_hash,
-            "journal_offset": checkpoint.journal_offset,
-            "waiting_reason": checkpoint.waiting_reason,
-            "resume_token": checkpoint.resume_token,
-            "created_at": checkpoint.created_at.isoformat() if checkpoint.created_at is not None else None,
-            "schema_version": checkpoint.schema_version,
-            "last_model_turn_ref": checkpoint.last_model_turn_ref,
-            "last_tool_batch_ref": checkpoint.last_tool_batch_ref,
-            "last_mutation_ledger_seq": checkpoint.last_mutation_ledger_seq,
-            "recovery_context_ref": checkpoint.recovery_context_ref,
-            "error_ref": checkpoint.error_ref,
-            "recoverable": bool(checkpoint.recoverable),
-        }
-
-    @staticmethod
-    def serialize_execution_journal(journal: ExecutionJournal) -> dict[str, Any]:
-        latest = journal.latest_event
-        return {
-            "journal_stream_id": journal.journal_stream_id,
-            "run_id": journal.run_id,
-            "agent_instance_id": journal.agent_instance_id,
-            "workspace_id": journal.workspace_id,
-            "session_id": journal.session_id,
-            "last_event_seq": journal.last_event_seq,
-            "latest_event_type": latest.event_type if latest is not None else None,
-            "created_at": journal.created_at.isoformat() if journal.created_at is not None else None,
-            "closed_at": journal.closed_at.isoformat() if journal.closed_at is not None else None,
-        }
+        return serialize_kernel_approval_wait(wait)
 
     @staticmethod
     def deserialize_run_control_state(payload: Any) -> RunControlState | None:
-        if not isinstance(payload, dict):
-            return None
-        run_id = _safe_text(payload.get("run_id"))
-        if not run_id:
-            return None
-        try:
-            return RunControlState(
-                run_id=run_id,
-                control_mode=RunControlMode(str(payload.get("control_mode") or RunControlMode.NORMAL.value)),
-                active_wait_kind=RunWaitKind(str(payload.get("active_wait_kind") or RunWaitKind.NONE.value)),
-                active_wait_id=_safe_text(payload.get("active_wait_id")) or None,
-                interrupt_requested=bool(payload.get("interrupt_requested", False)),
-                cancel_requested=bool(payload.get("cancel_requested", False)),
-                resumable=bool(payload.get("resumable", True)),
-                last_command=_safe_text(payload.get("last_command")) or None,
-                last_command_source=_safe_text(payload.get("last_command_source")) or None,
-                last_command_at=_parse_datetime(payload.get("last_command_at")),
-                control_updated_at=_parse_datetime(payload.get("control_updated_at")),
-                force_stop_requested=bool(payload.get("force_stop_requested", False)),
-                last_resume_token=_safe_text(payload.get("last_resume_token")) or None,
-                last_pause_reason=_safe_text(payload.get("last_pause_reason")) or None,
-                last_cancel_reason=_safe_text(payload.get("last_cancel_reason")) or None,
-                last_approval_token=_safe_text(payload.get("last_approval_token")) or None,
-            )
-        except Exception:
-            return None
+        return deserialize_kernel_run_control_state(payload)
 
     @staticmethod
     def deserialize_approval_wait(payload: Any) -> ApprovalWait | None:
-        if not isinstance(payload, dict):
-            return None
-        wait_id = _safe_text(payload.get("wait_id"))
-        run_id = _safe_text(payload.get("run_id"))
-        if not wait_id or not run_id:
-            return None
-        try:
-            return ApprovalWait(
-                wait_id=wait_id,
-                run_id=run_id,
-                session_id=_safe_text(payload.get("session_id")) or None,
-                workspace_id=_safe_text(payload.get("workspace_id")) or None,
-                approval_token=_safe_text(payload.get("approval_token")) or None,
-                tool_name=_safe_text(payload.get("tool_name")) or "tool",
-                tool_arguments_summary=dict(payload.get("tool_arguments_summary") or {}),
-                approval_kind=_safe_text(payload.get("approval_kind")) or None,
-                policy_reason=_safe_text(payload.get("policy_reason")) or None,
-                cache_key=_safe_text(payload.get("cache_key")) or None,
-                can_escalate=bool(payload.get("can_escalate", False)),
-                wait_state=ApprovalWaitState(str(payload.get("wait_state") or ApprovalWaitState.PENDING.value)),
-                decision_result=(
-                    ApprovalDecision(str(payload.get("decision_result")))
-                    if payload.get("decision_result")
-                    else None
-                ),
-                created_at=_parse_datetime(payload.get("created_at")),
-                resolved_at=_parse_datetime(payload.get("resolved_at")),
-                invalidated_reason=_safe_text(payload.get("invalidated_reason")) or None,
-            )
-        except Exception:
-            return None
+        return deserialize_kernel_approval_wait(payload)
 
     @staticmethod
     def _deserialize_pending_payload(raw_items: Any) -> dict[str, Any] | None:
@@ -1012,11 +702,11 @@ class RuntimeKernelStateRegistry:
         latest = shared_workspace_snapshot_store(workspace_dir).latest(workspace_dir)
         return workspace_runtime_snapshot_payload(latest)
 
-    def _adopt_session_compat_state(self, session: "MainAgentSessionState") -> RuntimeKernelStateRecord:
+    def _adopt_session_compat_state(self, session: "MainAgentSessionState") -> AgentKernelStateRecord:
         run_id = self.run_id_for_session(session.session_id)
         record = self._records.get(run_id)
         if record is None:
-            record = self._build_record_from_session_state(session, run_id=run_id)
+            record = self._restore_record_for_session(session, run_id=run_id)
             self._records[run_id] = record
 
         compat_payload = self._deserialize_pending_payload(getattr(session.runtime, "pending_approvals", None))
@@ -1055,25 +745,6 @@ class RuntimeKernelStateRegistry:
         elif record.approval_wait is not None and record.approval_wait.is_pending and record.approval_payload is None:
             record.approval_payload = self._approval_wait_payload(record.approval_wait)
 
-        normalized_running_state = _safe_text(getattr(session.projection, "running_state", "")).lower()
-        if (
-            normalized_running_state == INTERRUPT_REQUESTED_RUNNING_STATE
-            and not record.run_control.interrupt_requested
-            and not record.run_control.cancel_requested
-        ):
-            record.run_control = record.run_control.request_interrupt(
-                reason=INTERRUPT_REQUESTED_RUNNING_STATE
-            )
-            record.run = replace(record.run, interrupt_state=RunInterruptState.REQUESTED)
-            record.agent_instance = record.agent_instance.request_interrupt()
-        if (
-            normalized_running_state == CANCEL_REQUESTED_RUNNING_STATE
-            and not record.run_control.cancel_requested
-        ):
-            record.run_control = record.run_control.request_cancel(
-                reason=CANCEL_REQUESTED_RUNNING_STATE
-            )
-            record.agent_instance = record.agent_instance.request_cancel()
         return record
 
     def _adopt_runtime_bridge(self, session: "MainAgentSessionState") -> RuntimeKernelControlBridge:
@@ -1092,7 +763,7 @@ class RuntimeKernelStateRegistry:
 
     def sync_session_runtime(self, session: "MainAgentSessionState") -> None:
         run_id = self.run_id_for_session(session.session_id)
-        record = self._records.get(run_id)
+        record = self.current_record(session) if run_id not in self._records else self._records.get(run_id)
         bridge = self._bridges.get(run_id)
         session.runtime.cancel_event = bridge.cancel_event if bridge is not None else None
         session.runtime.pending_approval_waiters = (
@@ -1106,13 +777,30 @@ class RuntimeKernelStateRegistry:
             and record.approval_payload is not None
             else []
         )
+        session.runtime.kernel_state_payload = (
+            serialize_agent_kernel_state_record(record) if record is not None else None
+        )
+
+    def _restore_record_for_session(
+        self,
+        session: "MainAgentSessionState",
+        *,
+        run_id: str,
+    ) -> AgentKernelStateRecord:
+        restored = deserialize_agent_kernel_state_record(
+            getattr(session.runtime, "kernel_state_payload", None)
+        )
+        if restored is not None:
+            self._normalize_restored_recovery_record(session, restored)
+            return restored
+        return self._build_record_from_session_state(session, run_id=run_id)
 
     def _build_record_from_session_state(
         self,
         session: "MainAgentSessionState",
         *,
         run_id: str,
-    ) -> RuntimeKernelStateRecord:
+    ) -> AgentKernelStateRecord:
         pending_payload = self._deserialize_pending_payload(getattr(session.runtime, "pending_approvals", None))
         running_state = _safe_text(getattr(session.projection, "running_state", "")).lower()
         recovery_pending = bool(getattr(session.projection, "recovery_context_pending", False))
@@ -1162,75 +850,27 @@ class RuntimeKernelStateRegistry:
         initial_phase: RunPhase,
         trigger_source: str,
         waiting_reason: str | None,
-    ) -> RuntimeKernelStateRecord:
-        workspace_root = _workspace_root_str(session)
-        workspace_id = workspace_root
-        agent_profile = self._build_agent_profile(session)
-        workspace_attachment = self._build_workspace_attachment(workspace_id=workspace_id, workspace_root=workspace_root, run_id=run_id)
-        session_attachment = self._build_session_attachment(
-            session=session,
-            workspace_id=workspace_id,
+    ) -> AgentKernelStateRecord:
+        seed = self._build_record_seed(
+            session,
             run_id=run_id,
-        )
-        agent_instance = self._build_agent_instance(
-            session=session,
-            agent_profile=agent_profile,
-            workspace_attachment=workspace_attachment,
-            session_attachment=session_attachment,
-            run_id=run_id,
-        )
-        run = Run(
-            run_id=run_id,
-            agent_instance_id=agent_instance.agent_instance_id,
-            agent_profile_id=agent_profile.agent_profile_id,
-            workspace_id=workspace_id,
-            session_id=session.session_id,
-            trigger_source=_safe_text(trigger_source) or "api",
-            journal_stream_id=f"journal:{run_id}",
-            waiting_reason=waiting_reason,
-        ).bind_attachments(
-            workspace_attachment_id=workspace_attachment.workspace_attachment_id,
-            session_attachment_id=session_attachment.session_attachment_id,
-        ).transition(
-            status=initial_status,
-            phase=initial_phase,
+            initial_status=initial_status,
+            initial_phase=initial_phase,
+            trigger_source=trigger_source,
             waiting_reason=waiting_reason,
         )
-        capability_snapshot = self._build_capability_snapshot(
-            session=session,
-            agent_profile=agent_profile,
-            agent_instance=agent_instance,
-            run=run,
-            workspace_id=workspace_id,
-        )
-        run = run.attach_capability_snapshot(capability_snapshot.capability_snapshot_id)
-        agent_instance = agent_instance.activate_run(run.run_id)
-        if initial_status is RunStatus.WAITING:
-            agent_instance = agent_instance.mark_waiting(wait_kind=RunWaitKind.APPROVAL)
-        elif initial_status is RunStatus.PAUSED:
-            agent_instance = agent_instance.mark_paused()
-        journal = ExecutionJournal(
-            journal_stream_id=run.journal_stream_id or f"journal:{run_id}",
-            run_id=run.run_id,
-            agent_instance_id=agent_instance.agent_instance_id,
-            workspace_id=workspace_id,
-            session_id=session.session_id,
-        )
-        run_control = RunControlState(run_id=run_id)
-        return RuntimeKernelStateRecord(
-            run_id=run_id,
-            session_id=session.session_id,
-            agent_profile=agent_profile,
-            agent_instance=agent_instance,
-            run=run,
-            workspace_attachment=workspace_attachment,
-            session_attachment=session_attachment,
-            capability_snapshot=capability_snapshot,
-            execution_journal=journal,
-            run_control=run_control,
-        )
+        return build_agent_kernel_state_record(seed)
 
-    def _build_agent_profile(self, session: "MainAgentSessionState") -> AgentProfile:
+    def _build_record_seed(
+        self,
+        session: "MainAgentSessionState",
+        *,
+        run_id: str,
+        initial_status: RunStatus,
+        initial_phase: RunPhase,
+        trigger_source: str,
+        waiting_reason: str | None,
+    ) -> AgentKernelStateSeed:
         agent = getattr(session.runtime, "agent", None)
         tools = getattr(agent, "tools", None)
         tool_names = tuple(sorted(str(name).strip() for name in tools.keys())) if isinstance(tools, dict) else ()
@@ -1239,86 +879,7 @@ class RuntimeKernelStateRegistry:
             capability_hints.append("approval")
         if bool(getattr(session.projection, "knowledge_base_enabled", False)):
             capability_hints.append("memory")
-        return AgentProfile(
-            agent_profile_id="agent-profile:main-agent",
-            role="main_agent",
-            identity_label="Mini-Agent",
-            built_in_tool_names=tool_names,
-            built_in_internal_skill_names=(),
-            capability_hints=tuple(capability_hints),
-            static_policy_hints={},
-        )
 
-    def _build_workspace_attachment(self, *, workspace_id: str, workspace_root: str, run_id: str) -> WorkspaceAttachment:
-        path_ref = workspace_root.lower()
-        return WorkspaceAttachment(
-            workspace_attachment_id=f"workspace-attachment:{run_id}",
-            workspace_id=workspace_id,
-            workspace_kind=WorkspaceKind.PROJECT,
-            root_dir=workspace_root,
-            runtime_backend=WorkspaceRuntimeBackend.DIRECT,
-            runtime_ref=f"workspace-runtime:{workspace_id}",
-            boundary_manifest_hash=_stable_ref("boundary", path_ref),
-            permission_table_ref=_stable_ref("permission-table", path_ref),
-            outside_zone_policy_ref=_stable_ref("outside-zone", path_ref),
-            mutation_ledger_ref=_stable_ref("mutation-ledger", path_ref),
-            snapshot_strategy="workspace_runtime_snapshot",
-        )
-
-    def _build_session_attachment(
-        self,
-        *,
-        session: "MainAgentSessionState",
-        workspace_id: str,
-        run_id: str,
-    ) -> SessionAttachment:
-        return SessionAttachment(
-            session_attachment_id=f"session-attachment:{run_id}",
-            session_id=session.session_id,
-            workspace_id=workspace_id,
-            transcript_ref=f"transcript:{session.session_id}",
-            session_memory_ref=f"session-memory:{session.session_id}",
-            approval_scope_ref=f"approval-scope:{session.session_id}",
-            context_policy_ref=f"context-policy:{session.session_id}",
-            lineage_ref=f"session-lineage:{session.session_id}",
-            task_summary_ref=f"task-summary:{session.session_id}",
-            recovery_context_ref=(
-                f"recovery:{session.session_id}"
-                if bool(getattr(session.projection, "recovery_context_pending", False))
-                else None
-            ),
-        )
-
-    def _build_agent_instance(
-        self,
-        *,
-        session: "MainAgentSessionState",
-        agent_profile: AgentProfile,
-        workspace_attachment: WorkspaceAttachment,
-        session_attachment: SessionAttachment,
-        run_id: str,
-    ) -> AgentInstance:
-        instance = AgentInstance(
-            agent_instance_id=f"agent-instance:{session.session_id}",
-            agent_profile_id=agent_profile.agent_profile_id,
-            lifecycle_state=AgentInstanceLifecycleState.READY,
-        )
-        return instance.attach(
-            workspace_id=workspace_attachment.workspace_id,
-            session_id=session.session_id,
-            workspace_attachment_id=workspace_attachment.workspace_attachment_id,
-            session_attachment_id=session_attachment.session_attachment_id,
-        )
-
-    def _build_capability_snapshot(
-        self,
-        *,
-        session: "MainAgentSessionState",
-        agent_profile: AgentProfile,
-        agent_instance: AgentInstance,
-        run: Run,
-        workspace_id: str,
-    ) -> CapabilitySnapshot:
         source = provider_id = model_id = None
         if callable(self._selected_model_identity_for_session):
             try:
@@ -1327,77 +888,104 @@ class RuntimeKernelStateRegistry:
                 identity = None
             if isinstance(identity, tuple) and len(identity) == 3:
                 source, provider_id, model_id = identity
-        if provider_id is None:
-            provider_id = _safe_text(getattr(session.projection, "selected_provider_id", None)) or None
+        resolved_provider_id = provider_id or source
+        if resolved_provider_id is None:
+            resolved_provider_id = _safe_text(getattr(session.projection, "selected_provider_id", None)) or None
         if model_id is None:
             model_id = _safe_text(getattr(session.projection, "selected_model_id", None)) or None
 
         approval_profile = None
-        runtime_policy_engine = getattr(getattr(session.runtime, "agent", None), "runtime_policy_engine", None)
+        runtime_policy_engine = getattr(agent, "runtime_policy_engine", None)
         policy = getattr(runtime_policy_engine, "policy", None)
         policy_profile = _safe_text(getattr(policy, "approval_profile", None)) or None
         if policy_profile:
             approval_profile = {"default_scope": policy_profile}
         context_policy = getattr(session.projection, "context_policy", None)
-
-        return CapabilitySnapshot(
-            capability_snapshot_id=f"capability-snapshot:{run.run_id}",
-            agent_profile_id=agent_profile.agent_profile_id,
-            agent_instance_id=agent_instance.agent_instance_id,
-            run_id=run.run_id,
-            workspace_id=workspace_id,
+        workspace_root = _workspace_root_str(session)
+        return AgentKernelStateSeed(
+            run_id=run_id,
             session_id=session.session_id,
-            resolved_tool_names=agent_profile.built_in_tool_names,
-            resolved_tool_policies={},
+            workspace_id=workspace_root,
+            workspace_root=workspace_root,
+            trigger_source=_safe_text(trigger_source) or "api",
+            initial_status=initial_status,
+            initial_phase=initial_phase,
+            waiting_reason=waiting_reason,
+            built_in_tool_names=tool_names,
+            built_in_internal_skill_names=(),
+            capability_hints=tuple(capability_hints),
             visible_skill_names=(),
             visible_memory_scopes=("session", "workspace", "global"),
             enabled_external_capabilities=(),
-            agent_model_provider_id=provider_id or source,
+            agent_model_provider_id=resolved_provider_id,
             agent_model_id=model_id,
-            workspace_runtime_mode=WorkspaceRuntimeBackend.DIRECT.value,
             approval_profile=approval_profile,
             context_policy=dict(context_policy) if isinstance(context_policy, dict) else {},
-            refresh_reason="run_start",
+            recovery_context_pending=bool(
+                getattr(session.projection, "recovery_context_pending", False)
+            ),
         )
 
     def _create_checkpoint(
         self,
         session: "MainAgentSessionState",
-        record: RuntimeKernelStateRecord,
+        record: AgentKernelStateRecord,
         *,
         checkpoint_type: CheckpointType,
         waiting_reason: str | None,
         resume_token: str | None,
     ) -> Checkpoint:
-        checkpoint_seq = record.run.last_checkpoint_seq + 1
-        checkpoint = Checkpoint(
-            checkpoint_id=f"checkpoint:{record.run_id}:{checkpoint_seq}",
-            run_id=record.run.run_id,
-            agent_instance_id=record.agent_instance.agent_instance_id,
-            checkpoint_seq=checkpoint_seq,
+        record.run, checkpoint = build_checkpoint_for_record(
+            record,
             checkpoint_type=checkpoint_type,
-            status=record.run.status,
-            phase=record.run.phase,
-            step_index=record.run.step_index,
-            workspace_attachment_id=record.workspace_attachment.workspace_attachment_id,
-            session_attachment_id=record.session_attachment.session_attachment_id,
-            capability_snapshot_hash=record.capability_snapshot.capability_snapshot_id,
-            journal_offset=record.execution_journal.last_event_seq,
             waiting_reason=waiting_reason,
             resume_token=resume_token,
-            recovery_context_ref=record.session_attachment.recovery_context_ref,
-        )
-        record.run = record.run.activate_checkpoint(
-            checkpoint.checkpoint_id,
-            checkpoint_seq=checkpoint_seq,
-            restorable=checkpoint.recoverable,
         )
         return checkpoint
+
+    def _normalize_restored_recovery_record(
+        self,
+        session: "MainAgentSessionState",
+        record: AgentKernelStateRecord,
+    ) -> None:
+        approval_wait = record.approval_wait
+        if approval_wait is None or not approval_wait.is_pending:
+            return
+        if not bool(getattr(session.projection, "recovery_context_pending", False)):
+            return
+        bridge = self._adopt_runtime_bridge(session)
+        approval_token = _safe_text(approval_wait.approval_token)
+        if approval_token and approval_token in bridge.pending_approval_waiters:
+            return
+        recovery_summary = (
+            _safe_text(getattr(session.projection, "recovery_summary", ""))
+            or "approval wait became recovery-only after restart"
+        )
+        record.approval_wait = approval_wait.invalidate(
+            "approval wait could not be resumed after restart"
+        )
+        record.approval_payload = None
+        record.run_control = record.run_control.clear_wait().pause(
+            reason=recovery_summary,
+            resumable=False,
+        )
+        record.run = record.run.transition(
+            status=RunStatus.PAUSED,
+            phase=RunPhase.PLANNING,
+            waiting_reason=recovery_summary,
+            interrupt_state=RunInterruptState.ACKNOWLEDGED,
+        )
+        record.agent_instance = replace(
+            record.agent_instance,
+            lifecycle_state=AgentInstanceLifecycleState.PAUSED,
+            pending_wait_kind=RunWaitKind.NONE,
+            pending_wait_id=None,
+        )
 
     @staticmethod
     def _build_checkpoint_projection(
         *,
-        record: RuntimeKernelStateRecord,
+        record: AgentKernelStateRecord,
         workspace_runtime_payload: dict[str, Any] | None,
         source: str,
     ) -> dict[str, Any] | None:
@@ -1490,6 +1078,8 @@ class RuntimeKernelStateRegistry:
     ) -> tuple[str, str]:
         normalized_running_state = _safe_text(running_state).lower()
         if control_state is not None:
+            if control_state.is_terminal or run.is_terminal:
+                return run.status.value, run.phase.value
             if control_state.control_mode is RunControlMode.CANCEL_REQUESTED:
                 return CANCEL_REQUESTED_STATUS, CANCELLING_PHASE
             if control_state.control_mode is RunControlMode.INTERRUPT_REQUESTED:
@@ -1525,6 +1115,10 @@ class RuntimeKernelStateRegistry:
     ) -> tuple[str, str]:
         normalized_running_state = _safe_text(running_state).lower()
         if control_state is not None:
+            if control_state.is_terminal and isinstance(run_payload, dict):
+                status = _safe_text(run_payload.get("status")) or RunStatus.COMPLETED.value
+                phase = _safe_text(run_payload.get("phase")) or RunPhase.TERMINAL.value
+                return status, phase
             if control_state.control_mode is RunControlMode.CANCEL_REQUESTED:
                 return CANCEL_REQUESTED_STATUS, CANCELLING_PHASE
             if control_state.control_mode is RunControlMode.INTERRUPT_REQUESTED:
@@ -1603,6 +1197,5 @@ __all__ = [
     "RESUME_REQUESTED_STATUS",
     "RESUMING_PHASE",
     "RuntimeKernelControlBridge",
-    "RuntimeKernelStateRecord",
     "RuntimeKernelStateRegistry",
 ]

@@ -62,6 +62,7 @@ class MainAgentSessionRuntimeHostState:
     cancel_event: asyncio.Event | None = None
     pending_approvals: list[dict[str, Any]] = field(default_factory=list)
     pending_approval_waiters: dict[str, asyncio.Future[bool | None]] = field(default_factory=dict)
+    kernel_state_payload: dict[str, Any] | None = None
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
 

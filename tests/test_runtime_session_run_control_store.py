@@ -3,7 +3,18 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-from mini_agent.agent_core.contracts import ApprovalWaitState, RunControlMode
+from mini_agent.agent_core.contracts import (
+    ApprovalWait,
+    ApprovalWaitState,
+    RunControlMode,
+    RunPhase,
+    RunStatus,
+)
+from mini_agent.agent_core.kernel_state import (
+    AgentKernelStateSeed,
+    build_agent_kernel_state_record,
+    serialize_agent_kernel_state_record,
+)
 from mini_agent.runtime.live_control.run_control_store import RuntimeSessionRunControlStore
 from mini_agent.workspace_runtime import capture_shared_workspace_snapshot
 from tests.runtime_contract_fixtures import (
@@ -340,3 +351,132 @@ def test_run_control_store_builds_kernel_state_payload(tmp_path: Path) -> None:
     assert payload["capability_snapshot"]["agent_model_provider_id"] == "maas"
     assert payload["capability_snapshot"]["agent_model_id"] == "astron-code-latest"
     assert payload["journal"]["latest_event_type"] == "run.turn_started"
+
+
+def test_run_control_store_prefers_persisted_kernel_truth_over_projection_fallback(tmp_path: Path) -> None:
+    workspace_root = str((tmp_path / "workspace").resolve())
+    record = build_agent_kernel_state_record(
+        AgentKernelStateSeed(
+            run_id=RuntimeSessionRunControlStore.run_id_for_session("sess-persisted-truth"),
+            session_id="sess-persisted-truth",
+            workspace_id=workspace_root,
+            workspace_root=workspace_root,
+            trigger_source="desktop",
+            initial_status=RunStatus.COMPLETED,
+            initial_phase=RunPhase.TERMINAL,
+        )
+    )
+    record.run_control = record.run_control.mark_terminal()
+    persisted_payload = serialize_agent_kernel_state_record(record)
+
+    session = runtime_session_stub(
+        session_id="sess-persisted-truth",
+        workspace_dir=tmp_path / "workspace",
+        projection=runtime_projection_stub(
+            busy=True,
+            active_surface="desktop",
+            origin_surface="desktop",
+            running_state="interrupt requested",
+            channel_type=None,
+            conversation_id=None,
+            sender_id=None,
+        ),
+        runtime=runtime_state_stub(
+            pending_approvals=[],
+            pending_approval_waiters={},
+            kernel_state_payload=persisted_payload,
+        ),
+    )
+    store = RuntimeSessionRunControlStore()
+
+    control = store.current_control_state(session)
+    projection = store.build_active_run_projection(session)
+
+    assert control.control_mode is RunControlMode.TERMINAL
+    assert projection["status"] == "completed"
+    assert projection["phase"] == "terminal"
+    assert projection["control_mode"] == "terminal"
+    assert projection["interrupt_requested"] is False
+
+
+def test_run_control_store_restored_pending_approval_becomes_recovery_only(tmp_path: Path) -> None:
+    workspace_root = str((tmp_path / "workspace").resolve())
+    run_id = RuntimeSessionRunControlStore.run_id_for_session("sess-recovery-kernel")
+    record = build_agent_kernel_state_record(
+        AgentKernelStateSeed(
+            run_id=run_id,
+            session_id="sess-recovery-kernel",
+            workspace_id=workspace_root,
+            workspace_root=workspace_root,
+            trigger_source="qq",
+            initial_status=RunStatus.WAITING,
+            initial_phase=RunPhase.AWAITING_APPROVAL,
+            waiting_reason="approval required for shell",
+            recovery_context_pending=True,
+        )
+    )
+    record.approval_wait = ApprovalWait(
+        wait_id=f"{run_id}:approval:approval-restore-1",
+        run_id=run_id,
+        session_id="sess-recovery-kernel",
+        workspace_id=workspace_root,
+        approval_token="approval-restore-1",
+        tool_name="shell",
+        tool_arguments_summary={"command": "pytest -q"},
+        approval_kind="exec",
+        policy_reason="needs manual approval",
+    )
+    record.approval_payload = {
+        "token": "approval-restore-1",
+        "tool_name": "shell",
+        "arguments": {"command": "pytest -q"},
+        "kind": "exec",
+        "reason": "needs manual approval",
+        "cache_key": None,
+        "can_escalate": False,
+        "step": 1,
+    }
+    record.run_control = record.run_control.enter_approval_wait(
+        record.approval_wait.wait_id,
+        approval_token="approval-restore-1",
+    )
+    persisted_payload = serialize_agent_kernel_state_record(record)
+
+    session = runtime_session_stub(
+        session_id="sess-recovery-kernel",
+        workspace_dir=tmp_path / "workspace",
+        projection=runtime_projection_stub(
+            busy=False,
+            active_surface="tui",
+            origin_surface="qq",
+            running_state="",
+            reply_enabled=False,
+            channel_type=None,
+            conversation_id=None,
+            sender_id=None,
+            recovery_context_pending=True,
+            recovery_state="interrupted",
+            recovery_summary="interrupted after restart: approval pending for shell",
+        ),
+        runtime=runtime_state_stub(
+            pending_approvals=[],
+            pending_approval_waiters={},
+            kernel_state_payload=persisted_payload,
+        ),
+    )
+    store = RuntimeSessionRunControlStore()
+
+    control = store.current_control_state(session)
+    projection = store.build_active_run_projection(session)
+    approval_wait = store.current_approval_wait(session)
+
+    assert control.control_mode is RunControlMode.PAUSED
+    assert control.resumable is False
+    assert projection["status"] == "paused"
+    assert projection["phase"] == "planning"
+    assert projection["waiting_on_approval"] is False
+    assert projection["pending_approvals"] == []
+    assert approval_wait is not None
+    assert approval_wait.wait_state is ApprovalWaitState.INVALIDATED
+    assert session.runtime.pending_approvals == []
+    assert session.runtime.pending_approval_waiters == {}

@@ -17,7 +17,6 @@ from mini_agent.runtime.orchestration.kernel_state_registry import (
     RESUME_REQUESTED_STATUS,
     RESUMING_PHASE,
     RuntimeKernelControlBridge as RunControlRuntimeBridge,
-    RuntimeKernelStateRecord as SessionBackedRunControlRecord,
     RuntimeKernelStateRegistry,
 )
 
@@ -238,5 +237,4 @@ __all__ = [
     "RESUMING_PHASE",
     "RunControlRuntimeBridge",
     "RuntimeSessionRunControlStore",
-    "SessionBackedRunControlRecord",
 ]

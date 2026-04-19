@@ -76,6 +76,7 @@ class RuntimeSessionHydrationPayload:
     memory_diagnostics: dict[str, Any]
     sandbox_diagnostics: dict[str, Any]
     transcript: list["MainAgentSessionTranscriptEntry"]
+    kernel_state_payload: dict[str, Any] | None = None
     workspace_runtime_snapshot: dict[str, Any] | None = None
     runtime_task_memory_payload: dict[str, Any] | None = None
     workspace_shared_runtime_memory_payload: dict[str, Any] | None = None
@@ -247,6 +248,9 @@ class RuntimeSessionHydrationBuilder:
             ),
             memory_diagnostics=self.build_memory_diagnostics_from_record(record),
             sandbox_diagnostics=self.build_sandbox_diagnostics_from_record(record),
+            kernel_state_payload=(
+                dict(record.get("kernel_state")) if isinstance(record.get("kernel_state"), dict) else None
+            ),
             workspace_runtime_snapshot=(
                 dict(record.get("workspace_runtime_snapshot"))
                 if isinstance(record.get("workspace_runtime_snapshot"), dict)
@@ -365,6 +369,7 @@ class RuntimeSessionHydrationBuilder:
             ),
             memory_diagnostics=self.normalize_memory_diagnostics_payload(memory_diagnostics),
             sandbox_diagnostics=self.normalize_sandbox_diagnostics_payload(sandbox_diagnostics),
+            kernel_state_payload=None,
             workspace_runtime_snapshot=(
                 dict(workspace_runtime_snapshot) if isinstance(workspace_runtime_snapshot, dict) else None
             ),
@@ -447,7 +452,7 @@ class RuntimeSessionHydrationBuilder:
             MainAgentSessionTranscriptState,
         )
 
-        return MainAgentSessionState(
+        session = MainAgentSessionState(
             session_id=payload.session_id,
             workspace_dir=payload.workspace_dir,
             lifecycle_state=lifecycle_state,
@@ -493,6 +498,12 @@ class RuntimeSessionHydrationBuilder:
                 next_transcript_index=max([entry.index for entry in payload.transcript] or [0]) + 1,
             ),
         )
+        session.runtime.kernel_state_payload = (
+            dict(payload.kernel_state_payload)
+            if isinstance(payload.kernel_state_payload, dict)
+            else None
+        )
+        return session
 
     @staticmethod
     def apply_stored_recovery(
