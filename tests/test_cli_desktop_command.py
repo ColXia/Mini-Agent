@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from mini_agent import cli
+import mini_agent.cli as cli
 
 
 def _desktop_args(tmp_path: Path) -> argparse.Namespace:

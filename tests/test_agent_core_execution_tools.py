@@ -6,18 +6,15 @@ from types import SimpleNamespace
 
 import pytest
 
-from mini_agent.agent_core.execution.tools import (
-    DeclarativeToolAttributes,
-    ToolBuilder,
-    ToolKind,
-    build_runtime_adapter_path,
-)
-from mini_agent.agent_core.execution import (
+from mini_agent.agent_core.execution.tools.attributes import DeclarativeToolAttributes, ToolKind
+from mini_agent.agent_core.execution.tools.builder import ToolBuilder
+from mini_agent.agent_core.execution.tools.runtime_adapter import build_runtime_adapter_path
+from mini_agent.agent_core.execution.tool_execution_coordinator import (
     AgentToolExecutionCoordinator,
     AgentToolExecutionRuntime,
     ToolExecutionBatchState,
 )
-from mini_agent.schema import FunctionCall, ToolCall
+from mini_agent.schema.schema import FunctionCall, ToolCall
 from mini_agent.tools.base import Tool, ToolResult
 from mini_agent.tools.file_tools import ReadTool, WriteTool
 from mini_agent.tools.skill_tool import create_skill_tools

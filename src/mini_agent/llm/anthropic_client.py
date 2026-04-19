@@ -9,7 +9,7 @@ import anthropic
 from mini_agent.model_manager.rectifier import rectify_anthropic_request
 
 from ..retry import RetryConfig, async_retry
-from ..schema import (
+from ..schema.schema import (
     FunctionCall,
     LLMCompletionResult,
     LLMStreamEvent,

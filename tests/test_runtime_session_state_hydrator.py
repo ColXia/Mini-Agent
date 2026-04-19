@@ -1,10 +1,10 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
 
-from mini_agent.runtime.orchestration.session_hydration_builder import RuntimeSessionHydrationPayload
-from mini_agent.runtime.orchestration.session_runtime_state_hydrator import RuntimeSessionStateHydrator
+from mini_agent.runtime.orchestration.session_hydration_coordinator import RuntimeSessionHydrationPayload
+from mini_agent.runtime.orchestration.session_restore_handler import RuntimeSessionStateHydrator
 from tests.runtime_contract_fixtures import RuntimeContractAgentStub, runtime_projection_stub, runtime_session_stub
 
 
@@ -158,3 +158,5 @@ def test_runtime_session_state_hydrator_restores_workspace_runtime_snapshot() ->
 
     assert captured["workspace_dir"] == Path(".").resolve()
     assert captured["payload"] == {"snapshot_id": "restored-snap"}
+
+

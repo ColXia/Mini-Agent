@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 from types import SimpleNamespace
@@ -186,3 +186,5 @@ def test_tui_context_command_coordinator_stops_after_remote_update_failure() -> 
     assert remote_calls == ["context reset"]
     assert executed_results == []
     assert render_calls == ["rendered"]
+
+

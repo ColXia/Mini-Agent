@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from mini_agent.rag import HybridSearchStore
+from mini_agent.rag.lightweight_hybrid import HybridSearchStore
 from scripts.rag_offline_eval import evaluate
 
 

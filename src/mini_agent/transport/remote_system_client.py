@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from mini_agent.interfaces import SystemHealthResponse
+from mini_agent.interfaces.system import SystemHealthResponse
 
 from .system_transport_port import RemoteSystemTransportPort
 

@@ -15,8 +15,8 @@ SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from mini_agent.rag import HybridSearchStore
-from subprograms.knowledge_base.gateway import router as kb_router_module
+from mini_agent.rag.lightweight_hybrid import HybridSearchStore
+import subprograms.knowledge_base.gateway.router as kb_router_module
 
 
 def main() -> int:

@@ -4,14 +4,10 @@ from __future__ import annotations
 
 from typing import Awaitable, Callable
 
-from mini_agent.application.support import ApplicationInteractionBinding
-from mini_agent.interfaces import (
-    ChannelMessageRequest,
-    ChannelMessageResponse,
-    MainAgentChatRequest,
-    MainAgentChatResponse,
-)
-from mini_agent.session.conversation_binding_port import ConversationBindingPort
+from mini_agent.application.support.interaction_request_adapter import ApplicationInteractionBinding
+from mini_agent.interfaces.agent import MainAgentChatRequest, MainAgentChatResponse
+from mini_agent.interfaces.channel import ChannelMessageRequest, ChannelMessageResponse
+from mini_agent.session.bindings import ConversationBindingPort
 
 
 RunMainAgentChatFn = Callable[[MainAgentChatRequest], Awaitable[MainAgentChatResponse]]

@@ -7,8 +7,12 @@ import pytest
 
 from mini_agent.agent_core.context.loop_context import AgentLoopContext
 from mini_agent.agent_core.engine import Agent, PlannerExecutorHooks, TurnStopReason
-from mini_agent.agent_core.execution import AgentSubmissionLoop, InMemoryLoopMessageBus, wait_for_submission_completion
-from mini_agent.schema import LLMStreamEvent, LLMStreamEventType
+from mini_agent.agent_core.execution.agent_loop import (
+    AgentSubmissionLoop,
+    InMemoryLoopMessageBus,
+    wait_for_submission_completion,
+)
+from mini_agent.schema.schema import LLMStreamEvent, LLMStreamEventType
 
 
 class _StreamingLLM:

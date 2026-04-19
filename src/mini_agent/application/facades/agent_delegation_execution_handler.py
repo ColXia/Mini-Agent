@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 from mini_agent.agent_core.delegation import DelegationManager, DelegationRequest
-from mini_agent.application.support import ManagedSessionTurn
+from mini_agent.application.support.managed_session_turn import ManagedSessionTurn
 
 from .agent_turn_execution_handler import AgentTurnExecutionHandler, SurfaceAgentExecutionRequest
 

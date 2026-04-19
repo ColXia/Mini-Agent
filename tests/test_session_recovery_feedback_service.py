@@ -1,10 +1,10 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
-from mini_agent.session import (
+from mini_agent.session.projections import (
     SessionPendingApprovalProjection,
-    SessionRecoveryFeedbackService,
     SessionRecoveryProjection,
 )
+from mini_agent.session.recovery_feedback import SessionRecoveryFeedbackService
 
 
 def test_session_recovery_feedback_service_builds_live_status_text() -> None:
@@ -62,3 +62,4 @@ def test_session_recovery_feedback_service_builds_restart_resume_hint() -> None:
     assert "route: tui->qq / reply" in text
     assert "lost approvals after restart: shell[approval-1]" in text
     assert "resume hint: send a new message to continue with recovery context" in text
+

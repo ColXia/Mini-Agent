@@ -6,13 +6,12 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from mini_agent.agent_core import (
+from mini_agent.agent_core.security.pairing import PairingLimitError, PairingStore
+from mini_agent.agent_core.security.policy import (
     AccessPolicyConfig,
     DmGroupPolicyEngine,
     DmPolicyMode,
     GroupPolicyMode,
-    PairingLimitError,
-    PairingStore,
 )
 
 

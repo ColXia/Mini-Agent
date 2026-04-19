@@ -8,7 +8,7 @@ import hashlib
 import json
 
 from mini_agent.agent_core.execution.permissions.policy import PermissionDecision, PermissionPolicy
-from mini_agent.agent_core.execution.tools import ToolInvocation
+from mini_agent.agent_core.execution.tools.invocation import ToolInvocation
 
 
 def _utc_now() -> datetime:

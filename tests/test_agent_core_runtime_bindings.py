@@ -3,7 +3,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from mini_agent.agent_core.engine import Agent
-from mini_agent.agent_core.execution import ApprovalEngine, PermissionPolicy
+from mini_agent.agent_core.execution.permissions.approval import ApprovalEngine
+from mini_agent.agent_core.execution.permissions.policy import PermissionPolicy
 from mini_agent.agent_core.runtime_bindings import (
     AgentRuntimeServices,
     get_agent_runtime_services,

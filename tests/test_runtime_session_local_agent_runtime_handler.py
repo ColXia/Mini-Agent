@@ -1,9 +1,9 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 from types import SimpleNamespace
 
-from mini_agent.runtime.support.session_local_agent_runtime_handler import LocalSessionAgentRuntimeHandler
+from mini_agent.tui.local_agent_runtime_handler import LocalSessionAgentRuntimeHandler
 
 
 def test_local_session_agent_runtime_handler_rebuilds_with_identity_and_clears_pending_state() -> None:
@@ -175,3 +175,5 @@ def test_local_session_agent_runtime_handler_passes_warm_prefix_by_keyword() -> 
     assert warm_prefixes == ["Reloaded local runtime for Session 3"]
     assert outcome.warmed_agent is session.runtime.agent
     assert outcome.active_model_label == "ollama/qwen3.5:9b"
+
+

@@ -1,11 +1,11 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 from types import SimpleNamespace
 from typing import Any
 
 from mini_agent.commands.execution import CommandExecutionResult
-from mini_agent.transport import GatewayTransportError
+from mini_agent.transport.gateway_error import GatewayTransportError
 from mini_agent.tui.session_kb_command_coordinator import TuiSessionKbCommandCoordinator
 
 
@@ -236,3 +236,5 @@ def test_tui_kb_command_coordinator_runs_local_toggle_and_emits_feedback() -> No
     ]
     assert status_calls == ["Knowledge base disabled for Session 1."]
     assert render_calls == ["rendered"]
+
+

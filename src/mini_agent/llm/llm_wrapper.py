@@ -6,7 +6,7 @@ import logging
 from typing import AsyncIterator
 
 from ..retry import RetryConfig
-from ..schema import LLMCompletionResult, LLMProvider, LLMStreamEvent, Message
+from ..schema.schema import LLMCompletionResult, LLMProvider, LLMStreamEvent, Message
 from .anthropic_client import AnthropicClient
 from .base import LLMClientBase
 from .openai_client import OpenAIClient

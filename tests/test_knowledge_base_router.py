@@ -8,8 +8,8 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from mini_agent.rag import HybridSearchStore
-from subprograms.knowledge_base.gateway import router as kb_router_module
+from mini_agent.rag.lightweight_hybrid import HybridSearchStore
+import subprograms.knowledge_base.gateway.router as kb_router_module
 
 
 def test_knowledge_base_router_query_and_ingest(monkeypatch, tmp_path: Path):

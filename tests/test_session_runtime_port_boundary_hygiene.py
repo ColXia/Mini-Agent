@@ -6,9 +6,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = REPO_ROOT / "src"
-ALLOWED_PATHS = {
-    Path("src/mini_agent/application/ports/session_runtime_port.py"),
-}
+ALLOWED_PATHS: set[Path] = set()
 ALLOWED_PARENT_PREFIXES = (
     Path("src/mini_agent/application/legacy"),
 )

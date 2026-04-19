@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from mini_agent.tools.file_tools import EditTool, ReadTool, WriteTool
-from mini_agent.workspace_runtime.adapters import DirectWorkspaceExecutor
+from mini_agent.workspace_runtime.adapters.direct_executor import DirectWorkspaceExecutor
 
 
 @pytest.mark.asyncio

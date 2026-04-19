@@ -6,7 +6,7 @@ import argparse
 from pathlib import Path
 import sys
 
-from mini_agent import cli
+import mini_agent.cli as cli
 
 
 def _base_args(tmp_path: Path) -> argparse.Namespace:

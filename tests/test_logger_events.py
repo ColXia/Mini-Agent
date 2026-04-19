@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from mini_agent.logger import AgentLogger
-from mini_agent.schema import LLMCompletionResult, Message
+from mini_agent.schema.schema import LLMCompletionResult, Message
 
 
 def test_event_journal_is_written_and_replayable(tmp_path: Path):

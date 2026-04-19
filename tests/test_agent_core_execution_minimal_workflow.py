@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from mini_agent.agent_core.execution import CoordinatorStage
+from mini_agent.agent_core.execution.coordinator import CoordinatorStage
 from mini_agent.agent_core.execution.minimal_workflow import (
     format_minimal_workflow_report,
     run_minimal_workflow_with_runner,

@@ -10,7 +10,7 @@ from mini_agent.agent_core.engine import Agent, TurnStopReason
 from mini_agent.agent_core.history.summarization import AgentHistoryCompactionService
 from mini_agent.agent_core.presentation import AgentRuntimePresenter
 from mini_agent.logger import AgentLogger
-from mini_agent.schema import FunctionCall, LLMCompletionResult, Message, ToolCall
+from mini_agent.schema.schema import FunctionCall, LLMCompletionResult, Message, ToolCall
 from mini_agent.tools.base import Tool, ToolResult
 
 

@@ -7,12 +7,18 @@ from typing import Any, Callable
 
 from fastapi import APIRouter, Depends, Query
 
-from mini_agent.application.use_cases import MemoryOperationsUseCases, ProviderOperationsUseCases
-from mini_agent.interfaces import (
+from mini_agent.application.use_cases.operations_memory_use_cases import MemoryOperationsUseCases
+from mini_agent.application.use_cases.operations_provider_use_cases import (
+    ProviderOperationsUseCases,
+)
+from mini_agent.interfaces.ops import (
     StudioFeatureModelBindingClearResponse,
     StudioFeatureModelBindingRequest,
     StudioFeatureModelBindingSummary,
     StudioFeatureModelBindingsResponse,
+    StudioMemoryDailyResponse,
+    StudioMemorySearchResponse,
+    StudioMemorySummaryResponse,
     StudioModelCapabilityProbeRequest,
     StudioModelCapabilityProbeResponse,
     StudioModelDiscoverRequest,
@@ -20,9 +26,6 @@ from mini_agent.interfaces import (
     StudioModelProviderSummary,
     StudioModelRoleRequest,
     StudioModelSelectionRequest,
-    StudioMemoryDailyResponse,
-    StudioMemorySearchResponse,
-    StudioMemorySummaryResponse,
     StudioProviderDeleteResponse,
     StudioProviderHealthResponse,
     StudioProviderListResponse,

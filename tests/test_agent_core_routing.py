@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from mini_agent.agent_core import AgentRouteResolver, AgentRouteTable, BindingScope, RoutingContext
+from mini_agent.agent_core.routing import AgentRouteResolver, AgentRouteTable, BindingScope, RoutingContext
 
 
 def test_route_table_respects_priority_order():

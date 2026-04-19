@@ -10,13 +10,11 @@ import pytest
 import yaml
 
 from mini_agent.config import Config
-from mini_agent.llm import (
-    AnthropicClient,
-    OpenAIClient,
-    build_protocol_execution_profile,
-)
+from mini_agent.llm.anthropic_client import AnthropicClient
+from mini_agent.llm.openai_client import OpenAIClient
+from mini_agent.llm.protocol_binding import build_protocol_execution_profile
 from mini_agent.retry import RetryConfig
-from mini_agent.schema import LLMProvider, Message
+from mini_agent.schema.schema import LLMProvider, Message
 
 pytestmark = [
     pytest.mark.integration,

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from mini_agent.transport import GatewayClient
+from mini_agent.transport.gateway_client import GatewayClient
 from mini_agent.tui.gateway_transport_binding import TuiGatewayTransportBinding
 
 

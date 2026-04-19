@@ -5,7 +5,7 @@ import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from mini_agent import cli
+import mini_agent.cli as cli
 from mini_agent.ops.observability_exports import prune_observability_export_jobs
 
 

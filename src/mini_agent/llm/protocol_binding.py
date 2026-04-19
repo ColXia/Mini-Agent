@@ -12,7 +12,7 @@ from typing import Any
 
 from mini_agent.model_manager.rectifier import RequestRectifierOptions
 
-from ..schema import LLMProvider
+from ..schema.schema import LLMProvider
 
 
 _MINIMAX_DOMAINS = ("api.minimax.io", "api.minimaxi.com")

@@ -1,4 +1,4 @@
-"""Session cancel / approval routing extracted from the runtime manager."""
+﻿"""Session cancel / approval routing extracted from the runtime manager."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Callable
 
 from fastapi import HTTPException
 
-from mini_agent.interfaces import MainAgentSessionApprovalResponse, MainAgentSessionMutationResponse
+from mini_agent.interfaces.agent import MainAgentSessionApprovalResponse, MainAgentSessionMutationResponse
 from mini_agent.runtime.live_control.session_cancel_service import SessionCancelService
 from mini_agent.runtime.live_control.session_pending_approval_service import (
     PendingApprovalResolutionError,
@@ -18,7 +18,7 @@ from mini_agent.runtime.live_control.run_control_store import RuntimeSessionRunC
 if TYPE_CHECKING:
     import asyncio
 
-    from mini_agent.runtime.session_state import MainAgentSessionState
+    from mini_agent.session.store_records import MainAgentSessionState
 
 
 @dataclass(slots=True)
@@ -159,3 +159,6 @@ __all__ = [
     "RuntimeSessionCancelExecution",
     "RuntimeSessionInterruptHandler",
 ]
+
+
+

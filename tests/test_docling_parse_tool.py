@@ -16,7 +16,7 @@ from mini_agent.tools.docling_parse import (
     DoclingParseResult,
     DoclingUnavailableError,
 )
-from mini_agent.workspace_runtime.adapters import DirectWorkspaceExecutor
+from mini_agent.workspace_runtime.adapters.direct_executor import DirectWorkspaceExecutor
 from mini_agent.workspace_runtime.outside_zone_policy import DefaultOutsideZonePolicy
 from mini_agent.workspace_runtime.workspace_executor import WorkspaceAccessScope
 

@@ -15,11 +15,11 @@ from mini_agent.model_manager.runtime import (
 )
 from mini_agent.model_manager.rectifier import RequestRectifierOptions
 from mini_agent.retry import RetryConfig
-from mini_agent.schema import LLMCompletionResult, LLMStreamEvent, LLMStreamEventType, Message
+from mini_agent.schema.schema import LLMCompletionResult, LLMStreamEvent, LLMStreamEventType, Message
 from mini_agent.llm.protocol_binding import ProtocolRequestPolicy
 
 if TYPE_CHECKING:
-    from mini_agent.llm import LLMClient
+    from mini_agent.llm.llm_wrapper import LLMClient
 
 # Optional override hook (used in tests); lazily resolved in runtime.
 LLMClient = None
@@ -115,15 +115,13 @@ class FailoverLLMClient:
         client_cls = LLMClient
         binding_factory = None
         if client_cls is None:
-            from mini_agent.llm import (
-                LLMClient as runtime_llm_client,
-                build_protocol_execution_profile,
-            )
+            from mini_agent.llm.llm_wrapper import LLMClient as runtime_llm_client
+            from mini_agent.llm.protocol_binding import build_protocol_execution_profile
 
             client_cls = runtime_llm_client
             binding_factory = build_protocol_execution_profile
         else:
-            from mini_agent.llm import build_protocol_execution_profile
+            from mini_agent.llm.protocol_binding import build_protocol_execution_profile
 
             binding_factory = build_protocol_execution_profile
 

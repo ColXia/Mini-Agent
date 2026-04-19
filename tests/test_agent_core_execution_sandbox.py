@@ -18,15 +18,13 @@ else:  # pragma: no cover - import only on Windows
     win32job = None
     win32security = None
 
-from mini_agent.agent_core.execution.sandbox import (
+from mini_agent.agent_core.execution.sandbox.manager import SandboxBackend, SandboxManager
+from mini_agent.agent_core.execution.sandbox.network import (
     NetworkAccessMode,
     NetworkDomainPolicy,
-    SandboxBackend,
-    SandboxManager,
-    WindowsRestrictedSandbox,
-    WindowsSandboxPolicy,
     extract_domains_from_command,
 )
+from mini_agent.agent_core.execution.sandbox.windows import WindowsRestrictedSandbox, WindowsSandboxPolicy
 
 
 def test_extract_domains_from_command_detects_urls_and_hosts():

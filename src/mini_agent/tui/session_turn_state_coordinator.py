@@ -1,4 +1,4 @@
-"""Shared TUI session/task state transitions for turn execution."""
+﻿"""Shared TUI session/task state transitions for turn execution."""
 
 from __future__ import annotations
 
@@ -61,3 +61,5 @@ class TuiSessionTurnStateCoordinator:
 
 
 __all__ = ["TuiSessionTurnStateCoordinator"]
+
+

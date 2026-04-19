@@ -1,10 +1,3 @@
-"""DesktopUI bootstrap helpers."""
+"""Desktop package marker for v11.1 physical ownership."""
 
-from .gateway_supervisor import DesktopGatewayConnection, DesktopGatewaySupervisor
-from .gateway_transport_binding import DesktopGatewayTransportBinding
-
-__all__ = [
-    "DesktopGatewayConnection",
-    "DesktopGatewaySupervisor",
-    "DesktopGatewayTransportBinding",
-]
+__all__: list[str] = []

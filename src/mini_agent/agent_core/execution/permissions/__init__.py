@@ -1,23 +1,3 @@
-"""Code-agent permission policy and approval primitives."""
+"""Agent-core execution.permissions package marker for v11.1 physical ownership."""
 
-from mini_agent.agent_core.execution.permissions.approval import (
-    ApprovalCache,
-    ApprovalEngine,
-    ApprovalOutcome,
-    invocation_fingerprint,
-)
-from mini_agent.agent_core.execution.permissions.policy import (
-    PermissionDecision,
-    PermissionPolicy,
-    PermissionRule,
-)
-
-__all__ = [
-    "PermissionDecision",
-    "PermissionRule",
-    "PermissionPolicy",
-    "ApprovalOutcome",
-    "ApprovalCache",
-    "ApprovalEngine",
-    "invocation_fingerprint",
-]
+__all__: list[str] = []

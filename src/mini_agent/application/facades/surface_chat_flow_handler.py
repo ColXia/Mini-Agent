@@ -11,11 +11,15 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 
-from mini_agent.application.support import ManagedSessionTurn
-from mini_agent.interfaces import MainAgentChatResponse
+from mini_agent.application.support.managed_session_turn import ManagedSessionTurn
+from mini_agent.interfaces.agent import MainAgentChatResponse
 
 if TYPE_CHECKING:
-    from mini_agent.application.support import FormatBootstrapErrorFn, SseEventFn, ToUtcIsoFn
+    from mini_agent.application.support.surface_service_types import (
+        FormatBootstrapErrorFn,
+        SseEventFn,
+        ToUtcIsoFn,
+    )
 
 
 class SessionTaskFlowPort(Protocol):

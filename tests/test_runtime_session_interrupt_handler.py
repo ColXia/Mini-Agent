@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 
@@ -86,3 +86,5 @@ def test_interrupt_handler_resolves_single_pending_approval_and_finalizes_waiter
         assert approval_waiter.result() is True
 
     asyncio.run(_run())
+
+

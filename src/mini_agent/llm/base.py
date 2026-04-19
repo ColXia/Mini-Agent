@@ -7,7 +7,7 @@ from urllib.parse import urlsplit
 import httpx
 
 from ..retry import RetryConfig
-from ..schema import LLMCompletionResult, LLMStreamEvent, Message
+from ..schema.schema import LLMCompletionResult, LLMStreamEvent, Message
 
 
 def _should_bypass_proxy_env(api_base: str | None) -> bool:

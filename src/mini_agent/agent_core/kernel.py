@@ -24,6 +24,7 @@ from mini_agent.model_manager.failover import FailoverLLMClient
 from mini_agent.model_manager.rectifier import RequestRectifierOptions
 from mini_agent.model_manager.model_mapper import RouteIntent
 from mini_agent.model_manager.model_mapper import RouteRequirementProfile
+from mini_agent.agent_core.context.turn_context_provider_builder import build_turn_context_providers
 from mini_agent.model_manager.runtime import (
     resolve_pinned_llm_candidate,
     resolve_routed_llm_candidates,
@@ -36,7 +37,6 @@ from mini_agent.runtime.support.tooling import (
     initialize_agent_tools,
     resolve_runtime_policy,
 )
-from mini_agent.runtime.support.turn_context_provider_builder import build_turn_context_providers
 
 
 _DEFAULT_SYSTEM_PROMPT = "You are Mini-Agent, an intelligent assistant powered by MiniMax."

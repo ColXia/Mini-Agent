@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from mini_agent.workspace import WorkspaceKind, WorkspaceManifest, WorkspaceRecord, workspace_path_key
+from mini_agent.runtime.support.workspace_path_utils import workspace_path_key
+from mini_agent.workspace.domain import WorkspaceKind, WorkspaceManifest, WorkspaceRecord
 
 
 def test_workspace_manifest_builds_default_workspace_identity(tmp_path: Path) -> None:

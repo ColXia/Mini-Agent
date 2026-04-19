@@ -7,7 +7,7 @@ from typing import Any, Callable, Iterable
 
 from mini_agent.agent_core.context.context_compaction import estimate_tokens
 from mini_agent.agent_core.presentation import AgentRuntimePresenter, NullAgentRuntimePresenter
-from mini_agent.schema import Message
+from mini_agent.schema.schema import Message
 
 
 @dataclass(frozen=True)

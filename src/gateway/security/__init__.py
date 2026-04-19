@@ -1,8 +1,3 @@
-"""Gateway security primitives."""
+"""Gateway security package marker for v11.1 physical ownership."""
 
-from .instance_lock import GatewayInstanceLock, GatewayInstanceLockError
-
-__all__ = [
-    "GatewayInstanceLock",
-    "GatewayInstanceLockError",
-]
+__all__: list[str] = []

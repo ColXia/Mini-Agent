@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from mini_agent.runtime.live_control.session_cancel_service import SessionCancelService
-from mini_agent.runtime.support.session_control_error_service import SessionControlErrorService
+from mini_agent.runtime.handlers.session_agent_control_handler import SessionControlErrorService
 from mini_agent.runtime.live_control.session_pending_approval_service import SessionPendingApprovalService
 
 

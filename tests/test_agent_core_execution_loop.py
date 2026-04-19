@@ -11,10 +11,12 @@ import pytest
 
 from mini_agent.agent_core.engine import Agent, AgentExecutionPolicy, TurnExecutionResult, TurnStopReason
 from mini_agent.agent_core.context.context_compaction import estimate_tokens
-from mini_agent.agent_core.execution import ApprovalEngine, PermissionPolicy
-from mini_agent.agent_core.execution import AgentLoopContext, AgentSubmissionLoop, InMemoryLoopMessageBus
+from mini_agent.agent_core.context.loop_context import AgentLoopContext
+from mini_agent.agent_core.execution.agent_loop import AgentSubmissionLoop, InMemoryLoopMessageBus
+from mini_agent.agent_core.execution.permissions.approval import ApprovalEngine
+from mini_agent.agent_core.execution.permissions.policy import PermissionPolicy
 from mini_agent.logger import AgentLogger
-from mini_agent.schema import FunctionCall, LLMCompletionResult, Message, ToolCall
+from mini_agent.schema.schema import FunctionCall, LLMCompletionResult, Message, ToolCall
 from mini_agent.tools.base import Tool, ToolResult
 
 

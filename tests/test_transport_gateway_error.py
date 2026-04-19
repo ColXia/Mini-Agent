@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from mini_agent.transport import GatewayTransportError, extract_gateway_error_info
+from mini_agent.transport.gateway_error import GatewayTransportError, extract_gateway_error_info
 
 
 def test_extract_gateway_error_info_parses_legacy_http_runtime_error() -> None:

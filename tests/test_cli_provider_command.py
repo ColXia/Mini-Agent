@@ -6,7 +6,7 @@ import argparse
 import json
 from pathlib import Path
 
-from mini_agent import cli
+import mini_agent.cli as cli
 
 
 def _provider_args(action: str, tmp_path: Path, **overrides: object) -> argparse.Namespace:

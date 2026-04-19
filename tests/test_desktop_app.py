@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from mini_agent.desktop import app
+import mini_agent.desktop.app as app
 
 
 def test_load_qt_modules_reports_install_hint(monkeypatch) -> None:

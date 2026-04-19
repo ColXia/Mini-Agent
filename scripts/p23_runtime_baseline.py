@@ -23,9 +23,15 @@ SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from mini_agent.application import build_runtime_backed_main_agent_surface_service  # noqa: E402
+from mini_agent.application.use_cases.agent_interaction_application_service import (  # noqa: E402
+    AgentInteractionApplicationService,
+)
+from mini_agent.application.use_cases.session_task_service import SessionTaskService  # noqa: E402
+from mini_agent.application.user_services.service_assembly import (  # noqa: E402
+    resolve_runtime_backed_user_service_ports,
+)
 from mini_agent.config import AgentConfig, Config, LLMConfig, ToolsConfig  # noqa: E402
-from mini_agent.interfaces import MainAgentChatRequest  # noqa: E402
+from mini_agent.interfaces.agent import MainAgentChatRequest  # noqa: E402
 from mini_agent.runtime.main_agent_runtime_manager import MainAgentRuntimeManager  # noqa: E402
 
 
@@ -37,7 +43,8 @@ class _BenchAgent:
     def add_user_message(self, content: str) -> None:
         self.messages.append(SimpleNamespace(role="user", content=content))
 
-    async def run(self) -> str:
+    async def run(self, *, cancel_event: asyncio.Event | None = None) -> str:
+        _ = cancel_event
         text = f"bench:{self.messages[-1].content}"
         self.messages.append(SimpleNamespace(role="assistant", content=text))
         self.api_total_tokens += 3
@@ -103,6 +110,22 @@ def _resolve_workspace_dir(workspace_dir: str | None) -> Path:
     return Path(workspace_dir or ".").resolve()
 
 
+def _build_interaction_service(*, runtime: MainAgentRuntimeManager) -> AgentInteractionApplicationService:
+    ports = resolve_runtime_backed_user_service_ports(runtime_manager=runtime)
+    session_task_service = SessionTaskService(
+        runtime_manager=ports.session_task_runtime,
+        session_agent_runtime=ports.session_agent_runtime,
+    )
+    return AgentInteractionApplicationService(
+        session_task_service=session_task_service,
+        resolve_workspace_dir=_resolve_workspace_dir,
+        to_utc_iso=_to_utc_iso,
+        sse_event=_sse_event,
+        format_bootstrap_error=_format_bootstrap_error,
+        stream_chunk_size=64,
+    )
+
+
 async def _run_benchmark(workspace: Path, runs: int) -> dict[str, Any]:
     async def _build_agent(_workspace: Path):
         return _BenchAgent()
@@ -112,21 +135,14 @@ async def _run_benchmark(workspace: Path, runs: int) -> dict[str, Any]:
         build_agent=_build_agent,
         load_runtime_config=_test_runtime_config,
     )
-    use_cases = build_runtime_backed_main_agent_surface_service(
-        runtime_manager=runtime,
-        resolve_workspace_dir=_resolve_workspace_dir,
-        to_utc_iso=_to_utc_iso,
-        sse_event=_sse_event,
-        format_bootstrap_error=_format_bootstrap_error,
-        stream_chunk_size=64,
-    )
+    interaction_service = _build_interaction_service(runtime=runtime)
 
     chat_ms: list[float] = []
     stream_ms: list[float] = []
 
     for i in range(runs):
         start = time.perf_counter()
-        _ = await use_cases.run_chat(
+        _ = await interaction_service.submit_message(
             MainAgentChatRequest(
                 message=f"benchmark-chat-{i}",
                 session_id="bench-chat",
@@ -137,7 +153,7 @@ async def _run_benchmark(workspace: Path, runs: int) -> dict[str, Any]:
 
     for i in range(runs):
         start = time.perf_counter()
-        async for _ in use_cases.stream_chat_events(
+        async for _ in interaction_service.stream_message(
             message=f"benchmark-stream-{i}",
             session_id="bench-chat",
             workspace_dir=str(workspace),

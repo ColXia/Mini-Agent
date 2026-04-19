@@ -2,17 +2,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from mini_agent.agent_core.contracts import (
-    CheckpointType,
-    RunPhase,
-    RunStatus,
-    RunWaitKind,
+from mini_agent.agent_core.contracts._kernel_state_bundle import (
     AgentKernelStateSeed,
     build_agent_kernel_state_record,
     build_checkpoint_for_record,
     deserialize_agent_kernel_state_record,
     serialize_agent_kernel_state_record,
 )
+from mini_agent.agent_core.contracts.checkpoint import CheckpointType
+from mini_agent.agent_core.contracts.run import RunPhase, RunStatus
+from mini_agent.agent_core.contracts.run_control_state import RunWaitKind
 
 
 def test_agent_kernel_state_builder_materializes_v11_1_truth_bundle(tmp_path: Path) -> None:

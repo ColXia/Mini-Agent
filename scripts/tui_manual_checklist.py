@@ -31,7 +31,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from mini_agent.agent_core.engine import TurnStopReason
-from mini_agent.agent_core.execution import InMemoryLoopMessageBus
+from mini_agent.agent_core.execution.agent_loop import InMemoryLoopMessageBus
 from mini_agent.agent_core.context.turn_context import format_prepared_turn_context_details
 from mini_agent.config import AgentConfig, Config, LLMConfig, ToolsConfig
 import mini_agent.tui.app as tui_app_module

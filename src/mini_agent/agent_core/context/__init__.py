@@ -1,15 +1,3 @@
-"""Agent-core context package."""
+"""Agent-core context package marker for v11.1 physical ownership."""
 
-from mini_agent.agent_core.context.command_service import (
-    ContextCommandError,
-    ContextCommandMutation,
-    ContextCommandRequest,
-    ContextCommandService,
-)
-
-__all__ = [
-    "ContextCommandError",
-    "ContextCommandMutation",
-    "ContextCommandRequest",
-    "ContextCommandService",
-]
+__all__: list[str] = []

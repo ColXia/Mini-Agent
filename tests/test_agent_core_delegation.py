@@ -6,7 +6,7 @@ import asyncio
 
 import pytest
 
-from mini_agent.agent_core import (
+from mini_agent.agent_core.delegation import (
     DelegationManager,
     DelegationRequest,
     DelegationResult,

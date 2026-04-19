@@ -14,7 +14,7 @@ from mini_agent.agent_core.execution.permissions.policy import PermissionDecisio
 from mini_agent.agent_core.execution.tool_approval import ToolApprovalRequest
 from mini_agent.agent_core.execution.tools.invocation import ToolInvocation
 from mini_agent.tools.base import Tool, ToolResult
-from mini_agent.schema import Message
+from mini_agent.schema.schema import Message
 
 
 class ToolExecutionBatchState(str, Enum):

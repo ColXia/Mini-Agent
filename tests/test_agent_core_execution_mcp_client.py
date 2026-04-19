@@ -6,9 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from mini_agent.agent_core.execution import ExecutionMCPClient, infer_mcp_tool_attributes
+from mini_agent.agent_core.execution.mcp_client import ExecutionMCPClient
 from mini_agent.agent_core.execution.mcp_tools import mcp_tool_alias
-from mini_agent.agent_core.execution.tools import ToolKind
+from mini_agent.agent_core.execution.mcp_tools import infer_mcp_tool_attributes
+from mini_agent.agent_core.execution.tools.attributes import ToolKind
 from mini_agent.tools.base import Tool, ToolResult
 from mini_agent.tools.mcp.types import MCPServerDefinition
 

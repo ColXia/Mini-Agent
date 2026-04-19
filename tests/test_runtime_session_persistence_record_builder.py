@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
-from mini_agent.runtime.support.session_persistence_record_builder import RuntimeSessionPersistenceRecordBuilder
+from mini_agent.session.persistence import RuntimeSessionPersistenceRecordBuilder
 from tests.runtime_contract_fixtures import (
     RuntimeContractAgentStub,
     lineage_state_stub,
@@ -476,3 +476,74 @@ def test_runtime_session_persistence_record_builder_prefers_active_run_pending_a
             "step": 1,
         }
     ]
+
+
+def test_runtime_session_persistence_record_builder_does_not_fall_back_to_runtime_pending_payloads(
+    tmp_path: Path,
+) -> None:
+    builder = RuntimeSessionPersistenceRecordBuilder(
+        session_kind="shared",
+        session_token_usage=lambda _session: 1,
+        session_token_limit=lambda _session: 2,
+    )
+    session = runtime_session_stub(
+        session_id="sess-run-persist-no-fallback",
+        workspace_dir=tmp_path,
+        created_at=_dt(),
+        updated_at=_dt(),
+        projection=runtime_projection_stub(
+            title="Persisted",
+            origin_surface="tui",
+            active_surface="tui",
+            reply_enabled=False,
+            is_default=False,
+            busy=False,
+            running_state="",
+            channel_type=None,
+            conversation_id=None,
+            sender_id=None,
+            shared=False,
+            knowledge_base_enabled=True,
+            selected_model_source=None,
+            selected_provider_id=None,
+            selected_model_id=None,
+            pending_model_source=None,
+            pending_provider_id=None,
+            pending_model_id=None,
+            pending_skill_reload=False,
+            pending_skill_reload_reason="",
+            recovery_context_pending=False,
+            recovery_state="",
+            recovery_summary="",
+            recovery_last_activity=None,
+            recovery_last_user_message=None,
+            recovery_last_assistant_message=None,
+            recovery_pending_approvals=[],
+            context_policy={},
+            last_prepared_context={},
+            prepared_context_diagnostics={},
+            memory_diagnostics={},
+            sandbox_diagnostics={},
+        ),
+        lineage_state=lineage_state_stub(
+            root_session_id="sess-run-persist-no-fallback",
+            created_at=_dt(),
+        ),
+        transcript_state=transcript_state_stub(transcript=[], next_transcript_index=1),
+        runtime=type(
+            "_RuntimeState",
+            (),
+            {
+                "agent": RuntimeContractAgentStub(),
+                "pending_approvals": [{"token": "approval-stale", "tool_name": "bash"}],
+            },
+        )(),
+    )
+
+    record = builder.build_metadata_record(
+        session,
+        transcript_path=tmp_path / "transcript.jsonl",
+        sandbox_diagnostics={},
+    )
+
+    assert record["pending_approvals"] == []

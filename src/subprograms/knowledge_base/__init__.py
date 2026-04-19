@@ -1,1 +1,3 @@
-"""Knowledge base subprogram package."""
+"""Knowledge base package marker for v11.1 physical ownership."""
+
+__all__: list[str] = []

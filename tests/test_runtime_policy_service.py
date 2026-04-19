@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from mini_agent.runtime.support.runtime_policy_service import (
+from mini_agent.runtime.orchestration.session_runtime_policy_coordinator import (
     SessionRuntimePolicyAutofixRequest,
     SessionRuntimePolicyExecution,
     SessionRuntimePolicyPlan,

@@ -4,9 +4,13 @@ import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 
-from mini_agent.application import ChannelIngressUseCases
-from mini_agent.interfaces import ChannelMessageRequest, MainAgentChatRequest, MainAgentChatResponse
-from mini_agent.session import ConversationBindingService, ConversationBindingStore
+from mini_agent.application.use_cases.channel_ingress_use_cases import ChannelIngressUseCases
+from mini_agent.interfaces.agent import MainAgentChatRequest, MainAgentChatResponse
+from mini_agent.interfaces.channel import ChannelMessageRequest
+from mini_agent.session.bindings import (
+    ConversationBindingService,
+    ConversationBindingStore,
+)
 
 def _resolve_workspace_dir(workspace_dir: str | None) -> Path:
     return Path(workspace_dir or ".").resolve()
@@ -215,3 +219,4 @@ def test_channel_ingress_normalizes_remote_alias_before_binding_lookup(tmp_path:
         assert requests[1].session_id == "sess-alias"
 
     asyncio.run(_run())
+

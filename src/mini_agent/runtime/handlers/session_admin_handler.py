@@ -1,4 +1,4 @@
-"""Session admin/live-state mutations extracted from the runtime manager."""
+﻿"""Session admin/live-state mutations extracted from the runtime manager."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
-    from mini_agent.interfaces import MainAgentSessionSummary
-    from mini_agent.runtime.session_state import MainAgentSessionState
+    from mini_agent.interfaces.agent import MainAgentSessionSummary
+    from mini_agent.session.store_records import MainAgentSessionState
 
 
 @dataclass(slots=True)
@@ -84,3 +84,4 @@ class RuntimeSessionAdminHandler:
 
 
 __all__ = ["RuntimeSessionAdminHandler"]
+

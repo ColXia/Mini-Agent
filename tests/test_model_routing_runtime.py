@@ -14,10 +14,8 @@ from mini_agent.config import (
     SecurityConfig,
     ToolsConfig,
 )
-from mini_agent.model_manager import (
-    RouteRequirementProfile,
-    bootstrap_llm_settings_from_config,
-)
+from mini_agent.model_manager.bootstrap import bootstrap_llm_settings_from_config
+from mini_agent.model_manager.model_mapper import RouteRequirementProfile
 from mini_agent.model_manager.preset_providers import PresetProvider, get_preset_provider_config
 from mini_agent.model_manager.runtime import (
     get_circuit_breaker_registry,

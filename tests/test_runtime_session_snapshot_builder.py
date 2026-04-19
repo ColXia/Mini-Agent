@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
@@ -276,3 +276,6 @@ def test_runtime_session_snapshot_builder_prefers_live_selected_identity_callbac
     assert snapshot.selected_model_source == "custom"
     assert snapshot.selected_provider_id == "maas"
     assert snapshot.selected_model_id == "astron-code-latest"
+
+
+

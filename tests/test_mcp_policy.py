@@ -133,7 +133,7 @@ class _FakeCallSession:
 
 @pytest.mark.asyncio
 async def test_load_mcp_tools_namespaces_same_remote_tool_across_servers(monkeypatch):
-    from mini_agent.tools.mcp import registry as mcp_registry
+    import mini_agent.tools.mcp.registry as mcp_registry
 
     definitions = [
         SimpleNamespace(

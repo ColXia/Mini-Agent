@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from mini_agent.commands.execution import CommandExecutionResult
-from mini_agent.transport import GatewayTransportError
+from mini_agent.transport.gateway_error import GatewayTransportError
 from mini_agent.tui.session_skill_command_coordinator import TuiSessionSkillCommandCoordinator
 
 

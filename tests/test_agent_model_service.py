@@ -5,7 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from mini_agent.model_manager import AgentModelService, reset_model_manager_runtime_state
+from mini_agent.model_manager.agent_model_service import AgentModelService
+from mini_agent.model_manager.runtime import reset_model_manager_runtime_state
 
 
 def _write_catalog(path: Path, providers: list[dict[str, object]]) -> None:

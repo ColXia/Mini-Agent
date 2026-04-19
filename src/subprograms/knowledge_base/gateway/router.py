@@ -9,7 +9,7 @@ from time import perf_counter
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from mini_agent.rag import HybridSearchStore, rewrite_query
+from mini_agent.rag.lightweight_hybrid import HybridSearchStore, rewrite_query
 from mini_agent.model_manager.feature_runtime import FeatureModelRuntime
 from subprograms.knowledge_base.config import KnowledgeBaseSettings
 from subprograms.knowledge_base.ingest_jobs import IngestJobQueue

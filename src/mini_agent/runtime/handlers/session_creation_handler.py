@@ -1,4 +1,4 @@
-"""Brand-new session creation routing extracted from the runtime manager."""
+﻿"""Brand-new session creation routing extracted from the runtime manager."""
 
 from __future__ import annotations
 
@@ -10,8 +10,9 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from mini_agent.agent_core.engine import Agent
-    from mini_agent.agent_core.session import SessionLifecycleState
-    from mini_agent.runtime.session_state import MainAgentSessionState
+    from mini_agent.agent_core.session.lifecycle import SessionLifecycleState
+    from mini_agent.session.lineage import MainAgentSessionLineageState
+    from mini_agent.session.store_records import MainAgentSessionState
 
 
 def _safe_text(value: object) -> str:
@@ -54,12 +55,12 @@ class RuntimeSessionCreationHandler:
         *,
         now_utc: "datetime",
     ) -> "MainAgentSessionState":
-        from mini_agent.runtime.session_state import (
-            MainAgentSessionLineageState,
+        from mini_agent.session.store_records import (
             MainAgentSessionProjectionState,
             MainAgentSessionRuntimeHostState,
             MainAgentSessionState,
         )
+        from mini_agent.session.lineage import MainAgentSessionLineageState
 
         default_identity = self.default_model_identity() if callable(self.default_model_identity) else None
         agent = await self.build_agent_for_identity(command.workspace_dir, default_identity)
@@ -137,3 +138,4 @@ __all__ = [
     "RuntimeSessionCreationCommand",
     "RuntimeSessionCreationHandler",
 ]
+

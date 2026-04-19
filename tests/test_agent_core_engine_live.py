@@ -8,8 +8,9 @@ import pytest
 
 from mini_agent.agent_core.engine import Agent
 from mini_agent.config import Config
-from mini_agent.llm import LLMClient, build_protocol_execution_profile
-from mini_agent.schema import LLMProvider
+from mini_agent.llm.llm_wrapper import LLMClient
+from mini_agent.llm.protocol_binding import build_protocol_execution_profile
+from mini_agent.schema.schema import LLMProvider
 from mini_agent.tools.bash_tool import BashTool
 from mini_agent.tools.file_tools import EditTool, ReadTool, WriteTool
 

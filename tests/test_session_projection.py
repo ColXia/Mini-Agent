@@ -1,6 +1,6 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
-from mini_agent.session import (
+from mini_agent.session.projections import (
     SessionDetailProjection,
     SessionRecoveryProjection,
     SessionSummaryProjection,
@@ -179,3 +179,4 @@ def test_terminal_session_projection_preserves_gateway_session_semantics() -> No
     assert local_projection.route_summary == "tui / own / local"
     assert local_projection.share_state == "local only"
     assert local_projection.show_gateway_panel is False
+

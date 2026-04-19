@@ -1,12 +1,12 @@
-"""TUI-facing remote session projection helpers."""
+﻿"""TUI-facing remote session projection helpers."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Callable, Sequence
 
-from mini_agent.interfaces import surface_payload_from_dto
-from mini_agent.session import SessionDetailProjection, SessionSummaryProjection
+from mini_agent.interfaces.surface_payload_adapter import surface_payload_from_dto
+from mini_agent.session.projections import SessionDetailProjection, SessionSummaryProjection
 
 
 def _safe_text(value: object) -> str:
@@ -218,3 +218,6 @@ class TuiRemoteSessionProjector:
 
 
 __all__ = ["TuiRemoteSessionProjector"]
+
+
+

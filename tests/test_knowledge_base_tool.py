@@ -6,9 +6,10 @@ from types import SimpleNamespace
 import pytest
 
 from mini_agent.agent_core.engine import Agent
-from mini_agent.agent_core.execution.tools import ToolBuilder, ToolKind
+from mini_agent.agent_core.execution.tools.attributes import ToolKind
+from mini_agent.agent_core.execution.tools.builder import ToolBuilder
 from mini_agent.config import AgentConfig, Config, LLMConfig, SecurityConfig, ToolsConfig
-from mini_agent.rag import HybridSearchStore
+from mini_agent.rag.lightweight_hybrid import HybridSearchStore
 from mini_agent.runtime.support.tooling import add_workspace_tools, resolve_runtime_policy
 from mini_agent.tools.knowledge_base import KnowledgeBaseQueryTool
 

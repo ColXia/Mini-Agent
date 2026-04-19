@@ -5,15 +5,16 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, AsyncIterator, Awaitable, Callable, Protocol
 
-from mini_agent.application.support import (
-    ApplicationInteractionBinding,
+from mini_agent.application.support.interaction_request_adapter import ApplicationInteractionBinding
+from mini_agent.application.support.managed_session_turn import ManagedSessionTurn
+from mini_agent.application.support.surface_service_types import (
     FormatBootstrapErrorFn,
-    ManagedSessionTurn,
     ResolveWorkspaceDirFn,
     SseEventFn,
     ToUtcIsoFn,
 )
-from mini_agent.interfaces import MainAgentChatRequest, MainAgentChatResponse, MainAgentRoutingDiagnostics
+from mini_agent.interfaces.agent import MainAgentChatRequest, MainAgentChatResponse
+from mini_agent.interfaces.system import MainAgentRoutingDiagnostics
 
 from ..facades.agent_delegation_execution_handler import AgentDelegationExecutionHandler
 from ..facades.agent_route_execution_handler import AgentRouteExecutionHandler

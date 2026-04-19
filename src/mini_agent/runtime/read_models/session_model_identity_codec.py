@@ -1,4 +1,4 @@
-"""Runtime session model identity normalization helpers."""
+﻿"""Runtime session model identity normalization helpers."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 from mini_agent.agent_core.engine import Agent
 
 if TYPE_CHECKING:
-    from mini_agent.runtime.session_state import MainAgentSessionState
+    from mini_agent.session.store_records import MainAgentSessionState
 
 
 _BOOTSTRAP_PROVIDER_ID = "bootstrap-config"
@@ -136,3 +136,6 @@ class RuntimeSessionModelIdentityCodec:
 
 
 __all__ = ["RuntimeSessionModelIdentityCodec"]
+
+
+

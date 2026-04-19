@@ -1,10 +1,12 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import pytest
 from fastapi import HTTPException
 
-from mini_agent.runtime.handlers.session_agent_control_handler import RuntimeSessionAgentControlHandler
-from mini_agent.runtime.support.session_control_models import RuntimeSessionControlCommand
+from mini_agent.runtime.handlers.session_agent_control_handler import (
+    RuntimeSessionAgentControlHandler,
+    RuntimeSessionControlCommand,
+)
 from tests.runtime_contract_fixtures import (
     RuntimeContractAgentStub,
     runtime_projection_stub,
@@ -139,3 +141,6 @@ async def test_agent_control_handler_rejects_mutation_when_session_busy() -> Non
 
     assert excinfo.value.status_code == 409
     assert "Session is busy" in str(excinfo.value.detail)
+
+
+

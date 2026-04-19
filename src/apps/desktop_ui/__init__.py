@@ -1,1 +1,3 @@
-"""DesktopUI application package."""
+"""Desktop UI package marker for v11.1 physical ownership."""
+
+__all__: list[str] = []

@@ -1,4 +1,4 @@
-"""Pending-approval state normalization and mutations."""
+﻿"""Pending-approval state normalization and mutations."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from .run_control_store import RuntimeSessionRunControlStore
 if TYPE_CHECKING:
     import asyncio
 
-    from mini_agent.runtime.session_state import MainAgentSessionState
+    from mini_agent.session.store_records import MainAgentSessionState
 
 
 def _safe_text(value: object) -> str:
@@ -93,3 +93,4 @@ class RuntimeSessionPendingApprovalStateHandler:
 
 
 __all__ = ["RuntimeSessionPendingApprovalStateHandler"]
+

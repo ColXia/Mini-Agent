@@ -1,25 +1,3 @@
-"""Sandbox primitives for agent-core execution runtime."""
+"""Agent-core execution.sandbox package marker for v11.1 physical ownership."""
 
-from mini_agent.agent_core.execution.sandbox.manager import SandboxBackend, SandboxManager, SandboxSelection
-from mini_agent.agent_core.execution.sandbox.network import (
-    NetworkAccessMode,
-    NetworkDomainPolicy,
-    extract_domains_from_command,
-)
-from mini_agent.agent_core.execution.sandbox.windows import (
-    SandboxTransformResult,
-    WindowsRestrictedSandbox,
-    WindowsSandboxPolicy,
-)
-
-__all__ = [
-    "SandboxBackend",
-    "SandboxSelection",
-    "SandboxManager",
-    "NetworkAccessMode",
-    "NetworkDomainPolicy",
-    "extract_domains_from_command",
-    "SandboxTransformResult",
-    "WindowsSandboxPolicy",
-    "WindowsRestrictedSandbox",
-]
+__all__: list[str] = []

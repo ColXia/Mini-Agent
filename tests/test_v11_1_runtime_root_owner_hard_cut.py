@@ -9,11 +9,20 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DELETED_RUNTIME_ROOT_OWNERS = {
+    "mini_agent.runtime.main_agent_runtime_contracts": Path(
+        "src/mini_agent/runtime/main_agent_runtime_contracts.py"
+    ),
     "mini_agent.runtime.session_diagnostics_service": Path(
         "src/mini_agent/runtime/session_diagnostics_service.py"
     ),
+    "mini_agent.runtime.session_state": Path(
+        "src/mini_agent/runtime/session_state.py"
+    ),
     "mini_agent.runtime.session_runtime_persistence": Path(
         "src/mini_agent/runtime/session_runtime_persistence.py"
+    ),
+    "mini_agent.runtime.workspace_runtime_adapter": Path(
+        "src/mini_agent/runtime/workspace_runtime_adapter.py"
     ),
 }
 

@@ -2,24 +2,19 @@ from __future__ import annotations
 
 import pytest
 
-from mini_agent.agent_core.contracts import (
-    AgentInstance,
-    AgentInstanceLifecycleState,
-    AgentProfile,
-    CapabilitySnapshot,
-    Checkpoint,
-    CheckpointType,
-    ExecutionJournal,
-    Run,
-    RunInterruptState,
-    RunPhase,
-    RunStatus,
-    RunWaitKind,
+from mini_agent.agent_core.contracts.agent_instance import AgentInstance, AgentInstanceLifecycleState
+from mini_agent.agent_core.contracts.agent_profile import AgentProfile
+from mini_agent.agent_core.contracts.attachments import (
     SessionAttachment,
     WorkspaceAttachment,
     WorkspaceKind,
     WorkspaceRuntimeBackend,
 )
+from mini_agent.agent_core.contracts.capability_snapshot import CapabilitySnapshot
+from mini_agent.agent_core.contracts.checkpoint import Checkpoint, CheckpointType
+from mini_agent.agent_core.contracts.execution_journal import ExecutionJournal
+from mini_agent.agent_core.contracts.run import Run, RunInterruptState, RunPhase, RunStatus
+from mini_agent.agent_core.contracts.run_control_state import RunWaitKind
 
 
 def test_agent_profile_and_instance_track_identity_and_lifecycle() -> None:
@@ -224,4 +219,3 @@ def test_capability_snapshot_and_execution_journal_capture_stable_run_view() -> 
     assert journal.latest_event.event_type == "context.capability_snapshot_resolved"
     assert journal.latest_event.payload == {"capability_snapshot_id": "cap-1"}
     assert closed.closed_at is not None
-

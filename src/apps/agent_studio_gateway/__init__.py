@@ -1,2 +1,4 @@
-"""FastAPI gateway for Mini-Agent visual workbench."""
+"""Agent Studio gateway package marker for v11.1 physical ownership."""
+
+__all__: list[str] = []
 

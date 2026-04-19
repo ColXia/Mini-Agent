@@ -7,14 +7,12 @@ import zipfile
 
 import pytest
 
-from mini_agent.agent_core import (
-    AgentSkillLoader,
-    SkillRequirements,
-    SkillSource,
-    WorkspaceSkillInstaller,
-    WorkspaceSkillPolicyStore,
-    WorkspaceSkillRuntimeBridge,
-)
+import mini_agent.agent_core.skills.install as install_module
+from mini_agent.agent_core.skills.eligibility import SkillRequirements
+from mini_agent.agent_core.skills.install import WorkspaceSkillInstaller
+from mini_agent.agent_core.skills.loader import AgentSkillLoader
+from mini_agent.agent_core.skills.policy import WorkspaceSkillPolicyStore, WorkspaceSkillRuntimeBridge
+from mini_agent.agent_core.skills.registry import SkillSource
 
 
 def _write_skill(
@@ -340,8 +338,6 @@ def test_workspace_skill_installer_installs_from_archive(tmp_path: Path):
 
 
 def test_workspace_skill_installer_installs_from_url_archive(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    from mini_agent.agent_core.skills import install as install_module
-
     workspace_root = tmp_path / "workspace"
     source_root = tmp_path / "url-source-skill"
     _write_skill(

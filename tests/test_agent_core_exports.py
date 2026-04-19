@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-from mini_agent.agent_core import (
-    AgentHistoryCompactionService,
-    AgentPostTurnSideEffectService,
+from mini_agent.agent_core.context.turn_context import (
     AgentPreparedTurnContextService,
-    AgentRuntimeBindings,
-    AgentRuntimeServices,
-    HistoryCompactionResult,
     PreparedTurnContextResult,
-    PostTurnSideEffectResult,
 )
+from mini_agent.agent_core.history.summarization import AgentHistoryCompactionService, HistoryCompactionResult
+from mini_agent.agent_core.post_turn import AgentPostTurnSideEffectService, PostTurnSideEffectResult
+from mini_agent.agent_core.runtime_bindings import AgentRuntimeBindings, AgentRuntimeServices
 
 
 def test_agent_core_exports_runtime_seam_types() -> None:

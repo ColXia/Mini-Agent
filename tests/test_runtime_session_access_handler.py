@@ -8,7 +8,7 @@ from mini_agent.runtime.handlers.session_access_handler import (
     RuntimeSessionAccessCommand,
     RuntimeSessionAccessHandler,
 )
-from mini_agent.session import DEFAULT_SESSION_ID
+from mini_agent.session.bindings import DEFAULT_SESSION_ID
 
 
 def _dt() -> datetime:
@@ -19,17 +19,18 @@ def _same_workspace(left: Path, right: Path) -> bool:
     return left.resolve() == right.resolve()
 
 
-def test_runtime_session_access_handler_preserves_legacy_team_reuse_without_default_session_support(
+def test_runtime_session_access_handler_reuses_default_session_in_resolved_main_workspace(
     tmp_path: Path,
 ) -> None:
     prepared: list[tuple[Path, datetime]] = []
     workspace = tmp_path.resolve()
-    live_session = SimpleNamespace(session_id="sess-live", workspace_dir=workspace)
+    default_session = SimpleNamespace(session_id=DEFAULT_SESSION_ID, workspace_dir=workspace)
 
     handler = RuntimeSessionAccessHandler(
         normalize_surface=lambda value: " ".join(str(value or "").strip().lower().split()) or "api",
         normalize_channel_type=lambda value: str(value).lower() if value else None,
         same_workspace=_same_workspace,
+        resolve_main_workspace=lambda target_workspace: target_workspace,
     )
 
     plan = handler.build_plan(
@@ -45,8 +46,8 @@ def test_runtime_session_access_handler_preserves_legacy_team_reuse_without_defa
         now_utc=_dt(),
         team_mode=True,
         prepare_environment=lambda target_workspace, now_utc: prepared.append((target_workspace, now_utc)),
-        load_active_session=lambda _candidate: None,
-        find_latest_active_session=lambda _workspace: live_session,
+        load_active_session=lambda candidate: default_session if candidate == DEFAULT_SESSION_ID else None,
+        find_latest_active_session=lambda _workspace: None,
         load_persisted_record=lambda _candidate: None,
         find_latest_persisted_record=lambda _workspace: None,
         raise_workspace_mismatch=lambda: (_ for _ in ()).throw(AssertionError("unexpected mismatch")),
@@ -56,10 +57,10 @@ def test_runtime_session_access_handler_preserves_legacy_team_reuse_without_defa
 
     assert prepared == [(workspace, _dt())]
     assert plan.action == "reuse_active"
-    assert plan.session_id == "sess-live"
+    assert plan.session_id == DEFAULT_SESSION_ID
     assert plan.workspace_dir == workspace
-    assert plan.is_default_session is False
-    assert plan.normalized_title_hint == "hint"
+    assert plan.is_default_session is True
+    assert plan.normalized_title_hint == ""
 
 
 def test_runtime_session_access_handler_supports_default_session_routing_when_enabled(tmp_path: Path) -> None:

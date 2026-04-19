@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from mini_agent.config import AgentConfig, Config, LLMConfig, SecurityConfig, ToolsConfig
-from mini_agent.workspace_runtime.adapters import DirectWorkspaceExecutor
+from mini_agent.workspace_runtime.adapters.direct_executor import DirectWorkspaceExecutor
 from mini_agent.workspace_runtime.mutation_ledger import InMemoryMutationLedger, MutationKind
 from mini_agent.workspace_runtime.outside_zone_policy import DefaultOutsideZonePolicy
 from mini_agent.workspace_runtime.permission_table import (
@@ -13,7 +13,7 @@ from mini_agent.workspace_runtime.permission_table import (
     WorkspacePermissionRule,
     WorkspacePermissionTable,
 )
-from mini_agent.workspace_runtime.runtime_bundle import build_direct_workspace_runtime_bundle
+from mini_agent.workspace_runtime.workspace_executor import build_direct_workspace_runtime_bundle
 from mini_agent.workspace_runtime.runtime_modes import WorkspaceRuntimeMode
 from mini_agent.workspace_runtime.workspace_executor import WorkspaceAccessScope
 

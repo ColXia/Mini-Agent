@@ -4,19 +4,19 @@ from __future__ import annotations
 
 from typing import Any, Sequence
 
-from mini_agent.interfaces import (
+from mini_agent.interfaces.agent import (
+    MainAgentDefaultSessionRequest,
     MainAgentSessionApprovalRequest,
     MainAgentSessionApprovalResponse,
     MainAgentSessionCancelRequest,
-    MainAgentSessionInterruptRequest,
     MainAgentSessionContextRequest,
     MainAgentSessionContextResponse,
     MainAgentSessionControlRequest,
     MainAgentSessionControlResponse,
     MainAgentSessionCreateRequest,
-    MainAgentDefaultSessionRequest,
     MainAgentSessionDetail,
     MainAgentSessionForkRequest,
+    MainAgentSessionInterruptRequest,
     MainAgentSessionMemoryRequest,
     MainAgentSessionMemoryResponse,
     MainAgentSessionMessage,

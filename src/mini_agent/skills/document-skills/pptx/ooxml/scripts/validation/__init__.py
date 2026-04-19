@@ -1,15 +1,3 @@
-"""
-Validation modules for Word document processing.
-"""
+"""Pptx validation package marker for v11.1 physical ownership."""
 
-from .base import BaseSchemaValidator
-from .docx import DOCXSchemaValidator
-from .pptx import PPTXSchemaValidator
-from .redlining import RedliningValidator
-
-__all__ = [
-    "BaseSchemaValidator",
-    "DOCXSchemaValidator",
-    "PPTXSchemaValidator",
-    "RedliningValidator",
-]
+__all__: list[str] = []

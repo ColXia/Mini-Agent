@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 from types import SimpleNamespace
@@ -162,3 +162,5 @@ def test_tui_runtime_policy_command_coordinator_handles_failure() -> None:
         "Runtime policy update failed: Session is busy. Runtime mode can only change while idle or waiting on approval."
     ]
     assert render_calls == ["rendered"]
+
+

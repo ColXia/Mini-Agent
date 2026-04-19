@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 from types import SimpleNamespace
@@ -212,3 +212,5 @@ def test_tui_approval_command_coordinator_requires_token_for_multiple_local_pend
     ]
     assert status_calls == ["Specify approval token."]
     assert render_calls == ["rendered"]
+
+

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
-from mini_agent.interfaces import (
+from mini_agent.interfaces.agent import (
     MainAgentSessionContextResponse,
     MainAgentSessionControlResponse,
     MainAgentSessionMemoryResponse,

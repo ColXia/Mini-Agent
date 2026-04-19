@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
@@ -9,7 +9,7 @@ from mini_agent.runtime.handlers.session_creation_handler import (
     RuntimeSessionCreationCommand,
     RuntimeSessionCreationHandler,
 )
-from mini_agent.session import DEFAULT_SESSION_TITLE
+from mini_agent.session.bindings import DEFAULT_SESSION_TITLE
 from tests.runtime_contract_fixtures import RuntimeContractAgentStub
 
 
@@ -146,3 +146,5 @@ async def test_runtime_session_creation_handler_uses_default_model_identity_for_
 
 async def _build_agent() -> RuntimeContractAgentStub:
     return RuntimeContractAgentStub()
+
+

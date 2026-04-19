@@ -8,7 +8,7 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 
 from mini_agent.application.use_cases.operations_provider_use_cases import ProviderOperationsUseCases
-from mini_agent.interfaces import (
+from mini_agent.interfaces.ops import (
     StudioFeatureModelBindingRequest,
     StudioModelCapabilityProbeRequest,
     StudioModelRoleRequest,

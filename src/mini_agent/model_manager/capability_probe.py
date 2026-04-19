@@ -8,7 +8,8 @@ from pathlib import Path
 import threading
 from typing import Any
 
-from mini_agent.llm import LLMClient, ProtocolRequestPolicy, build_protocol_execution_profile
+from mini_agent.llm.llm_wrapper import LLMClient
+from mini_agent.llm.protocol_binding import ProtocolRequestPolicy, build_protocol_execution_profile
 from mini_agent.model_manager.model_discovery import (
     ModelDiscoveryService,
     ProviderType,
@@ -20,7 +21,7 @@ from mini_agent.model_manager.model_registry_service import ModelRegistryService
 from mini_agent.model_manager.preset_providers import PresetProvider, get_preset_provider_config
 from mini_agent.model_manager.runtime import resolve_pinned_llm_candidate
 from mini_agent.retry import RetryConfig
-from mini_agent.schema import Message
+from mini_agent.schema.schema import Message
 
 
 def _normalize_text(value: Any) -> str:

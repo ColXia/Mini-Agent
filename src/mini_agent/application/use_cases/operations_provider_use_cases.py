@@ -9,7 +9,7 @@ from urllib.parse import urlsplit
 
 from fastapi import HTTPException
 
-from mini_agent.interfaces import (
+from mini_agent.interfaces.ops import (
     StudioFeatureModelBindingClearResponse,
     StudioFeatureModelBindingRequest,
     StudioFeatureModelBindingSummary,
@@ -32,11 +32,13 @@ from mini_agent.interfaces import (
     StudioProviderValidationRequest,
     StudioProviderValidationResponse,
 )
-from mini_agent.model_manager import (
-    get_circuit_breaker_registry,
-    get_health_monitor,
+from mini_agent.model_manager.provider import (
     normalize_provider_catalog,
     normalize_provider_config,
+)
+from mini_agent.model_manager.runtime import (
+    get_circuit_breaker_registry,
+    get_health_monitor,
 )
 from mini_agent.model_manager.provider import normalize_model_role, normalize_provider_api_type
 from mini_agent.model_manager.capability_probe import ModelCapabilityProbeService

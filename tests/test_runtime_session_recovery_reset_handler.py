@@ -1,8 +1,10 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from mini_agent.runtime.live_control.session_recovery_reset_handler import RuntimeSessionRecoveryResetHandler
+from mini_agent.runtime.live_control.session_recovery_reset_handler import (
+    RuntimeSessionRecoveryResetHandler,
+)
 from tests.runtime_contract_fixtures import (
     RuntimeContractAgentStub,
     runtime_projection_stub,
@@ -272,3 +274,5 @@ def test_recovery_reset_handler_clear_recovery_context_touches_session() -> None
     assert session.projection.recovery_context_pending is False
     assert session.projection.recovery_state == ""
     assert session._touch_calls == [_dt()]
+
+

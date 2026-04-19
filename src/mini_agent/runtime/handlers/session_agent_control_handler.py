@@ -1,4 +1,4 @@
-"""Session agent-side controls: context compaction and KB toggles."""
+﻿"""Session agent-side controls: context compaction and KB toggles."""
 
 from __future__ import annotations
 
@@ -11,22 +11,67 @@ from fastapi import HTTPException
 from mini_agent.agent_core.context.control_result_service import (
     SessionContextControlResultService,
 )
-from mini_agent.interfaces import MainAgentSessionControlResponse
-from mini_agent.runtime.support.session_control_error_service import SessionControlErrorService
-from mini_agent.runtime.support.session_control_models import (
-    RuntimeSessionControlCommand,
-    RuntimeSessionControlExecution,
-    SESSION_AGENT_CONTROL_ACTIONS,
-    normalize_session_control_action,
-)
+from mini_agent.interfaces.agent import MainAgentSessionControlResponse
 from mini_agent.tools.knowledge_base_control_service import KnowledgeBaseControlService
 
 if TYPE_CHECKING:
-    from mini_agent.runtime.session_state import MainAgentSessionState
+    from mini_agent.session.store_records import MainAgentSessionState
 
 
 def _safe_text(value: object) -> str:
     return " ".join(str(value or "").split())
+
+
+SESSION_AGENT_CONTROL_ACTIONS = frozenset(
+    {
+        "compact",
+        "drop_memories",
+        "kb_on",
+        "kb_off",
+    }
+)
+
+
+def normalize_session_control_action(action: str) -> str:
+    return _safe_text(action).lower().replace("-", "_")
+
+
+@dataclass(frozen=True, slots=True)
+class RuntimeSessionControlCommand:
+    action: str
+    reason: str | None = None
+
+
+@dataclass(slots=True)
+class RuntimeSessionControlExecution:
+    response: MainAgentSessionControlResponse
+    transcript_summary: str
+    transcript_details: str
+
+
+class SessionControlErrorService:
+    """Own shared busy wording and remote control failure labels."""
+
+    _BUSY_DETAIL = "Session is busy. Wait for the current turn to finish."
+
+    @classmethod
+    def busy_detail(cls) -> str:
+        return cls._BUSY_DETAIL
+
+    @classmethod
+    def is_busy_detail(cls, detail: str) -> bool:
+        return _safe_text(detail) == cls._BUSY_DETAIL
+
+    @classmethod
+    def remote_summary(cls, detail: str) -> str:
+        if cls.is_busy_detail(detail):
+            return "session busy"
+        return "command failed"
+
+    @classmethod
+    def remote_status_text(cls, detail: str) -> str:
+        normalized = _safe_text(detail)
+        return normalized or "Remote command failed."
 
 
 @dataclass(slots=True)
@@ -173,5 +218,13 @@ class RuntimeSessionAgentControlHandler:
 
 
 __all__ = [
+    "normalize_session_control_action",
+    "RuntimeSessionControlCommand",
+    "RuntimeSessionControlExecution",
+    "SessionControlErrorService",
+    "SESSION_AGENT_CONTROL_ACTIONS",
     "RuntimeSessionAgentControlHandler",
 ]
+
+
+

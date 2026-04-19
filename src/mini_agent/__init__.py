@@ -1,9 +1,3 @@
-"""Mini-Agent package root.
+"""Mini-Agent package marker for v11.1 physical ownership."""
 
-The root package is no longer a convenience SDK surface.
-Callers should import from owned modules directly.
-"""
-
-__version__ = "0.1.0"
-
-__all__ = ["__version__"]
+__all__: list[str] = []

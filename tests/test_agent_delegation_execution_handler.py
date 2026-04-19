@@ -4,7 +4,7 @@ import asyncio
 from pathlib import Path
 
 from mini_agent.agent_core.engine import TurnExecutionResult, TurnStopReason
-from mini_agent.application import AgentDelegationExecutionHandler
+from mini_agent.application.facades.agent_delegation_execution_handler import AgentDelegationExecutionHandler
 
 
 class _FakeTurn:

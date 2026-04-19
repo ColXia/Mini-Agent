@@ -22,7 +22,7 @@ from mini_agent.model_manager.provider import (
     ProviderCatalog,
     ProviderConfig,
 )
-from mini_agent.schema import LLMProvider
+from mini_agent.schema.schema import LLMProvider
 
 
 def _normalize_text(value: str | None) -> str:

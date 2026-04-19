@@ -7,16 +7,14 @@ from types import SimpleNamespace
 
 import pytest
 
-from apps.agent_studio_gateway import main as gateway_main
+import apps.agent_studio_gateway.main as gateway_main
 from mini_agent.config import AgentConfig, Config, LLMConfig, ToolsConfig
-from mini_agent.runtime.main_agent_runtime_contracts import (
-    MainAgentRuntimeMode,
-    MainAgentRuntimePolicy,
-)
 from mini_agent.runtime.main_agent_runtime_manager import (
     MainAgentRuntimeManager,
 )
-from mini_agent.runtime.support.main_agent_runtime_policy_loader import (
+from mini_agent.runtime.orchestration.session_runtime_policy_coordinator import (
+    MainAgentRuntimeMode,
+    MainAgentRuntimePolicy,
     MAIN_AGENT_MAIN_WORKSPACE_ENV,
     MAIN_AGENT_RUNTIME_MODE_ENV,
     MAIN_AGENT_TEAM_MAX_AGENTS_ENV,
@@ -170,3 +168,5 @@ async def test_team_profile_contract(monkeypatch: pytest.MonkeyPatch) -> None:
     assert diagnostics.reserved_team_slots == 2
     assert diagnostics.team_saturation_rejections == 1
     assert diagnostics.team_workspace_conflict_rejections == 0
+
+

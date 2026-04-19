@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-from mini_agent.interfaces import (
+from mini_agent.interfaces.model import (
     MainAgentModelBindingDiagnostics,
     MainAgentModelBindingRequest,
     MainAgentModelBindingSummary,
     MainAgentModelCandidateListResponse,
     MainAgentModelCapabilities,
+)
+from mini_agent.interfaces.ops import (
     StudioFeatureModelBindingClearResponse,
     StudioFeatureModelBindingRequest,
     StudioFeatureModelBindingSummary,

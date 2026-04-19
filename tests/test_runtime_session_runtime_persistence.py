@@ -1,13 +1,15 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
 
 from mini_agent.config import AgentConfig, Config, LLMConfig, SecurityConfig, ToolsConfig
-from mini_agent.runtime.support.session_persistence_loader import RuntimeSessionPersistenceLoader
-from mini_agent.runtime.support.session_persistence_record_builder import RuntimeSessionPersistenceRecordBuilder
-from mini_agent.runtime.support.session_runtime_persistence import MainAgentRuntimePersistence
-from mini_agent.workspace_runtime.runtime_bundle import build_direct_workspace_runtime_bundle
+from mini_agent.session.persistence import (
+    MainAgentRuntimePersistence,
+    RuntimeSessionPersistenceRecordBuilder,
+    RuntimeSessionPersistenceLoader,
+)
+from mini_agent.workspace_runtime.workspace_executor import build_direct_workspace_runtime_bundle
 from tests.runtime_contract_fixtures import (
     RuntimeContractAgentStub,
     lineage_state_stub,
@@ -144,3 +146,5 @@ def test_main_agent_runtime_persistence_prefers_runtime_model_identity_over_proj
     assert record["selected_model_source"] == "custom"
     assert record["selected_provider_id"] == "maas"
     assert record["selected_model_id"] == "astron-code-latest"
+
+

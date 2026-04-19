@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from mini_agent.commands.execution import CommandExecutionResult
-from mini_agent.transport import extract_gateway_error_info
+from mini_agent.transport.gateway_error import extract_gateway_error_info
 
 
 @dataclass(slots=True)

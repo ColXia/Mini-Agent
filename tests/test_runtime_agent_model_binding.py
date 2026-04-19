@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from pathlib import Path
 
@@ -99,3 +99,5 @@ async def test_runtime_manager_keeps_default_builder_when_no_explicit_agent_mode
     assert session.projection.selected_provider_id == "openai"
     assert session.projection.selected_model_id == "gpt-5.4"
     assert getattr(ephemeral.runtime_route, "provider_id", None) == "preset-openai"
+
+

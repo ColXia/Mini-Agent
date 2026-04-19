@@ -9,9 +9,9 @@ from uuid import uuid4
 
 from mini_agent.agent_core.engine import PlannerExecutorHooks, ToolApprovalRequest, TurnExecutionResult, TurnStopReason
 from mini_agent.agent_core.runtime_bindings import override_agent_tool_approval_handler
-from mini_agent.application.support import ManagedSessionTurn
+from mini_agent.application.support.managed_session_turn import ManagedSessionTurn
 from mini_agent.runtime.support.interaction_surface import resolve_interaction_binding
-from mini_agent.schema import LLMStreamEvent, LLMStreamEventType
+from mini_agent.schema.schema import LLMStreamEvent, LLMStreamEventType
 
 
 SurfaceActivityEmitter = Callable[[str, dict[str, Any]], Awaitable[None] | None]

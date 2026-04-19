@@ -1,4 +1,4 @@
-"""Tests for TUI state and command interactions."""
+﻿"""Tests for TUI state and command interactions."""
 
 from __future__ import annotations
 
@@ -20,12 +20,12 @@ from prompt_toolkit.keys import Keys
 
 from mini_agent.agent_core.runtime_bindings import AgentRuntimeServices
 from mini_agent.agent_core.engine import TurnStopReason
-from mini_agent.agent_core.execution import InMemoryLoopMessageBus
+from mini_agent.agent_core.execution.agent_loop import InMemoryLoopMessageBus
 from mini_agent.commands.execution import CommandExecutionResult
 from mini_agent.config import AgentConfig, Config, LLMConfig, ToolsConfig
 from mini_agent.runtime.live_control.session_interrupt_handler import RuntimeSessionInterruptHandler
-from mini_agent.schema import LLMCompletionResult, Message
-from mini_agent.transport import GatewayTransportError
+from mini_agent.schema.schema import LLMCompletionResult, Message
+from mini_agent.transport.gateway_error import GatewayTransportError
 from mini_agent.tui.app import MiniAgentTuiApp
 from mini_agent.tools.base import Tool, ToolResult
 from tests.runtime_contract_fixtures import RuntimeContractAgentStub
@@ -6454,4 +6454,6 @@ def test_tui_approval_modal_opens_for_current_pending_request(tmp_path: Path) ->
     modal_text = "".join(text for _style, text in app._render_approval_modal_fragments())
     assert "approval-1" in modal_text
     assert "shell_command" in modal_text
+
+
 

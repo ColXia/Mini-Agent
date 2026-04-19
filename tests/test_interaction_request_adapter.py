@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from mini_agent.application.support import ApplicationInteractionBinding
-from mini_agent.interfaces import ChannelMessageRequest, MainAgentChatRequest, MainAgentSessionApprovalRequest
+from mini_agent.application.support.interaction_request_adapter import ApplicationInteractionBinding
+from mini_agent.interfaces.agent import MainAgentChatRequest, MainAgentSessionApprovalRequest
+from mini_agent.interfaces.channel import ChannelMessageRequest
 
 
 def test_application_interaction_binding_builds_main_chat_request_from_channel_payload() -> None:

@@ -1,13 +1,4 @@
-"""Runtime security policy and audit utilities."""
+"""Security package marker for v11.1 physical ownership."""
 
-from .audit import SecurityFinding, format_security_audit_report, run_security_audit
-from .policy import RuntimePolicy, RuntimePolicyEngine
-
-__all__ = [
-    "RuntimePolicy",
-    "RuntimePolicyEngine",
-    "SecurityFinding",
-    "format_security_audit_report",
-    "run_security_audit",
-]
+__all__: list[str] = []
 

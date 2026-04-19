@@ -1,4 +1,4 @@
-"""Session MCP inspection and reload controls."""
+﻿"""Session MCP inspection and reload controls."""
 
 from __future__ import annotations
 
@@ -7,17 +7,25 @@ from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
 from fastapi import HTTPException
 
-from mini_agent.interfaces import MainAgentSessionControlResponse
-from mini_agent.runtime.support.session_control_models import (
+from mini_agent.interfaces.agent import MainAgentSessionControlResponse
+from mini_agent.runtime.handlers.session_agent_control_handler import (
     RuntimeSessionControlCommand,
     RuntimeSessionControlExecution,
-    SESSION_MCP_CONTROL_ACTIONS,
     normalize_session_control_action,
 )
 from mini_agent.tools.mcp.command_service import McpCommandError, McpCommandService
 
 if TYPE_CHECKING:
-    from mini_agent.runtime.session_state import MainAgentSessionState
+    from mini_agent.session.store_records import MainAgentSessionState
+
+
+SESSION_MCP_CONTROL_ACTIONS = frozenset(
+    {
+        "mcp_status",
+        "mcp_list",
+        "mcp_reload",
+    }
+)
 
 
 @dataclass(slots=True)
@@ -84,5 +92,9 @@ class RuntimeSessionMcpControlHandler:
 
 
 __all__ = [
+    "SESSION_MCP_CONTROL_ACTIONS",
     "RuntimeSessionMcpControlHandler",
 ]
+
+
+

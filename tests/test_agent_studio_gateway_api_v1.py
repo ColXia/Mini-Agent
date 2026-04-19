@@ -9,14 +9,10 @@ from fastapi.testclient import TestClient
 
 import apps.agent_studio_gateway.main as gateway_main
 from apps.agent_studio_gateway.main import app
-from mini_agent.application.use_cases import ChannelIngressUseCases
-from mini_agent.interfaces import (
+from mini_agent.application.use_cases.channel_ingress_use_cases import ChannelIngressUseCases
+from mini_agent.interfaces.agent import (
     MainAgentChatRequest,
     MainAgentChatResponse,
-    MainAgentModelBindingDiagnostics,
-    MainAgentModelBindingSummary,
-    MainAgentModelCandidateListResponse,
-    MainAgentModelCapabilities,
     MainAgentRunApprovalRequest,
     MainAgentRunCancelRequest,
     MainAgentRunInterruptRequest,
@@ -33,8 +29,16 @@ from mini_agent.interfaces import (
     MainAgentSessionSkillResponse,
     MainAgentSessionSummary,
 )
-from mini_agent.session.binding import ConversationBindingStore
-from mini_agent.session.conversation_binding_service import ConversationBindingService
+from mini_agent.interfaces.model import (
+    MainAgentModelBindingDiagnostics,
+    MainAgentModelBindingSummary,
+    MainAgentModelCandidateListResponse,
+    MainAgentModelCapabilities,
+)
+from mini_agent.session.bindings import (
+    ConversationBindingService,
+    ConversationBindingStore,
+)
 
 
 def test_gateway_root_reports_removed_browser_surfaces() -> None:
@@ -1698,4 +1702,5 @@ def test_legacy_api_prefix_routes_are_removed() -> None:
             "/api/novel/setup",
             json={"topic": "x", "genre": "y", "num_chapters": 2, "words_per_chapter": 500},
         ).status_code in {404, 405}
+
 

@@ -1,1 +1,3 @@
-# Make scripts directory a package for relative imports in tests
+"""Docx scripts package marker for v11.1 physical ownership."""
+
+__all__: list[str] = []

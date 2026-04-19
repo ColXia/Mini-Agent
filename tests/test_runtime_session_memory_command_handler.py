@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
@@ -137,3 +137,5 @@ def test_runtime_session_memory_command_handler_wraps_memory_command_errors(
 
     assert exc_info.value.status_code == 409
     assert exc_info.value.detail == "memory unavailable"
+
+

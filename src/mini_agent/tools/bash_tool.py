@@ -14,13 +14,13 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, model_validator
 
-from mini_agent.workspace_runtime.adapters import DirectWorkspaceExecutor
+from mini_agent.workspace_runtime.adapters.direct_executor import DirectWorkspaceExecutor
 from mini_agent.workspace_runtime.workspace_executor import WorkspaceAccessScope, WorkspaceExecutor
 
 from .base import Tool, ToolResult
 
 if TYPE_CHECKING:
-    from mini_agent.agent_core.execution.sandbox import SandboxManager
+    from mini_agent.agent_core.execution.sandbox.manager import SandboxManager
     from mini_agent.security.policy import RuntimePolicyEngine
 
 

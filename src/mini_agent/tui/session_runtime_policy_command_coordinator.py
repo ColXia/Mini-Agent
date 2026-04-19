@@ -1,4 +1,4 @@
-"""Shared TUI runtime-policy command orchestration."""
+﻿"""Shared TUI runtime-policy command orchestration."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from collections.abc import Awaitable, Mapping
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from mini_agent.runtime.support.runtime_policy_service import (
+from mini_agent.runtime.orchestration.session_runtime_policy_coordinator import (
     SessionRuntimePolicyPlan,
     SessionRuntimePolicyService,
 )
@@ -129,3 +129,5 @@ class TuiSessionRuntimePolicyCommandCoordinator:
 
 
 __all__ = ["TuiSessionRuntimePolicyCommandCoordinator"]
+
+

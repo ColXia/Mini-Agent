@@ -2,17 +2,10 @@
 
 from __future__ import annotations
 
-from .mcp import (
-    MCPServerConnection,
-    MCPTimeoutConfig,
-    cleanup_mcp_connections,
-    determine_connection_type,
-    get_mcp_timeout_config,
-    load_mcp_tools_async,
-    resolve_env_vars,
-    resolve_mcp_config_path,
-    set_mcp_timeout_config,
-)
+from .mcp.discovery import resolve_mcp_config_path
+from .mcp.lifecycle import cleanup_mcp_connections, get_mcp_timeout_config, set_mcp_timeout_config
+from .mcp.registry import MCPServerConnection, load_mcp_tools_async
+from .mcp.types import MCPTimeoutConfig, determine_connection_type, resolve_env_vars
 
 
 def _determine_connection_type(server_config: dict):

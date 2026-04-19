@@ -3,15 +3,15 @@ from __future__ import annotations
 import asyncio
 
 from mini_agent.transport.remote_session_client import RemoteSessionClient
-from mini_agent.interfaces import (
+from mini_agent.interfaces.agent import (
+    MainAgentDefaultSessionRequest,
     MainAgentSessionApprovalRequest,
     MainAgentSessionCancelRequest,
-    MainAgentSessionInterruptRequest,
     MainAgentSessionContextRequest,
     MainAgentSessionControlRequest,
-    MainAgentDefaultSessionRequest,
     MainAgentSessionCreateRequest,
     MainAgentSessionForkRequest,
+    MainAgentSessionInterruptRequest,
     MainAgentSessionModelSelectionRequest,
     MainAgentSessionRenameRequest,
     MainAgentSessionShareRequest,

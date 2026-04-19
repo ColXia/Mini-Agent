@@ -5,14 +5,15 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from mini_agent.agent_core.execution.sandbox import SandboxManager
-from mini_agent.agent_core.execution.permissions import ApprovalEngine, PermissionDecision, PermissionPolicy, PermissionRule
+from mini_agent.agent_core.execution.permissions.approval import ApprovalEngine
+from mini_agent.agent_core.execution.permissions.policy import PermissionDecision, PermissionPolicy, PermissionRule
+from mini_agent.agent_core.execution.sandbox.manager import SandboxManager
 from mini_agent.agent_core.runtime_bindings import set_agent_runtime_services
 from mini_agent.commands.mcp_support import resolve_runtime_mcp_config_path
 from mini_agent.runtime.support.sandbox_state import collect_sandbox_diagnostics
 from mini_agent.agent_core.skills.path_resolver import resolve_builtin_skills_dir, resolve_workspace_skills_dir
 from mini_agent.security.policy import RuntimePolicyEngine
-from mini_agent.workspace_runtime.runtime_bundle import (
+from mini_agent.workspace_runtime.workspace_executor import (
     WorkspaceRuntimeBundle,
     build_direct_workspace_runtime_bundle,
 )

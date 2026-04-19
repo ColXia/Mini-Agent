@@ -1,4 +1,4 @@
-"""Recovery-context and runtime-reset mutations."""
+"""Recovery-reset mutations separated from live session state handling for v11.1."""
 
 from __future__ import annotations
 
@@ -6,14 +6,13 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Callable
 
-from .run_control_store import RuntimeSessionRunControlStore
+from mini_agent.runtime.live_control.run_control_store import RuntimeSessionRunControlStore
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from mini_agent.agent_core.engine import Agent
-    from mini_agent.interfaces import MainAgentSessionRecoverySnapshot
-    from mini_agent.runtime.session_state import MainAgentSessionState
+    from mini_agent.interfaces.agent import MainAgentSessionRecoverySnapshot
+    from mini_agent.session.store_records import MainAgentSessionState
 
 
 def _safe_text(value: object) -> str:
@@ -207,7 +206,9 @@ class RuntimeSessionRecoveryResetHandler:
                     return text
             if metadata.get("kind") == "command":
                 command = _safe_text(metadata.get("command")) or "command"
-                command_summary = _safe_text(metadata.get("summary")) or _safe_text(getattr(entry, "content", "")) or "applied"
+                command_summary = _safe_text(metadata.get("summary")) or _safe_text(
+                    getattr(entry, "content", "")
+                ) or "applied"
                 return f"{command} | {command_summary}"
         return None
 

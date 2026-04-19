@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from mini_agent.interfaces import (
-    MainAgentModelBindingRequest,
+from mini_agent.interfaces.model import MainAgentModelBindingRequest
+from mini_agent.interfaces.ops import (
     StudioFeatureModelBindingRequest,
     StudioModelCapabilityProbeRequest,
     StudioModelRoleRequest,

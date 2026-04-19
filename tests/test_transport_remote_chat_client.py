@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
-from mini_agent.interfaces import MainAgentChatRequest
+from mini_agent.interfaces.agent import MainAgentChatRequest
 from mini_agent.transport.remote_chat_client import RemoteChatClient
 
 

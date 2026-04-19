@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from mini_agent.model_manager import (
+from mini_agent.model_manager.provider import (
     ProviderCatalog,
     ProviderConfig,
     normalize_provider_catalog,

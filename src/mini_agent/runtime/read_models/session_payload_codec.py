@@ -1,4 +1,4 @@
-"""Runtime session payload/message/token normalization helpers."""
+﻿"""Runtime session payload/message/token normalization helpers."""
 
 from __future__ import annotations
 
@@ -8,10 +8,10 @@ from mini_agent.agent_core.context.context_compaction import estimate_tokens
 from mini_agent.agent_core.engine import Agent
 from mini_agent.agent_core.context.turn_context import resolve_turn_context_policy
 from mini_agent.runtime.support.sandbox_state import normalize_sandbox_diagnostics
-from mini_agent.schema import Message
+from mini_agent.schema.schema import Message
 
 if TYPE_CHECKING:
-    from mini_agent.runtime.session_state import MainAgentSessionState
+    from mini_agent.session.store_records import MainAgentSessionState
 
 
 class RuntimeSessionPayloadCodec:
@@ -217,3 +217,4 @@ class RuntimeSessionPayloadCodec:
 
 
 __all__ = ["RuntimeSessionPayloadCodec"]
+

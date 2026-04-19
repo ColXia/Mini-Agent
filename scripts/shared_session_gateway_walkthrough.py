@@ -28,24 +28,28 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from mini_agent.agent_core.engine import TurnExecutionResult, TurnStopReason  # noqa: E402
-from mini_agent.application import (  # noqa: E402
+from mini_agent.application.use_cases.agent_interaction_application_service import (  # noqa: E402
     AgentInteractionApplicationService,
+)
+from mini_agent.application.use_cases.run_control_application_service import (  # noqa: E402
     RunControlApplicationService,
-    SessionTaskService,
+)
+from mini_agent.application.use_cases.session_task_service import SessionTaskService  # noqa: E402
+from mini_agent.application.user_services.service_assembly import (  # noqa: E402
     resolve_runtime_backed_user_service_ports,
 )
 from mini_agent.config import AgentConfig, Config, LLMConfig, ToolsConfig  # noqa: E402
-from mini_agent.interfaces import (  # noqa: E402
+from mini_agent.interfaces.agent import (  # noqa: E402
     MainAgentChatRequest,
     MainAgentSessionCancelRequest,
     MainAgentSessionControlRequest,
     MainAgentSessionRenameRequest,
     MainAgentSessionShareRequest,
 )
-from mini_agent.runtime.main_agent_runtime_manager import MainAgentRuntimeManager  # noqa: E402
-from mini_agent.runtime.orchestration.session_snapshot_handler import (  # noqa: E402
+from mini_agent.runtime.handlers.session_registry_handler import (  # noqa: E402
     RuntimeSessionSnapshotImportCommand,
 )
+from mini_agent.runtime.main_agent_runtime_manager import MainAgentRuntimeManager  # noqa: E402
 
 
 @dataclass(frozen=True)
@@ -410,7 +414,7 @@ def _new_use_cases(
     )
     run_control_service = RunControlApplicationService(
         run_runtime=ports.run_runtime,
-        session_tasks=ports.session_task_port,
+        session_run_lookup=ports.session_task_port,
     )
     interaction_service = AgentInteractionApplicationService(
         session_task_service=session_task_service,

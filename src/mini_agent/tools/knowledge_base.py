@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable
 
-from mini_agent.rag import HybridSearchStore
+from mini_agent.rag.lightweight_hybrid import HybridSearchStore
 from mini_agent.rag.knowledge_base_runtime import resolve_knowledge_base_store_path
 from mini_agent.tools.base import Tool, ToolResult
 

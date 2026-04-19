@@ -6,8 +6,8 @@ import argparse
 from pathlib import Path
 from types import SimpleNamespace
 
-from mini_agent import cli
-from mini_agent.utils import terminal_utils
+import mini_agent.cli as cli
+import mini_agent.utils.terminal_utils as terminal_utils
 
 
 def test_create_main_parser_supports_tui_subcommand() -> None:
@@ -35,7 +35,7 @@ def test_run_tui_mode_invokes_tui_runner(monkeypatch, tmp_path: Path) -> None:
         called["initial_prompt"] = initial_prompt
         called["config_loader"] = config_loader
 
-    monkeypatch.setattr("mini_agent.tui.run_tui", _fake_run_tui)
+    monkeypatch.setattr("mini_agent.tui.app.run_tui", _fake_run_tui)
 
     args = argparse.Namespace(
         workspace=str(tmp_path / "demo"),

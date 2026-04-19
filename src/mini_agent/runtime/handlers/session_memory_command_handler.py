@@ -1,4 +1,4 @@
-"""Runtime wrapper for shared session-memory command execution."""
+﻿"""Runtime wrapper for shared session-memory command execution."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from mini_agent.memory.operator_actions import (
 from mini_agent.memory.runtime_backend import WorkspaceRuntimeMemoryBackend
 
 if TYPE_CHECKING:
-    from mini_agent.runtime.session_state import MainAgentSessionState
+    from mini_agent.session.store_records import MainAgentSessionState
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,3 +121,6 @@ __all__ = [
     "RuntimeSessionMemoryCommandHandler",
     "SUPPORTED_MEMORY_ACTIONS",
 ]
+
+
+

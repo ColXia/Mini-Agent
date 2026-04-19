@@ -29,32 +29,7 @@ class RuntimeBackedUserServiceSupport(
 ):
     """Narrow structural support contract for resolving runtime-backed typed ports."""
 
-    async def get_session_task(self, session_id: str) -> Any: ...
-
     async def resolve_run_id_for_session(self, session_id: str) -> str | None: ...
-
-    async def cancel_session_turn(
-        self,
-        session_id: str,
-        *,
-        reason: str | None = None,
-        surface: str | None = None,
-        channel_type: str | None = None,
-        conversation_id: str | None = None,
-        sender_id: str | None = None,
-    ) -> Any: ...
-
-    async def resolve_pending_approval(
-        self,
-        session_id: str,
-        *,
-        approved: bool,
-        token: str | None = None,
-        surface: str | None = None,
-        channel_type: str | None = None,
-        conversation_id: str | None = None,
-        sender_id: str | None = None,
-    ) -> Any: ...
 
 
 def _require_session_task_runtime(runtime: SessionTaskRuntimePort | None) -> SessionTaskRuntimePort:
@@ -82,15 +57,7 @@ def _require_run_runtime(runtime: RunRuntimePort | None) -> RunRuntimePort:
 
 
 def _supports_session_task_port(candidate: object) -> bool:
-    return all(
-        hasattr(candidate, attr)
-        for attr in (
-            "get_session_task",
-            "resolve_run_id_for_session",
-            "cancel_session_turn",
-            "resolve_pending_approval",
-        )
-    )
+    return hasattr(candidate, "resolve_run_id_for_session")
 
 
 def _supports_run_runtime(candidate: object) -> bool:
@@ -192,7 +159,7 @@ def resolve_runtime_backed_user_service_ports(
 
 def _raise_missing_session_task_port() -> SessionTaskPort:
     raise RuntimeError(
-        "Runtime-backed user-service assembly requires direct session-task methods; "
+        "Runtime-backed user-service assembly requires direct session-to-run lookup support; "
         "session compatibility adapters are no longer an active path."
     )
 
@@ -229,12 +196,11 @@ def assemble_typed_user_services(
     )
     resolved_run_control_service = run_control_service or RunControlApplicationService(
         run_runtime=_require_run_runtime(run_runtime),
-        session_tasks=_require_session_task_port(session_task_port),
+        session_run_lookup=_require_session_task_port(session_task_port),
     )
     resolved_agent_service = agent_service or AgentUserService(
         agent_runtime=agent_runtime,
         run_control=resolved_run_control_service,
-        session_agent_runtime=_require_session_agent_runtime(session_agent_runtime),
     )
     resolved_model_service = model_service or ModelUserService(
         model_runtime=model_runtime,
@@ -289,13 +255,12 @@ def assemble_runtime_backed_user_services(
 
     resolved_run_control_service = run_control_service or RunControlApplicationService(
         run_runtime=resolved_ports.run_runtime,
-        session_tasks=_require_session_task_port(resolved_ports.session_task_port),
+        session_run_lookup=_require_session_task_port(resolved_ports.session_task_port),
     )
 
     resolved_agent_service = agent_service or AgentUserService(
         agent_runtime=resolved_ports.agent_runtime,
         run_control=resolved_run_control_service,
-        session_agent_runtime=_require_session_agent_runtime(resolved_ports.session_agent_runtime),
     )
 
     resolved_model_service = model_service or ModelUserService(

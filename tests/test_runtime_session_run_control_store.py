@@ -1,19 +1,18 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 from pathlib import Path
 
-from mini_agent.agent_core.contracts import (
+from mini_agent.agent_core.contracts._kernel_state_bundle import (
     AgentKernelStateSeed,
-    ApprovalWait,
-    ApprovalWaitState,
-    RunControlMode,
-    RunPhase,
-    RunStatus,
     build_agent_kernel_state_record,
     serialize_agent_kernel_state_record,
 )
+from mini_agent.agent_core.contracts.approval_wait import ApprovalWait, ApprovalWaitState
+from mini_agent.agent_core.contracts.run import RunPhase, RunStatus
+from mini_agent.agent_core.contracts.run_control_state import RunControlMode
 from mini_agent.runtime.live_control.run_control_store import RuntimeSessionRunControlStore
+from mini_agent.runtime.read_models.run_projection_builder import RuntimeSessionRunProjectionBuilder
 from mini_agent.workspace_runtime.snapshot_store import capture_shared_workspace_snapshot
 from tests.runtime_contract_fixtures import (
     RuntimeContractAgentStub,
@@ -41,6 +40,10 @@ def _session(tmp_path: Path):
             pending_approval_waiters={},
         ),
     )
+
+
+def _run_projection_builder(store: RuntimeSessionRunControlStore) -> RuntimeSessionRunProjectionBuilder:
+    return RuntimeSessionRunProjectionBuilder(run_control_store=store)
 
 
 def test_run_control_store_tracks_active_approval_wait_and_syncs_compatibility(tmp_path: Path) -> None:
@@ -154,7 +157,7 @@ def test_run_control_store_interrupt_projection_stays_distinct_from_cancel(tmp_p
 
         store.begin_turn(session)
         interrupted = store.request_interrupt(session, reason="pause", source="desktop")
-        projection = store.build_active_run_projection(session)
+        projection = _run_projection_builder(store).build_active_run_projection(session)
 
         assert interrupted.control_mode is RunControlMode.INTERRUPT_REQUESTED
         assert interrupted.interrupt_requested is True
@@ -168,6 +171,22 @@ def test_run_control_store_interrupt_projection_stays_distinct_from_cancel(tmp_p
         assert projection["cancel_requested"] is False
 
     asyncio.run(_run())
+
+
+def test_run_control_store_active_projection_busy_follows_kernel_run_truth(tmp_path: Path) -> None:
+    store = RuntimeSessionRunControlStore()
+    session = _session(tmp_path)
+    builder = _run_projection_builder(store)
+
+    projection_before = builder.build_active_run_projection(session)
+    assert projection_before["busy"] is False
+
+    store.begin_turn(session, surface="desktop", detail="running")
+    projection = builder.build_active_run_projection(session)
+
+    assert projection["busy"] is True
+    assert projection["active_surface"] == "desktop"
+    assert projection["running_state"] == "running"
 
 
 def test_run_control_store_pause_turn_acknowledges_interrupt_and_clears_waiters(tmp_path: Path) -> None:
@@ -206,6 +225,7 @@ def test_run_control_store_pause_turn_acknowledges_interrupt_and_clears_waiters(
 def test_run_control_store_active_projection_exposes_checkpoint_summary(tmp_path: Path) -> None:
     store = RuntimeSessionRunControlStore()
     session = _session(tmp_path)
+    builder = _run_projection_builder(store)
     store.begin_turn(session)
 
     capture_shared_workspace_snapshot(
@@ -214,7 +234,7 @@ def test_run_control_store_active_projection_exposes_checkpoint_summary(tmp_path
         metadata={"trigger": "test"},
     )
 
-    projection = store.build_active_run_projection(session)
+    projection = builder.build_active_run_projection(session)
 
     assert projection["checkpoint"] is not None
     assert projection["checkpoint"]["checkpoint_id"] == "live-snap-1"
@@ -239,7 +259,7 @@ def test_run_control_store_persisted_projection_exposes_checkpoint_summary(tmp_p
         },
     }
 
-    projection = RuntimeSessionRunControlStore.build_persisted_run_projection(run_id=run_id, record=record)
+    projection = RuntimeSessionRunProjectionBuilder.build_persisted_run_projection(run_id=run_id, record=record)
 
     assert projection["checkpoint"] is not None
     assert projection["checkpoint"]["checkpoint_id"] == "persisted-snap-1"
@@ -275,10 +295,11 @@ def test_run_control_store_persisted_projection_prefers_kernel_state_when_presen
         },
     }
 
-    projection = RuntimeSessionRunControlStore.build_persisted_run_projection(run_id=run_id, record=record)
+    projection = RuntimeSessionRunProjectionBuilder.build_persisted_run_projection(run_id=run_id, record=record)
 
     assert projection["status"] == "cancelled"
     assert projection["phase"] == "terminal"
+    assert projection["busy"] is False
     assert projection["cancel_requested"] is True
     assert projection["checkpoint"] is not None
     assert projection["checkpoint"]["kind"] == "kernel_checkpoint"
@@ -297,12 +318,13 @@ def test_run_control_store_cancelled_finish_projects_cancelled_terminal_state(tm
         session.projection.busy = False
         session.projection.running_state = ""
         finished = store.finish_turn(session)
-        projection = store.build_active_run_projection(session)
+        projection = _run_projection_builder(store).build_active_run_projection(session)
 
         assert finished.control_mode is RunControlMode.TERMINAL
         assert finished.cancel_requested is True
         assert projection["status"] == "cancelled"
         assert projection["phase"] == "terminal"
+        assert projection["busy"] is False
         assert projection["control_mode"] == "terminal"
         assert projection["cancel_requested"] is True
         assert projection["checkpoint"] is not None
@@ -388,11 +410,12 @@ def test_run_control_store_prefers_persisted_kernel_truth_over_projection_fallba
     store = RuntimeSessionRunControlStore()
 
     control = store.current_control_state(session)
-    projection = store.build_active_run_projection(session)
+    projection = _run_projection_builder(store).build_active_run_projection(session)
 
     assert control.control_mode is RunControlMode.TERMINAL
     assert projection["status"] == "completed"
     assert projection["phase"] == "terminal"
+    assert projection["busy"] is False
     assert projection["control_mode"] == "terminal"
     assert projection["interrupt_requested"] is False
 
@@ -465,7 +488,7 @@ def test_run_control_store_restored_pending_approval_becomes_recovery_only(tmp_p
     store = RuntimeSessionRunControlStore()
 
     control = store.current_control_state(session)
-    projection = store.build_active_run_projection(session)
+    projection = _run_projection_builder(store).build_active_run_projection(session)
     approval_wait = store.current_approval_wait(session)
 
     assert control.control_mode is RunControlMode.PAUSED
@@ -478,3 +501,5 @@ def test_run_control_store_restored_pending_approval_becomes_recovery_only(tmp_p
     assert approval_wait.wait_state is ApprovalWaitState.INVALIDATED
     assert session.runtime.pending_approvals == []
     assert session.runtime.pending_approval_waiters == {}
+
+

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from mini_agent.memory import (
-    MemoriaEngine,
+from mini_agent.memory.memoria_engine import MemoriaEngine
+from mini_agent.memory.memory_files import (
     append_memory_note,
     discover_memory_layout,
     ensure_memory_file,

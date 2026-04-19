@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import Iterable
 
-from mini_agent.agent_core.execution.tools import DeclarativeTool, DeclarativeToolAttributes, ToolBuilder, ToolKind
+from mini_agent.agent_core.execution.tools.attributes import DeclarativeToolAttributes, ToolKind
+from mini_agent.agent_core.execution.tools.builder import DeclarativeTool, ToolBuilder
 from mini_agent.tools.base import Tool, ToolResult
 from mini_agent.tools.mcp.naming import mcp_tool_alias
 

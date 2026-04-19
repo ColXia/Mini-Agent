@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from mini_agent.agent_core.post_turn import AgentPostTurnSideEffectService
-from mini_agent.schema import Message
+from mini_agent.schema.schema import Message
 
 
 @dataclass(frozen=True)

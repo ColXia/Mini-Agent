@@ -6,7 +6,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 import fnmatch
 
-from mini_agent.agent_core.execution.tools import ToolInvocation, ToolKind
+from mini_agent.agent_core.execution.tools.attributes import ToolKind
+from mini_agent.agent_core.execution.tools.invocation import ToolInvocation
 
 
 class PermissionDecision(str, Enum):

@@ -6,7 +6,7 @@ import json
 from typing import Callable
 
 from mini_agent.tools.base import ToolResult
-from mini_agent.utils import calculate_display_width
+from mini_agent.utils.terminal_utils import calculate_display_width
 
 
 class AgentRuntimePresenter:

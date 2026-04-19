@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from mini_agent.schema import (
+from mini_agent.schema.schema import (
     FunctionCall,
     LLMCompletionResult,
     LLMStreamEvent,

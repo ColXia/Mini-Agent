@@ -1,31 +1,23 @@
-"""Run-owned control truth backed by the v11.1 kernel runtime registry."""
+"""Run-control store facade over the kernel-backed live-control registry."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Callable
 
-from mini_agent.agent_core.contracts import ApprovalWait, RunControlState
-from mini_agent.runtime.orchestration.kernel_state_registry import (
-    CANCEL_REQUESTED_RUNNING_STATE,
-    CANCEL_REQUESTED_STATUS,
-    CANCELLING_PHASE,
-    INTERRUPT_REQUESTED_RUNNING_STATE,
-    INTERRUPT_REQUESTED_STATUS,
-    INTERRUPTING_PHASE,
-    PAUSED_PHASE,
-    PAUSED_STATUS,
-    RESUME_REQUESTED_STATUS,
-    RESUMING_PHASE,
-    RuntimeKernelControlBridge as RunControlRuntimeBridge,
-    RuntimeKernelStateRegistry,
+from mini_agent.agent_core.contracts._kernel_state_bundle import AgentKernelStateRecord
+from mini_agent.agent_core.contracts.approval_wait import ApprovalWait
+from mini_agent.agent_core.contracts.run_control_state import RunControlState
+from mini_agent.runtime.live_control.kernel_state_registry import (
+    RuntimeKernelStateRegistry as _RuntimeKernelStateRegistry,
 )
+from mini_agent.runtime.live_control.run_control_constants import SESSION_BACKED_RUN_ID_PREFIX
 
 if TYPE_CHECKING:
-    from mini_agent.runtime.session_state import MainAgentSessionState
+    from mini_agent.session.store_records import MainAgentSessionState
 
 
 class RuntimeSessionRunControlStore:
-    """Thin compatibility adapter over the kernel-backed runtime registry."""
+    """Thin facade that delegates run truth mutations to the kernel-state registry owner."""
 
     def __init__(
         self,
@@ -34,13 +26,24 @@ class RuntimeSessionRunControlStore:
             Callable[["MainAgentSessionState"], tuple[str, str, str] | None] | None
         ) = None,
     ) -> None:
-        self._registry = RuntimeKernelStateRegistry(
+        self._registry = _RuntimeKernelStateRegistry(
             selected_model_identity_for_session=selected_model_identity_for_session,
         )
 
     @staticmethod
     def run_id_for_session(session_id: str) -> str:
-        return RuntimeKernelStateRegistry.run_id_for_session(session_id)
+        normalized = str(session_id or "").strip()
+        if not normalized:
+            raise ValueError("session_id is required")
+        return f"{SESSION_BACKED_RUN_ID_PREFIX}{normalized}"
+
+    @staticmethod
+    def session_id_for_run_id(run_id: str) -> str | None:
+        normalized = str(run_id or "").strip()
+        if not normalized.startswith(SESSION_BACKED_RUN_ID_PREFIX):
+            return None
+        session_id = normalized[len(SESSION_BACKED_RUN_ID_PREFIX) :].strip()
+        return session_id or None
 
     def clear(self) -> None:
         self._registry.clear()
@@ -50,6 +53,9 @@ class RuntimeSessionRunControlStore:
 
     def current_control_state(self, session: "MainAgentSessionState") -> RunControlState:
         return self._registry.current_control_state(session)
+
+    def current_record(self, session: "MainAgentSessionState") -> AgentKernelStateRecord:
+        return self._registry.current_record(session)
 
     def current_control_state_for_run_id(self, run_id: str) -> RunControlState | None:
         return self._registry.current_control_state_for_run_id(run_id)
@@ -195,46 +201,27 @@ class RuntimeSessionRunControlStore:
         self._registry.reset_runtime_state(session, reason=reason)
         self._registry.sync_session_runtime(session)
 
-    def build_active_run_projection(self, session: "MainAgentSessionState") -> dict[str, Any]:
-        projection = self._registry.build_active_run_projection(session)
-        self._registry.sync_session_runtime(session)
-        return projection
-
-    @classmethod
-    def build_persisted_run_projection(cls, *, run_id: str, record: dict[str, Any]) -> dict[str, Any]:
-        return RuntimeKernelStateRegistry.build_persisted_run_projection(run_id=run_id, record=record)
-
     def build_kernel_state_payload(self, session: "MainAgentSessionState") -> dict[str, Any] | None:
         return self._registry.build_kernel_state_payload(session)
 
+    def sync_session_runtime(self, session: "MainAgentSessionState") -> None:
+        self._registry.sync_session_runtime(session)
+
     @staticmethod
     def serialize_run_control_state(state: RunControlState | None) -> dict[str, Any] | None:
-        return RuntimeKernelStateRegistry.serialize_run_control_state(state)
+        return _RuntimeKernelStateRegistry.serialize_run_control_state(state)
 
     @staticmethod
     def serialize_approval_wait(wait: ApprovalWait | None) -> dict[str, Any] | None:
-        return RuntimeKernelStateRegistry.serialize_approval_wait(wait)
+        return _RuntimeKernelStateRegistry.serialize_approval_wait(wait)
 
     @staticmethod
     def deserialize_run_control_state(payload: Any) -> RunControlState | None:
-        return RuntimeKernelStateRegistry.deserialize_run_control_state(payload)
+        return _RuntimeKernelStateRegistry.deserialize_run_control_state(payload)
 
     @staticmethod
     def deserialize_approval_wait(payload: Any) -> ApprovalWait | None:
-        return RuntimeKernelStateRegistry.deserialize_approval_wait(payload)
+        return _RuntimeKernelStateRegistry.deserialize_approval_wait(payload)
 
 
-__all__ = [
-    "CANCEL_REQUESTED_RUNNING_STATE",
-    "CANCEL_REQUESTED_STATUS",
-    "CANCELLING_PHASE",
-    "INTERRUPT_REQUESTED_RUNNING_STATE",
-    "INTERRUPT_REQUESTED_STATUS",
-    "INTERRUPTING_PHASE",
-    "PAUSED_PHASE",
-    "PAUSED_STATUS",
-    "RESUME_REQUESTED_STATUS",
-    "RESUMING_PHASE",
-    "RunControlRuntimeBridge",
-    "RuntimeSessionRunControlStore",
-]
+__all__ = ["RuntimeSessionRunControlStore"]

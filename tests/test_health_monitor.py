@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from mini_agent.model_manager import ProviderHealthMonitor
+from mini_agent.model_manager.health_monitor import ProviderHealthMonitor
 
 
 def test_health_monitor_route_and_success_failure_tracking():

@@ -134,6 +134,29 @@ def test_gate_respects_explicit_baseline_runs_override(monkeypatch, tmp_path: Pa
     assert baseline_cmd[-2:] == ["--runs", "37"]
 
 
+def test_gate_targeted_tests_follow_current_v11_1_boundaries(monkeypatch, tmp_path: Path) -> None:
+    calls, report_file = _recorded_steps(monkeypatch, tmp_path)
+
+    result = gate.main(
+        [
+            "--skip-full-tests",
+            "--skip-baseline",
+            "--skip-tui-checklist",
+            "--skip-tui-walkthrough",
+            "--skip-shared-session-walkthrough",
+            "--skip-channel-ingress-walkthrough",
+            "--report-file",
+            str(report_file),
+        ]
+    )
+
+    assert result == 0
+    targeted_cmd = dict(calls)["terminal_targeted_tests"]
+    assert "tests/test_main_agent_surface_service.py" not in targeted_cmd
+    assert "tests/test_v11_1_stage_h4_application_hard_cut.py" in targeted_cmd
+    assert "tests/test_script_surface_boundary_hygiene.py" in targeted_cmd
+
+
 def test_gate_report_includes_live_headless_context_section(monkeypatch, tmp_path: Path) -> None:
     calls: list[tuple[str, list[str]]] = []
     report_file = tmp_path / "report.md"

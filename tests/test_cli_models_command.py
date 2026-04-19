@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 
-from mini_agent import cli
+import mini_agent.cli as cli
 
 
 def _models_args(**overrides: object) -> argparse.Namespace:

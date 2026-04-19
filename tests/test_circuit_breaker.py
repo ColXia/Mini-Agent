@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from mini_agent.model_manager import (
+from mini_agent.model_manager.circuit_breaker import (
     CircuitBreakerConfig,
     CircuitBreakerRegistry,
     CircuitBreakerState,

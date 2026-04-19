@@ -8,7 +8,7 @@ from mini_agent.workspace_runtime.mutation_ledger import (
     MutationKind,
     clear_shared_mutation_ledgers,
 )
-from mini_agent.workspace_runtime.runtime_bundle import build_direct_workspace_runtime_bundle
+from mini_agent.workspace_runtime.workspace_executor import build_direct_workspace_runtime_bundle
 from mini_agent.workspace_runtime.runtime_modes import WorkspaceRuntimeMode
 from mini_agent.workspace_runtime.snapshot_store import (
     InMemoryWorkspaceSnapshotStore,

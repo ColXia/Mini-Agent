@@ -18,7 +18,7 @@ from mini_agent.config import (
     ToolsConfig,
 )
 from mini_agent.model_manager.runtime import RoutedLLMSettings
-from mini_agent.schema import LLMProvider
+from mini_agent.schema.schema import LLMProvider
 from mini_agent.runtime.support.tooling import initialize_agent_tools
 from mini_agent.tools.base import Tool, ToolResult
 

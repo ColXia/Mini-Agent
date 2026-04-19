@@ -1,4 +1,4 @@
-"""Runtime session read-model builders extracted from the runtime manager."""
+﻿"""Runtime session read-model builders extracted from the runtime manager."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Callable, Sequence
 from uuid import uuid4
 
-from mini_agent.interfaces import (
+from mini_agent.interfaces.agent import (
     MainAgentSessionDetail,
     MainAgentSessionMessage,
     MainAgentSessionPendingApproval,
@@ -15,19 +15,19 @@ from mini_agent.interfaces import (
     MainAgentSessionSummary,
 )
 from mini_agent.runtime.support.interaction_surface import normalize_channel_type
-from mini_agent.session import (
+from mini_agent.session.projections import (
     SessionDetailProjection,
     SessionMessageProjection,
     SessionPendingApprovalProjection,
-    SessionRecoveryFeedbackService,
     SessionRecoveryProjection,
     SessionSummaryProjection,
 )
+from mini_agent.session.recovery_feedback import SessionRecoveryFeedbackService
 
 from .session_snapshot_builder import RuntimeSessionSnapshotBuilder
 
 if TYPE_CHECKING:
-    from mini_agent.runtime.session_state import (
+    from mini_agent.session.store_records import (
         MainAgentSessionState,
         MainAgentSessionTranscriptEntry,
     )
@@ -78,10 +78,7 @@ class RuntimeSessionReadModelBuilder:
                 payload = None
             if isinstance(payload, Sequence):
                 return [dict(item) for item in payload if isinstance(item, dict)]
-        legacy = getattr(session.runtime, "pending_approvals", None)
-        if not isinstance(legacy, list):
-            return []
-        return [dict(item) for item in legacy if isinstance(item, dict)]
+        return []
 
     def build_session_summary_projection(
         self,
@@ -679,3 +676,7 @@ class RuntimeSessionReadModelBuilder:
 
 
 __all__ = ["RuntimeSessionReadModelBuilder"]
+
+
+
+

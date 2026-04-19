@@ -1,11 +1,3 @@
-"""History compaction services for agent-core."""
+"""Agent-core history package marker for v11.1 physical ownership."""
 
-from mini_agent.agent_core.history.summarization import (
-    AgentHistoryCompactionService,
-    HistoryCompactionResult,
-)
-
-__all__ = [
-    "AgentHistoryCompactionService",
-    "HistoryCompactionResult",
-]
+__all__: list[str] = []

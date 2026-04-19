@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from mini_agent.interfaces import (
+from mini_agent.interfaces.agent import (
     MainAgentRunApprovalRequest,
     MainAgentRunCancelRequest,
     MainAgentRunInterruptRequest,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from mini_agent.runtime.support.session_diagnostics_service import RuntimeSessionDiagnosticsService
+from mini_agent.runtime.read_models.session_diagnostics import RuntimeSessionDiagnosticsService
 from mini_agent.workspace_runtime.snapshot_store import clear_shared_workspace_snapshot_stores
 from tests.runtime_contract_fixtures import RuntimeContractAgentStub, runtime_projection_stub, runtime_session_stub
 
@@ -18,7 +18,7 @@ def test_runtime_session_diagnostics_service_reads_agent_memory_state_from_suppo
         return {"preview": ["ok"]}
 
     monkeypatch.setattr(
-        "mini_agent.runtime.support.session_diagnostics_service.build_memory_diagnostics",
+        "mini_agent.runtime.read_models.session_diagnostics.build_memory_diagnostics",
         _fake_build_memory_diagnostics,
     )
 
@@ -59,7 +59,7 @@ def test_runtime_session_diagnostics_service_falls_back_to_legacy_agent_attribut
         return {"preview": ["legacy"]}
 
     monkeypatch.setattr(
-        "mini_agent.runtime.support.session_diagnostics_service.build_memory_diagnostics",
+        "mini_agent.runtime.read_models.session_diagnostics.build_memory_diagnostics",
         _fake_build_memory_diagnostics,
     )
 

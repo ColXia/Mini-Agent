@@ -1,1 +1,3 @@
-"""Gateway router package for knowledge-base subprogram."""
+"""Knowledge base gateway package marker for v11.1 physical ownership."""
+
+__all__: list[str] = []

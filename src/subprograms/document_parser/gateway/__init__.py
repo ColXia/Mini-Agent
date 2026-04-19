@@ -1,1 +1,3 @@
-"""Gateway router package for document parser subprogram."""
+"""Document parser gateway package marker for v11.1 physical ownership."""
+
+__all__: list[str] = []

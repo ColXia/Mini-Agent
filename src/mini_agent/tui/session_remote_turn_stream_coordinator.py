@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from mini_agent.transport import RemoteChatServicePort, RemoteStreamErrorService
+from mini_agent.transport.remote_chat_service_port import RemoteChatServicePort
+from mini_agent.transport.remote_stream_error_service import RemoteStreamErrorService
 
 
 def _safe_text(value: Any) -> str:

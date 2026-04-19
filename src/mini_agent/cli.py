@@ -1027,7 +1027,7 @@ def run_cli_mode(args: argparse.Namespace) -> None:
 
 def run_tui_mode(args: argparse.Namespace) -> None:
     """Run in full-screen TUI mode."""
-    from .tui import run_tui
+    from .tui.app import run_tui
 
     _apply_runtime_policy_overrides(args)
     workspace = Path(args.workspace) if args.workspace else Path.cwd()
@@ -1655,15 +1655,13 @@ def run_provider_command(args: argparse.Namespace) -> None:
     import json
     from pathlib import Path
     from fastapi import HTTPException
-    from mini_agent.application import ProviderOperationsUseCases
-    from mini_agent.interfaces import (
+    from mini_agent.application.use_cases.operations_provider_use_cases import ProviderOperationsUseCases
+    from mini_agent.interfaces.ops import (
         StudioModelCapabilityProbeRequest,
         StudioProviderModelDiscoveryRequest,
         StudioProviderUpsertRequest,
     )
-    from mini_agent.model_manager import (
-        normalize_provider_catalog,
-    )
+    from mini_agent.model_manager.provider import normalize_provider_catalog
     from mini_agent.model_manager.model_registry_service import ModelRegistryService
 
     def _resolve_provider_source(
@@ -2267,7 +2265,7 @@ def run_list_command(args: argparse.Namespace) -> None:
 
 def run_stack_command(args: argparse.Namespace) -> None:
     """Run runtime stack manager command."""
-    from .dev import RuntimeStackManager
+    from .dev.runtime_stack_manager import RuntimeStackManager
 
     source_root = Path(__file__).resolve().parents[1]
     repo_root = source_root.parent

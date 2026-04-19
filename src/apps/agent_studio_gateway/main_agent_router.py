@@ -9,7 +9,7 @@ from typing import Any, AsyncIterator, Awaitable, Callable
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
-from mini_agent.application.support import ApplicationInteractionBinding
+from mini_agent.application.support.interaction_request_adapter import ApplicationInteractionBinding
 from mini_agent.application.facades.service_response_dto_adapter import (
     model_binding_diagnostics_response,
     model_binding_summary_response,
@@ -19,58 +19,62 @@ from mini_agent.application.facades.service_response_dto_adapter import (
     workspace_runtime_summary_response,
     workspace_summary_response,
 )
-from mini_agent.application.use_cases import (
-    ChannelIngressUseCases,
+from mini_agent.application.use_cases.channel_ingress_use_cases import ChannelIngressUseCases
+from mini_agent.application.use_cases.run_control_application_service import (
     RunControlApplicationService,
-    SessionTaskService,
 )
-from mini_agent.application.user_services import ModelUserService, WorkspaceUserService
-from mini_agent.interfaces import (
-    ApiEnvelope,
-    ChannelMessageRequest,
-    ChannelMessageResponse,
-    MainAgentRoutingDiagnostics,
-    MainAgentRuntimeDiagnostics,
-    MainAgentModelBindingDiagnostics,
-    MainAgentModelBindingRequest,
-    MainAgentModelBindingSummary,
-    MainAgentModelCandidateListResponse,
-    MainAgentModelCapabilities,
+from mini_agent.application.use_cases.session_task_service import SessionTaskService
+from mini_agent.application.user_services.model_user_service import ModelUserService
+from mini_agent.application.user_services.workspace_user_service import WorkspaceUserService
+from mini_agent.interfaces.agent import (
+    MainAgentChatRequest,
+    MainAgentChatResponse,
+    MainAgentDefaultSessionRequest,
     MainAgentRunApprovalRequest,
     MainAgentRunCancelRequest,
     MainAgentRunInterruptRequest,
     MainAgentRunResumeRequest,
     MainAgentRunSummary,
-    MainAgentWorkspaceRuntimeSummary,
-    MainAgentWorkspaceSummary,
-    MainAgentWorkspaceSwitchRequest,
     MainAgentSessionApprovalRequest,
     MainAgentSessionApprovalResponse,
-    MainAgentChatRequest,
-    MainAgentChatResponse,
     MainAgentSessionCancelRequest,
-    MainAgentSessionInterruptRequest,
     MainAgentSessionContextRequest,
     MainAgentSessionContextResponse,
     MainAgentSessionControlRequest,
     MainAgentSessionControlResponse,
     MainAgentSessionCreateRequest,
-    MainAgentDefaultSessionRequest,
     MainAgentSessionDetail,
     MainAgentSessionForkRequest,
+    MainAgentSessionInterruptRequest,
     MainAgentSessionMemoryRequest,
     MainAgentSessionMemoryResponse,
     MainAgentSessionMessage,
-    MainAgentSessionSkillRequest,
-    MainAgentSessionSkillResponse,
     MainAgentSessionMutationResponse,
     MainAgentSessionRenameRequest,
     MainAgentSessionRuntimePolicyRequest,
     MainAgentSessionRuntimePolicyResponse,
     MainAgentSessionShareRequest,
+    MainAgentSessionSkillRequest,
+    MainAgentSessionSkillResponse,
     MainAgentSessionSummary,
+    MainAgentWorkspaceRuntimeSummary,
+    MainAgentWorkspaceSummary,
+    MainAgentWorkspaceSwitchRequest,
+)
+from mini_agent.interfaces.channel import ChannelMessageRequest, ChannelMessageResponse
+from mini_agent.interfaces.common import ApiEnvelope
+from mini_agent.interfaces.model import (
+    MainAgentModelBindingDiagnostics,
+    MainAgentModelBindingRequest,
+    MainAgentModelBindingSummary,
+    MainAgentModelCandidateListResponse,
+    MainAgentModelCapabilities,
+)
+from mini_agent.interfaces.ops import StudioModelListResponse
+from mini_agent.interfaces.system import (
+    MainAgentRoutingDiagnostics,
+    MainAgentRuntimeDiagnostics,
     SystemHealthResponse,
-    StudioModelListResponse,
 )
 
 

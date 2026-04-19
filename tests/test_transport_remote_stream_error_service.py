@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from mini_agent.transport import GatewayTransportError, RemoteStreamErrorService
+from mini_agent.transport.gateway_error import GatewayTransportError
+from mini_agent.transport.remote_stream_error_service import RemoteStreamErrorService
 
 
 def test_remote_stream_error_service_reads_payload_message() -> None:

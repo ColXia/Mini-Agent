@@ -9,8 +9,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from mini_agent.agent_core.engine import Agent
-from mini_agent.llm import LLMClient
-from mini_agent.schema import Message
+from mini_agent.llm.llm_wrapper import LLMClient
+from mini_agent.schema.schema import Message
 from mini_agent.tools.file_tools import ReadTool, WriteTool
 from mini_agent.tools.note_tool import RecallNoteTool, SessionNoteTool
 

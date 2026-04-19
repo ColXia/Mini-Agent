@@ -5,17 +5,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from mini_agent.desktop.gateway_supervisor import DesktopGatewayConnection
-from mini_agent.transport import (
-    GatewayClient,
-    RemoteChatClient,
-    RemoteMemoryClient,
-    RemoteModelCatalogClient,
-    RemoteProviderClient,
-    RemoteRunClient,
-    RemoteSessionClient,
-    RemoteSystemClient,
-    RemoteWorkspaceClient,
-)
+from mini_agent.transport.gateway_client import GatewayClient
+from mini_agent.transport.remote_chat_client import RemoteChatClient
+from mini_agent.transport.remote_memory_client import RemoteMemoryClient
+from mini_agent.transport.remote_model_catalog_client import RemoteModelCatalogClient
+from mini_agent.transport.remote_provider_client import RemoteProviderClient
+from mini_agent.transport.remote_run_client import RemoteRunClient
+from mini_agent.transport.remote_session_client import RemoteSessionClient
+from mini_agent.transport.remote_system_client import RemoteSystemClient
+from mini_agent.transport.remote_workspace_client import RemoteWorkspaceClient
 
 
 @dataclass(slots=True)

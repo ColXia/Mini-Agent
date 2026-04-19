@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from mini_agent.config import Config
-from mini_agent.model_manager import bootstrap_llm_settings_from_config
+from mini_agent.model_manager.bootstrap import bootstrap_llm_settings_from_config
 
 
 def _write_config(

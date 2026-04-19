@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from mini_agent.runtime.support.session_agent_support import RuntimeSessionAgentSupport
+from mini_agent.runtime.handlers.session_agent_runtime_handler import RuntimeSessionAgentSupport
 
 
 class _KnowledgeBaseAgent:

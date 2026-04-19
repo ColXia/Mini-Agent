@@ -11,7 +11,7 @@ from mini_agent.memory.memoria_runtime import WorkspaceMemoriaRuntime
 from mini_agent.memory.operator_actions import save_operator_workspace_note
 from mini_agent.memory.runtime_task_memory import TurnRuntimeTaskMemory
 from mini_agent.memory.service import MemoryService
-from mini_agent.schema import FunctionCall, Message, ToolCall
+from mini_agent.schema.schema import FunctionCall, Message, ToolCall
 from mini_agent.session.persistence import SessionPersistence
 from mini_agent.agent_core.context.turn_context import (
     RuntimeTaskMemoryTurnContextProvider,

@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from mini_agent.agent_core.execution.mcp_tools import build_declarative_mcp_registry
-from mini_agent.agent_core.execution.tools import DeclarativeTool
+from mini_agent.agent_core.execution.tools.builder import DeclarativeTool
 from mini_agent.tools.base import Tool, ToolResult
 from mini_agent.tools.mcp.discovery import discover_servers
 from mini_agent.tools.mcp.registry import MCPServerConnection

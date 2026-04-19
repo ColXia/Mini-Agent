@@ -1,10 +1,10 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 from types import SimpleNamespace
 from typing import Any
 
-from mini_agent.transport import RemoteChatClient
+from mini_agent.transport.remote_chat_client import RemoteChatClient
 from mini_agent.tui.session_remote_turn_stream_coordinator import TuiRemoteTurnStreamCoordinator
 
 
@@ -311,3 +311,5 @@ def test_tui_remote_turn_stream_coordinator_falls_back_to_run_chat() -> None:
         "updated_at": "2026-04-18T00:00:00+08:00",
         "delegation": None,
     }
+
+

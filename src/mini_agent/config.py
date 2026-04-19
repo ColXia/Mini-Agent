@@ -9,7 +9,7 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel, Field
 
-from mini_agent import config_bootstrap as _config_bootstrap
+import mini_agent.config_bootstrap as _config_bootstrap
 
 
 OFFICIAL_PRESET_ENV_KEYS = _config_bootstrap.OFFICIAL_PRESET_ENV_KEYS

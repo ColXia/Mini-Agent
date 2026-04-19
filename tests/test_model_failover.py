@@ -10,7 +10,7 @@ from mini_agent.model_manager.runtime import (
     get_health_monitor,
     reset_model_manager_runtime_state,
 )
-from mini_agent.schema import LLMProvider, LLMCompletionResult, Message
+from mini_agent.schema.schema import LLMProvider, LLMCompletionResult, Message
 
 
 @pytest.fixture(autouse=True)

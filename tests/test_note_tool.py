@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from mini_agent.tools.note_tool import RecallNoteTool, SessionNoteTool
-from mini_agent.workspace_runtime.adapters import DirectWorkspaceExecutor
+from mini_agent.workspace_runtime.adapters.direct_executor import DirectWorkspaceExecutor
 
 
 class FakeEmbeddingProvider:

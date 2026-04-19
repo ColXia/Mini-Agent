@@ -1,6 +1,3 @@
-"""Mini-Agent full-screen TUI entrypoints."""
+"""TUI package marker for v11.1 physical ownership."""
 
-from .app import run_tui
-from .gateway_transport_binding import TuiGatewayTransportBinding
-
-__all__ = ["TuiGatewayTransportBinding", "run_tui"]
+__all__: list[str] = []

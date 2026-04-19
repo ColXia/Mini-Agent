@@ -1,10 +1,10 @@
-"""Terminal-facing session presentation models."""
+﻿"""Terminal-facing session presentation models."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from mini_agent.session.projection import SessionSummaryProjection
+from mini_agent.session.projections import SessionSummaryProjection
 
 
 def _safe_text(value: object | None) -> str:
@@ -103,3 +103,4 @@ class TerminalSessionProjection:
 
 
 __all__ = ["TerminalSessionProjection"]
+

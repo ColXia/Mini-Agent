@@ -1,4 +1,4 @@
-"""Session catalog / metadata routing extracted from the runtime manager."""
+﻿"""Session catalog / metadata routing extracted from the runtime manager."""
 
 from __future__ import annotations
 
@@ -9,15 +9,15 @@ from typing import TYPE_CHECKING, Any, Callable, Iterable, Sequence
 from fastapi import HTTPException
 
 from mini_agent.runtime.support.interaction_surface import normalize_surface_label
-from mini_agent.workspace import workspace_path_key
+from mini_agent.runtime.support.workspace_path_utils import workspace_path_key
 
 if TYPE_CHECKING:
-    from mini_agent.interfaces import (
+    from mini_agent.interfaces.agent import (
         MainAgentSessionDetail,
         MainAgentSessionMessage,
         MainAgentSessionSummary,
     )
-    from mini_agent.runtime.session_state import (
+    from mini_agent.session.store_records import (
         MainAgentSessionState,
         MainAgentSessionTranscriptEntry,
     )
@@ -290,3 +290,6 @@ class RuntimeSessionCatalogHandler:
 __all__ = [
     "RuntimeSessionCatalogHandler",
 ]
+
+
+

@@ -1,19 +1,3 @@
-"""Support exports for shared application-layer helpers."""
+"""Application support package marker for v11.1 physical ownership."""
 
-from .interaction_request_adapter import ApplicationInteractionBinding
-from .managed_session_turn import ManagedSessionTurn
-from .surface_service_types import (
-    FormatBootstrapErrorFn,
-    ResolveWorkspaceDirFn,
-    SseEventFn,
-    ToUtcIsoFn,
-)
-
-__all__ = [
-    "ApplicationInteractionBinding",
-    "FormatBootstrapErrorFn",
-    "ManagedSessionTurn",
-    "ResolveWorkspaceDirFn",
-    "SseEventFn",
-    "ToUtcIsoFn",
-]
+__all__: list[str] = []

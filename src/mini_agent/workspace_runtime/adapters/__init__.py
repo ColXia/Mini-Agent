@@ -1,5 +1,3 @@
-"""Workspace-runtime execution adapters."""
+"""Workspace-runtime adapters package marker for v11.1 physical ownership."""
 
-from .direct_executor import DirectWorkspaceExecutor
-
-__all__ = ["DirectWorkspaceExecutor"]
+__all__: list[str] = []

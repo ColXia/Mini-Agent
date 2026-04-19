@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from mini_agent.session import SessionFeedbackService
+from mini_agent.session.recovery_feedback import SessionFeedbackService
 
 
 def test_session_feedback_service_builds_share_status() -> None:

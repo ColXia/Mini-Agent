@@ -9,7 +9,7 @@ import pytest
 from mini_agent.agent_core.engine import Agent
 from mini_agent.agent_core.history.summarization import AgentHistoryCompactionService
 from mini_agent.logger import AgentLogger
-from mini_agent.schema import LLMCompletionResult, Message
+from mini_agent.schema.schema import LLMCompletionResult, Message
 
 
 class SummaryLLM:

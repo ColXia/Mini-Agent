@@ -9,7 +9,7 @@ from typing import Any
 from mini_agent.agent_core.engine import Agent
 
 from .interaction_request_adapter import ApplicationInteractionBinding
-from ..ports.session_runtime_port import ManagedRuntimeSessionPort, SessionTurnScopePort
+from ..ports.session_task_runtime_port import ManagedRuntimeSessionPort, SessionTurnScopePort
 
 
 class ManagedSessionTurn(AbstractAsyncContextManager["ManagedSessionTurn"]):

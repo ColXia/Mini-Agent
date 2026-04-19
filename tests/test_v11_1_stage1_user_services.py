@@ -2,29 +2,23 @@ from __future__ import annotations
 
 import pytest
 
-from mini_agent.application.ports import (
-    AgentRuntimePort,
-    ModelRuntimePort,
-    RunRuntimePort,
-    SessionAgentRuntimePort,
-    SessionTaskPort,
-    SessionTaskRuntimePort,
-    WorkspaceRuntimePort,
-)
-from mini_agent.application.use_cases import (
-    AgentApplicationService,
-    CommandApplicationService,
-    ModelBindingApplicationService,
-    RunControlApplicationService,
-    WorkspaceApplicationService,
-)
-from mini_agent.application.user_services import (
-    AgentUserService,
-    CommandUserService,
-    ModelUserService,
-    WorkspaceUserService,
-)
-from mini_agent.interfaces import MainAgentChatRequest
+from mini_agent.application.ports.agent_runtime_port import AgentRuntimePort
+from mini_agent.application.ports.model_runtime_port import ModelRuntimePort
+from mini_agent.application.ports.run_runtime_port import RunRuntimePort
+from mini_agent.application.ports.session_agent_runtime_port import SessionAgentRuntimePort
+from mini_agent.application.ports.session_task_port import SessionTaskPort
+from mini_agent.application.ports.session_task_runtime_port import SessionTaskRuntimePort
+from mini_agent.application.ports.workspace_runtime_port import WorkspaceRuntimePort
+from mini_agent.application.use_cases.agent_application_service import AgentApplicationService
+from mini_agent.application.use_cases.command_application_service import CommandApplicationService
+from mini_agent.application.use_cases.model_binding_application_service import ModelBindingApplicationService
+from mini_agent.application.use_cases.run_control_application_service import RunControlApplicationService
+from mini_agent.application.use_cases.workspace_application_service import WorkspaceApplicationService
+from mini_agent.application.user_services.agent_user_service import AgentUserService
+from mini_agent.application.user_services.command_user_service import CommandUserService
+from mini_agent.application.user_services.model_user_service import ModelUserService
+from mini_agent.application.user_services.workspace_user_service import WorkspaceUserService
+from mini_agent.interfaces.agent import MainAgentChatRequest
 
 
 class RunRuntimeStub:
@@ -65,42 +59,9 @@ class SessionTaskStub:
         self.run_ids = dict(run_ids or {})
         self.calls: list[tuple[str, object]] = []
 
-    async def get_session_task(self, session_id: str):
-        self.calls.append(("get_session_task", session_id))
-        return {"session_id": session_id}
-
     async def resolve_run_id_for_session(self, session_id: str) -> str | None:
         self.calls.append(("resolve_run_id_for_session", session_id))
         return self.run_ids.get(session_id)
-
-    async def cancel_session_turn(
-        self,
-        session_id: str,
-        *,
-        reason: str | None = None,
-        surface: str | None = None,
-        channel_type: str | None = None,
-        conversation_id: str | None = None,
-        sender_id: str | None = None,
-    ):
-        self.calls.append(("cancel_session_turn", session_id, reason, surface, channel_type, conversation_id, sender_id))
-        return {"kind": "session-cancel", "session_id": session_id}
-
-    async def resolve_pending_approval(
-        self,
-        session_id: str,
-        *,
-        approved: bool,
-        token: str | None = None,
-        surface: str | None = None,
-        channel_type: str | None = None,
-        conversation_id: str | None = None,
-        sender_id: str | None = None,
-    ):
-        self.calls.append(
-            ("resolve_pending_approval", session_id, approved, token, surface, channel_type, conversation_id, sender_id)
-        )
-        return {"kind": "session-approval", "session_id": session_id, "approved": approved, "token": token}
 
 
 class AgentRuntimeStub:
@@ -160,143 +121,6 @@ class ModelRuntimeStub:
         return {"agent_id": agent_id, "current_binding": {"agent_id": agent_id, "model_id": "model-1"}}
 
 
-class SessionRuntimePolicyRuntimeStub:
-    async def update_session_runtime_policy(
-        self,
-        session_id: str,
-        *,
-        approval_profile: str | None = None,
-        access_level: str | None = None,
-        surface: str | None = None,
-        channel_type: str | None = None,
-        conversation_id: str | None = None,
-        sender_id: str | None = None,
-    ):
-        return {
-            "session_id": session_id,
-            "approval_profile": approval_profile,
-            "access_level": access_level,
-            "surface": surface,
-            "channel_type": channel_type,
-            "conversation_id": conversation_id,
-            "sender_id": sender_id,
-        }
-
-
-class SessionControlRuntimeStub:
-    async def control_session_context(
-        self,
-        session_id: str,
-        *,
-        action: str,
-        reason: str | None = None,
-        surface: str | None = None,
-        channel_type: str | None = None,
-        conversation_id: str | None = None,
-        sender_id: str | None = None,
-    ):
-        return {
-            "session_id": session_id,
-            "action": action,
-            "reason": reason,
-            "surface": surface,
-            "channel_type": channel_type,
-            "conversation_id": conversation_id,
-            "sender_id": sender_id,
-        }
-
-
-class SessionContextRuntimeStub:
-    async def update_session_context_policy(
-        self,
-        session_id: str,
-        *,
-        action: str,
-        sources: list[str] | None = None,
-        max_items: int | None = None,
-        max_total_chars: int | None = None,
-        max_items_per_source: int | None = None,
-        surface: str | None = None,
-        channel_type: str | None = None,
-        conversation_id: str | None = None,
-        sender_id: str | None = None,
-    ):
-        return {
-            "session_id": session_id,
-            "action": action,
-            "sources": sources,
-            "max_items": max_items,
-            "max_total_chars": max_total_chars,
-            "max_items_per_source": max_items_per_source,
-            "surface": surface,
-            "channel_type": channel_type,
-            "conversation_id": conversation_id,
-            "sender_id": sender_id,
-        }
-
-
-class SessionMemoryRuntimeStub:
-    async def manage_session_memory(
-        self,
-        session_id: str,
-        *,
-        action: str,
-        engram_id: str | None = None,
-        content: str | None = None,
-        query: str | None = None,
-        day: str | None = None,
-        export_format: str | None = None,
-        detail_mode: str | None = None,
-        surface: str | None = None,
-        channel_type: str | None = None,
-        conversation_id: str | None = None,
-        sender_id: str | None = None,
-    ):
-        return {
-            "session_id": session_id,
-            "action": action,
-            "engram_id": engram_id,
-            "content": content,
-            "query": query,
-            "day": day,
-            "export_format": export_format,
-            "detail_mode": detail_mode,
-            "surface": surface,
-            "channel_type": channel_type,
-            "conversation_id": conversation_id,
-            "sender_id": sender_id,
-        }
-
-
-class SessionSkillRuntimeStub:
-    async def manage_session_skills(
-        self,
-        session_id: str,
-        *,
-        action: str,
-        skill_name: str | None = None,
-        path: str | None = None,
-        query: str | None = None,
-        mode: str | None = None,
-        surface: str | None = None,
-        channel_type: str | None = None,
-        conversation_id: str | None = None,
-        sender_id: str | None = None,
-    ):
-        return {
-            "session_id": session_id,
-            "action": action,
-            "skill_name": skill_name,
-            "path": path,
-            "query": query,
-            "mode": mode,
-            "surface": surface,
-            "channel_type": channel_type,
-            "conversation_id": conversation_id,
-            "sender_id": sender_id,
-        }
-
-
 class CommandRuntimeStub:
     def catalog(self):
         return ["help", "session"]
@@ -325,7 +149,7 @@ def test_stage1_port_packages_export_expected_contracts() -> None:
 async def test_run_control_application_service_prefers_run_runtime_when_run_is_attached() -> None:
     run_runtime = RunRuntimeStub()
     session_tasks = SessionTaskStub({"session-1": "run-1"})
-    service = RunControlApplicationService(run_runtime=run_runtime, session_tasks=session_tasks)
+    service = RunControlApplicationService(run_runtime=run_runtime, session_run_lookup=session_tasks)
 
     result = await service.approve_session_wait(
         "session-1",
@@ -350,7 +174,7 @@ async def test_run_control_application_service_prefers_run_runtime_when_run_is_a
 async def test_run_control_application_service_requires_run_attachment_for_session_control() -> None:
     run_runtime = RunRuntimeStub()
     session_tasks = SessionTaskStub()
-    service = RunControlApplicationService(run_runtime=run_runtime, session_tasks=session_tasks)
+    service = RunControlApplicationService(run_runtime=run_runtime, session_run_lookup=session_tasks)
 
     with pytest.raises(LookupError, match="not attached to a run"):
         await service.cancel_session_run(
@@ -374,7 +198,7 @@ async def test_run_control_application_service_requires_run_attachment_for_sessi
 async def test_stage1_user_services_delegate_to_runtime_ports() -> None:
     run_control = RunControlApplicationService(
         run_runtime=RunRuntimeStub(),
-        session_tasks=SessionTaskStub({"session-1": "run-1"}),
+        session_run_lookup=SessionTaskStub({"session-1": "run-1"}),
     )
     agent_service = AgentUserService(agent_runtime=AgentRuntimeStub(), run_control=run_control)
     workspace_service = WorkspaceUserService(workspace_runtime=WorkspaceRuntimeStub())
@@ -406,71 +230,32 @@ async def test_stage1_user_services_delegate_to_runtime_ports() -> None:
     }
 
 
-@pytest.mark.asyncio
-async def test_stage1_user_services_support_session_scoped_runtime_actions() -> None:
-    agent_service = AgentUserService(session_agent_runtime=SessionRuntimePolicyRuntimeStub())
+def test_stage1_agent_user_service_hard_cuts_session_scoped_compat_entrypoints() -> None:
+    service = AgentUserService()
 
-    policy_response = await agent_service.update_session_runtime_policy(
-        "session-4",
-        approval_profile="plan",
-        access_level="full-access",
-        surface="desktop",
-    )
-
-    assert policy_response["approval_profile"] == "plan"
-
-
-@pytest.mark.asyncio
-async def test_stage1_agent_user_service_supports_session_control_memory_and_skill_actions() -> None:
-    control_service = AgentUserService(session_agent_runtime=SessionControlRuntimeStub())
-    context_service = AgentUserService(session_agent_runtime=SessionContextRuntimeStub())
-    memory_service = AgentUserService(session_agent_runtime=SessionMemoryRuntimeStub())
-    skill_service = AgentUserService(session_agent_runtime=SessionSkillRuntimeStub())
-
-    controlled = await control_service.control_session(
-        "session-4b",
-        action="compact",
-        reason="trim",
-        surface="desktop",
-    )
-    contextual = await context_service.update_session_context(
-        "session-4c",
-        action="include",
-        sources=["workspace_memory"],
-        max_items=2,
-        surface="desktop",
-    )
-    memory = await memory_service.manage_session_memory(
-        "session-5",
-        action="show",
-        query="recent",
-        detail_mode="brief",
-        surface="desktop",
-    )
-    skill = await skill_service.manage_session_skills(
-        "session-6",
-        action="search",
-        query="foundry",
-        mode="allowlist",
-        surface="desktop",
-    )
-
-    assert controlled["action"] == "compact"
-    assert contextual["sources"] == ["workspace_memory"]
-    assert memory["query"] == "recent"
-    assert skill["query"] == "foundry"
+    for name in (
+        "cancel_session_run",
+        "interrupt_session_run",
+        "approve_session_wait",
+        "deny_session_wait",
+        "update_session_runtime_policy",
+        "control_session",
+        "update_session_context",
+        "manage_session_memory",
+        "manage_session_skills",
+    ):
+        assert not hasattr(service, name)
 
 
 @pytest.mark.asyncio
 async def test_stage1_application_services_delegate_to_runtime_ports() -> None:
     run_control = RunControlApplicationService(
         run_runtime=RunRuntimeStub(),
-        session_tasks=SessionTaskStub({"session-1": "run-1"}),
+        session_run_lookup=SessionTaskStub({"session-1": "run-1"}),
     )
     agent_application = AgentApplicationService(
         agent_runtime=AgentRuntimeStub(),
         run_control=run_control,
-        session_agent_runtime=SessionControlRuntimeStub(),
     )
     workspace_application = WorkspaceApplicationService(workspace_runtime=WorkspaceRuntimeStub())
     model_application = ModelBindingApplicationService(model_runtime=ModelRuntimeStub())

@@ -6,16 +6,13 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from mini_agent.agent_core import (
+from mini_agent.agent_core.session.lifecycle import SessionLifecycleManager, SessionLifecyclePolicy, SessionResetMode
+from mini_agent.agent_core.session.lineage import SessionLineageNode, SessionLineageStore
+from mini_agent.agent_core.session.session_key import (
     AgentSessionKey,
     AmbiguousSessionKeyError,
-    SessionLineageNode,
     SessionKeyError,
     SessionKeyIndex,
-    SessionLifecycleManager,
-    SessionLifecyclePolicy,
-    SessionLineageStore,
-    SessionResetMode,
 )
 
 

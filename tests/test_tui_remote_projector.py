@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from types import SimpleNamespace
 
@@ -292,3 +292,5 @@ def test_tui_remote_session_projector_ignores_invalid_payloads() -> None:
     assert projector.apply_detail(session, {}, preserve_follow_output=True) is False
     assert session.title == "Local Session"
     assert replace_calls == []
+
+

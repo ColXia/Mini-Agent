@@ -40,7 +40,7 @@ from mini_agent.desktop.window import (
     resolve_desktop_approval_button_text,
     resolve_desktop_context_usage_stats,
 )
-from mini_agent.transport import GatewayTransportError
+from mini_agent.transport.gateway_error import GatewayTransportError
 
 
 def test_truncate_text_appends_ellipsis_when_limit_is_exceeded() -> None:

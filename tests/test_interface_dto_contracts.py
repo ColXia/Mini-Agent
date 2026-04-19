@@ -2,21 +2,10 @@
 
 from __future__ import annotations
 
-from mini_agent.interfaces import (
-    ApiEnvelope,
-    ChannelMessageRequest,
-    ChannelMessageResponse,
+from mini_agent.interfaces.agent import (
     MainAgentChatRequest,
     MainAgentChatResponse,
     MainAgentDefaultSessionRequest,
-    MainAgentModelBindingDiagnostics,
-    MainAgentModelBindingRecord,
-    MainAgentModelBindingRequest,
-    MainAgentModelBindingSummary,
-    MainAgentModelCandidateListResponse,
-    MainAgentModelCandidateProviderSummary,
-    MainAgentModelCandidateSummary,
-    MainAgentModelCapabilities,
     MainAgentRunApprovalWait,
     MainAgentRunCheckpoint,
     MainAgentRunApprovalRequest,
@@ -24,8 +13,6 @@ from mini_agent.interfaces import (
     MainAgentRunInterruptRequest,
     MainAgentRunResumeRequest,
     MainAgentRunSummary,
-    MainAgentRuntimeDiagnostics,
-    MainAgentRoutingDiagnostics,
     MainAgentWorkspaceRuntimeSummary,
     MainAgentWorkspaceSummary,
     MainAgentWorkspaceSwitchRequest,
@@ -41,16 +28,33 @@ from mini_agent.interfaces import (
     MainAgentSessionModelSelectionRequest,
     MainAgentSessionModelSelectionResponse,
     MainAgentSessionRuntimePolicyResponse,
-    ModelRouteCandidateDiagnostics,
-    ModelRouteDiagnostics,
     MainAgentSessionShareRequest,
     MainAgentSessionSkillRequest,
     MainAgentSessionSkillResponse,
-    StudioProviderListResponse,
-    StudioProviderSummary,
-    SystemHealthResponse,
+)
+from mini_agent.interfaces.channel import ChannelMessageRequest, ChannelMessageResponse
+from mini_agent.interfaces.common import ApiEnvelope
+from mini_agent.interfaces.model import (
+    MainAgentModelBindingDiagnostics,
+    MainAgentModelBindingRecord,
+    MainAgentModelBindingRequest,
+    MainAgentModelBindingSummary,
+    MainAgentModelCandidateListResponse,
+    MainAgentModelCandidateProviderSummary,
+    MainAgentModelCandidateSummary,
+    MainAgentModelCapabilities,
+)
+from mini_agent.interfaces.ops import StudioProviderListResponse, StudioProviderSummary
+from mini_agent.interfaces.surface_payload_adapter import (
     surface_payload_from_dto,
     surface_payload_list_from_dtos,
+)
+from mini_agent.interfaces.system import (
+    MainAgentRuntimeDiagnostics,
+    MainAgentRoutingDiagnostics,
+    ModelRouteCandidateDiagnostics,
+    ModelRouteDiagnostics,
+    SystemHealthResponse,
 )
 
 

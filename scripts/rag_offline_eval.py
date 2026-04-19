@@ -13,7 +13,7 @@ SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from mini_agent.rag import HybridSearchStore
+from mini_agent.rag.lightweight_hybrid import HybridSearchStore
 
 
 def _load_dataset(dataset_path: Path) -> list[dict[str, Any]]:

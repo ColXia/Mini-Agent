@@ -27,17 +27,22 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from mini_agent.agent_core.engine import TurnExecutionResult, TurnStopReason
-from mini_agent.application import (
+from mini_agent.application.use_cases.agent_interaction_application_service import (  # noqa: E402
     AgentInteractionApplicationService,
-    ChannelIngressUseCases,
+)
+from mini_agent.application.use_cases.channel_ingress_use_cases import ChannelIngressUseCases  # noqa: E402
+from mini_agent.application.use_cases.run_control_application_service import (  # noqa: E402
     RunControlApplicationService,
-    SessionTaskService,
+)
+from mini_agent.application.use_cases.session_task_service import SessionTaskService  # noqa: E402
+from mini_agent.application.user_services.service_assembly import (  # noqa: E402
     resolve_runtime_backed_user_service_ports,
 )
 from mini_agent.config import AgentConfig, Config, LLMConfig, ToolsConfig
-from mini_agent.interfaces import ChannelMessageRequest, MainAgentChatRequest
+from mini_agent.interfaces.agent import MainAgentChatRequest
+from mini_agent.interfaces.channel import ChannelMessageRequest
 from mini_agent.runtime.main_agent_runtime_manager import MainAgentRuntimeManager
-from mini_agent.session import ConversationBindingService, ConversationBindingStore
+from mini_agent.session.bindings import ConversationBindingService, ConversationBindingStore
 
 
 @dataclass(frozen=True)
@@ -252,7 +257,7 @@ def _new_gateway_use_cases(
     )
     run_control_service = RunControlApplicationService(
         run_runtime=ports.run_runtime,
-        session_tasks=ports.session_task_port,
+        session_run_lookup=ports.session_task_port,
     )
     interaction_service = AgentInteractionApplicationService(
         session_task_service=session_task_service,

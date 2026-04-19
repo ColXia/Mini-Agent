@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, AsyncIterator, Protocol
 
-from mini_agent.interfaces import MainAgentChatRequest, MainAgentChatResponse
+from mini_agent.interfaces.agent import MainAgentChatRequest, MainAgentChatResponse
 
 
 class RemoteChatServicePort(Protocol):

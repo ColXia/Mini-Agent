@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from mini_agent.interfaces import (
+from mini_agent.interfaces.ops import (
     StudioProviderModelDiscoveryRequest,
     StudioProviderUpsertRequest,
     StudioProviderValidationRequest,

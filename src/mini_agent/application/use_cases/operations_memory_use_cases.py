@@ -7,7 +7,7 @@ from pathlib import Path
 
 from fastapi import HTTPException
 
-from mini_agent.interfaces import (
+from mini_agent.interfaces.ops import (
     StudioMemoryDailyResponse,
     StudioMemoryNote,
     StudioMemorySearchResponse,

@@ -43,9 +43,9 @@ from mini_agent.model_manager.failover import ProviderFailoverError
 from mini_agent.model_manager.model_registry_service import ModelRegistryService
 from mini_agent.agent_core.context.turn_context import AgentPreparedTurnContextService
 
-from mini_agent.llm import LLMClient
+from mini_agent.llm.llm_wrapper import LLMClient
 from mini_agent.logger import AgentLogger
-from mini_agent.schema import LLMCompletionResult, LLMStreamEvent, Message, ToolCall
+from mini_agent.schema.schema import LLMCompletionResult, LLMStreamEvent, Message, ToolCall
 from mini_agent.tools.base import Tool, ToolResult
 
 

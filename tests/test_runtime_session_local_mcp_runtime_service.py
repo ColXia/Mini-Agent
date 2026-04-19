@@ -3,8 +3,8 @@ from __future__ import annotations
 import asyncio
 from types import SimpleNamespace
 
-from mini_agent.runtime.support.session_local_agent_runtime_handler import LocalSessionAgentRebuildOutcome
-from mini_agent.runtime.support.session_local_mcp_runtime_service import LocalSessionMcpRuntimeService
+from mini_agent.tui.local_agent_runtime_handler import LocalSessionAgentRebuildOutcome
+from mini_agent.tui.local_mcp_runtime_service import LocalSessionMcpRuntimeService
 
 
 def test_local_session_mcp_runtime_service_reloads_with_selected_identity() -> None:

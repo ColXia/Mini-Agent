@@ -24,7 +24,7 @@ from mini_agent.agent_core.context.turn_context_types import (
     coerce_runtime_turn_context,
     normalize_turn_context_items,
 )
-from mini_agent.schema import Message
+from mini_agent.schema.schema import Message
 
 
 @dataclass(frozen=True)

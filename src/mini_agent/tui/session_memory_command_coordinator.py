@@ -1,4 +1,4 @@
-"""Shared TUI memory-command orchestration."""
+﻿"""Shared TUI memory-command orchestration."""
 
 from __future__ import annotations
 
@@ -64,3 +64,5 @@ class TuiSessionMemoryCommandCoordinator:
 
 
 __all__ = ["TuiSessionMemoryCommandCoordinator"]
+
+

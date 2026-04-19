@@ -12,7 +12,10 @@ from apps.agent_studio_gateway.composition import GatewayComposition, GatewayCom
 from apps.agent_studio_gateway.main_agent_router import create_main_agent_router
 from apps.agent_studio_gateway.ops_auth import require_ops_auth
 from apps.agent_studio_gateway.ops_router import OpsRouterDependencies, create_ops_router
-from mini_agent.application.use_cases import MemoryOperationsUseCases, ProviderOperationsUseCases
+from mini_agent.application.use_cases.operations_memory_use_cases import MemoryOperationsUseCases
+from mini_agent.application.use_cases.operations_provider_use_cases import (
+    ProviderOperationsUseCases,
+)
 from subprograms.knowledge_base.gateway.router import router as knowledge_base_router
 from subprograms.memory_manager.gateway.router import router as memory_manager_router
 

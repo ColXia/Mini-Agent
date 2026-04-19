@@ -9,7 +9,7 @@ from mini_agent.logger import AgentLogger
 from mini_agent.memory.automation import TurnMemoryAutomation
 from mini_agent.memory.memoria_runtime import WorkspaceMemoriaRuntime
 from mini_agent.memory.runtime_task_memory import TurnRuntimeTaskMemory
-from mini_agent.schema import FunctionCall, LLMCompletionResult, Message, ToolCall
+from mini_agent.schema.schema import FunctionCall, LLMCompletionResult, Message, ToolCall
 from mini_agent.agent_core.context.turn_context import RuntimeTurnContext
 
 

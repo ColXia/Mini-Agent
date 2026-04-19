@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-from mini_agent.agent_core.execution import (
-    ApprovalEngine,
+from mini_agent.agent_core.execution.permissions.approval import ApprovalEngine
+from mini_agent.agent_core.execution.permissions.policy import (
     PermissionDecision,
     PermissionPolicy,
     PermissionRule,
-    ToolBuilder,
-    ToolKind,
 )
-from mini_agent.agent_core.execution.tools import DeclarativeToolAttributes
+from mini_agent.agent_core.execution.tools.attributes import DeclarativeToolAttributes, ToolKind
+from mini_agent.agent_core.execution.tools.builder import ToolBuilder
 from mini_agent.tools.base import ToolResult
 
 

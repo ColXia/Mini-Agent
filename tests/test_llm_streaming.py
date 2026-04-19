@@ -4,8 +4,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from mini_agent.llm import AnthropicClient, OpenAIClient, build_protocol_execution_profile
-from mini_agent.schema import LLMCompletionResult, LLMProvider, LLMStreamEventType, Message
+from mini_agent.llm.anthropic_client import AnthropicClient
+from mini_agent.llm.openai_client import OpenAIClient
+from mini_agent.llm.protocol_binding import build_protocol_execution_profile
+from mini_agent.schema.schema import LLMCompletionResult, LLMProvider, LLMStreamEventType, Message
 
 
 class _AsyncStream:

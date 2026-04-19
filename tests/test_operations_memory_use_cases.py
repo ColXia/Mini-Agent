@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-from mini_agent.application.use_cases import MemoryOperationsUseCases
+from mini_agent.application.use_cases.operations_memory_use_cases import MemoryOperationsUseCases
 from mini_agent.tools.note_tool import MarkdownMemoryStore
 
 

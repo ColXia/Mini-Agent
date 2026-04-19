@@ -6,7 +6,7 @@ import argparse
 import os
 from pathlib import Path
 
-from mini_agent import cli
+import mini_agent.cli as cli
 from mini_agent.dev.runtime_stack_manager import RuntimeStackStatus
 
 
@@ -84,7 +84,7 @@ def test_run_stack_command_status_prints(monkeypatch, capsys, tmp_path: Path) ->
                 message="qqbot .env not found",
             )
 
-    monkeypatch.setattr("mini_agent.dev.RuntimeStackManager", _DummyManager)
+    monkeypatch.setattr("mini_agent.dev.runtime_stack_manager.RuntimeStackManager", _DummyManager)
     cli.run_stack_command(_stack_args("status", tmp_path))
     text = capsys.readouterr().out
     assert "Runtime stack status" in text
@@ -122,7 +122,7 @@ def test_run_stack_command_up_attaches_tui(monkeypatch, tmp_path: Path) -> None:
         captured["tui_workspace"] = args.workspace
         captured["tui_prompt"] = args.prompt
 
-    monkeypatch.setattr("mini_agent.dev.RuntimeStackManager", _DummyManager)
+    monkeypatch.setattr("mini_agent.dev.runtime_stack_manager.RuntimeStackManager", _DummyManager)
     monkeypatch.setattr(cli, "run_tui_mode", _fake_run_tui_mode)
 
     args = _stack_args("up", tmp_path)

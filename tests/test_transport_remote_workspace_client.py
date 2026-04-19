@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
-from mini_agent.interfaces import MainAgentWorkspaceSwitchRequest
+from mini_agent.interfaces.agent import MainAgentWorkspaceSwitchRequest
 from mini_agent.transport.remote_workspace_client import RemoteWorkspaceClient
 
 

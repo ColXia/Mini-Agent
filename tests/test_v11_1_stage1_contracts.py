@@ -4,10 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from mini_agent.agent_core.contracts import (
+from mini_agent.agent_core.contracts.approval_wait import (
     ApprovalDecision,
     ApprovalWait,
     ApprovalWaitState,
+)
+from mini_agent.agent_core.contracts.run_control_state import (
     RunControlMode,
     RunControlState,
     RunWaitKind,

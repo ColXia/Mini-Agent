@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from types import SimpleNamespace
 
@@ -66,3 +66,5 @@ def test_tui_turn_state_coordinator_manages_resume_and_remote_turn_state() -> No
     assert session.projection.busy is False
     assert session.projection.running_state == ""
     assert session.projection.pending_approvals == [{"token": "tok-r"}]
+
+

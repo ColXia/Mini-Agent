@@ -14,13 +14,13 @@ from fastapi import HTTPException
 from mini_agent.agent_core.engine import Agent
 from mini_agent.agent_core.kernel import AgentKernelBuildOptions, build_agent_kernel
 from mini_agent.application.user_services.model_runtime_adapter import AgentModelRuntimeAdapter
-from mini_agent.application.user_services import (
+from mini_agent.application.user_services.service_assembly import (
     RuntimeBackedUserServicePorts,
     UserServiceAssembly,
     assemble_typed_user_services,
     resolve_runtime_backed_user_service_ports,
 )
-from mini_agent.application.use_cases import ChannelIngressUseCases
+from mini_agent.application.use_cases.channel_ingress_use_cases import ChannelIngressUseCases
 from mini_agent.application.use_cases.agent_interaction_application_service import AgentInteractionApplicationService
 from mini_agent.application.use_cases.run_control_application_service import RunControlApplicationService
 from mini_agent.application.use_cases.session_task_service import SessionTaskService
@@ -28,13 +28,13 @@ from mini_agent.application.user_services.agent_user_service import AgentUserSer
 from mini_agent.application.user_services.model_user_service import ModelUserService
 from mini_agent.application.user_services.workspace_user_service import WorkspaceUserService
 from mini_agent.config_bootstrap import load_entry_config, load_noninteractive_config
-from mini_agent.interfaces import MainAgentChatRequest, MainAgentChatResponse, MainAgentRuntimeDiagnostics, SystemHealthResponse
-from mini_agent.model_manager import AgentModelService
+from mini_agent.interfaces.agent import MainAgentChatRequest, MainAgentChatResponse
+from mini_agent.interfaces.system import MainAgentRuntimeDiagnostics, SystemHealthResponse
+from mini_agent.model_manager.agent_model_service import AgentModelService
 from mini_agent.runtime.main_agent_runtime_manager import MainAgentRuntimeManager
-from mini_agent.runtime.support.main_agent_runtime_policy_loader import load_main_agent_runtime_policy
-from mini_agent.runtime.workspace_runtime_adapter import MainAgentWorkspaceRuntimeAdapter
-from mini_agent.session.binding import conversation_binding_store
-from mini_agent.session.conversation_binding_service import ConversationBindingService
+from mini_agent.runtime.orchestration.session_runtime_policy_coordinator import load_main_agent_runtime_policy
+from mini_agent.workspace_runtime.boundary import MainAgentWorkspaceRuntimeAdapter
+from mini_agent.session.bindings import ConversationBindingService, conversation_binding_store
 from mini_agent.tools.mcp_loader import cleanup_mcp_connections
 from gateway.security.instance_lock import GatewayInstanceLock, GatewayInstanceLockError
 
@@ -268,8 +268,7 @@ class GatewayComposition:
         return self._channel_ingress_use_cases
 
     async def get_runtime_diagnostics(self) -> MainAgentRuntimeDiagnostics:
-        runtime = await self.get_runtime_manager().get_runtime_diagnostics()
-        return MainAgentRuntimeDiagnostics(**runtime.__dict__)
+        return await self.get_runtime_manager().get_runtime_diagnostics()
 
     async def build_health_response(self) -> SystemHealthResponse:
         return SystemHealthResponse(
@@ -341,3 +340,4 @@ class GatewayComposition:
             list_models=list_models,
             require_ops_auth=self._require_ops_auth,
         )
+

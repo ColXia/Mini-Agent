@@ -18,10 +18,11 @@ from mini_agent.agent_core.engine import (
     StepTransition,
     TurnStopReason,
 )
-from mini_agent.agent_core.execution import ApprovalEngine, PermissionPolicy
+from mini_agent.agent_core.execution.permissions.approval import ApprovalEngine
+from mini_agent.agent_core.execution.permissions.policy import PermissionPolicy
 from mini_agent.logger import AgentLogger
 from mini_agent.security.policy import RuntimePolicy, RuntimePolicyEngine
-from mini_agent.schema import FunctionCall, LLMCompletionResult, ToolCall
+from mini_agent.schema.schema import FunctionCall, LLMCompletionResult, ToolCall
 from mini_agent.tools.base import Tool, ToolResult
 
 

@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-from mini_agent.llm import (
-    LLMClient,
-    AnthropicClient,
-    OpenAIClient,
-    ProtocolRequestPolicy,
-    build_protocol_execution_profile,
-)
+from mini_agent.llm.anthropic_client import AnthropicClient
+from mini_agent.llm.llm_wrapper import LLMClient
+from mini_agent.llm.openai_client import OpenAIClient
+from mini_agent.llm.protocol_binding import ProtocolRequestPolicy, build_protocol_execution_profile
 from mini_agent.model_manager.rectifier import RequestRectifierOptions
-from mini_agent.schema import LLMProvider
+from mini_agent.schema.schema import LLMProvider
 
 
 def test_protocol_binding_normalizes_minimax_anthropic_profile():

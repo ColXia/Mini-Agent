@@ -10,7 +10,7 @@ from typing import Any
 from mini_agent.desktop.gateway_supervisor import DesktopGatewaySupervisor
 from mini_agent.desktop.gateway_transport_binding import DesktopGatewayTransportBinding
 from mini_agent.desktop.window import create_desktop_main_window
-from mini_agent.transport import GatewayClient
+from mini_agent.transport.gateway_client import GatewayClient
 
 DESKTOP_GATEWAY_TIMEOUT_SECONDS = 15.0
 

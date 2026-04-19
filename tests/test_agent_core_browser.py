@@ -6,15 +6,9 @@ import base64
 
 import pytest
 
-from mini_agent.agent_core import (
-    AgentBrowserToolkit,
-    BrowserActCommand,
-    BrowserNavigationError,
-    BrowserNavigationPolicy,
-    BrowserProfile,
-    CdpClient,
-    ChromeLifecycleManager,
-)
+from mini_agent.agent_core.browser.cdp import BrowserActCommand, BrowserNavigationError, BrowserNavigationPolicy, CdpClient
+from mini_agent.agent_core.browser.chrome import BrowserProfile, ChromeLifecycleManager
+from mini_agent.agent_core.browser.tool import AgentBrowserToolkit
 
 
 @pytest.mark.asyncio

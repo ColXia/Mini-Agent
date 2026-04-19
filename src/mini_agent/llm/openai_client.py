@@ -9,7 +9,7 @@ from openai import AsyncOpenAI
 from mini_agent.model_manager.rectifier import rectify_openai_request
 
 from ..retry import RetryConfig, async_retry
-from ..schema import (
+from ..schema.schema import (
     FunctionCall,
     LLMCompletionResult,
     LLMStreamEvent,

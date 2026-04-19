@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 from pathlib import Path
@@ -210,3 +210,5 @@ def test_runtime_session_agent_runtime_handler_preserves_legacy_manager_wiring()
     assert session.projection.pending_skill_reload_reason == ""
     assert selected_identities == [("preset", "provider-next", "model-next")]
     assert pending_identities == [None]
+
+

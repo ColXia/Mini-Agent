@@ -16,8 +16,8 @@ from mini_agent.agent_core.routing import (
     RouteResolution,
     RoutingContext,
 )
-from mini_agent.application.support import ManagedSessionTurn
-from mini_agent.interfaces import MainAgentRoutingDiagnostics
+from mini_agent.application.support.managed_session_turn import ManagedSessionTurn
+from mini_agent.interfaces.system import MainAgentRoutingDiagnostics
 from mini_agent.model_manager.runtime import get_model_route_diagnostics_state as _get_model_route_diagnostics_state
 
 from .agent_delegation_execution_handler import (

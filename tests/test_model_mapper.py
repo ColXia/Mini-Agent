@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from mini_agent.model_manager import (
-    ProviderAPIType,
-    ProviderCatalog,
-    ProviderConfig,
+from mini_agent.model_manager.model_mapper import (
     ProviderRouteSelector,
     RouteRequirementProfile,
     map_model_for_provider,
+)
+from mini_agent.model_manager.provider import (
+    ProviderAPIType,
+    ProviderCatalog,
+    ProviderConfig,
 )
 
 

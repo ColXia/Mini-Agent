@@ -14,7 +14,7 @@ class RunControlApplicationService:
     """Resolve user control actions against run truth."""
 
     run_runtime: RunRuntimePort
-    session_tasks: SessionTaskPort | None = None
+    session_run_lookup: SessionTaskPort | None = None
 
     async def get_run(self, run_id: str) -> Any:
         return await self.run_runtime.get_run(run_id)
@@ -149,9 +149,9 @@ class RunControlApplicationService:
         return await self.deny_wait(run_id, token=token, source=source, reason=reason)
 
     async def _try_resolve_run_id(self, session_id: str) -> str | None:
-        if self.session_tasks is None:
+        if self.session_run_lookup is None:
             return None
-        return await self.session_tasks.resolve_run_id_for_session(session_id)
+        return await self.session_run_lookup.resolve_run_id_for_session(session_id)
 
     async def _require_run_id(self, session_id: str) -> str:
         run_id = await self._try_resolve_run_id(session_id)
