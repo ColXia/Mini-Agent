@@ -1,5 +1,112 @@
 # Findings
 
+## 2026-04-19 v11.1 Commands Router Hard Cut Findings
+
+- The next meaningful physical mismatch after the runtime root-shell shrink is inside `commands/`, not the already-markerized top-level package roots.
+- `transport/` and `interfaces/` are already marker-only package roots, so they are not the strongest current alignment seam.
+- The `v11.1` concrete tree expects command ownership to be split across:
+  - `catalog.py`
+  - `parser.py`
+  - `execution.py`
+  - `metadata.py`
+  - `completions.py`
+- The active repo still keeps one older combined owner:
+  - `src/mini_agent/commands/router.py`
+- Active source still depends on that older owner in exactly the user-surface-heavy places we want to clean next:
+  - `src/mini_agent/cli_interactive.py`
+  - `src/mini_agent/tui/app.py`
+  - `tests/test_command_router.py`
+- `catalog.py` currently also mixes raw catalog access with command-usage/help/example/completion shaping, so it is a good candidate to split toward the target-tree ownership line during the same cut.
+- The hard cut landed cleanly:
+  - `commands/router.py` is now deleted
+  - parsing/dispatch truth now lives in `commands/parser.py`
+  - usage/help/example/action truth now lives in `commands/metadata.py`
+  - completion/suggestion truth now lives in `commands/completions.py`
+- This materially improves the physical story taught by the repo:
+  - `cli_interactive.py` and `tui/app.py` no longer depend on the deleted router owner
+  - `catalog.py` no longer re-owns metadata/completion helpers that belong in separate target-tree modules
+- After this cut, the strongest remaining user-side mismatch shifts back to the still-heavy CLI entrance roots:
+  - `src/mini_agent/cli.py`
+  - `src/mini_agent/cli_interactive.py`
+
+## 2026-04-19 v11.1 Runtime And Root Namespace Hard Cut Findings
+
+- Once `application` was fully cut back to marker packages, the next physical mismatch became much easier to see:
+  - several runtime subpackage roots still exported maintained owners even though active code no longer depended on those package roots
+  - `workspace_runtime.adapters` still exposed `DirectWorkspaceExecutor` through a convenience package layer
+  - `mini_agent.agent_core` root itself remained a large aggregate export surface used mostly by tests
+- The `agent_core` root cut mattered for more than style.
+- It exposed and then resolved a real structural issue:
+  - `workspace_runtime.runtime_bundle` imports sandbox primitives under `agent_core`
+  - the old `mini_agent.agent_core/__init__.py` eagerly importing kernel/runtime-facing symbols made that path sensitive to import order
+  - once the root package became a marker, that circularity stopped being part of the runtime path at all
+- This is exactly the kind of benefit hard alignment is supposed to create.
+- Convenience export packages do not just blur ownership.
+- They also hide initialization coupling until one refactor happens to disturb the import order.
+- Cutting `desktop`, `tui`, and `memory` roots in the same round was a useful low-risk follow-through:
+  - those packages were no longer true owners
+  - but leaving them rich still taught the wrong import habit to tests and future entry wiring
+- Practical result:
+  - the repo now tells a more consistent story across three layers at once:
+    - runtime subdomains are directories, not export hubs
+    - workspace-runtime adapters are concrete modules, not a package shortcut
+    - `agent_core` root is no longer a shadow public API
+- The next remaining decision is no longer inside the already-cut architecture core.
+- It is around the remaining still-rich top-level domains like `transport`, `interfaces`, `ops`, `llm`, `security`, and `schema`:
+  - which of those are true maintained package surfaces
+  - and which are still just convenience export bundles that should be cut the same way
+
+## 2026-04-19 v11.1 Application Package Root Hard Cut Findings
+
+- The previous alignment work had already pushed active code off `mini_agent.application`, but the package family itself was still teaching the old habit:
+  - root package exports
+  - subpackage exports
+  - support/facade/ports convenience surfaces
+- That is a subtle but important source of future drift.
+- Even when active code is already clean, leaving the package roots rich and attractive means later work naturally slides back to the shortcut instead of the real owner.
+- The useful move here was to finish the job across the full family, not just one package:
+  - `application`
+  - `application.use_cases`
+  - `application.user_services`
+  - `application.support`
+  - `application.facades`
+  - `application.ports`
+- Cutting only one of those would still leave the package tree teaching mixed rules.
+- Cutting all of them together makes the physical shape much more honest:
+  - package roots identify domains
+  - concrete modules own behavior
+  - tests now also model that same rule instead of preserving the old convenience path
+- This slice also exposed why script/readiness cleanup had to happen first:
+  - once scripts and gateway composition were already on concrete owners
+  - shrinking the remaining package roots became low-risk and mechanical instead of speculative
+- Practical result:
+  - `application/` no longer behaves like a secondary facade framework
+  - future refactors inside the application domain can move individual owner modules without carrying another public convenience layer by default
+  - the next alignment work can move outward to other still-convenient namespace surfaces instead of revisiting `application/`
+
+## 2026-04-19 v11.1 Script And Readiness Entry Hard Cut Findings
+
+- The repo had already deleted the old application surface owners physically, but the readiness chain was still quietly preserving that worldview in two places:
+  - `scripts/p23_runtime_baseline.py` still depended on the deleted surface-builder vocabulary
+  - `scripts/terminal_readiness_gate.py` still referenced a test file that no longer existed
+- That is exactly the kind of residue that makes a hard refactor look finished while teaching future work the wrong import habits.
+- The useful fix was not another wrapper.
+- It was to force the scripts onto the same concrete owner path as the rest of the active runtime:
+  - resolve typed runtime-backed ports
+  - build `SessionTaskService`
+  - build `AgentInteractionApplicationService`
+  - run the script from those real owners directly
+- Tightening the two walkthrough scripts at the same time mattered for the same reason:
+  - even if `mini_agent.application` can still be imported
+  - leaving active scripts on that root package keeps training the repo toward package-root convenience instead of physical owner alignment
+- The new script-side hygiene test closes an especially weak seam:
+  - entry scripts often escape import-boundary scrutiny because they sit outside `src/`
+  - once they drift, readiness tooling starts normalizing deleted or transitional owners again
+- Practical result:
+  - the runtime-readiness chain now reflects the real `v11.1` application ownership
+  - deleted surface paths are no longer part of the active script/tooling story
+  - the next alignment question is cleaner and narrower: whether the `application` package root itself should remain a stable public surface or receive the same package-marker treatment as other domains
+
 ## 2026-04-17 P42.5 Desktop Provider-Model Shortcut Workflow Findings
 
 - After `P42.4`, the provider setup flow was truthful, but it still taught a split operator habit:
@@ -7614,3 +7721,26 @@
     - `workspace_runtime/runtime_bundle.py`, `snapshot_store.py`, `workspace_executor.py`, `mutation_ledger.py`
     - `runtime/support/*` and other real runtime owners
   - the facade shells no longer hide dependency cycles or imply that package roots are maintained service surfaces
+
+## 2026-04-19 v11.1 Session Model And Gateway Boundary Findings
+
+- once the first facade cleanup landed, the next remaining drift was higher-level but still real:
+  - `session` and `model_manager` package roots were still acting like import hubs
+  - gateway source still relied on `application.use_cases` and `application.user_services` package roots
+- this is a different kind of risk than the earlier runtime/commands/tools loops.
+  - here the problem is less about immediate circular import failures
+  - and more about teaching future code that the package root or subpackage root is the natural place to import business owners from
+- the healthy move was therefore:
+  - keep `application` root stable for now
+  - but cut `session` and `model_manager` package roots down to markers
+  - and force active gateway/runtime/tui/desktop/cli/walkthrough code onto concrete owned modules
+- another useful signal surfaced during full-suite verification:
+  - `scripts/` matter for physical alignment too
+  - one walkthrough still imported the old `session` package root
+  - adding scripts to the new boundary hygiene tests prevented the repo from quietly keeping a second, script-only architecture story
+- practical result:
+  - the codebase now communicates concrete ownership more honestly around:
+    - session defaults / projections / feedback
+    - model-manager runtime/provider/binding utilities
+    - gateway use-case and user-service entrypoints
+  - future alignment work can now focus more cleanly on the remaining `application` root script residue and obsolete script surfaces instead of package-root import sprawl

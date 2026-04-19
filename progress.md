@@ -1,5 +1,150 @@
 # Progress
 
+## 2026-04-19 v11.1 Commands Router Hard Cut
+
+- [completed] re-read the active `v11.1` guidance relevant to the next user-surface alignment seam:
+  - `docs/V11_1_CONCRETE_MODULE_TREE_2026-04-17.md`
+  - `docs/V11_1_USER_SURFACE_ARCHITECTURE_2026-04-17.md`
+  - `docs/V11_1_USER_SERVICE_TO_KERNEL_INTERFACE_DESIGN_2026-04-17.md`
+- [completed] confirmed the next stronger physical mismatch is in `commands/`, not in already-markerized package roots:
+  - `src/mini_agent/transport/__init__.py`
+  - `src/mini_agent/interfaces/__init__.py`
+- [completed] audited the active command-owner dependency surface:
+  - `src/mini_agent/commands/router.py` still owns parsing + dispatch + suggestion logic
+  - `src/mini_agent/cli_interactive.py` and `src/mini_agent/tui/app.py` still import that older router seam directly
+  - `src/mini_agent/commands/catalog.py` still mixes raw catalog truth with metadata/completion shaping helpers
+- [completed] landed the `v11.1` command-tree split:
+  - added `src/mini_agent/commands/parser.py`
+  - added `src/mini_agent/commands/metadata.py`
+  - added `src/mini_agent/commands/completions.py`
+  - deleted `src/mini_agent/commands/router.py`
+- [completed] rewired active source to the new owners:
+  - `src/mini_agent/commands/execution.py`
+  - `src/mini_agent/cli_interactive.py`
+  - `src/mini_agent/tui/app.py`
+- [completed] rewired tests and added hard-cut guards:
+  - replaced `tests/test_command_router.py` with `tests/test_commands_parser.py`
+  - added `tests/test_commands_router_hard_cut.py`
+  - added `tests/test_commands_catalog_owner_hard_cut.py`
+  - updated `tests/test_command_catalog.py` imports to the new owner modules
+- [completed] verified the slice with focused and full checks:
+  - `python -m compileall src/mini_agent/commands src/mini_agent/cli_interactive.py src/mini_agent/tui/app.py tests/test_command_catalog.py tests/test_commands_parser.py tests/test_commands_router_hard_cut.py tests/test_commands_catalog_owner_hard_cut.py`
+  - `pytest tests/test_command_catalog.py tests/test_commands_parser.py tests/test_commands_router_hard_cut.py tests/test_commands_catalog_owner_hard_cut.py tests/test_cli_submission_loop.py tests/test_tui_app.py -q`
+  - result: `192 passed`
+  - `pytest -q`
+  - result: `1562 passed, 15 skipped`
+- [next] continue `v11.1` physical alignment on the remaining user-surface root shells:
+  - `src/mini_agent/cli.py`
+  - `src/mini_agent/cli_interactive.py`
+
+## 2026-04-19 v11.1 Runtime And Root Namespace Hard Cut
+
+- [completed] reduced the remaining runtime subpackage convenience roots to marker-only packages:
+  - `src/mini_agent/runtime/handlers/__init__.py`
+  - `src/mini_agent/runtime/live_control/__init__.py`
+  - `src/mini_agent/runtime/orchestration/__init__.py`
+  - `src/mini_agent/runtime/read_models/__init__.py`
+- [completed] reduced `src/mini_agent/workspace_runtime/adapters/__init__.py` to a marker package and retargeted active imports to the concrete owner:
+  - `src/mini_agent/workspace_runtime/adapters/direct_executor.py`
+  - updated `bash_tool`, `file_tools`, and related tests to import the direct executor explicitly
+- [completed] reduced `src/mini_agent/agent_core/__init__.py` to a marker-only package:
+  - active source was already off the root package
+  - the remaining root-package tests were retargeted to concrete `browser/`, `cron/`, `delegation/`, `routing/`, `session/`, `security/`, `skills/`, `history/`, `context/`, `post_turn.py`, and `runtime_bindings.py` owners
+  - `src/mini_agent/workspace_runtime/runtime_bundle.py` now imports `DirectWorkspaceExecutor` directly, and the agent-core root hard cut also removed the import-order circularity that had been masked by the old root export surface
+- [completed] reduced additional low-risk top-level package roots to markers:
+  - `src/mini_agent/desktop/__init__.py`
+  - `src/mini_agent/tui/__init__.py`
+  - `src/mini_agent/memory/__init__.py`
+  - updated the remaining tests to import concrete desktop/memory owners directly
+- [completed] added new namespace hygiene guards for the new hard-cut package roots:
+  - `tests/test_runtime_handlers_namespace_boundary_hygiene.py`
+  - `tests/test_runtime_live_control_namespace_boundary_hygiene.py`
+  - `tests/test_runtime_orchestration_namespace_boundary_hygiene.py`
+  - `tests/test_runtime_read_models_namespace_boundary_hygiene.py`
+  - `tests/test_workspace_runtime_adapters_namespace_boundary_hygiene.py`
+  - `tests/test_agent_core_namespace_root_boundary_hygiene.py`
+  - `tests/test_desktop_namespace_boundary_hygiene.py`
+  - `tests/test_tui_namespace_boundary_hygiene.py`
+  - `tests/test_memory_namespace_boundary_hygiene.py`
+- [completed] verified the slice with focused and full checks:
+  - `.\\.venv\\Scripts\\python.exe -m pytest tests/test_runtime_handlers_namespace_boundary_hygiene.py tests/test_runtime_live_control_namespace_boundary_hygiene.py tests/test_runtime_orchestration_namespace_boundary_hygiene.py tests/test_runtime_read_models_namespace_boundary_hygiene.py tests/test_workspace_runtime_adapters_namespace_boundary_hygiene.py tests/test_workspace_runtime_executor.py tests/test_bash_tool.py tests/test_file_tools_workspace_boundary.py tests/test_note_tool.py tests/test_docling_parse_tool.py -q`
+  - `.\\.venv\\Scripts\\python.exe -m pytest tests/test_agent_core_namespace_root_boundary_hygiene.py tests/test_agent_core_browser.py tests/test_agent_core_cron.py tests/test_agent_core_delegation.py tests/test_agent_core_exports.py tests/test_agent_core_routing.py tests/test_agent_core_security_pairing.py tests/test_agent_core_session.py tests/test_agent_core_skills.py tests/test_workspace_runtime_executor.py tests/test_bash_tool.py tests/test_docling_parse_tool.py -q`
+  - `.\\.venv\\Scripts\\python.exe -m pytest tests/test_desktop_namespace_boundary_hygiene.py tests/test_tui_namespace_boundary_hygiene.py tests/test_memory_namespace_boundary_hygiene.py tests/test_desktop_app.py tests/test_memory_core_baseline.py tests/test_tui_app.py -q`
+  - `.\\.venv\\Scripts\\python.exe -m pytest -q`
+  - result: `1414 passed, 15 skipped`
+- [next] continue the same package-root review for the remaining exported convenience domains that still need a v11.1 judgment:
+  - `transport/`
+  - `interfaces/`
+  - `ops/`
+  - `llm/`
+  - `security/`
+  - `schema/`
+  - other non-core package roots that still act as aggregate export surfaces
+
+## 2026-04-19 v11.1 Application Package Root Hard Cut
+
+- [completed] hard-cut the remaining `mini_agent.application` package-root convenience surfaces into marker-only packages:
+  - `src/mini_agent/application/__init__.py`
+  - `src/mini_agent/application/use_cases/__init__.py`
+  - `src/mini_agent/application/user_services/__init__.py`
+  - `src/mini_agent/application/support/__init__.py`
+  - `src/mini_agent/application/facades/__init__.py`
+  - `src/mini_agent/application/ports/__init__.py`
+- [completed] rewired active source and script code to concrete application owners only:
+  - gateway router/support imports now point at `support/interaction_request_adapter.py`
+  - chat/session use cases now point at `support/interaction_request_adapter.py`, `managed_session_turn.py`, and `surface_service_types.py`
+  - facade modules now point directly at `managed_session_turn.py`
+  - TUI and readiness/walkthrough scripts remain on concrete owner modules only
+- [completed] rewired tests off application package roots:
+  - `tests/test_v11_1_stage1_user_services.py`
+  - `tests/test_v11_1_stage3_user_service_assembly.py`
+  - `tests/test_gateway_composition.py`
+  - `tests/test_agent_studio_gateway_api_v1.py`
+  - `tests/test_operations_memory_use_cases.py`
+  - `tests/test_interaction_request_adapter.py`
+- [completed] added new hygiene guards for the whole `application` package family:
+  - `tests/test_application_namespace_root_boundary_hygiene.py`
+  - `tests/test_application_use_cases_namespace_boundary_hygiene.py`
+  - `tests/test_application_user_services_namespace_boundary_hygiene.py`
+  - `tests/test_application_support_namespace_boundary_hygiene.py`
+  - `tests/test_application_facades_namespace_boundary_hygiene.py`
+  - `tests/test_application_ports_namespace_boundary_hygiene.py`
+- [completed] verified the application hard-cut slice with focused and full checks:
+  - `.\\.venv\\Scripts\\python.exe -m pytest tests/test_application_namespace_root_boundary_hygiene.py tests/test_application_use_cases_namespace_boundary_hygiene.py tests/test_application_user_services_namespace_boundary_hygiene.py tests/test_application_support_namespace_boundary_hygiene.py tests/test_application_facades_namespace_boundary_hygiene.py tests/test_application_ports_namespace_boundary_hygiene.py tests/test_v11_1_stage1_user_services.py tests/test_v11_1_stage_h4_application_hard_cut.py -q`
+  - result: `32 passed`
+  - `.\\.venv\\Scripts\\python.exe -m pytest tests/test_application_support_namespace_boundary_hygiene.py tests/test_interaction_request_adapter.py tests/test_channel_ingress_use_cases.py tests/test_gateway_composition.py tests/test_agent_delegation_execution_handler.py tests/test_tui_app.py tests/test_agent_studio_gateway_api_v1.py -q`
+  - result: `189 passed`
+  - `.\\.venv\\Scripts\\python.exe -m pytest -q`
+  - result: `1396 passed, 15 skipped`
+- [next] continue the same delete-first review on the next remaining convenience namespaces outside `application/` that still aggregate real owners instead of acting as markers
+
+## 2026-04-19 v11.1 Script And Readiness Entry Hard Cut
+
+- [completed] hard-cut the last deleted-surface usage from the runtime-readiness script chain:
+  - `scripts/p23_runtime_baseline.py` no longer imports the deleted `build_runtime_backed_main_agent_surface_service`
+  - the benchmark now assembles `SessionTaskService + AgentInteractionApplicationService` directly through `resolve_runtime_backed_user_service_ports(...)`
+- [completed] tightened the remaining walkthrough script entrypoints to concrete application owners:
+  - `scripts/shared_session_gateway_walkthrough.py`
+  - `scripts/channel_ingress_gateway_walkthrough.py`
+  - both now import concrete `use_cases/*` and `user_services/service_assembly.py` owners directly instead of using the `mini_agent.application` package root
+- [completed] cleaned the readiness gate's stale deleted-test residue:
+  - `scripts/terminal_readiness_gate.py` no longer references the removed `tests/test_main_agent_surface_service.py`
+  - the targeted gate now includes `tests/test_v11_1_stage_h4_application_hard_cut.py`
+  - the targeted gate now includes `tests/test_script_surface_boundary_hygiene.py`
+- [completed] added script-side regression protection:
+  - new `tests/test_script_surface_boundary_hygiene.py` blocks scripts from importing deleted application surface entrypoints or the `mini_agent.application` package root as an owner shortcut
+  - `tests/test_terminal_readiness_gate.py` now asserts the targeted readiness batch follows the current `v11.1` boundary set
+- [completed] verified the slice with focused and full checks:
+  - `.\\.venv\\Scripts\\python.exe -m pytest tests/test_terminal_readiness_gate.py tests/test_script_surface_boundary_hygiene.py tests/test_channel_ingress_gateway_walkthrough.py tests/test_shared_session_gateway_walkthrough.py -q`
+  - result: `12 passed`
+  - `.\\.venv\\Scripts\\python.exe scripts/p23_runtime_baseline.py --runs 10 --workspace . --output-dir workspace/perf`
+  - result: benchmark completed and wrote fresh markdown/json artifacts under `workspace/perf`
+  - `.\\.venv\\Scripts\\python.exe -m pytest -q`
+  - result: `1386 passed, 15 skipped`
+- [next] continue `v11.1` physical alignment from the next remaining top-level boundary decision:
+  - decide whether `mini_agent.application/__init__.py` remains a stable external surface or should be reduced further now that active scripts no longer depend on it
+  - continue the same delete-first review for other remaining package-root convenience surfaces
+
 ## 2026-04-17 P42.5 Desktop Provider-Model Shortcut Workflow
 
 - [completed] extended the desktop `Providers` page with an in-context model shortcut panel:
@@ -9197,3 +9342,32 @@
   - targeted runtime/agent-core tests: `27 passed`
   - targeted command/tui/tool/workspace-runtime tests: `271 passed, 4 skipped`
   - full suite: `1380 passed, 15 skipped`
+
+## 2026-04-19 v11.1 Session Model And Gateway Boundary Session
+
+- [completed] reduced `session` and `model_manager` package roots to markers:
+  - `src/mini_agent/session/__init__.py`
+  - `src/mini_agent/model_manager/__init__.py`
+- [completed] retargeted active source to concrete session/model owners:
+  - gateway composition/runtime paths
+  - `cli.py`
+  - `desktop/window.py`
+  - `runtime/handlers/*`
+  - `runtime/read_models/*`
+  - `tui/*`
+  - `scripts/channel_ingress_gateway_walkthrough.py`
+- [completed] retargeted affected tests away from `session` / `model_manager` package-root imports and deleted the obsolete session package export test
+- [completed] tightened gateway source imports away from `application.use_cases` and `application.user_services` package roots:
+  - `src/apps/agent_studio_gateway/composition.py`
+  - `src/apps/agent_studio_gateway/main.py`
+  - `src/apps/agent_studio_gateway/main_agent_router.py`
+  - `src/apps/agent_studio_gateway/ops_router.py`
+- [completed] added new boundary hygiene guards:
+  - `tests/test_session_namespace_root_boundary_hygiene.py`
+  - `tests/test_model_manager_namespace_boundary_hygiene.py`
+  - `tests/test_application_use_cases_namespace_boundary_hygiene.py`
+  - `tests/test_application_user_services_namespace_boundary_hygiene.py`
+- [completed] verified this slice:
+  - targeted session/model/gateway tests: `298 passed`
+  - targeted gateway/application boundary tests: `57 passed`
+  - full suite: `1384 passed, 15 skipped`

@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 from mini_agent.commands.catalog import (
+    command_entries_for_surface,
+)
+from mini_agent.commands.completions import (
+    command_completion_tokens,
+)
+from mini_agent.commands.metadata import (
     build_command_example_text,
     build_command_help_text,
     build_command_usage_text,
     build_unknown_action_text,
     command_action_candidates,
-    command_completion_tokens,
-    command_entries_for_surface,
 )
 
 

@@ -1,4 +1,4 @@
-"""Full-screen terminal UI for Mini-Agent."""
+﻿"""Full-screen terminal UI for Mini-Agent."""
 
 from __future__ import annotations
 
@@ -30,18 +30,20 @@ from prompt_toolkit.styles import Style
 from prompt_toolkit.widgets import Frame, TextArea
 
 from mini_agent.agent_core.engine import Agent, PlannerExecutorHooks, TurnStopReason
-from mini_agent.application.support import ApplicationInteractionBinding
-from mini_agent.agent_core.session import SessionLifecyclePolicy
+from mini_agent.application.support.interaction_request_adapter import ApplicationInteractionBinding
+from mini_agent.agent_core.session.lifecycle import SessionLifecyclePolicy
 from mini_agent.agent_core.kernel import AgentKernelBuildOptions, build_agent_kernel
-from mini_agent.agent_core.execution import (
-    AgentLoopContext,
+from mini_agent.agent_core.context.loop_context import AgentLoopContext
+from mini_agent.agent_core.execution.agent_loop import (
     AgentSubmissionLoop,
-    CoordinatorStage,
     InMemoryLoopMessageBus,
-    format_minimal_workflow_report,
-    run_minimal_workflow_with_runner,
     wait_for_loop_event,
     wait_for_submission_completion,
+)
+from mini_agent.agent_core.execution.coordinator import CoordinatorStage
+from mini_agent.agent_core.execution.minimal_workflow import (
+    format_minimal_workflow_report,
+    run_minimal_workflow_with_runner,
 )
 from mini_agent.agent_core.context.context_compaction import estimate_tokens
 from mini_agent.memory.diagnostics import (
@@ -49,12 +51,15 @@ from mini_agent.memory.diagnostics import (
     memory_diagnostics_summary_line,
 )
 from mini_agent.memory.memoria_runtime import WorkspaceMemoriaRuntime
-from mini_agent.commands.catalog import (
+from mini_agent.commands.completions import (
+    command_completion_tokens,
+    suggest_command_name,
+)
+from mini_agent.commands.metadata import (
     build_command_example_text,
     build_command_help_text,
     build_command_usage_text,
     build_unknown_action_text,
-    command_completion_tokens,
 )
 from mini_agent.commands.execution import (
     CommandExecutionResult,
@@ -66,11 +71,10 @@ from mini_agent.commands.execution import (
     prepare_memory_command_plan,
     prepare_model_command_plan,
 )
-from mini_agent.commands.router import (
+from mini_agent.commands.parser import (
     CommandDispatcher,
     CommandParseError,
     parse_command_text,
-    suggest_command_name,
 )
 from mini_agent.agent_core.skills.workspace_support import (
     list_skill_entries,
@@ -82,22 +86,24 @@ from mini_agent.agent_core.skills.workspace_support import (
 from mini_agent.agent_core.skills.command_service import SkillCommandRequest
 from mini_agent.agent_core.skills.runtime_feedback import describe_skill_runtime_reload
 from mini_agent.config import Config
-from mini_agent.interfaces import (
-    MainAgentModelBindingRequest,
+from mini_agent.interfaces.agent import (
+    MainAgentDefaultSessionRequest,
     MainAgentRunApprovalRequest,
     MainAgentRunCancelRequest,
     MainAgentSessionApprovalRequest,
     MainAgentSessionContextRequest,
     MainAgentSessionControlRequest,
     MainAgentSessionCreateRequest,
-    MainAgentDefaultSessionRequest,
     MainAgentSessionForkRequest,
     MainAgentSessionMemoryRequest,
-    MainAgentSessionRuntimePolicyResponse,
     MainAgentSessionRenameRequest,
     MainAgentSessionRuntimePolicyRequest,
+    MainAgentSessionRuntimePolicyResponse,
     MainAgentSessionShareRequest,
     MainAgentSessionSkillRequest,
+)
+from mini_agent.interfaces.model import MainAgentModelBindingRequest
+from mini_agent.interfaces.surface_payload_adapter import (
     surface_payload_from_dto,
     surface_payload_list_from_dtos,
 )
@@ -110,18 +116,15 @@ from mini_agent.runtime.support.sandbox_state import (
     sandbox_network_summary,
     sandbox_policy_summary,
 )
-from mini_agent.runtime.support.session_backed_run_id import build_session_backed_run_id
-from mini_agent.runtime.support.session_local_agent_runtime_handler import LocalSessionAgentRuntimeHandler
-from mini_agent.runtime.support.session_local_mcp_runtime_service import LocalSessionMcpRuntimeService
-from mini_agent.runtime.support.runtime_policy_service import SessionRuntimePolicyService
-from mini_agent.runtime.support.session_agent_support import RuntimeSessionAgentSupport
+from mini_agent.runtime.live_control.run_control_store import RuntimeSessionRunControlStore
+from mini_agent.runtime.handlers.session_agent_runtime_handler import RuntimeSessionAgentSupport
 from mini_agent.runtime.live_control.session_cancel_service import SessionCancelService
-from mini_agent.runtime.support.session_control_error_service import SessionControlErrorService
+from mini_agent.runtime.handlers.session_agent_control_handler import SessionControlErrorService
 from mini_agent.runtime.read_models.session_model_identity_codec import RuntimeSessionModelIdentityCodec
 from mini_agent.runtime.read_models.session_payload_codec import RuntimeSessionPayloadCodec
 from mini_agent.runtime.support.tooling import reconfigure_agent_runtime_policy
-from mini_agent.session import (
-    SessionFeedbackService,
+from mini_agent.session.recovery_feedback import SessionFeedbackService
+from mini_agent.session.projections import (
     SessionPendingApprovalProjection,
     SessionRecoveryProjection,
     SessionSummaryProjection,
@@ -132,6 +135,8 @@ from mini_agent.tui.session_kb_command_coordinator import TuiSessionKbCommandCoo
 from mini_agent.tui.session_memory_command_coordinator import TuiSessionMemoryCommandCoordinator
 from mini_agent.tui.session_mcp_command_coordinator import TuiSessionMcpCommandCoordinator
 from mini_agent.tui.session_model_command_coordinator import TuiSessionModelCommandCoordinator
+from mini_agent.tui.local_agent_runtime_handler import LocalSessionAgentRuntimeHandler
+from mini_agent.tui.local_mcp_runtime_service import LocalSessionMcpRuntimeService
 from mini_agent.tui.session_remote_projector import TuiRemoteSessionProjector
 from mini_agent.tui.session_remote_turn_stream_coordinator import TuiRemoteTurnStreamCoordinator
 from mini_agent.tui.session_runtime_policy_command_coordinator import (
@@ -142,8 +147,11 @@ from mini_agent.tui.gateway_transport_binding import TuiGatewayTransportBinding
 from mini_agent.tui.session_turn_outcome_coordinator import TuiSessionTurnOutcomeCoordinator
 from mini_agent.tui.session_turn_state_coordinator import TuiSessionTurnStateCoordinator
 from mini_agent.tui.session_projection import TerminalSessionProjection
-from mini_agent.runtime.support.session_lifecycle import SurfaceSessionLifecycleRuntime
-from mini_agent.schema import Message
+from mini_agent.runtime.orchestration.session_runtime_lifecycle_handler import (
+    SurfaceSessionLifecycleRuntime,
+)
+from mini_agent.runtime.orchestration.session_runtime_policy_coordinator import SessionRuntimePolicyService
+from mini_agent.schema.schema import Message
 from mini_agent.tools.mcp_loader import cleanup_mcp_connections
 from mini_agent.agent_core.context.turn_context import (
     context_policy_summary_line,
@@ -153,14 +161,12 @@ from mini_agent.agent_core.context.turn_context import (
 from mini_agent.agent_core.context.control_result_service import (
     SessionContextControlResultService,
 )
-from mini_agent.transport import (
-    GatewayClient,
-    RemoteChatClient,
-    RemoteSessionClient,
-    RemoteWorkspaceClient,
-    RemoteStreamErrorService,
-    extract_gateway_error_info,
-)
+from mini_agent.transport.gateway_client import GatewayClient
+from mini_agent.transport.gateway_error import extract_gateway_error_info
+from mini_agent.transport.remote_chat_client import RemoteChatClient
+from mini_agent.transport.remote_session_client import RemoteSessionClient
+from mini_agent.transport.remote_stream_error_service import RemoteStreamErrorService
+from mini_agent.transport.remote_workspace_client import RemoteWorkspaceClient
 
 SESSION_STATE_VERSION = 7
 CHAT_SCROLL_STEP_LINES = 15
@@ -3086,7 +3092,7 @@ class MiniAgentTuiApp:
         if run_id:
             return run_id
         try:
-            return build_session_backed_run_id(session.session_id)
+            return RuntimeSessionRunControlStore.run_id_for_session(session.session_id)
         except Exception:
             return None
 
@@ -9878,3 +9884,6 @@ async def run_tui(
         await app.run()
     finally:
         await cleanup_mcp_connections()
+
+
+

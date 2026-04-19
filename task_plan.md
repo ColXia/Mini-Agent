@@ -1,5 +1,189 @@
 # Task Plan
 
+## Latest Sync: 2026-04-19 v11.1 Commands Router Hard Cut
+
+## Current Execution Slice: v11.1 Commands Router Hard Cut (2026-04-19)
+
+### Why This Slice Was Next
+
+- after the runtime root-shell shrink, the next obvious physical mismatch against the `v11.1` concrete tree sits in `commands/`
+- the target tree expects:
+  - `parser.py`
+  - `metadata.py`
+  - `completions.py`
+- but the active repo still keeps one older owner:
+  - `src/mini_agent/commands/router.py`
+- that matters because `cli_interactive.py` and `tui/app.py` still learn command parsing/completion through the old router seam instead of through the target-tree owners
+
+### Scope
+
+- land new command owners:
+  - `src/mini_agent/commands/parser.py`
+  - `src/mini_agent/commands/metadata.py`
+  - `src/mini_agent/commands/completions.py`
+- retarget active `CLI / TUI / tests` imports to those owners
+- delete `src/mini_agent/commands/router.py`
+- add a hard-cut regression so the deleted router seam cannot silently return
+
+### Acceptance
+
+- active source no longer imports `mini_agent.commands.router`
+- parser/completion/metadata ownership matches the `v11.1` target tree more closely
+- `cli_interactive.py` and `tui/app.py` consume the new command owners directly
+- focused command/CLI/TUI regression stays green
+- full suite stays green
+
+### Status
+
+- completed
+
+### Implementation Notes
+
+- landed the `v11.1`-aligned command owner split:
+  - `src/mini_agent/commands/parser.py`
+  - `src/mini_agent/commands/metadata.py`
+  - `src/mini_agent/commands/completions.py`
+- deleted the superseded owner:
+  - `src/mini_agent/commands/router.py`
+- retargeted active source to the new owners:
+  - `src/mini_agent/commands/execution.py`
+  - `src/mini_agent/cli_interactive.py`
+  - `src/mini_agent/tui/app.py`
+- retargeted tests and added hard-cut guards:
+  - `tests/test_command_catalog.py`
+  - `tests/test_commands_parser.py`
+  - `tests/test_commands_router_hard_cut.py`
+  - `tests/test_commands_catalog_owner_hard_cut.py`
+
+### Next Likely Seam
+
+- continue the same user-surface/root-shell cleanup on the now-better-prepared CLI entrance files:
+  - `src/mini_agent/cli.py`
+  - `src/mini_agent/cli_interactive.py`
+- secondary later seam:
+  - `transport/` client tree normalization toward the `v11.1` concrete target
+
+## Latest Sync: 2026-04-19 v11.1 Runtime And Root Namespace Hard Cut
+
+## Current Execution Slice: v11.1 Runtime And Root Namespace Hard Cut (2026-04-19)
+
+### Why This Slice Was Next
+
+- after the `application` family was reduced to marker packages, the next remaining non-target pattern was concentrated in package roots again:
+  - `runtime` subdomains still exported real owners through `handlers/`, `live_control/`, `orchestration/`, and `read_models/`
+  - `workspace_runtime.adapters` still exposed `DirectWorkspaceExecutor` through a convenience package root
+  - `agent_core` root still behaved like a broad public export surface even though active source had already moved off it
+  - `desktop`, `tui`, and `memory` package roots were still richer than their current physical ownership required
+
+### Scope
+
+- reduce runtime subpackage export hubs to marker packages
+- reduce `workspace_runtime.adapters` to a marker package and retarget imports
+- reduce `mini_agent.agent_core` root to a marker package and retarget tests to concrete owners
+- reduce low-risk top-level roots `desktop`, `tui`, and `memory` to markers
+- add namespace hygiene tests for each new package-root boundary
+
+### Acceptance
+
+- runtime subpackage roots no longer export maintained owners
+- `workspace_runtime.adapters` is no longer used as an import shortcut
+- `mini_agent.agent_core` root is marker-only
+- desktop/tui/memory roots are marker-only
+- focused checks stay green
+- full suite stays green
+
+### Status
+
+- completed
+
+### Next Likely Seam
+
+- continue the same review on the remaining exported top-level domains:
+  - `transport`
+  - `interfaces`
+  - `ops`
+  - `llm`
+  - `security`
+  - `schema`
+
+## Latest Sync: 2026-04-19 v11.1 Application Package Root Hard Cut
+
+## Current Execution Slice: v11.1 Application Package Root Hard Cut (2026-04-19)
+
+### Why This Slice Was Next
+
+- after the previous script/readiness cleanup, active source and scripts were already off the old `application` convenience imports
+- that exposed the next honest residue clearly:
+  - `application` package roots still exported real owners
+  - tests still modeled those package roots as acceptable import surfaces
+- leaving those rich package roots in place would keep teaching the wrong ownership model even though the runtime path had already moved on
+
+### Scope
+
+- reduce the `application` package family to marker-only package roots:
+  - `application`
+  - `application.use_cases`
+  - `application.user_services`
+  - `application.support`
+  - `application.facades`
+  - `application.ports`
+- retarget tests to concrete application owner modules
+- add namespace hygiene guards so active source/scripts cannot drift back to those package roots
+
+### Acceptance
+
+- active source/scripts do not import application package roots
+- application package roots expose marker-only `__all__`
+- tests import concrete owner modules instead of package roots
+- focused boundary tests stay green
+- full suite stays green
+
+### Status
+
+- completed
+
+### Next Likely Seam
+
+- continue scanning the remaining top-level and domain-local package roots for the same anti-pattern:
+  - package root still exports real owners
+  - active source already has enough information to import the concrete module directly
+
+## Latest Sync: 2026-04-19 v11.1 Script And Readiness Entry Hard Cut
+
+## Current Execution Slice: v11.1 Script And Readiness Entry Hard Cut (2026-04-19)
+
+### Why This Slice Was Next
+
+- the previous hard-alignment slices had already deleted the old application surface owners and most package-root facades
+- but the script/readiness chain still had two high-risk residues:
+  - `scripts/p23_runtime_baseline.py` still imported the deleted surface-builder entrypoint
+  - `scripts/terminal_readiness_gate.py` still referenced the removed `tests/test_main_agent_surface_service.py`
+- that meant the repo was still teaching the old ownership model through its validation tools even after the physical owners had been cut
+
+### Scope
+
+- rewrite `scripts/p23_runtime_baseline.py` to assemble explicit `v11.1` owners directly
+- retarget the readiness gate to current real boundary tests
+- tighten the remaining walkthrough scripts off the `mini_agent.application` package root
+- add a script-side boundary test so deleted/root application entrypoints cannot silently return through tooling
+
+### Acceptance
+
+- `scripts/p23_runtime_baseline.py` runs without any deleted surface-builder import
+- readiness targeted tests no longer reference deleted files
+- active walkthrough/readiness scripts no longer import `mini_agent.application` as an owner shortcut
+- focused regression stays green
+- full suite stays green
+
+### Status
+
+- completed
+
+### Next Likely Seam
+
+- evaluate whether `mini_agent.application/__init__.py` should remain a stable external package surface or be reduced further now that active scripts and source no longer need it as a convenience owner
+- continue the same root-package review for any remaining non-marker package surfaces that are still teaching convenience imports instead of physical ownership
+
 ## Latest Sync: 2026-04-17 P42.5 Desktop Provider-Model Shortcut Workflow
 
 ## Current Execution Slice: P42.5 Desktop Provider-Model Shortcut Workflow (2026-04-17)
@@ -12973,5 +13157,28 @@ Primary doc:
   - deleted runtime root owners are absent and non-importable
   - package-root cleanup does not reintroduce circular-import failures
   - full `pytest -q` passes after the hard cut
+- status:
+  - completed on 2026-04-19
+
+## 2026-04-19 v11.1 Session Model And Gateway Boundary Slice
+
+- objective:
+  - continue hard-aligning package ownership to `v11.1`
+  - remove session/model package-root entry usage from real runtime, gateway, tui, desktop, cli, and walkthrough paths
+  - tighten gateway-facing application imports away from `use_cases/` and `user_services/` package roots
+- current slice:
+  - reduce `src/mini_agent/session/__init__.py` to a package marker
+  - reduce `src/mini_agent/model_manager/__init__.py` to a package marker
+  - retarget active source and walkthrough scripts to concrete session/model-manager owners
+  - retarget gateway `src/apps/agent_studio_gateway/*` away from `application.use_cases` / `application.user_services` package-root imports
+  - add namespace hygiene tests for:
+    - session package root
+    - model-manager package root
+    - application use-cases package root
+    - application user-services package root
+- acceptance:
+  - no active `src/` or `scripts/` imports `mini_agent.session` or `mini_agent.model_manager` package roots
+  - active gateway/runtime code no longer imports `mini_agent.application.use_cases` or `mini_agent.application.user_services` package roots
+  - full `pytest -q` stays green
 - status:
   - completed on 2026-04-19

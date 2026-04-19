@@ -19,11 +19,14 @@ from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings
 
 from .agent_core.engine import Agent, TurnStopReason
-from .commands.catalog import (
+from .commands.completions import (
+    command_completion_tokens,
+    suggest_command_name,
+)
+from .commands.metadata import (
     build_command_example_text,
     build_command_help_text,
     build_command_usage_text,
-    command_completion_tokens,
 )
 from .commands.execution import (
     CommandExecutionResult,
@@ -33,12 +36,11 @@ from .commands.execution import (
     prepare_memory_command_plan,
     prepare_model_command_plan,
 )
-from .commands.router import (
+from .commands.parser import (
     CommandDispatcher,
     CommandParseError,
     normalize_command_name,
     parse_command_text,
-    suggest_command_name,
 )
 from .commands.mcp_support import (
     collect_mcp_operator_snapshot,
@@ -46,15 +48,17 @@ from .commands.mcp_support import (
     format_mcp_status,
 )
 from .tools.mcp.command_service import format_cli_mcp_reload_success
-from .agent_core.execution import (
-    AgentLoopContext,
+from .agent_core.context.loop_context import AgentLoopContext
+from .agent_core.execution.agent_loop import (
     AgentSubmissionLoop,
-    CoordinatorStage,
     InMemoryLoopMessageBus,
-    format_minimal_workflow_report,
-    run_minimal_workflow_with_runner,
     wait_for_loop_event,
     wait_for_submission_completion,
+)
+from .agent_core.execution.coordinator import CoordinatorStage
+from .agent_core.execution.minimal_workflow import (
+    format_minimal_workflow_report,
+    run_minimal_workflow_with_runner,
 )
 from .memory.diagnostics import build_memory_diagnostics
 from .memory.memoria_runtime import WorkspaceMemoriaRuntime
@@ -63,7 +67,9 @@ from .config import Config
 from .config_bootstrap import load_entry_config
 from .model_manager.model_registry_service import ModelRegistryService
 from .runtime.support.sandbox_state import collect_sandbox_diagnostics, compact_sandbox_summary
-from .runtime.support.session_lifecycle import SurfaceSessionLifecycleRuntime
+from .runtime.orchestration.session_runtime_lifecycle_handler import (
+    SurfaceSessionLifecycleRuntime,
+)
 from .agent_core.context.control_result_service import (
     SessionContextControlResultService,
 )

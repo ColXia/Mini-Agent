@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-import difflib
 import inspect
 import shlex
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
-
-from .catalog import command_entries_for_surface
 
 
 def normalize_command_name(value: Any) -> str:
@@ -128,37 +125,10 @@ class CommandDispatcher:
         return True
 
 
-def suggest_command_name(
-    value: str,
-    *,
-    surface: str,
-    extra_candidates: list[str] | tuple[str, ...] | set[str] | None = None,
-) -> str:
-    candidates = {
-        normalize_command_name(entry.get("name"))
-        for entry in command_entries_for_surface(surface)
-        if normalize_command_name(entry.get("name"))
-    }
-    for item in list(extra_candidates or []):
-        normalized = normalize_command_name(item)
-        if normalized:
-            candidates.add(normalized)
-    matches = difflib.get_close_matches(
-        normalize_command_name(value),
-        sorted(candidates),
-        n=3,
-        cutoff=0.45,
-    )
-    if not matches:
-        return ""
-    return f" Did you mean: {', '.join(matches)}?"
-
-
 __all__ = [
     "CommandDispatcher",
     "CommandInvocation",
     "CommandParseError",
     "normalize_command_name",
     "parse_command_text",
-    "suggest_command_name",
 ]

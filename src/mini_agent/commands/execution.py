@@ -42,7 +42,7 @@ from mini_agent.tools.mcp.command_service import (
 )
 from mini_agent.tools.knowledge_base_control_service import KnowledgeBaseControlService
 
-from .catalog import build_command_usage_text, build_unknown_action_text
+from .metadata import build_command_usage_text, build_unknown_action_text
 from .mcp_support import collect_mcp_operator_snapshot, format_mcp_server_list, format_mcp_status
 
 
