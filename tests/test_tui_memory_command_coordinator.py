@@ -4,7 +4,7 @@ import asyncio
 from types import SimpleNamespace
 from typing import Any
 
-from mini_agent.commands import CommandExecutionResult, MemoryCommandPlan
+from mini_agent.commands.execution import CommandExecutionResult, MemoryCommandPlan
 from mini_agent.tui.session_memory_command_coordinator import TuiSessionMemoryCommandCoordinator
 
 

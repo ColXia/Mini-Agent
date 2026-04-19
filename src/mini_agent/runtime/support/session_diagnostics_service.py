@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable
 
 from mini_agent.memory.diagnostics import build_memory_diagnostics
-from mini_agent.workspace_runtime import (
+from mini_agent.workspace_runtime.snapshot_store import (
     capture_shared_workspace_snapshot,
     restore_shared_workspace_snapshot,
     workspace_runtime_snapshot_payload,

@@ -13,7 +13,7 @@ from mini_agent.workspace import (
     same_workspace_path,
     workspace_path_key,
 )
-from mini_agent.workspace_runtime import build_direct_workspace_runtime_bundle
+from mini_agent.workspace_runtime.runtime_bundle import build_direct_workspace_runtime_bundle
 
 
 def _safe_text(value: object) -> str:

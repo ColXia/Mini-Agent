@@ -6,7 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from mini_agent.tools import BashTool, EditTool, ReadTool, WriteTool
+from mini_agent.tools.bash_tool import BashTool
+from mini_agent.tools.file_tools import EditTool, ReadTool, WriteTool
 
 
 @pytest.mark.asyncio

@@ -14,7 +14,8 @@ import xml.etree.ElementTree as ET
 from zipfile import ZipFile
 
 from mini_agent.tools.base import Tool, ToolResult
-from mini_agent.workspace_runtime import MutationKind, WorkspaceExecutor
+from mini_agent.workspace_runtime.mutation_ledger import MutationKind
+from mini_agent.workspace_runtime.workspace_executor import WorkspaceExecutor
 
 
 SUPPORTED_INPUT_EXTENSIONS = {

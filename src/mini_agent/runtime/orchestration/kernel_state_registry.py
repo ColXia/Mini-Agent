@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 
 from mini_agent.agent_core.contracts import (
+    AgentKernelStateRecord,
+    AgentKernelStateSeed,
     AgentInstanceLifecycleState,
     ApprovalDecision,
     ApprovalWait,
@@ -21,10 +23,6 @@ from mini_agent.agent_core.contracts import (
     RunPhase,
     RunStatus,
     RunWaitKind,
-)
-from mini_agent.agent_core.kernel_state import (
-    AgentKernelStateRecord,
-    AgentKernelStateSeed,
     build_agent_kernel_state_record,
     build_checkpoint_for_record,
     deserialize_agent_kernel_state_record,
@@ -35,7 +33,7 @@ from mini_agent.agent_core.kernel_state import (
     serialize_run_control_state as serialize_kernel_run_control_state,
 )
 from mini_agent.runtime.support.session_backed_run_id import build_session_backed_run_id
-from mini_agent.workspace_runtime import (
+from mini_agent.workspace_runtime.snapshot_store import (
     shared_workspace_snapshot_store,
     workspace_runtime_snapshot_payload,
 )

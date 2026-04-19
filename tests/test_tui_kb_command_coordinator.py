@@ -4,7 +4,7 @@ import asyncio
 from types import SimpleNamespace
 from typing import Any
 
-from mini_agent.commands import CommandExecutionResult
+from mini_agent.commands.execution import CommandExecutionResult
 from mini_agent.transport import GatewayTransportError
 from mini_agent.tui.session_kb_command_coordinator import TuiSessionKbCommandCoordinator
 

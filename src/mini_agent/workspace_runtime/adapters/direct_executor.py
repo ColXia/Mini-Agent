@@ -26,7 +26,8 @@ class DirectWorkspaceExecutor(WorkspaceExecutor):
         permission_table: WorkspacePermissionTable | None = None,
         mutation_ledger: InMemoryMutationLedger | None = None,
     ) -> None:
-        super().__init__(
+        WorkspaceExecutor.__init__(
+            self,
             boundary=boundary,
             mode=WorkspaceRuntimeMode.DIRECT,
             scope=scope,

@@ -5,9 +5,9 @@ from typing import Any
 
 import tiktoken
 
-from mini_agent.workspace_runtime import (
-    DirectWorkspaceExecutor,
-    MutationKind,
+from mini_agent.workspace_runtime.adapters import DirectWorkspaceExecutor
+from mini_agent.workspace_runtime.mutation_ledger import MutationKind
+from mini_agent.workspace_runtime.workspace_executor import (
     WorkspaceAccessScope,
     WorkspaceExecutor,
 )

@@ -9144,3 +9144,56 @@
   - second-wave follow-up is:
     - session history
     - memory-file editor
+
+## 2026-04-19 v11.1 Agent Alignment Session
+
+- [completed] re-read the active `v11.1` authority docs for the next hard-alignment slice:
+  - `docs/V11_1_HARD_ALIGNMENT_REFACTOR_PLAN_2026-04-18.md`
+  - `docs/V11_1_CONCRETE_MODULE_TREE_2026-04-17.md`
+  - `docs/V11_1_AGENT_KERNEL_CONTRACT_DESIGN_2026-04-17.md`
+  - `docs/V11_1_MODULE_OWNERSHIP_AND_MIGRATION_DIRECTION_2026-04-17.md`
+- [completed] verified current repo state after the previous hard cut:
+  - worktree was clean at slice start
+  - `agent_core/contracts/` already exists and contains the full kernel object family
+- [completed] identified the next physical-ownership misalignment:
+  - `src/mini_agent/agent_core/kernel_state.py` remains an active root owner even though `v11.1` narrows agent-core top-level ownership
+  - runtime orchestration and tests still import it directly
+- [in_progress] executing the next hard-cut slice:
+  - move kernel truth bundle/serde helpers under `agent_core/contracts/`
+  - retarget runtime/tests
+  - delete the root `agent_core/kernel_state.py` owner
+- [completed] landed the agent-core root-owner hard cut:
+  - moved kernel truth bundle/serde helpers into `src/mini_agent/agent_core/contracts/_kernel_state_bundle.py`
+  - updated `runtime/orchestration/kernel_state_registry.py` and affected tests to import via `mini_agent.agent_core.contracts`
+  - deleted `src/mini_agent/agent_core/kernel_state.py`
+  - renamed the kernel truth bundle test to `tests/test_agent_core_contract_kernel_bundle.py`
+  - added `tests/test_v11_1_agent_core_root_owner_hard_cut.py` to prevent the deleted root owner from returning
+- [completed] verified this slice:
+  - targeted tests: `17 passed`
+  - full suite: `1374 passed, 15 skipped`
+
+## 2026-04-19 v11.1 Runtime And Package Root Hard-Cut Session
+
+- [completed] hard-cut the remaining root runtime wrappers in the active path:
+  - deleted `src/mini_agent/runtime/session_diagnostics_service.py`
+  - deleted `src/mini_agent/runtime/session_runtime_persistence.py`
+  - reduced `src/mini_agent/runtime/__init__.py` to a package marker
+  - added `tests/test_v11_1_runtime_root_owner_hard_cut.py`
+- [completed] moved active source off `commands/` package-root imports:
+  - retargeted `tui/` and `cli_interactive.py` to `commands/catalog.py`, `commands/execution.py`, and `commands/router.py`
+  - reduced `src/mini_agent/commands/__init__.py` to a package marker
+  - added `tests/test_command_namespace_boundary_hygiene.py`
+- [completed] moved active source off `workspace_runtime/` and `tools/` package-root imports:
+  - retargeted runtime support/tooling and tool owners to concrete workspace-runtime modules
+  - reduced `src/mini_agent/workspace_runtime/__init__.py` to a package marker
+  - reduced `src/mini_agent/tools/__init__.py` to a package marker
+  - added `tests/test_workspace_runtime_namespace_boundary_hygiene.py`
+  - added `tests/test_tools_namespace_boundary_hygiene.py`
+- [completed] rewired affected tests to concrete owners so test surfaces stop preserving the old package facades
+- [completed] fixed one workspace-runtime initialization blocker encountered during verification:
+  - `src/mini_agent/workspace_runtime/adapters/direct_executor.py`
+  - replaced the fragile `super().__init__(...)` path with an explicit `WorkspaceExecutor.__init__(...)` call
+- [completed] verified the combined hard-cut slices:
+  - targeted runtime/agent-core tests: `27 passed`
+  - targeted command/tui/tool/workspace-runtime tests: `271 passed, 4 skipped`
+  - full suite: `1380 passed, 15 skipped`

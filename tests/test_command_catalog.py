@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from mini_agent.commands import (
+from mini_agent.commands.catalog import (
     build_command_example_text,
     build_command_help_text,
     build_command_usage_text,

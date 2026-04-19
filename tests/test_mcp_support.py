@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-from mini_agent.commands import mcp_support
+import mini_agent.commands.mcp_support as mcp_support
 from mini_agent.commands.mcp_support import (
     collect_mcp_operator_snapshot,
     format_mcp_server_list,

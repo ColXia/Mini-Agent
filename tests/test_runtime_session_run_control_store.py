@@ -4,19 +4,17 @@ import asyncio
 from pathlib import Path
 
 from mini_agent.agent_core.contracts import (
+    AgentKernelStateSeed,
     ApprovalWait,
     ApprovalWaitState,
     RunControlMode,
     RunPhase,
     RunStatus,
-)
-from mini_agent.agent_core.kernel_state import (
-    AgentKernelStateSeed,
     build_agent_kernel_state_record,
     serialize_agent_kernel_state_record,
 )
 from mini_agent.runtime.live_control.run_control_store import RuntimeSessionRunControlStore
-from mini_agent.workspace_runtime import capture_shared_workspace_snapshot
+from mini_agent.workspace_runtime.snapshot_store import capture_shared_workspace_snapshot
 from tests.runtime_contract_fixtures import (
     RuntimeContractAgentStub,
     runtime_projection_stub,

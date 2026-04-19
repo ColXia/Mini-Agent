@@ -21,7 +21,7 @@ from prompt_toolkit.keys import Keys
 from mini_agent.agent_core.runtime_bindings import AgentRuntimeServices
 from mini_agent.agent_core.engine import TurnStopReason
 from mini_agent.agent_core.execution import InMemoryLoopMessageBus
-from mini_agent.commands import CommandExecutionResult
+from mini_agent.commands.execution import CommandExecutionResult
 from mini_agent.config import AgentConfig, Config, LLMConfig, ToolsConfig
 from mini_agent.runtime.live_control.session_interrupt_handler import RuntimeSessionInterruptHandler
 from mini_agent.schema import LLMCompletionResult, Message

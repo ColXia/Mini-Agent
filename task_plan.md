@@ -12938,3 +12938,40 @@ Primary doc:
   - pushing Apple/Google-level finish too hard inside the current monolithic widget file will create visual hacks without true component boundaries
   - a premature full `QML` rewrite would slow product progress before the desktop IA and interaction model are stable
   - using raw Qt defaults will keep the app functional but visually capped far below the desired product bar
+
+## 2026-04-19 v11.1 Agent Alignment Slice
+
+- objective:
+  - continue hard-aligning the repo to `v11.1`
+  - prefer deletion and owner relocation over preserving old agent-core roots
+- current slice:
+  - remove `src/mini_agent/agent_core/kernel_state.py` as an active root owner
+  - relocate kernel truth bundle/serde helpers into `agent_core/contracts/`
+  - retarget runtime/tests to the new contract owner
+  - add a hygiene guard so root `mini_agent.agent_core.kernel_state` does not return
+- acceptance:
+  - no active `src/` or test code imports `mini_agent.agent_core.kernel_state`
+  - runtime still builds and serializes kernel truth through `agent_core/contracts/`
+  - full `pytest -q` passes after the hard cut
+- status:
+  - completed on 2026-04-19
+
+## 2026-04-19 v11.1 Runtime And Package Root Hard-Cut Slice
+
+- objective:
+  - keep hard-aligning the repo to `v11.1`
+  - remove package-root/runtime-root facades that still narrate pre-`v11.1` convenience ownership
+- current slice:
+  - delete `src/mini_agent/runtime/session_diagnostics_service.py`
+  - delete `src/mini_agent/runtime/session_runtime_persistence.py`
+  - reduce `runtime/__init__.py` to a package marker
+  - retarget active source away from `commands/`, `tools/`, and `workspace_runtime/` package-root imports
+  - reduce `commands/__init__.py`, `tools/__init__.py`, and `workspace_runtime/__init__.py` to package markers
+  - add boundary tests so active `src/` code cannot drift back to those package roots
+- acceptance:
+  - active source imports concrete owners rather than root wrappers/package facades
+  - deleted runtime root owners are absent and non-importable
+  - package-root cleanup does not reintroduce circular-import failures
+  - full `pytest -q` passes after the hard cut
+- status:
+  - completed on 2026-04-19

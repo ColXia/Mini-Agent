@@ -12,7 +12,10 @@ from mini_agent.commands.mcp_support import resolve_runtime_mcp_config_path
 from mini_agent.runtime.support.sandbox_state import collect_sandbox_diagnostics
 from mini_agent.agent_core.skills.path_resolver import resolve_builtin_skills_dir, resolve_workspace_skills_dir
 from mini_agent.security.policy import RuntimePolicyEngine
-from mini_agent.workspace_runtime import WorkspaceRuntimeBundle, build_direct_workspace_runtime_bundle
+from mini_agent.workspace_runtime.runtime_bundle import (
+    WorkspaceRuntimeBundle,
+    build_direct_workspace_runtime_bundle,
+)
 
 
 def _tool_names(tools: list[Any]) -> list[str]:

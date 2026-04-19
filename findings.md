@@ -7546,3 +7546,71 @@
     - real MaaS probe now records:
       - `supports_tools=supported`
       - `supports_thinking=unsupported`
+
+## 2026-04-19 v11.1 Agent Alignment Findings
+
+- `H2` contract family already exists under `src/mini_agent/agent_core/contracts/`.
+  - present files include:
+    - `agent_profile.py`
+    - `agent_instance.py`
+    - `run.py`
+    - `attachments.py`
+    - `capability_snapshot.py`
+    - `checkpoint.py`
+    - `execution_journal.py`
+    - `run_control_state.py`
+    - `approval_wait.py`
+- the next real misalignment is not “missing contracts”.
+  - it is that runtime still depends on the root owner `src/mini_agent/agent_core/kernel_state.py`
+  - that file contains:
+    - `AgentKernelStateSeed`
+    - `AgentKernelStateRecord`
+    - kernel truth bundle assembly
+    - run-control/approval serde helpers
+    - full kernel-state payload serde
+- `v11.1` concrete target tree keeps `agent_core/` top-level narrow:
+  - `engine.py`
+  - `kernel.py`
+  - `runtime_bindings.py`
+  - `contracts/`
+  - no explicit `kernel_state.py` root owner is listed
+- active runtime dependency chain still points to the old root owner:
+  - `src/mini_agent/runtime/orchestration/kernel_state_registry.py`
+  - tests:
+    - `tests/test_agent_core_kernel_state.py`
+    - `tests/test_runtime_session_run_control_store.py`
+- conclusion:
+  - the clean next hard-cut slice is to move bundle/serde ownership into `agent_core/contracts/` and delete the root module
+- implementation outcome:
+  - `src/mini_agent/agent_core/kernel_state.py` was removed
+  - the kernel truth bundle helpers now live in `src/mini_agent/agent_core/contracts/_kernel_state_bundle.py`
+  - public imports now route through `mini_agent.agent_core.contracts`
+  - runtime registry and tests no longer import the deleted root module
+
+## 2026-04-19 v11.1 Runtime And Package Root Findings
+
+- after the `agent_core/kernel_state.py` hard cut, the next strongest physical mismatch was not another missing object.
+  - it was that `runtime/` still had explicit root compatibility owners:
+    - `session_diagnostics_service.py`
+    - `session_runtime_persistence.py`
+  - and `runtime/__init__.py` still behaved like a package-level export surface
+- that mismatch was not isolated.
+  - once active code stopped leaning on package-root facades in `commands/`, a hidden dependency chain surfaced:
+    - `commands` submodule import
+    - `tools` package eager init
+    - `workspace_runtime` package eager init
+    - `runtime` / `agent_core` eager pull-in
+  - in other words, the old package roots were not just convenience surfaces.
+  - they were also masking circular-import pressure.
+- the healthy fix was therefore not to reintroduce another lazy wrapper.
+  - it was to keep hard-cutting:
+    - remove the runtime root wrappers entirely
+    - reduce `runtime/__init__.py`, `commands/__init__.py`, `tools/__init__.py`, and `workspace_runtime/__init__.py` to package markers
+    - retarget active source to concrete owners
+- practical effect:
+  - the repository now tells a much cleaner story about ownership:
+    - `commands/catalog.py`, `commands/execution.py`, `commands/router.py`
+    - `tools/batch_tool.py` and peer tool owners directly
+    - `workspace_runtime/runtime_bundle.py`, `snapshot_store.py`, `workspace_executor.py`, `mutation_ledger.py`
+    - `runtime/support/*` and other real runtime owners
+  - the facade shells no longer hide dependency cycles or imply that package roots are maintained service surfaces

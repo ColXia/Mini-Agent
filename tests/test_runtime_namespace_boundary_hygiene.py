@@ -39,6 +39,10 @@ def _collect_violations(path: Path) -> list[str]:
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
+                if alias.name == "mini_agent.runtime":
+                    violations.append(
+                        f"{relative}:{node.lineno}: forbidden runtime package-root import {alias.name}"
+                    )
                 if alias.name in FORBIDDEN_MODULES:
                     violations.append(
                         f"{relative}:{node.lineno}: forbidden runtime compatibility import {alias.name}"
@@ -46,17 +50,16 @@ def _collect_violations(path: Path) -> list[str]:
         elif isinstance(node, ast.ImportFrom):
             module = node.module or ""
             imported_names = {alias.name for alias in node.names}
+            if module == "mini_agent.runtime":
+                violations.append(
+                    f"{relative}:{node.lineno}: forbidden runtime package-root import from {module}"
+                )
+                continue
             if module in FORBIDDEN_MODULES:
                 violations.append(
                     f"{relative}:{node.lineno}: forbidden runtime compatibility import from {module}"
                 )
                 continue
-            if module == "mini_agent.runtime":
-                bad = sorted(imported_names & FORBIDDEN_WRAPPER_STEMS)
-                if bad:
-                    violations.append(
-                        f"{relative}:{node.lineno}: forbidden runtime compatibility package import ({', '.join(bad)})"
-                    )
     return violations
 
 

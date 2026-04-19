@@ -1,25 +1,7 @@
-"""Tools module."""
+"""Tools package marker.
 
-from .base import Tool, ToolResult
-from .bash_tool import BashTool
-from .docling_parse import DoclingParseTool
-from .file_tools import EditTool, ReadTool, WriteTool
-from .knowledge_base import KnowledgeBaseQueryTool
-from .note_tool import RecallNoteTool, SessionNoteTool
-from .user_modeling import UserModelingTool
-from .web_search import WebSearchTool
+The tools package is not an active package-root facade in the v11.1 target
+architecture. Import concrete tools from their owned modules directly.
+"""
 
-__all__ = [
-    "Tool",
-    "ToolResult",
-    "ReadTool",
-    "WriteTool",
-    "EditTool",
-    "BashTool",
-    "DoclingParseTool",
-    "KnowledgeBaseQueryTool",
-    "WebSearchTool",
-    "SessionNoteTool",
-    "RecallNoteTool",
-    "UserModelingTool",
-]
+__all__: list[str] = []

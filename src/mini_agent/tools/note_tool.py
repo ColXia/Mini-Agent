@@ -15,7 +15,8 @@ from pathlib import Path
 from typing import Any, Callable, Protocol
 
 from mini_agent.memory.memory_files import discover_memory_layout
-from mini_agent.workspace_runtime import MutationKind, WorkspaceExecutor
+from mini_agent.workspace_runtime.mutation_ledger import MutationKind
+from mini_agent.workspace_runtime.workspace_executor import WorkspaceExecutor
 
 from .base import Tool, ToolResult
 

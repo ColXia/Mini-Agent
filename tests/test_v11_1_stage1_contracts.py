@@ -12,12 +12,11 @@ from mini_agent.agent_core.contracts import (
     RunControlState,
     RunWaitKind,
 )
-from mini_agent.workspace_runtime import (
+from mini_agent.workspace_runtime.boundary import WorkspaceBoundary
+from mini_agent.workspace_runtime.mutation_ledger import InMemoryMutationLedger, MutationKind
+from mini_agent.workspace_runtime.outside_zone_policy import (
     DefaultOutsideZonePolicy,
-    InMemoryMutationLedger,
-    MutationKind,
     OutsideZoneOperation,
-    WorkspaceBoundary,
 )
 
 

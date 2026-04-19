@@ -49,23 +49,27 @@ from mini_agent.memory.diagnostics import (
     memory_diagnostics_summary_line,
 )
 from mini_agent.memory.memoria_runtime import WorkspaceMemoriaRuntime
-from mini_agent.commands import (
-    CommandExecutionResult,
-    ContextCommandPlan,
-    LocalOperatorCommandService,
-    MemoryCommandPlan,
-    CommandDispatcher,
-    CommandParseError,
-    ModelCommandPlan,
+from mini_agent.commands.catalog import (
     build_command_example_text,
     build_command_help_text,
     build_command_usage_text,
     build_unknown_action_text,
     command_completion_tokens,
-    parse_command_text,
+)
+from mini_agent.commands.execution import (
+    CommandExecutionResult,
+    ContextCommandPlan,
+    LocalOperatorCommandService,
+    MemoryCommandPlan,
+    ModelCommandPlan,
     prepare_context_command_plan,
     prepare_memory_command_plan,
     prepare_model_command_plan,
+)
+from mini_agent.commands.router import (
+    CommandDispatcher,
+    CommandParseError,
+    parse_command_text,
     suggest_command_name,
 )
 from mini_agent.agent_core.skills.workspace_support import (

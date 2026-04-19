@@ -6,7 +6,7 @@ from collections.abc import Awaitable, Sequence
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from mini_agent.commands import CommandExecutionResult
+from mini_agent.commands.execution import CommandExecutionResult
 
 
 @dataclass(slots=True)

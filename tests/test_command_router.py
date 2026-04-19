@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
-from mini_agent.commands import CommandDispatcher, parse_command_text
+from mini_agent.commands.router import CommandDispatcher, parse_command_text
 
 
 def test_parse_command_text_normalizes_aliases() -> None:

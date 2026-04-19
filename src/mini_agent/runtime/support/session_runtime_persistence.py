@@ -14,7 +14,10 @@ from mini_agent.runtime.support.session_persistence_record_builder import Runtim
 from mini_agent.runtime.support.session_shared_transcript_store import RuntimeSessionSharedTranscriptStore
 from mini_agent.runtime.support.sandbox_state import normalize_sandbox_diagnostics
 from mini_agent.session.persistence import SessionPersistence
-from mini_agent.workspace_runtime import capture_shared_workspace_snapshot, workspace_runtime_snapshot_payload
+from mini_agent.workspace_runtime.snapshot_store import (
+    capture_shared_workspace_snapshot,
+    workspace_runtime_snapshot_payload,
+)
 
 if TYPE_CHECKING:
     from mini_agent.runtime.session_state import MainAgentSessionState

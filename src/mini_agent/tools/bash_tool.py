@@ -14,7 +14,8 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, model_validator
 
-from mini_agent.workspace_runtime import DirectWorkspaceExecutor, WorkspaceAccessScope, WorkspaceExecutor
+from mini_agent.workspace_runtime.adapters import DirectWorkspaceExecutor
+from mini_agent.workspace_runtime.workspace_executor import WorkspaceAccessScope, WorkspaceExecutor
 
 from .base import Tool, ToolResult
 

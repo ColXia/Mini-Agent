@@ -11,7 +11,8 @@ from mini_agent.agent_core.engine import Agent
 from mini_agent.config import Config
 from mini_agent.llm import LLMClient, build_protocol_execution_profile
 from mini_agent.schema import LLMProvider
-from mini_agent.tools import BashTool, EditTool, ReadTool, WriteTool
+from mini_agent.tools.bash_tool import BashTool
+from mini_agent.tools.file_tools import EditTool, ReadTool, WriteTool
 from mini_agent.tools.mcp_loader import load_mcp_tools_async
 from mini_agent.tools.note_tool import RecallNoteTool, SessionNoteTool
 

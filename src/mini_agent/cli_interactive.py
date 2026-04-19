@@ -19,21 +19,25 @@ from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings
 
 from .agent_core.engine import Agent, TurnStopReason
-from .commands import (
-    CommandExecutionResult,
-    LocalOperatorCommandService,
-    McpReloadOutcome,
-    CommandDispatcher,
-    CommandParseError,
+from .commands.catalog import (
     build_command_example_text,
     build_command_help_text,
     build_command_usage_text,
     command_completion_tokens,
-    normalize_command_name,
-    parse_command_text,
+)
+from .commands.execution import (
+    CommandExecutionResult,
+    LocalOperatorCommandService,
+    McpReloadOutcome,
     prepare_context_command_plan,
     prepare_memory_command_plan,
     prepare_model_command_plan,
+)
+from .commands.router import (
+    CommandDispatcher,
+    CommandParseError,
+    normalize_command_name,
+    parse_command_text,
     suggest_command_name,
 )
 from .commands.mcp_support import (
