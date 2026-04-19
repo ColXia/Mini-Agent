@@ -4,19 +4,9 @@ import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 
-from mini_agent.application import (
-    ChannelIngressUseCases,
-    ChannelNovelActionHandler,
-)
+from mini_agent.application import ChannelIngressUseCases
 from mini_agent.interfaces import ChannelMessageRequest, MainAgentChatRequest, MainAgentChatResponse
 from mini_agent.session import ConversationBindingService, ConversationBindingStore
-
-
-class _UnusedNovelUseCases:
-    async def get_config(self, project_dir: str | None = None) -> dict[str, object]:
-        _ = project_dir
-        raise AssertionError("novel actions are outside this test scope")
-
 
 def _resolve_workspace_dir(workspace_dir: str | None) -> Path:
     return Path(workspace_dir or ".").resolve()
@@ -56,11 +46,6 @@ def test_channel_ingress_uses_injected_binding_port_for_lookup_and_persist(tmp_p
 
         use_cases = ChannelIngressUseCases(
             run_main_agent_chat=_run_main_agent_chat,
-            novel_action_handler=ChannelNovelActionHandler(
-                novel_use_cases=_UnusedNovelUseCases(),
-                resolve_workspace_dir=_resolve_workspace_dir,
-                to_utc_iso=_to_utc_iso,
-            ),
             conversation_binding=binding,
         )
 
@@ -118,11 +103,6 @@ def test_channel_ingress_reuses_central_binding_without_explicit_session_id(tmp_
         binding_store = ConversationBindingStore(tmp_path / "conversation-bindings.json")
         use_cases = ChannelIngressUseCases(
             run_main_agent_chat=_run_main_agent_chat,
-            novel_action_handler=ChannelNovelActionHandler(
-                novel_use_cases=_UnusedNovelUseCases(),
-                resolve_workspace_dir=_resolve_workspace_dir,
-                to_utc_iso=_to_utc_iso,
-            ),
             conversation_binding=ConversationBindingService(binding_store=binding_store),
         )
 
@@ -171,11 +151,6 @@ def test_channel_ingress_dry_run_does_not_persist_remote_binding(tmp_path: Path)
         binding_store = ConversationBindingStore(tmp_path / "conversation-bindings.json")
         use_cases = ChannelIngressUseCases(
             run_main_agent_chat=_run_main_agent_chat,
-            novel_action_handler=ChannelNovelActionHandler(
-                novel_use_cases=_UnusedNovelUseCases(),
-                resolve_workspace_dir=_resolve_workspace_dir,
-                to_utc_iso=_to_utc_iso,
-            ),
             conversation_binding=ConversationBindingService(binding_store=binding_store),
         )
 
@@ -213,11 +188,6 @@ def test_channel_ingress_normalizes_remote_alias_before_binding_lookup(tmp_path:
         binding_store = ConversationBindingStore(tmp_path / "conversation-bindings-alias.json")
         use_cases = ChannelIngressUseCases(
             run_main_agent_chat=_run_main_agent_chat,
-            novel_action_handler=ChannelNovelActionHandler(
-                novel_use_cases=_UnusedNovelUseCases(),
-                resolve_workspace_dir=_resolve_workspace_dir,
-                to_utc_iso=_to_utc_iso,
-            ),
             conversation_binding=ConversationBindingService(binding_store=binding_store),
         )
 

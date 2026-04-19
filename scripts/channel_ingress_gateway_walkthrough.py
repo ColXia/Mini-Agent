@@ -30,7 +30,6 @@ from mini_agent.agent_core.engine import TurnExecutionResult, TurnStopReason
 from mini_agent.application import (
     AgentInteractionApplicationService,
     ChannelIngressUseCases,
-    ChannelNovelActionHandler,
     RunControlApplicationService,
     SessionTaskService,
     resolve_runtime_backed_user_service_ports,
@@ -141,12 +140,6 @@ class _HookedAgent(_DummyAgent):
             )
         text = await self.run()
         return TurnExecutionResult(stop_reason=TurnStopReason.END_TURN, message=text)
-
-
-class _UnusedNovelUseCases:
-    async def get_config(self, project_dir: str | None = None) -> dict[str, object]:
-        _ = project_dir
-        raise AssertionError("novel actions are outside this walkthrough scope")
 
 
 def _resolve_workspace_dir(workspace_dir: str | None) -> Path:
@@ -281,11 +274,6 @@ def _new_gateway_use_cases(
 def _new_channel_use_cases(gateway_use_cases: GatewayWalkthroughSurface, *, root: Path) -> ChannelIngressUseCases:
     return ChannelIngressUseCases(
         run_main_agent_chat=gateway_use_cases.run_chat,
-        novel_action_handler=ChannelNovelActionHandler(
-            novel_use_cases=_UnusedNovelUseCases(),
-            resolve_workspace_dir=_resolve_workspace_dir,
-            to_utc_iso=_to_utc_iso,
-        ),
         conversation_binding=ConversationBindingService(
             binding_store=ConversationBindingStore(root / "conversation-bindings.json"),
         ),

@@ -15,7 +15,6 @@ from apps.agent_studio_gateway.ops_router import OpsRouterDependencies, create_o
 from mini_agent.application.use_cases import MemoryOperationsUseCases, ProviderOperationsUseCases
 from subprograms.knowledge_base.gateway.router import router as knowledge_base_router
 from subprograms.memory_manager.gateway.router import router as memory_manager_router
-from subprograms.novel_generator.gateway import novel_router
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 WORKSPACE_ROOT = REPO_ROOT / "workspace"
@@ -85,7 +84,6 @@ app.include_router(
 )
 app.include_router(knowledge_base_router)
 app.include_router(memory_manager_router)
-app.include_router(novel_router, prefix="/api/v1/novel")
 app.include_router(
     create_main_agent_router(
         GATEWAY_COMPOSITION.build_main_agent_router_dependencies(

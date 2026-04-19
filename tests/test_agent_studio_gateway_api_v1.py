@@ -6,11 +6,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from uuid import uuid4
 
 import apps.agent_studio_gateway.main as gateway_main
 from apps.agent_studio_gateway.main import app
-from mini_agent.application.use_cases.channel_novel_action_handler import ChannelNovelActionHandler
 from mini_agent.application.use_cases import ChannelIngressUseCases
 from mini_agent.interfaces import (
     MainAgentChatRequest,
@@ -153,70 +151,6 @@ def test_v1_channel_message_dry_run_envelope() -> None:
         assert data["message_count"] == 1
         assert data["token_usage"] == 0
         assert "Received task: ping channel" in data["reply"]
-
-
-def test_v1_channel_message_novel_action_prefix_dispatch() -> None:
-    with TestClient(app) as client:
-        response = client.post(
-            "/api/v1/channel/message",
-            json={
-                "channel_type": "qq",
-                "conversation_id": "dm:demo",
-                "message": "/novel config",
-                "workspace_dir": ".",
-                "dry_run": True,
-            },
-        )
-        assert response.status_code == 200
-        payload = response.json()
-        assert payload["ok"] is True
-        assert payload["error"] is None
-        data = payload["data"]
-        assert data["session_id"].startswith("novel-action-")
-        assert data["token_usage"] == 0
-        assert "\"kind\": \"novel_action\"" in data["reply"]
-        assert "\"action\": \"config\"" in data["reply"]
-
-
-def test_v1_channel_message_novel_action_invalid_json_rejected() -> None:
-    with TestClient(app) as client:
-        response = client.post(
-            "/api/v1/channel/message",
-            json={
-                "channel_type": "qq",
-                "conversation_id": "group:demo",
-                "message": "/novel config {bad-json}",
-                "workspace_dir": ".",
-            },
-        )
-        assert response.status_code == 400
-        payload = response.json()
-        assert "Invalid novel action JSON params" in payload["detail"]
-
-
-def test_v1_channel_message_novel_action_metadata_dispatch() -> None:
-    with TestClient(app) as client:
-        response = client.post(
-            "/api/v1/channel/message",
-            json={
-                "channel_type": "qq",
-                "conversation_id": "group:demo2",
-                "message": "ignored when metadata carries action",
-                "metadata": {
-                    "novel_action": {
-                        "action": "config",
-                        "params": {"project_dir": "channel-novel-meta"},
-                    }
-                },
-            },
-        )
-        assert response.status_code == 200
-        payload = response.json()
-        assert payload["ok"] is True
-        assert "\"action\": \"config\"" in payload["data"]["reply"]
-        assert "channel-novel-meta" in payload["data"]["reply"]
-
-
 def test_v1_channel_message_reuses_central_binding_without_explicit_session_id(tmp_path: Path, monkeypatch) -> None:
     requests: list[MainAgentChatRequest] = []
 
@@ -231,21 +165,11 @@ def test_v1_channel_message_reuses_central_binding_without_explicit_session_id(t
             updated_at=datetime.now(timezone.utc).isoformat(),
         )
 
-    class _UnusedNovelUseCases:
-        async def get_config(self, project_dir: str | None = None) -> dict[str, object]:
-            _ = project_dir
-            raise AssertionError("novel actions are outside this test scope")
-
     monkeypatch.setattr(
         gateway_main.GATEWAY_COMPOSITION,
         "_channel_ingress_use_cases",
         ChannelIngressUseCases(
             run_main_agent_chat=_run_main_agent_chat,
-            novel_action_handler=ChannelNovelActionHandler(
-                novel_use_cases=_UnusedNovelUseCases(),
-                resolve_workspace_dir=lambda value: Path(value or ".").resolve(),
-                to_utc_iso=lambda value: value.astimezone(timezone.utc).isoformat(),
-            ),
             conversation_binding=ConversationBindingService(
                 binding_store=ConversationBindingStore(tmp_path / "conversation-bindings.json"),
             ),
@@ -1754,26 +1678,11 @@ def test_v1_agent_chat_stream_dry_run() -> None:
         assert "event: done" in response.text
 
 
-def test_v1_novel_config_chapters_assets_empty_project() -> None:
-    project_dir = f"p18-v1-novel-{uuid4().hex[:8]}"
+def test_v1_novel_routes_are_removed() -> None:
     with TestClient(app) as client:
-        config_resp = client.get("/api/v1/novel/config", params={"project_dir": project_dir})
-        assert config_resp.status_code == 200
-        config_payload = config_resp.json()
-        assert config_payload["exists"] is False
-
-        chapters_resp = client.get("/api/v1/novel/chapters", params={"project_dir": project_dir})
-        assert chapters_resp.status_code == 200
-        chapters_payload = chapters_resp.json()
-        assert chapters_payload["project_dir"].endswith(project_dir.replace("/", "\\"))
-        assert isinstance(chapters_payload["chapters"], list)
-        assert chapters_payload["chapters"] == []
-
-        assets_resp = client.get("/api/v1/novel/assets", params={"project_dir": project_dir})
-        assert assets_resp.status_code == 200
-        assets_payload = assets_resp.json()
-        assert assets_payload["project_dir"].endswith(project_dir.replace("/", "\\"))
-        assert isinstance(assets_payload["assets"], list)
+        assert client.get("/api/v1/novel/config").status_code == 404
+        assert client.get("/api/v1/novel/chapters").status_code == 404
+        assert client.get("/api/v1/novel/assets").status_code == 404
 
 
 def test_legacy_api_prefix_routes_are_removed() -> None:

@@ -33,21 +33,7 @@ uv pip install --python .\.venv\Scripts\python.exe -r .\apps\agent_studio_gatewa
 ---
 
 ## 灏忚瀛愮▼搴忔帴鍙?
-- `GET /api/v1/novel/config`
-- `POST /api/v1/novel/setup`
-- `POST /api/v1/novel/write`
-- `POST /api/v1/novel/finalize`
-- `POST /api/v1/novel/cover`
-- `POST /api/v1/novel/illustrate`
-- `GET /api/v1/novel/chapters`
-- `GET /api/v1/novel/chapter/{chapter_number}`
-- `PUT /api/v1/novel/chapter/{chapter_number}`
-- `GET /api/v1/novel/chapter/{chapter_number}/versions`
-- `GET /api/v1/novel/chapter/{chapter_number}/version/{version_id}`
-- `PATCH /api/v1/novel/chapter/{chapter_number}/version/{version_id}`
-- `POST /api/v1/novel/chapter/{chapter_number}/rollback`
-- `GET /api/v1/novel/chapter/{chapter_number}/diff`
-- `GET /api/v1/novel/assets`
+- `v11.1` hard cut removed the dedicated `/api/v1/novel/*` route family from the active gateway surface
 
 ---
 

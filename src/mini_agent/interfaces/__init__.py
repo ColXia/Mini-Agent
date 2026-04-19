@@ -53,17 +53,6 @@ from .model import (
     MainAgentModelCandidateSummary,
     MainAgentModelCapabilities,
 )
-from .novel import (
-    ChapterRollbackRequest,
-    ChapterVersionMetaUpdateRequest,
-    NovelChapterResponse,
-    NovelChapterSaveRequest,
-    NovelCoverRequest,
-    NovelFinalizeRequest,
-    NovelIllustrateRequest,
-    NovelSetupRequest,
-    NovelWriteRequest,
-)
 from .ops import (
     StudioFeatureModelBindingClearResponse,
     StudioFeatureModelBindingRequest,
@@ -155,15 +144,6 @@ __all__ = [
     "MainAgentSessionRuntimePolicyResponse",
     "MainAgentSessionShareRequest",
     "MainAgentSessionSummary",
-    "ChapterRollbackRequest",
-    "ChapterVersionMetaUpdateRequest",
-    "NovelChapterResponse",
-    "NovelChapterSaveRequest",
-    "NovelCoverRequest",
-    "NovelFinalizeRequest",
-    "NovelIllustrateRequest",
-    "NovelSetupRequest",
-    "NovelWriteRequest",
     "StudioMemoryDailyResponse",
     "StudioMemoryNote",
     "StudioMemorySearchResponse",

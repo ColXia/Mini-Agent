@@ -146,6 +146,6 @@ This index maps concrete upstream implementations to Mini-Agent refactor targets
 
 | Capability | Upstream File | Mini-Agent Target |
 | --- | --- | --- |
-| Plugin capability model | `C:/Users/Conli/ai开源项目/openclaw-main/docs/plugins/architecture.md` | `mini_agent/plugins/registry.py` + `tests/test_plugin_registry.py` |
+| Plugin capability model | `C:/Users/Conli/ai开源项目/openclaw-main/docs/plugins/architecture.md` | removed in v11.1 hard cut; prior target was `mini_agent/plugins/registry.py` + `tests/test_plugin_registry.py` |
 | Memory file strategy (`MEMORY.md` + daily notes) | `C:/Users/Conli/ai开源项目/openclaw-main/docs/concepts/memory.md` | `mini_agent/tools/note_tool.py` + `mini_agent/runtime/tooling.py` + `tests/test_note_tool.py` |
 

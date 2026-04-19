@@ -402,18 +402,13 @@ Updated: 2026-04-06
    - CLI / TUI / Desktop / remote adapters consume the same `/api/v1/ops/*` contract
    - browser Studio assets were removed and are no longer part of this flow
 
-## Novel Transport Flow (P32.12)
-1. Gateway contract mounting:
-   - `src/apps/agent_studio_gateway/main.py` mounts `subprograms.novel_generator.gateway.router` under `/api/v1/novel/*`.
-2. Contract ownership:
-   - request DTOs live in `src/mini_agent/interfaces/novel.py`.
-3. Runtime wiring ownership:
-   - `src/mini_agent/novel/runtime.py` builds and caches `NovelServiceUseCases`.
-4. Domain use-case ownership:
-   - `src/mini_agent/novel/service.py` owns setup/write/finalize/cover/illustrate/chapter-history orchestration.
-5. Shared ingress reuse:
-   - `src/mini_agent/application/channel_novel_action_handler.py` consumes the same `get_novel_use_cases(...)` factory for `/novel ...` remote actions.
-   - `ChannelIngressUseCases` delegates feature-specific novel commands to that owner instead of owning novel parsing/dispatch directly.
+## Novel Transport Flow (Removed In V11.1 Hard Cut)
+1. Status:
+   - `src/apps/agent_studio_gateway/main.py` no longer mounts `/api/v1/novel/*`.
+2. Removed ownership:
+   - `src/mini_agent/interfaces/novel.py`, `src/mini_agent/novel/`, and `src/subprograms/novel_generator/` were deleted.
+3. Channel ingress boundary:
+   - `ChannelIngressUseCases` no longer owns or delegates any feature-specific novel dispatch path.
 
 ## Main-Agent Gateway Transport Flow (P32.13)
 1. Host composition:

@@ -754,9 +754,9 @@ Mini principle in execution: capability strong, architecture lean (not capabilit
 
 ### P7.1 Plugin and memory evolution
 - [x] Add plugin capability registry boundaries
-  - `mini_agent/plugins/registry.py`
-  - domains: `provider/channel/tool/hook`
-  - tests: `tests/test_plugin_registry.py`
+  - removed in the v11.1 hard cut because `mini_agent/plugins/` is no longer an active owner
+  - previous domains: `provider/channel/tool/hook`
+  - removed tests: `tests/test_plugin_registry.py`
 - [x] Move note memory to markdown split model
   - `mini_agent/tools/note_tool.py`
   - storage: `MEMORY.md` + `memory/YYYY-MM-DD.md`

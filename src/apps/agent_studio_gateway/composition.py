@@ -20,7 +20,7 @@ from mini_agent.application.user_services import (
     assemble_typed_user_services,
     resolve_runtime_backed_user_service_ports,
 )
-from mini_agent.application.use_cases import ChannelIngressUseCases, ChannelNovelActionHandler
+from mini_agent.application.use_cases import ChannelIngressUseCases
 from mini_agent.application.use_cases.agent_interaction_application_service import AgentInteractionApplicationService
 from mini_agent.application.use_cases.run_control_application_service import RunControlApplicationService
 from mini_agent.application.use_cases.session_task_service import SessionTaskService
@@ -30,7 +30,6 @@ from mini_agent.application.user_services.workspace_user_service import Workspac
 from mini_agent.config_bootstrap import load_entry_config, load_noninteractive_config
 from mini_agent.interfaces import MainAgentChatRequest, MainAgentChatResponse, MainAgentRuntimeDiagnostics, SystemHealthResponse
 from mini_agent.model_manager import AgentModelService
-from mini_agent.novel.runtime import get_novel_use_cases, reset_novel_runtime_state
 from mini_agent.runtime.main_agent_runtime_manager import MainAgentRuntimeManager
 from mini_agent.runtime.support.main_agent_runtime_policy_loader import load_main_agent_runtime_policy
 from mini_agent.runtime.workspace_runtime_adapter import MainAgentWorkspaceRuntimeAdapter
@@ -262,14 +261,6 @@ class GatewayComposition:
         if self._channel_ingress_use_cases is None:
             self._channel_ingress_use_cases = ChannelIngressUseCases(
                 run_main_agent_chat=self.run_main_agent_chat,
-                novel_action_handler=ChannelNovelActionHandler(
-                    novel_use_cases=get_novel_use_cases(
-                        repo_root=self.settings.repo_root,
-                        workspace_root=self.settings.workspace_root,
-                    ),
-                    resolve_workspace_dir=self.resolve_workspace_dir,
-                    to_utc_iso=self.to_utc_iso,
-                ),
                 conversation_binding=ConversationBindingService(
                     binding_store=conversation_binding_store,
                 ),
@@ -321,7 +312,6 @@ class GatewayComposition:
                 self._model_runtime_adapter = None
                 self._agent_interaction_service = None
                 self._channel_ingress_use_cases = None
-                reset_novel_runtime_state()
             finally:
                 if self._instance_lock is not None:
                     self._instance_lock.release()

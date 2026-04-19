@@ -46,8 +46,6 @@ from mini_agent.interfaces import (
     MainAgentSessionShareRequest,
     MainAgentSessionSkillRequest,
     MainAgentSessionSkillResponse,
-    NovelCoverRequest,
-    NovelSetupRequest,
     StudioProviderListResponse,
     StudioProviderSummary,
     SystemHealthResponse,
@@ -505,24 +503,6 @@ def test_main_agent_model_contracts() -> None:
         "configured_binding_error",
         "latest_route",
     }
-
-
-def test_novel_setup_and_cover_contract() -> None:
-    assert _required_fields(NovelSetupRequest) == {"topic", "genre"}
-    assert _property_fields(NovelSetupRequest) == {
-        "topic",
-        "genre",
-        "num_chapters",
-        "words_per_chapter",
-        "project_dir",
-        "dry_run",
-        "api_host",
-    }
-    assert _required_fields(NovelCoverRequest) == {"prompt"}
-    assert "style_type" in _property_fields(NovelCoverRequest)
-    assert "style_weight" in _property_fields(NovelCoverRequest)
-
-
 def test_api_envelope_contract() -> None:
     envelope = ApiEnvelope[dict](ok=True, data={"status": "ok"}, error=None)
     payload = envelope.model_dump()

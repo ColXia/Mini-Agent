@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Awaitable, Callable
 
 from mini_agent.application.support import ApplicationInteractionBinding
@@ -14,11 +13,8 @@ from mini_agent.interfaces import (
 )
 from mini_agent.session.conversation_binding_port import ConversationBindingPort
 
-from .channel_novel_action_handler import ChannelNovelActionHandler
-
 
 RunMainAgentChatFn = Callable[[MainAgentChatRequest], Awaitable[MainAgentChatResponse]]
-ResolveWorkspaceDirFn = Callable[[str | None], Path]
 
 
 class ChannelIngressUseCases:
@@ -28,18 +24,12 @@ class ChannelIngressUseCases:
         self,
         *,
         run_main_agent_chat: RunMainAgentChatFn,
-        novel_action_handler: ChannelNovelActionHandler,
         conversation_binding: ConversationBindingPort,
     ) -> None:
         self._run_main_agent_chat = run_main_agent_chat
-        self._novel_action_handler = novel_action_handler
         self._conversation_binding = conversation_binding
 
     async def handle_message(self, request: ChannelMessageRequest) -> ChannelMessageResponse:
-        novel_response = await self._novel_action_handler.maybe_handle(request)
-        if novel_response is not None:
-            return novel_response
-
         binding = ApplicationInteractionBinding.from_channel_message_request(request)
         resolved_session_id = self._conversation_binding.resolve_session_id(
             surface=binding.surface,

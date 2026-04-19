@@ -3,7 +3,6 @@
 from .agent_application_service import AgentApplicationService
 from .agent_interaction_application_service import AgentInteractionApplicationService
 from .channel_ingress_use_cases import ChannelIngressUseCases
-from .channel_novel_action_handler import ChannelNovelActionHandler
 from .command_application_service import CommandApplicationService
 from .model_binding_application_service import ModelBindingApplicationService
 from .operations_memory_use_cases import MemoryOperationsUseCases
@@ -17,7 +16,6 @@ __all__ = [
     "AgentApplicationService",
     "AgentInteractionApplicationService",
     "ChannelIngressUseCases",
-    "ChannelNovelActionHandler",
     "CommandApplicationService",
     "MemoryOperationsUseCases",
     "ModelBindingApplicationService",

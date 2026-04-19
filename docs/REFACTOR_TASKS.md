@@ -113,8 +113,8 @@ Framework guardrail update (2026-04-13):
 
 ## P7 Plugin and Memory Evolution
 - [x] Introduce plugin capability registration boundaries (provider/channel/tool/hook).
-  - `mini_agent/plugins/registry.py`
-  - `tests/test_plugin_registry.py`
+  - removed in the v11.1 hard cut with the `mini_agent/plugins/` owner
+  - removed tests: `tests/test_plugin_registry.py`
 - [x] Convert memory from single note file to:
   - `MEMORY.md` (long-term)
   - `memory/YYYY-MM-DD.md` (daily context)

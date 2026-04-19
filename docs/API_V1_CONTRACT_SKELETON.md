@@ -33,24 +33,10 @@ Rules:
    - `POST /api/v1/agent/sessions/{session_id}/reset`
    - `POST /api/v1/agent/sessions/{session_id}/control`
 3. Novel Subprogram:
-   - `GET /api/v1/novel/config`
-   - `POST /api/v1/novel/setup`
-   - `POST /api/v1/novel/write`
-   - `POST /api/v1/novel/finalize`
-   - `POST /api/v1/novel/cover`
-   - `POST /api/v1/novel/illustrate`
-   - `GET /api/v1/novel/chapters`
-   - `GET /api/v1/novel/chapter/{chapter_number}`
-   - `PUT /api/v1/novel/chapter/{chapter_number}`
-   - `GET /api/v1/novel/chapter/{chapter_number}/versions`
-   - `GET /api/v1/novel/chapter/{chapter_number}/version/{version_id}`
-   - `PATCH /api/v1/novel/chapter/{chapter_number}/version/{version_id}`
-   - `POST /api/v1/novel/chapter/{chapter_number}/rollback`
-   - `GET /api/v1/novel/chapter/{chapter_number}/diff`
-   - `GET /api/v1/novel/assets`
+   - removed in the v11.1 hard cut; `/api/v1/novel/*` is no longer part of the active contract
 4. Channel Ingress:
    - `POST /api/v1/channel/message`
-   - Supports internal novel action dispatch through main-agent entry (`/novel <action> [json-params]` or `metadata.novel_action`).
+   - no longer performs feature-specific novel action dispatch
 5. Ops:
    - `GET /api/v1/ops/providers`
    - `POST /api/v1/ops/providers`
@@ -77,21 +63,21 @@ Rules:
 | `POST /api/v1/agent/sessions/{session_id}/share` | Implemented |
 | `POST /api/v1/agent/sessions/{session_id}/reset` | Implemented |
 | `POST /api/v1/agent/sessions/{session_id}/control` | Implemented |
-| `GET /api/v1/novel/config` | Implemented |
-| `POST /api/v1/novel/setup` | Implemented |
-| `POST /api/v1/novel/write` | Implemented |
-| `POST /api/v1/novel/finalize` | Implemented |
-| `POST /api/v1/novel/cover` | Implemented |
-| `POST /api/v1/novel/illustrate` | Implemented |
-| `GET /api/v1/novel/chapters` | Implemented |
-| `GET /api/v1/novel/chapter/{chapter_number}` | Implemented |
-| `PUT /api/v1/novel/chapter/{chapter_number}` | Implemented |
-| `GET /api/v1/novel/chapter/{chapter_number}/versions` | Implemented |
-| `GET /api/v1/novel/chapter/{chapter_number}/version/{version_id}` | Implemented |
-| `PATCH /api/v1/novel/chapter/{chapter_number}/version/{version_id}` | Implemented |
-| `POST /api/v1/novel/chapter/{chapter_number}/rollback` | Implemented |
-| `GET /api/v1/novel/chapter/{chapter_number}/diff` | Implemented |
-| `GET /api/v1/novel/assets` | Implemented |
+| `GET /api/v1/novel/config` | Removed in v11.1 hard cut |
+| `POST /api/v1/novel/setup` | Removed in v11.1 hard cut |
+| `POST /api/v1/novel/write` | Removed in v11.1 hard cut |
+| `POST /api/v1/novel/finalize` | Removed in v11.1 hard cut |
+| `POST /api/v1/novel/cover` | Removed in v11.1 hard cut |
+| `POST /api/v1/novel/illustrate` | Removed in v11.1 hard cut |
+| `GET /api/v1/novel/chapters` | Removed in v11.1 hard cut |
+| `GET /api/v1/novel/chapter/{chapter_number}` | Removed in v11.1 hard cut |
+| `PUT /api/v1/novel/chapter/{chapter_number}` | Removed in v11.1 hard cut |
+| `GET /api/v1/novel/chapter/{chapter_number}/versions` | Removed in v11.1 hard cut |
+| `GET /api/v1/novel/chapter/{chapter_number}/version/{version_id}` | Removed in v11.1 hard cut |
+| `PATCH /api/v1/novel/chapter/{chapter_number}/version/{version_id}` | Removed in v11.1 hard cut |
+| `POST /api/v1/novel/chapter/{chapter_number}/rollback` | Removed in v11.1 hard cut |
+| `GET /api/v1/novel/chapter/{chapter_number}/diff` | Removed in v11.1 hard cut |
+| `GET /api/v1/novel/assets` | Removed in v11.1 hard cut |
 | `GET /api/v1/ops/providers` | Implemented |
 | `POST /api/v1/ops/providers` | Implemented |
 | `PUT /api/v1/ops/providers/{provider_id}` | Implemented |
