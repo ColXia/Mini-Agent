@@ -31,7 +31,7 @@ from mini_agent.interfaces import (
     MainAgentSessionSkillResponse,
     MainAgentSessionSummary,
 )
-from mini_agent.interaction import resolve_interaction_binding
+from mini_agent.runtime.support.interaction_surface import resolve_interaction_binding
 from mini_agent.transport.session_transport_port import RemoteSessionTransportPort
 
 

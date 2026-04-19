@@ -8,16 +8,10 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Callable
 from uuid import uuid4
 
-try:
-    from mini_agent.interaction import (
-        normalize_surface_label,
-        resolve_interaction_binding,
-    )
-except Exception:  # pragma: no cover - compatibility path for staged interaction extraction
-    from mini_agent.runtime.support.interaction_surface import (
-        normalize_surface_label,
-        resolve_interaction_binding,
-    )
+from mini_agent.runtime.support.interaction_surface import (
+    normalize_surface_label,
+    resolve_interaction_binding,
+)
 from mini_agent.runtime.live_control.session_pending_approval_state_handler import (
     RuntimeSessionPendingApprovalStateHandler,
 )

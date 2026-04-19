@@ -30,7 +30,6 @@ from mini_agent.interfaces import (
     MainAgentSessionSkillResponse,
     MainAgentSessionSummary,
 )
-from mini_agent.interaction import normalize_channel_type, normalize_surface_label
 from mini_agent.memory.command_service import MemoryCommandService
 from mini_agent.memory.runtime_backend import WorkspaceRuntimeMemoryBackend
 from mini_agent.runtime.main_agent_runtime_contracts import (
@@ -48,6 +47,7 @@ from mini_agent.runtime.read_models.session_payload_codec import RuntimeSessionP
 from mini_agent.runtime.read_models.session_read_model_builder import RuntimeSessionReadModelBuilder
 from mini_agent.runtime.read_models.session_snapshot_builder import RuntimeSessionSnapshotBuilder
 from mini_agent.runtime.support.session_snapshot import RuntimeSessionSnapshot
+from mini_agent.runtime.support.interaction_surface import normalize_channel_type, normalize_surface_label
 from mini_agent.runtime.handlers.session_admin_handler import RuntimeSessionAdminHandler
 from mini_agent.runtime.support.session_command_coordinator import (
     RuntimeSessionCommandCoordinator,

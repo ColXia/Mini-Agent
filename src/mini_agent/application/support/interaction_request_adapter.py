@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from mini_agent.interaction import resolve_interaction_binding
 from mini_agent.interfaces import ChannelMessageRequest, MainAgentChatRequest
+from mini_agent.runtime.support.interaction_surface import resolve_interaction_binding
 
 if TYPE_CHECKING:
     from ..facades.surface_chat_flow_handler import SurfaceChatExecutionRequest

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from mini_agent.interaction import (
+from mini_agent.runtime.support.interaction_surface import (
     resolve_interaction_binding,
     normalize_channel_type,
     normalize_surface_label,

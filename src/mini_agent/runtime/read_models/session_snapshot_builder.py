@@ -7,10 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 
-try:
-    from mini_agent.interaction import normalize_channel_type
-except Exception:  # pragma: no cover - compatibility path for staged interaction extraction
-    from mini_agent.runtime.support.interaction_surface import normalize_channel_type
+from mini_agent.runtime.support.interaction_surface import normalize_channel_type
 from mini_agent.runtime.support.session_snapshot import (
     RuntimeSessionImportMessage,
     RuntimeSessionSnapshot,

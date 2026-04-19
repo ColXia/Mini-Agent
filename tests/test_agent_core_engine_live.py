@@ -6,10 +6,9 @@ from pathlib import Path
 import tempfile
 import pytest
 
-from mini_agent import LLMClient
 from mini_agent.agent_core.engine import Agent
 from mini_agent.config import Config
-from mini_agent.llm import build_protocol_execution_profile
+from mini_agent.llm import LLMClient, build_protocol_execution_profile
 from mini_agent.schema import LLMProvider
 from mini_agent.tools import BashTool, EditTool, ReadTool, WriteTool
 

@@ -12,7 +12,7 @@ from urllib.request import Request, urlopen
 
 import httpx
 
-from mini_agent.interaction import resolve_interaction_binding
+from mini_agent.runtime.support.interaction_surface import resolve_interaction_binding
 from mini_agent.transport.gateway_error import GatewayTransportError
 
 

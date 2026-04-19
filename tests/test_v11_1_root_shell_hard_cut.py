@@ -11,10 +11,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DELETED_ROOT_PATHS = (
     Path("src/mini_agent/launcher"),
     Path("src/mini_agent/code_agent"),
+    Path("src/mini_agent/interaction"),
 )
 DELETED_ROOT_MODULES = (
     "mini_agent.launcher",
     "mini_agent.code_agent",
+    "mini_agent.interaction",
 )
 FORBIDDEN_MODULE_IMPORTS = frozenset(DELETED_ROOT_MODULES)
 
