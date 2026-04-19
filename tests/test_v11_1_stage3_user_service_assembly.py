@@ -62,11 +62,6 @@ class _SessionAgentRuntimeStub:
         return {"kind": "skills", "session_id": session_id, "kwargs": kwargs}
 
 
-class _SessionModelRuntimeStub:
-    async def update_session_model_selection(self, session_id: str, **kwargs):
-        return {"kind": "model", "session_id": session_id, "kwargs": kwargs}
-
-
 class _WorkspaceRuntimeStub:
     async def list_workspaces(self):
         return [{"workspace_id": "ws-1"}]
@@ -82,6 +77,35 @@ class _WorkspaceRuntimeStub:
 
     async def get_workspace_runtime_summary(self, workspace_id: str | None = None):
         return {"workspace_id": workspace_id or "ws-1", "summary": True}
+
+
+class _ModelRuntimeStub:
+    async def list_model_bindings(self):
+        return [{"model_id": "model-1"}]
+
+    async def get_model_binding(self, agent_id: str | None = None):
+        return {"agent_id": agent_id, "model_id": "model-1"}
+
+    async def update_model_binding(
+        self,
+        *,
+        agent_id: str | None = None,
+        provider_source: str | None = None,
+        provider_id: str | None = None,
+        model_id: str | None = None,
+    ):
+        return {
+            "agent_id": agent_id,
+            "provider_source": provider_source,
+            "provider_id": provider_id,
+            "model_id": model_id,
+        }
+
+    async def list_model_capabilities(self, agent_id: str | None = None):
+        return {"agent_id": agent_id, "supports_tools": True}
+
+    async def get_model_binding_diagnostics(self, agent_id: str | None = None):
+        return {"agent_id": agent_id, "current_binding": {"agent_id": agent_id, "model_id": "model-1"}}
 
 
 class _CommandRuntimeStub:
@@ -140,9 +164,6 @@ class _RuntimeManagerStub(_SessionTaskRuntimeStub):
     async def update_session_runtime_policy(self, session_id: str, **kwargs):
         return {"kind": "policy", "session_id": session_id, "kwargs": kwargs}
 
-    async def update_session_model_selection(self, session_id: str, **kwargs):
-        return {"kind": "model", "session_id": session_id, "kwargs": kwargs}
-
     async def control_session_context(self, session_id: str, **kwargs):
         return {"kind": "control", "session_id": session_id, "kwargs": kwargs}
 
@@ -171,7 +192,7 @@ async def test_stage3_typed_user_service_assembly_builds_explicit_user_services(
         session_task_runtime=_SessionTaskRuntimeStub(),
         session_task_port=_SessionTaskPortStub(),
         session_agent_runtime=_SessionAgentRuntimeStub(),
-        session_model_runtime=_SessionModelRuntimeStub(),
+        model_runtime=_ModelRuntimeStub(),
         workspace_runtime=_WorkspaceRuntimeStub(),
         command_runtime=_CommandRuntimeStub(),
     )
@@ -192,19 +213,18 @@ async def test_stage3_typed_user_service_assembly_builds_explicit_user_services(
         surface="desktop",
     )
     switched = await assembly.workspace_service.switch_workspace("ws-2")  # type: ignore[union-attr]
-    model = await assembly.model_service.update_session_model_selection(
-        "sess-typed",
+    model = await assembly.model_service.set_agent_model_binding(
+        agent_id="main-agent",
         provider_source="preset",
         provider_id="openai",
         model_id="gpt-5.4",
-        surface="desktop",
     )
     command = await assembly.command_service.dispatch_command("/help", surface="desktop")  # type: ignore[union-attr]
 
     assert listed == [{"workspace_dir": "D:\\workspace\\demo", "shared_only": True}]
     assert policy["kind"] == "policy"
     assert switched == {"workspace_id": "ws-2", "switched": True}
-    assert model["kind"] == "model"
+    assert model["model_id"] == "gpt-5.4"
     assert command == {"command": "/help", "kwargs": {"surface": "desktop"}}
 
 
@@ -217,7 +237,7 @@ async def test_stage3_runtime_backed_user_service_assembly_wraps_runtime_with_ex
     assert assembly.workspace_service is None
     assert assembly.command_service is None
     assert assembly.agent_service.session_agent_runtime is runtime_manager
-    assert assembly.model_service.session_model_runtime is runtime_manager
+    assert assembly.model_service.model_runtime is None
 
     listed = await assembly.session_task_service.list_sessions(
         workspace_dir=Path("D:/workspace/runtime"),
@@ -265,13 +285,6 @@ async def test_stage4_session_task_service_absorbs_session_scoped_actions() -> N
         mode="allowlist",
         surface="desktop",
     )
-    model = await assembly.session_task_service.update_session_model_selection(
-        "sess-runtime",
-        provider_source="preset",
-        provider_id="openai",
-        model_id="gpt-5.4",
-        surface="desktop",
-    )
     policy = await assembly.session_task_service.update_session_runtime_policy(
         "sess-runtime",
         approval_profile="plan",
@@ -283,7 +296,6 @@ async def test_stage4_session_task_service_absorbs_session_scoped_actions() -> N
     assert context["kind"] == "context"
     assert memory["kind"] == "memory"
     assert skills["kind"] == "skills"
-    assert model["kind"] == "model"
     assert policy["kind"] == "policy"
 
 
@@ -349,7 +361,6 @@ def test_stage5_runtime_backed_user_service_ports_prefer_direct_runtime_owners()
     assert ports.session_task_runtime is runtime_manager
     assert ports.session_task_port is runtime_manager
     assert ports.session_agent_runtime is runtime_manager
-    assert ports.session_model_runtime is runtime_manager
     assert ports.run_runtime is runtime_manager
 
 

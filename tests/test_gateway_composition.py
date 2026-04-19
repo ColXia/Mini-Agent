@@ -44,18 +44,16 @@ def test_gateway_composition_wires_explicit_session_task_service(tmp_path: Path)
     assert runtime_backed_ports.session_task_runtime is composition.get_runtime_manager()
     assert runtime_backed_ports.session_task_port is composition.get_runtime_manager()
     assert runtime_backed_ports.session_agent_runtime is composition.get_runtime_manager()
-    assert runtime_backed_ports.session_model_runtime is composition.get_runtime_manager()
     assert runtime_backed_ports.model_runtime is composition.get_model_runtime_adapter()
     assert runtime_backed_ports.workspace_runtime is composition.get_workspace_runtime()
     assert isinstance(composition.get_model_runtime_adapter(), AgentModelRuntimeAdapter)
     assert session_task_service._runtime_manager is runtime_backed_ports.session_task_runtime
     assert session_task_service._session_agent_runtime is runtime_backed_ports.session_agent_runtime
-    assert session_task_service._session_model_runtime is runtime_backed_ports.session_model_runtime
     assert run_control_service.session_tasks is runtime_backed_ports.session_task_port
     assert run_control_service.run_runtime is composition.get_runtime_manager()
     assert run_control_service.run_runtime is runtime_backed_ports.run_runtime
     assert agent_service.session_agent_runtime is runtime_backed_ports.session_agent_runtime
-    assert composition.get_model_service().session_model_runtime is runtime_backed_ports.session_model_runtime
+    assert composition.get_model_service().model_runtime is runtime_backed_ports.model_runtime
 
     asyncio.run(composition.shutdown())
 

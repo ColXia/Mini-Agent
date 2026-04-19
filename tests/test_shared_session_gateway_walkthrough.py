@@ -12,7 +12,6 @@ def test_shared_session_gateway_walkthrough_run_all_passes(tmp_path: Path) -> No
     assert [item.name for item in results] == [
         "shared-activity-and-takeover",
         "shared-control-and-cancel",
-        "shared-model-selection",
         "import-export-roundtrip",
         "restart-recovery-snapshot",
         "restart-persistence",
@@ -25,12 +24,6 @@ def test_shared_session_gateway_walkthrough_run_all_passes(tmp_path: Path) -> No
 
     control_step = next(item for item in results if item.name == "shared-control-and-cancel")
     assert "Task cancelled by user." in control_step.excerpts["cancel_detail"]
-
-    model_step = next(item for item in results if item.name == "shared-model-selection")
-    assert "selected_model=preset:openai/gpt-5.3" in model_step.excerpts["detail_after_select"]
-    assert "pending_model=preset:openai/gpt-5.4" in model_step.excerpts["detail_after_queue"]
-    assert "selected_model=preset:openai/gpt-5.4" in model_step.excerpts["detail_after_continue"]
-    assert "continue after queued switch" in model_step.excerpts["detail_after_continue"]
 
     recovery_step = next(item for item in results if item.name == "restart-recovery-snapshot")
     assert "approval pending for shell" in recovery_step.excerpts["detail_after_restart"]

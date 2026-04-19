@@ -1253,7 +1253,6 @@ class GatewayClient:
         conversation_id: str | None = None,
         sender_id: str | None = None,
     ) -> dict[str, Any]:
-        safe_id = quote(_safe_text(session_id), safe="")
         binding = self._binding_payload(
             surface=surface,
             channel_type=channel_type,
@@ -1261,17 +1260,32 @@ class GatewayClient:
             sender_id=sender_id,
         )
         payload = {
+            "agent_id": None,
             "provider_source": _safe_text(provider_source) or None,
             "provider_id": _safe_text(provider_id),
             "model_id": _safe_text(model_id),
-            **binding,
         }
-        return await asyncio.to_thread(
+        response = await asyncio.to_thread(
             self._request_json,
-            "POST",
-            f"/api/v1/agent/sessions/{safe_id}/model",
+            "PUT",
+            "/api/v1/agent/model/binding",
             payload=payload,
         )
+        if not isinstance(response, dict):
+            return {}
+        return {
+            "status": "selected",
+            "session_id": _safe_text(session_id),
+            "active_surface": _safe_text(binding.get("surface")) or "tui",
+            "applied": True,
+            "queued": False,
+            "selected_model_source": response.get("provider_source"),
+            "selected_provider_id": response.get("provider_id"),
+            "selected_model_id": response.get("model_id"),
+            "pending_model_source": None,
+            "pending_provider_id": None,
+            "pending_model_id": None,
+        }
 
     def update_session_model_sync(
         self,
@@ -1285,7 +1299,6 @@ class GatewayClient:
         conversation_id: str | None = None,
         sender_id: str | None = None,
     ) -> dict[str, Any]:
-        safe_id = quote(_safe_text(session_id), safe="")
         binding = self._binding_payload(
             surface=surface,
             channel_type=channel_type,
@@ -1293,17 +1306,31 @@ class GatewayClient:
             sender_id=sender_id,
         )
         payload = {
+            "agent_id": None,
             "provider_source": _safe_text(provider_source) or None,
             "provider_id": _safe_text(provider_id),
             "model_id": _safe_text(model_id),
-            **binding,
         }
-        data = self._request_json(
-            "POST",
-            f"/api/v1/agent/sessions/{safe_id}/model",
+        response = self._request_json(
+            "PUT",
+            "/api/v1/agent/model/binding",
             payload=payload,
         )
-        return data if isinstance(data, dict) else {}
+        if not isinstance(response, dict):
+            return {}
+        return {
+            "status": "selected",
+            "session_id": _safe_text(session_id),
+            "active_surface": _safe_text(binding.get("surface")) or "tui",
+            "applied": True,
+            "queued": False,
+            "selected_model_source": response.get("provider_source"),
+            "selected_provider_id": response.get("provider_id"),
+            "selected_model_id": response.get("model_id"),
+            "pending_model_source": None,
+            "pending_provider_id": None,
+            "pending_model_id": None,
+        }
 
     async def update_session_runtime_policy(
         self,

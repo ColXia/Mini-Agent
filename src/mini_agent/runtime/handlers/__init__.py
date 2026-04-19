@@ -26,7 +26,6 @@ from .session_memory_command_handler import (
 )
 from .session_operator_handler import (
     RuntimeSessionContextPolicyExecution,
-    RuntimeSessionModelSelectionExecution,
     RuntimeSessionOperatorHandler,
     RuntimeSessionSkillMutationExecution,
 )
@@ -49,7 +48,6 @@ __all__ = [
     "RuntimeSessionMemoryCommandExecution",
     "RuntimeSessionMemoryCommandHandler",
     "RuntimeSessionContextPolicyExecution",
-    "RuntimeSessionModelSelectionExecution",
     "RuntimeSessionOperatorHandler",
     "RuntimeSessionRegistryHandler",
     "RuntimeSessionSkillMutationExecution",

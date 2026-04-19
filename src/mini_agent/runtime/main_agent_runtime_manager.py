@@ -26,14 +26,11 @@ from mini_agent.interfaces import (
     MainAgentSessionDetail,
     MainAgentSessionMemoryResponse,
     MainAgentSessionMessage,
-    MainAgentSessionModelSelectionResponse,
     MainAgentSessionMutationResponse,
     MainAgentSessionSkillResponse,
     MainAgentSessionSummary,
 )
 from mini_agent.interaction import normalize_channel_type, normalize_surface_label
-from mini_agent.model_manager.session_selection_service import SessionModelSelectionService
-from mini_agent.model_manager.runtime import resolve_session_model_selection_identity
 from mini_agent.memory.command_service import MemoryCommandService
 from mini_agent.memory.runtime_backend import WorkspaceRuntimeMemoryBackend
 from mini_agent.runtime.main_agent_runtime_contracts import (
@@ -360,15 +357,6 @@ class MainAgentRuntimeManager:
             collect_sandbox_diagnostics=lambda agent: collect_sandbox_diagnostics(agent=agent),
             route_model_identity=self._model_identity_codec.route_model_identity,
         )
-        self._session_model_selection = SessionModelSelectionService(
-            normalize_model_identity=self._model_identity_codec.normalize_model_identity,
-            resolve_selection_identity=lambda provider_source, provider_id, model_id: resolve_session_model_selection_identity(
-                provider_source=provider_source,
-                provider_id=provider_id,
-                model_id=model_id,
-            ),
-        )
-
     def _initialize_session_runtime_services(self) -> None:
         self._session_hydration = RuntimeSessionHydrationCoordinator(
             prepare_restore_payload=lambda record, now_utc: self._session_restore.prepare_restore_payload(
@@ -420,7 +408,7 @@ class MainAgentRuntimeManager:
             clear_recovery_context_mutation=self._session_recovery_reset.clear_recovery_context,
             capture_prepared_context_state_mutation=self._session_runtime_state_hydrator.capture_agent_prepared_context_state,
             restore_prepared_context_state_mutation=self._session_runtime_state_hydrator.restore_agent_prepared_context_state,
-            apply_pending_session_model_selection=self.apply_pending_session_model_selection,
+            ensure_agent_model_binding_for_turn=self.ensure_agent_model_binding_for_turn,
             apply_pending_session_skill_reload=self.apply_pending_session_skill_reload,
             persist_session=self._managed_session_store.persist_session,
         )
@@ -565,15 +553,12 @@ class MainAgentRuntimeManager:
             session_context_commands=self._session_context_commands,
             session_memory_commands=self._session_memory_commands,
             session_skill_commands=self._session_skill_commands,
-            session_model_selection=self._session_model_selection,
             session_runtime_policy=self._session_runtime_policy,
             session_interrupt=self._session_interrupt,
             session_agent_runtime=self._session_agent_runtime,
             session_live_state=self._session_live_state,
             load_runtime_config=self._load_runtime_config,
             selected_model_identity=self._model_identity_codec.selected_model_identity,
-            pending_model_identity=self._model_identity_codec.pending_model_identity,
-            set_pending_model_identity=self._model_identity_codec.set_pending_model_identity,
             active_pending_approvals=lambda session: self._session_run_control.pending_approval_payloads(session),
             persist_session=self._managed_session_store.persist_session,
             queue_workspace_skill_reload=self.queue_workspace_skill_reload,
@@ -663,6 +648,35 @@ class MainAgentRuntimeManager:
             conversation_id=conversation_id,
             sender_id=sender_id,
         )
+
+    async def ensure_agent_model_binding_for_turn(
+        self,
+        session: MainAgentSessionState,
+    ) -> bool:
+        target_identity = self._resolve_agent_model_identity() if callable(self._resolve_agent_model_identity) else None
+        current_identity = self._model_identity_codec.selected_model_identity(session)
+        pending_identity = self._model_identity_codec.pending_model_identity(session)
+        cleared_pending = pending_identity is not None
+
+        if cleared_pending:
+            self._model_identity_codec.set_pending_model_identity(session, None)
+
+        if target_identity is None:
+            if cleared_pending:
+                session.touch()
+                self._managed_session_store.persist_session(session)
+            return cleared_pending
+
+        if current_identity == target_identity:
+            if cleared_pending:
+                session.touch()
+                self._managed_session_store.persist_session(session)
+            return cleared_pending
+
+        await self._session_agent_runtime.rebuild_agent_with_identity(session, target_identity)
+        session.touch()
+        self._managed_session_store.persist_session(session)
+        return True
 
     async def ensure_default_session(
         self,
@@ -1100,48 +1114,6 @@ class MainAgentRuntimeManager:
             conversation_id=conversation_id,
             sender_id=sender_id,
         )
-
-    async def update_session_model_selection(
-        self,
-        session_id: str,
-        *,
-        provider_source: str | None,
-        provider_id: str,
-        model_id: str,
-        surface: str | None = None,
-        channel_type: str | None = None,
-        conversation_id: str | None = None,
-        sender_id: str | None = None,
-    ) -> MainAgentSessionModelSelectionResponse:
-        async with self._store_lock:
-            session = await self._managed_session_store.require_managed_session(self._sessions, session_id)
-        return await self._session_operator.update_model_selection(
-            session,
-            provider_source=provider_source,
-            provider_id=provider_id,
-            model_id=model_id,
-            surface=surface,
-            channel_type=channel_type,
-            conversation_id=conversation_id,
-            sender_id=sender_id,
-        )
-
-    async def apply_pending_session_model_selection(
-        self,
-        session: MainAgentSessionState,
-    ) -> bool:
-        pending_identity = self._session_model_selection.pending_identity_to_apply(
-            pending_identity=self._model_identity_codec.pending_model_identity(session),
-            busy=bool(session.projection.busy),
-        )
-        applied = await self._session_agent_runtime.apply_pending_model_selection(
-            session,
-            pending_identity=pending_identity,
-        )
-        if applied:
-            session.touch()
-            self._managed_session_store.persist_session(session)
-        return applied
 
     async def update_session_runtime_policy(
         self,

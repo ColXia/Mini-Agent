@@ -1,4 +1,4 @@
-"""Application service for agent model binding and session-selection compatibility."""
+"""Application service for agent-owned main model binding."""
 
 from __future__ import annotations
 
@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from mini_agent.application.ports.model_runtime_port import ModelRuntimePort
-from mini_agent.application.ports.session_model_selection_runtime_port import SessionModelSelectionRuntimePort
 
 
 def _require_model_runtime(runtime: ModelRuntimePort | None) -> ModelRuntimePort:
@@ -14,25 +13,11 @@ def _require_model_runtime(runtime: ModelRuntimePort | None) -> ModelRuntimePort
         raise RuntimeError("Model runtime port is not configured.")
     return runtime
 
-
-def _require_session_model_runtime(
-    runtime: SessionModelSelectionRuntimePort | None,
-) -> SessionModelSelectionRuntimePort:
-    if runtime is None:
-        raise RuntimeError("Session model compatibility runtime is not configured.")
-    return runtime
-
-
 @dataclass(slots=True)
 class ModelBindingApplicationService:
-    """Owns application-layer model binding and compatibility selection flows.
-
-    Session model-selection support remains a compatibility shim while session/task
-    entrypoints migrate behind `SessionTaskService`.
-    """
+    """Owns application-layer agent model binding flows."""
 
     model_runtime: ModelRuntimePort | None = None
-    session_model_runtime: SessionModelSelectionRuntimePort | None = None
 
     async def list_model_bindings(self) -> Any:
         return await _require_model_runtime(self.model_runtime).list_model_bindings()
@@ -84,30 +69,6 @@ class ModelBindingApplicationService:
 
     async def get_model_binding_diagnostics(self, agent_id: str | None = None) -> Any:
         return await _require_model_runtime(self.model_runtime).get_model_binding_diagnostics(agent_id)
-
-    # Compatibility-only session-scoped entrypoint. Prefer SessionTaskService when available.
-    async def update_session_model_selection(
-        self,
-        session_id: str,
-        *,
-        provider_source: str | None = None,
-        provider_id: str | None = None,
-        model_id: str | None = None,
-        surface: str | None = None,
-        channel_type: str | None = None,
-        conversation_id: str | None = None,
-        sender_id: str | None = None,
-    ) -> Any:
-        return await _require_session_model_runtime(self.session_model_runtime).update_session_model_selection(
-            session_id,
-            provider_source=provider_source,
-            provider_id=provider_id,
-            model_id=model_id,
-            surface=surface,
-            channel_type=channel_type,
-            conversation_id=conversation_id,
-            sender_id=sender_id,
-        )
 
 
 __all__ = ["ModelBindingApplicationService"]

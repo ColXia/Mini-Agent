@@ -7,7 +7,6 @@ from mini_agent.application.ports import (
     ModelRuntimePort,
     RunRuntimePort,
     SessionAgentRuntimePort,
-    SessionModelSelectionRuntimePort,
     SessionRuntimePort,
     SessionTaskPort,
     SessionTaskRuntimePort,
@@ -160,31 +159,6 @@ class ModelRuntimeStub:
 
     async def get_model_binding_diagnostics(self, agent_id: str | None = None):
         return {"agent_id": agent_id, "current_binding": {"agent_id": agent_id, "model_id": "model-1"}}
-
-
-class SessionModelRuntimeStub:
-    async def update_session_model_selection(
-        self,
-        session_id: str,
-        *,
-        provider_source: str | None = None,
-        provider_id: str | None = None,
-        model_id: str | None = None,
-        surface: str | None = None,
-        channel_type: str | None = None,
-        conversation_id: str | None = None,
-        sender_id: str | None = None,
-    ):
-        return {
-            "session_id": session_id,
-            "provider_source": provider_source,
-            "provider_id": provider_id,
-            "model_id": model_id,
-            "surface": surface,
-            "channel_type": channel_type,
-            "conversation_id": conversation_id,
-            "sender_id": sender_id,
-        }
 
 
 class SessionRuntimePolicyRuntimeStub:
@@ -343,7 +317,6 @@ def test_stage1_port_packages_export_expected_contracts() -> None:
     assert ModelRuntimePort is not None
     assert RunRuntimePort is not None
     assert SessionAgentRuntimePort is not None
-    assert SessionModelSelectionRuntimePort is not None
     assert SessionRuntimePort is not None
     assert SessionTaskRuntimePort is not None
     assert SessionTaskPort is not None
@@ -442,16 +415,8 @@ async def test_stage1_user_services_delegate_to_runtime_ports() -> None:
 
 @pytest.mark.asyncio
 async def test_stage1_user_services_support_session_scoped_runtime_actions() -> None:
-    model_service = ModelUserService(session_model_runtime=SessionModelRuntimeStub())
     agent_service = AgentUserService(session_agent_runtime=SessionRuntimePolicyRuntimeStub())
 
-    model_response = await model_service.update_session_model_selection(
-        "session-3",
-        provider_source="preset",
-        provider_id="openai",
-        model_id="gpt-5.4",
-        surface="desktop",
-    )
     policy_response = await agent_service.update_session_runtime_policy(
         "session-4",
         approval_profile="plan",
@@ -459,7 +424,6 @@ async def test_stage1_user_services_support_session_scoped_runtime_actions() -> 
         surface="desktop",
     )
 
-    assert model_response["session_id"] == "session-3"
     assert policy_response["approval_profile"] == "plan"
 
 
@@ -516,10 +480,7 @@ async def test_stage1_application_services_delegate_to_runtime_ports() -> None:
         session_agent_runtime=SessionControlRuntimeStub(),
     )
     workspace_application = WorkspaceApplicationService(workspace_runtime=WorkspaceRuntimeStub())
-    model_application = ModelBindingApplicationService(
-        model_runtime=ModelRuntimeStub(),
-        session_model_runtime=SessionModelRuntimeStub(),
-    )
+    model_application = ModelBindingApplicationService(model_runtime=ModelRuntimeStub())
     command_application = CommandApplicationService(command_runtime=CommandRuntimeStub())
 
     assert await agent_application.get_active_agent() == {"agent_id": "agent-1", "active": True}

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass, field
 from datetime import datetime
 import html
 import json
@@ -13,13 +14,17 @@ from urllib.parse import urlsplit
 from mini_agent.desktop.gateway_transport_binding import DesktopGatewayTransportBinding
 from mini_agent.desktop.gateway_supervisor import DesktopGatewayConnection, DesktopGatewaySupervisor
 from mini_agent.interfaces import (
+    MainAgentChatRequest,
     MainAgentDefaultSessionRequest,
+    MainAgentModelBindingRequest,
     MainAgentRunApprovalRequest,
+    MainAgentRunCancelRequest,
+    MainAgentRunInterruptRequest,
+    MainAgentRunResumeRequest,
     MainAgentSessionApprovalRequest,
     MainAgentSessionControlRequest,
     MainAgentSessionCreateRequest,
     MainAgentSessionForkRequest,
-    MainAgentSessionModelSelectionRequest,
     MainAgentSessionRenameRequest,
     MainAgentSessionShareRequest,
     StudioFeatureModelBindingRequest,
@@ -31,7 +36,6 @@ from mini_agent.interfaces import (
     surface_payload_from_dto,
     surface_payload_list_from_dtos,
 )
-from mini_agent.model_manager.session_selection_service import SessionModelSelectionService
 from mini_agent.runtime.read_models.session_payload_codec import RuntimeSessionPayloadCodec
 from mini_agent.runtime.live_control.session_pending_approval_service import SessionPendingApprovalService
 from mini_agent.runtime.support.session_backed_run_id import build_session_backed_run_id
@@ -134,6 +138,29 @@ DESKTOP_PROVIDER_PRESET_SPECS: tuple[dict[str, str], ...] = (
 )
 
 DESKTOP_OLLAMA_SENTINEL_API_KEY = "ollama"
+
+
+@dataclass(frozen=True, slots=True)
+class DesktopSessionActionFeedback:
+    """Normalized feedback emitted by desktop session/run actions."""
+
+    status_text: str
+    activity_message: str
+    activity_kind: str = "session"
+    preferred_session_id: str | None = None
+    activity_detail: str | None = None
+    response_payload: dict[str, Any] = field(default_factory=dict)
+    updated_run_summary: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class DesktopTurnFeedback:
+    """Normalized feedback for desktop prompt submission and stream outcomes."""
+
+    status_text: str
+    activity_message: str
+    activity_kind: str = "status"
+    activity_detail: str | None = None
 
 
 def _compact_text(value: Any) -> str:
@@ -301,14 +328,28 @@ def format_session_row(session: dict[str, Any]) -> str:
     """Render one compact session row for the left rail."""
     title = _compact_text(session.get("title")) or _compact_text(session.get("session_id")) or "Untitled"
     labels: list[str] = [title]
-    if bool(session.get("busy")):
+    pending = list(session.get("pending_approvals") or [])
+    running_state = _compact_text(session.get("running_state")).lower()
+    recovery = session.get("recovery") if isinstance(session.get("recovery"), dict) else {}
+    if pending:
+        labels.append("Waiting")
+    elif running_state == "cancellation requested":
+        labels.append("Cancelling")
+    elif running_state == "interrupt requested":
+        labels.append("Interrupting")
+    elif recovery:
+        labels.append("Interrupted")
+    elif bool(session.get("busy")):
         labels.append("Busy")
     if bool(session.get("shared")):
         labels.append("Shared")
     return " | ".join(labels)
 
 
-def format_session_context_text(detail: dict[str, Any]) -> str:
+def format_session_context_text(
+    detail: dict[str, Any],
+    run_summary: dict[str, Any] | None = None,
+) -> str:
     """Render concise session metadata and diagnostics for the right rail."""
     diagnostics = {
         "pending_approvals": detail.get("pending_approvals") or [],
@@ -325,6 +366,8 @@ def format_session_context_text(detail: dict[str, Any]) -> str:
         f"Running: {_compact_text(detail.get('running_state')) or '-'}",
         f"Model: {_compact_text(detail.get('selected_provider_id')) or '-'} / {_compact_text(detail.get('selected_model_id')) or '-'}",
         f"Updated: {_compact_text(detail.get('updated_at')) or '-'}",
+        "",
+        format_desktop_run_summary_text(run_summary),
         "",
         "Diagnostics:",
         json.dumps(diagnostics, ensure_ascii=False, indent=2),
@@ -431,6 +474,30 @@ def first_pending_approval(
     return item if isinstance(item, dict) else None
 
 
+def count_desktop_pending_approvals(
+    detail: dict[str, Any] | None,
+    run_summary: dict[str, Any] | None = None,
+) -> int:
+    """Count visible pending approvals, preferring run-level truth when present."""
+    run_wait = (run_summary or {}).get("approval_wait") if isinstance(run_summary, dict) else None
+    if isinstance(run_wait, dict):
+        token = _compact_text(run_wait.get("approval_token"))
+        tool_name = _compact_text(run_wait.get("tool_name"))
+        if token or tool_name:
+            return 1
+    items = [item for item in list((detail or {}).get("pending_approvals") or []) if isinstance(item, dict)]
+    return len(items)
+
+
+def resolve_desktop_approval_button_text(
+    detail: dict[str, Any] | None,
+    run_summary: dict[str, Any] | None = None,
+) -> str:
+    """Resolve the DesktopUI approvals button label."""
+    count = count_desktop_pending_approvals(detail, run_summary)
+    return "Approvals" if count <= 0 else f"Approvals ({count})"
+
+
 def desktop_error_detail(exc: Exception) -> str:
     """Normalize desktop-visible gateway/remote exception detail."""
     return _compact_text(extract_gateway_error_info(exc).detail) or _compact_text(exc) or "request failed"
@@ -443,6 +510,342 @@ def format_desktop_approval_failure(exc: Exception) -> tuple[str, str]:
     title = f"Approval failed: {detail}" if summary == "approval failed" else f"Approval {summary}: {detail}"
     status = SessionPendingApprovalService.error_status_text(detail=detail)
     return title, status
+
+
+def perform_desktop_share_toggle(
+    *,
+    session_client: Any,
+    session_id: str,
+    selected_session_detail: dict[str, Any] | None,
+) -> DesktopSessionActionFeedback:
+    """Execute the desktop share toggle and normalize user-facing feedback."""
+    detail = selected_session_detail if isinstance(selected_session_detail, dict) else {}
+    next_shared = not bool(detail.get("shared"))
+    response = session_client.set_session_shared_sync(
+        session_id,
+        MainAgentSessionShareRequest(shared=next_shared),
+    )
+    response_payload = surface_payload_from_dto(response)
+    shared = bool(response_payload.get("shared"))
+    title = _compact_text(response_payload.get("title")) or _compact_text(detail.get("title")) or session_id
+    feedback = SessionFeedbackService.mutation_feedback(
+        status=str(response_payload.get("status") or ("shared" if shared else "unshared")),
+        title=title,
+        shared=shared,
+    )
+    return DesktopSessionActionFeedback(
+        status_text=feedback.status_text,
+        activity_message=feedback.status_text,
+        preferred_session_id=session_id,
+        response_payload=response_payload,
+    )
+
+
+def perform_desktop_session_fork(
+    *,
+    session_client: Any,
+    session_id: str,
+    parent_title: str | None,
+    requested_title: str | None,
+) -> DesktopSessionActionFeedback:
+    """Create a derived desktop session and normalize the resulting feedback."""
+    response = session_client.create_derived_session_sync(
+        session_id,
+        MainAgentSessionForkRequest(
+            title=_compact_text(requested_title) or None,
+            surface="desktop",
+        ),
+    )
+    response_payload = surface_payload_from_dto(response)
+    created_id = _compact_text(response_payload.get("session_id"))
+    created_title = _compact_text(response_payload.get("title")) or created_id or "derived session"
+    feedback = SessionFeedbackService.fork_feedback(
+        title=created_title,
+        parent_title=_compact_text(parent_title) or session_id,
+    )
+    return DesktopSessionActionFeedback(
+        status_text=feedback.status_text,
+        activity_message=feedback.status_text,
+        preferred_session_id=created_id or session_id,
+        response_payload=response_payload,
+    )
+
+
+def perform_desktop_session_rename(
+    *,
+    session_client: Any,
+    session_id: str,
+    requested_title: str,
+    fallback_title: str | None = None,
+) -> DesktopSessionActionFeedback:
+    """Rename the active desktop session and normalize the resulting feedback."""
+    response = session_client.rename_session_sync(
+        session_id,
+        MainAgentSessionRenameRequest(title=_compact_text(requested_title)),
+    )
+    response_payload = surface_payload_from_dto(response)
+    applied_title = _compact_text(response_payload.get("title")) or _compact_text(requested_title)
+    applied_title = applied_title or _compact_text(fallback_title) or session_id
+    feedback = SessionFeedbackService.mutation_feedback(
+        status=str(response_payload.get("status") or "renamed"),
+        title=applied_title,
+        shared=(
+            response_payload.get("shared")
+            if isinstance(response_payload.get("shared"), bool)
+            else None
+        ),
+    )
+    return DesktopSessionActionFeedback(
+        status_text=feedback.status_text,
+        activity_message=feedback.status_text,
+        preferred_session_id=session_id,
+        response_payload=response_payload,
+    )
+
+
+def perform_desktop_session_compact(
+    *,
+    session_client: Any,
+    session_id: str,
+    selected_session_title: str | None,
+) -> DesktopSessionActionFeedback:
+    """Compact the active desktop session and normalize the resulting feedback."""
+    response = session_client.control_session_sync(
+        session_id,
+        MainAgentSessionControlRequest(
+            action="compact",
+            reason="desktop compact request",
+            surface="desktop",
+        ),
+    )
+    response_payload = surface_payload_from_dto(response)
+    applied = bool(response_payload.get("applied"))
+    before = int(response_payload.get("message_count_before") or 0)
+    after = int(response_payload.get("message_count_after") or 0)
+    title = _compact_text(selected_session_title) or session_id
+    status_text = f"Compacted {title}." if applied else f"{title} was already compact."
+    return DesktopSessionActionFeedback(
+        status_text=status_text,
+        activity_message=status_text,
+        activity_kind="session",
+        preferred_session_id=session_id,
+        activity_detail=f"Messages: {before} -> {after}",
+        response_payload=response_payload,
+    )
+
+
+def perform_desktop_session_creation(
+    *,
+    session_client: Any,
+    workspace_dir: str,
+    current_session_id: str | None,
+) -> DesktopSessionActionFeedback:
+    """Create a desktop session or a derived follow-up session."""
+    if current_session_id:
+        created = session_client.create_derived_session_sync(
+            current_session_id,
+            MainAgentSessionForkRequest(
+                title="Session",
+                surface="desktop",
+            ),
+        )
+    else:
+        created = session_client.create_session_sync(
+            MainAgentSessionCreateRequest(
+                workspace_dir=workspace_dir,
+                surface="desktop",
+                shared=False,
+            )
+        )
+
+    created_payload = surface_payload_from_dto(created)
+    session_id = _compact_text(created_payload.get("session_id"))
+    created_title = _compact_text(created_payload.get("title")) or session_id or "unknown"
+    create_feedback = SessionFeedbackService.creation_feedback(
+        title=created_title,
+        derived=bool(current_session_id),
+    )
+    return DesktopSessionActionFeedback(
+        status_text=create_feedback.status_text,
+        activity_message=create_feedback.status_text,
+        activity_kind="session",
+        preferred_session_id=session_id or current_session_id,
+        response_payload=created_payload,
+    )
+
+
+def perform_desktop_pending_approval_resolution(
+    *,
+    run_client: Any,
+    session_client: Any,
+    session_id: str,
+    run_id: str | None,
+    selected_session_detail: dict[str, Any] | None,
+    selected_run_summary: dict[str, Any] | None,
+    approved: bool,
+) -> DesktopSessionActionFeedback:
+    """Resolve the current desktop approval against run truth when available."""
+    pending = first_pending_approval(selected_session_detail, selected_run_summary)
+    token = _compact_text((pending or {}).get("token"))
+    if not token:
+        raise ValueError("No pending approval token is available.")
+
+    if run_id:
+        response = run_client.respond_to_approval_sync(
+            run_id,
+            MainAgentRunApprovalRequest(
+                approved=approved,
+                token=token,
+                surface="desktop",
+            ),
+        )
+    else:
+        response = session_client.respond_to_approval_sync(
+            session_id,
+            MainAgentSessionApprovalRequest(
+                approved=approved,
+                token=token,
+                surface="desktop",
+            ),
+        )
+
+    response_payload = surface_payload_from_dto(response)
+    decision = _compact_text(response_payload.get("decision")) or ("approved" if approved else "denied")
+    tool_name = (
+        _compact_text(response_payload.get("tool_name"))
+        or _compact_text((pending or {}).get("tool_name"))
+        or "tool"
+    )
+    updated_run_summary = (
+        response_payload if _compact_text(response_payload.get("run_id")) else None
+    )
+    status_text = f"Approval {decision}: {tool_name}"
+    return DesktopSessionActionFeedback(
+        status_text=status_text,
+        activity_message=status_text,
+        activity_kind="approval",
+        response_payload=response_payload,
+        updated_run_summary=updated_run_summary,
+    )
+
+
+def desktop_run_can_cancel(
+    run_summary: dict[str, Any] | None,
+    *,
+    send_busy: bool = False,
+) -> bool:
+    """Return whether the desktop surface should expose run-cancel affordance."""
+    if send_busy:
+        return True
+    summary = run_summary if isinstance(run_summary, dict) else {}
+    return bool(summary.get("busy") or summary.get("waiting_on_approval"))
+
+
+def desktop_run_can_interrupt(
+    run_summary: dict[str, Any] | None,
+    *,
+    send_busy: bool = False,
+) -> bool:
+    """Return whether the desktop surface should expose run-interrupt affordance."""
+    if send_busy:
+        return True
+    summary = run_summary if isinstance(run_summary, dict) else {}
+    return bool(
+        summary.get("busy")
+        and not bool(summary.get("waiting_on_approval"))
+        and not bool(summary.get("interrupt_requested"))
+        and not bool(summary.get("cancel_requested"))
+    )
+
+
+def desktop_run_can_resume(run_summary: dict[str, Any] | None) -> bool:
+    """Return whether the desktop surface should expose run-resume affordance."""
+    summary = run_summary if isinstance(run_summary, dict) else {}
+    return bool(summary.get("resumable")) and not bool(summary.get("cancel_requested"))
+
+
+def perform_desktop_run_cancel(
+    *,
+    run_client: Any,
+    run_id: str,
+    reason: str | None = None,
+) -> DesktopSessionActionFeedback:
+    """Request cancellation for the active desktop run."""
+    response = run_client.cancel_run_sync(
+        run_id,
+        MainAgentRunCancelRequest(
+            reason=_compact_text(reason) or "desktop cancel request",
+            surface="desktop",
+        ),
+    )
+    response_payload = surface_payload_from_dto(response)
+    status_text = "Cancel requested for current turn."
+    if not bool(response_payload.get("cancel_requested")) and not bool(response_payload.get("busy")):
+        status_text = "Current turn is already idle."
+    return DesktopSessionActionFeedback(
+        status_text=status_text,
+        activity_message=status_text,
+        activity_kind="status",
+        response_payload=response_payload,
+        updated_run_summary=response_payload,
+    )
+
+
+def perform_desktop_run_interrupt(
+    *,
+    run_client: Any,
+    run_id: str,
+    reason: str | None = None,
+) -> DesktopSessionActionFeedback:
+    """Request interruption for the active desktop run."""
+    response = run_client.interrupt_run_sync(
+        run_id,
+        MainAgentRunInterruptRequest(
+            reason=_compact_text(reason) or "desktop interrupt request",
+            surface="desktop",
+        ),
+    )
+    response_payload = surface_payload_from_dto(response)
+    status_text = "Interrupt requested for current turn."
+    if not bool(response_payload.get("interrupt_requested")) and not bool(response_payload.get("busy")):
+        status_text = "Current turn is already idle."
+    return DesktopSessionActionFeedback(
+        status_text=status_text,
+        activity_message=status_text,
+        activity_kind="status",
+        response_payload=response_payload,
+        updated_run_summary=response_payload,
+    )
+
+
+def perform_desktop_run_resume(
+    *,
+    run_client: Any,
+    run_id: str,
+    selected_run_summary: dict[str, Any] | None,
+) -> DesktopSessionActionFeedback:
+    """Resume the active desktop run through the run-level contract."""
+    summary = selected_run_summary if isinstance(selected_run_summary, dict) else {}
+    run_wait = summary.get("approval_wait") if isinstance(summary.get("approval_wait"), dict) else {}
+    resume_token = _compact_text(run_wait.get("approval_token")) or None
+    response = run_client.resume_run_sync(
+        run_id,
+        MainAgentRunResumeRequest(
+            resume_token=resume_token,
+            surface="desktop",
+        ),
+    )
+    response_payload = surface_payload_from_dto(response)
+    status_text = "Resume requested for current turn."
+    if not bool(response_payload.get("busy")) and not bool(response_payload.get("waiting_on_approval")):
+        status_text = "Current turn is already idle."
+    return DesktopSessionActionFeedback(
+        status_text=status_text,
+        activity_message=status_text,
+        activity_kind="status",
+        response_payload=response_payload,
+        updated_run_summary=response_payload,
+    )
 
 
 def desktop_stream_activity_payload(
@@ -507,6 +910,155 @@ def desktop_stream_activity_payload(
     return None
 
 
+def build_desktop_chat_request(
+    *,
+    session_id: str,
+    message: str,
+    workspace_dir: str | None,
+) -> MainAgentChatRequest:
+    """Build the canonical DesktopUI chat submission request."""
+    resolved_workspace = str(workspace_dir or "").strip() or None
+    return MainAgentChatRequest(
+        session_id=_compact_text(session_id),
+        message=str(message or "").strip(),
+        workspace_dir=resolved_workspace,
+        surface="desktop",
+    )
+
+
+def record_desktop_prompt_submission(
+    conversation_messages: list[dict[str, Any]],
+    *,
+    session_id: str,
+    message: str,
+) -> DesktopTurnFeedback:
+    """Append the outgoing user prompt to the desktop transcript."""
+    conversation_messages.append(
+        {
+            "role": "user",
+            "content": str(message or ""),
+            "surface": "desktop",
+        }
+    )
+    status_text = f"Prompt submitted to {session_id}."
+    return DesktopTurnFeedback(
+        status_text=status_text,
+        activity_message=status_text,
+        activity_kind="session",
+    )
+
+
+def append_desktop_assistant_stream_chunk(
+    conversation_messages: list[dict[str, Any]],
+    chunk: str,
+) -> None:
+    """Append one assistant streaming chunk into the desktop transcript."""
+    if (
+        conversation_messages
+        and conversation_messages[-1].get("role") == "assistant"
+        and conversation_messages[-1].get("surface") == "desktop"
+        and bool(conversation_messages[-1].get("streaming"))
+    ):
+        conversation_messages[-1]["content"] = (
+            f"{conversation_messages[-1].get('content') or ''}{chunk}"
+        )
+        return
+    conversation_messages.append(
+        {
+            "role": "assistant",
+            "content": chunk,
+            "surface": "desktop",
+            "streaming": True,
+        }
+    )
+
+
+def finalize_desktop_stream_completion(
+    conversation_messages: list[dict[str, Any]],
+    payload: object,
+) -> DesktopTurnFeedback:
+    """Apply a finished desktop stream payload to the transcript."""
+    response = surface_payload_from_dto(payload)
+    reply = str(response.get("reply") or "")
+    last_message = conversation_messages[-1] if conversation_messages else None
+    last_is_desktop_assistant = bool(
+        isinstance(last_message, dict)
+        and last_message.get("role") == "assistant"
+        and last_message.get("surface") == "desktop"
+    )
+    if last_is_desktop_assistant:
+        current_content = str(last_message.get("content") or "")
+        if reply and not current_content.strip():
+            last_message["content"] = reply
+        last_message.pop("streaming", None)
+    elif reply:
+        conversation_messages.append(
+            {
+                "role": "assistant",
+                "content": reply,
+                "surface": "desktop",
+            }
+        )
+
+    token_usage = response.get("token_usage")
+    return DesktopTurnFeedback(
+        status_text="Turn completed",
+        activity_message="Turn completed",
+        activity_kind="status",
+        activity_detail=(f"token_usage={token_usage}" if token_usage is not None else None),
+    )
+
+
+def finalize_desktop_stream_error(
+    conversation_messages: list[dict[str, Any]],
+    message: str,
+) -> DesktopTurnFeedback:
+    """Apply a failed desktop stream outcome to the transcript."""
+    error_text = str(message or "").strip() or "Desktop turn failed."
+    if (
+        conversation_messages
+        and conversation_messages[-1].get("role") == "assistant"
+        and conversation_messages[-1].get("surface") == "desktop"
+    ):
+        conversation_messages[-1].pop("streaming", None)
+    status_text = f"Turn failed: {error_text}"
+    conversation_messages.append(
+        {
+            "role": "system",
+            "content": f"Desktop turn failed: {error_text}",
+            "surface": "desktop",
+        }
+    )
+    return DesktopTurnFeedback(
+        status_text=status_text,
+        activity_message=status_text,
+        activity_kind="error",
+    )
+
+
+def resolve_desktop_run_state_badge(
+    detail: dict[str, Any] | None,
+    run_summary: dict[str, Any] | None,
+    *,
+    send_busy: bool = False,
+) -> dict[str, str]:
+    """Resolve the compact chat-header run state badge from run truth."""
+    summary = run_summary if isinstance(run_summary, dict) else {}
+    payload = detail if isinstance(detail, dict) else {}
+    if bool(summary.get("cancel_requested")):
+        return {"text": "Cancelling", "tone": "warning"}
+    if bool(summary.get("interrupt_requested")):
+        return {"text": "Interrupting", "tone": "warning"}
+    if bool(summary.get("waiting_on_approval")):
+        return {"text": "Waiting", "tone": "accent"}
+    if send_busy or bool(summary.get("busy")) or bool(payload.get("busy")):
+        return {"text": "Busy", "tone": "warning"}
+    recovery = payload.get("recovery") if isinstance(payload.get("recovery"), dict) else {}
+    if recovery:
+        return {"text": "Interrupted", "tone": "muted"}
+    return {"text": "Ready", "tone": "success"}
+
+
 def append_desktop_activity_entry(
     entries: list[dict[str, Any]],
     message: str,
@@ -560,8 +1112,39 @@ def append_desktop_activity_entry(
     return entries
 
 
-def format_chat_context_text(detail: dict[str, Any] | None) -> str:
-    """Render a compact session summary for the desktop chat side panel."""
+def format_desktop_run_summary_text(run_summary: dict[str, Any] | None) -> str:
+    """Render a compact run-level summary for the desktop chat side panel."""
+    summary = run_summary if isinstance(run_summary, dict) else {}
+    if not summary:
+        return "Run: unavailable"
+    status = _compact_text(summary.get("status")) or "-"
+    phase = _compact_text(summary.get("phase")) or "-"
+    control_mode = _compact_text(summary.get("control_mode")) or "-"
+    running_state = _compact_text(summary.get("running_state")) or "-"
+    lines = [
+        f"Run Status: {status}",
+        f"Run Phase: {phase}",
+        f"Control: {control_mode}",
+        f"Running: {running_state}",
+    ]
+    approval_wait = summary.get("approval_wait") if isinstance(summary.get("approval_wait"), dict) else {}
+    if approval_wait:
+        tool_name = _compact_text(approval_wait.get("tool_name")) or "tool"
+        token = _compact_text(approval_wait.get("approval_token")) or "-"
+        lines.append(f"Approval Wait: {tool_name} ({token})")
+    checkpoint = summary.get("checkpoint") if isinstance(summary.get("checkpoint"), dict) else {}
+    if checkpoint:
+        checkpoint_id = _compact_text(checkpoint.get("checkpoint_id")) or "-"
+        mutation_count = int(checkpoint.get("mutation_count") or 0)
+        lines.append(f"Checkpoint: {checkpoint_id} | mutations={mutation_count}")
+    return "\n".join(lines)
+
+
+def format_chat_context_text(
+    detail: dict[str, Any] | None,
+    run_summary: dict[str, Any] | None = None,
+) -> str:
+    """Render a compact session+run summary for the desktop chat side panel."""
     payload = detail or {}
     if not payload:
         return "No session selected."
@@ -575,6 +1158,8 @@ def format_chat_context_text(detail: dict[str, Any] | None) -> str:
         f"Model: {provider_id} / {model_id}",
         f"Updated: {updated}",
         f"Approvals: {pending_approvals}",
+        "",
+        format_desktop_run_summary_text(run_summary),
     ]
     return "\n".join(lines)
 
@@ -582,20 +1167,24 @@ def format_chat_context_text(detail: dict[str, Any] | None) -> str:
 def format_chat_runtime_text(
     catalog: dict[str, Any] | None,
     current_detail: dict[str, Any] | None = None,
+    run_summary: dict[str, Any] | None = None,
 ) -> str:
     """Render a compact runtime note for the desktop chat workspace."""
     items = list((catalog or {}).get("items") or [])
-    selected_provider = _compact_text((current_detail or {}).get("selected_provider_id")) or "-"
-    selected_model = _compact_text((current_detail or {}).get("selected_model_id")) or "-"
+    detail = current_detail if isinstance(current_detail, dict) else {}
+    selected_provider = _compact_text(detail.get("selected_provider_id")) or "-"
+    selected_model = _compact_text(detail.get("selected_model_id")) or "-"
     provider_count = len(items)
     model_count = sum(len(list(provider.get("models") or [])) for provider in items)
-    return "\n".join(
-        [
-            f"Selected: {selected_provider} / {selected_model}",
-            f"Providers: {provider_count}",
-            f"Models: {model_count}",
-        ]
-    )
+    lines = [
+        f"Session: {_compact_text(detail.get('session_id')) or 'none'}",
+        f"Selected: {selected_provider} / {selected_model}",
+        f"Providers: {provider_count}",
+        f"Models: {model_count}",
+        "",
+        format_desktop_run_summary_text(run_summary),
+    ]
+    return "\n".join(lines)
 
 
 def render_conversation_html(messages: list[dict[str, Any]]) -> str:
@@ -1352,6 +1941,9 @@ def create_desktop_main_window(
             self._window_close_button: Any = None
             self._composer: Any = None
             self._context_usage_ring: Any = None
+            self._interrupt_turn_button: Any = None
+            self._resume_turn_button: Any = None
+            self._stop_turn_button: Any = None
             self._runtime_stat_cards: list[Any] = []
             self._top_action_buttons: list[Any] = []
             self._runtime_stats_panel: Any = None
@@ -1419,6 +2011,7 @@ def create_desktop_main_window(
             self._timer.timeout.connect(self.refresh_snapshot)
             self._timer.start()
             self._refresh_session_action_state()
+            self._refresh_run_action_state()
             self._refresh_registry_action_state()
             self._refresh_provider_action_state()
             self._sync_settings_controls()
@@ -2386,10 +2979,15 @@ def create_desktop_main_window(
                 tone="accent" if shared else "muted",
             )
 
-            self._chat_state_badge.setText("Busy" if busy else "Ready")
+            state_badge = resolve_desktop_run_state_badge(
+                detail,
+                self._selected_run_summary,
+                send_busy=self._send_busy,
+            )
+            self._chat_state_badge.setText(state_badge["text"])
             self._style_info_badge(
                 self._chat_state_badge,
-                tone="warning" if busy else "success",
+                tone=state_badge["tone"],
             )
 
             runtime_text = model_id or "Model not set"
@@ -2817,15 +3415,30 @@ def create_desktop_main_window(
             self._send_button.clicked.connect(self._send_current_prompt)
             self._send_button.setDefault(True)
             self._send_button.setMinimumWidth(72)
+            self._interrupt_turn_button = qtwidgets.QPushButton("Pause")
+            self._interrupt_turn_button.clicked.connect(self._interrupt_current_run)
+            self._interrupt_turn_button.setMinimumWidth(62)
+            self._resume_turn_button = qtwidgets.QPushButton("Resume")
+            self._resume_turn_button.clicked.connect(self._resume_current_run)
+            self._resume_turn_button.setMinimumWidth(68)
+            self._stop_turn_button = qtwidgets.QPushButton("Stop")
+            self._stop_turn_button.clicked.connect(self._cancel_current_run)
+            self._stop_turn_button.setMinimumWidth(62)
             self._clear_button = qtwidgets.QPushButton("Clear")
             self._clear_button.clicked.connect(self._composer.clear)
             self._clear_button.setMinimumWidth(56)
             self._style_action_button(self._clear_button, tone="ghost", compact=True)
+            self._style_action_button(self._interrupt_turn_button, tone="ghost", compact=True)
+            self._style_action_button(self._resume_turn_button, tone="ghost", compact=True)
+            self._style_action_button(self._stop_turn_button, tone="danger", compact=True)
             self._style_action_button(self._send_button, tone="primary", compact=True)
             composer_actions.addWidget(self._model_combo, 1)
             composer_actions.addWidget(self._apply_model_button, 0)
             composer_actions.addStretch(1)
             composer_actions.addWidget(self._clear_button)
+            composer_actions.addWidget(self._interrupt_turn_button)
+            composer_actions.addWidget(self._resume_turn_button)
+            composer_actions.addWidget(self._stop_turn_button)
             composer_actions.addWidget(self._send_button)
             composer_shell_layout.addWidget(composer_controls_frame)
             conversation_layout.addWidget(composer_shell)
@@ -2852,7 +3465,7 @@ def create_desktop_main_window(
             self._models_view = qtwidgets.QPlainTextEdit()
             self._models_view.setReadOnly(True)
             self._style_read_surface(self._models_view)
-            self._models_view.hide()
+            self._chat_aux_tabs.addTab(self._models_view, "Runtime")
 
             activity_page = qtwidgets.QWidget()
             activity_layout = qtwidgets.QVBoxLayout(activity_page)
@@ -4552,7 +5165,7 @@ def create_desktop_main_window(
             self._sessions_overview_list.blockSignals(False)
             self._sessions_transcript_view.setHtml(render_conversation_html(self._conversation_messages))
             self._sessions_overview_detail_view.setPlainText(
-                format_session_context_text(self._selected_session_detail)
+                format_session_context_text(self._selected_session_detail, self._selected_run_summary)
                 if self._selected_session_detail
                 else "No session selected."
             )
@@ -4775,7 +5388,11 @@ def create_desktop_main_window(
                 self._model_options = collect_model_options(self._model_catalog)
                 self._rebuild_model_combo()
                 self._models_view.setPlainText(
-                    format_chat_runtime_text(self._model_catalog, self._selected_session_detail)
+                    format_chat_runtime_text(
+                        self._model_catalog,
+                        self._selected_session_detail,
+                        self._selected_run_summary,
+                    )
                 )
                 self._refresh_chat_workspace_summary()
             except Exception as exc:
@@ -4888,6 +5505,9 @@ def create_desktop_main_window(
                 self._conversation_messages = []
                 self._render_conversation()
                 self._context_view.setPlainText("No sessions were found for the current workspace.")
+                self._models_view.setPlainText(
+                    format_chat_runtime_text(self._model_catalog, None, None)
+                )
                 self._sessions_overview_detail_view.setPlainText("No sessions were found for the current workspace.")
                 self._refresh_chat_workspace_summary()
                 self._update_approval_button_state()
@@ -4955,10 +5575,14 @@ def create_desktop_main_window(
                 self._conversation_messages = []
                 self._render_conversation()
                 self._context_view.setPlainText("No session selected.")
+                self._models_view.setPlainText(
+                    format_chat_runtime_text(self._model_catalog, None, None)
+                )
                 self._sessions_overview_detail_view.setPlainText("No session selected.")
                 self._refresh_chat_workspace_summary()
                 self._update_approval_button_state()
                 self._refresh_session_action_state()
+                self._refresh_run_action_state()
                 self._refresh_settings_page()
                 self._refresh_memory_page()
                 return
@@ -4967,6 +5591,7 @@ def create_desktop_main_window(
             except Exception as exc:
                 resolved = desktop_error_detail(exc)
                 self._context_view.setPlainText(f"Failed to load session detail.\n{resolved}")
+                self._models_view.setPlainText(f"Failed to load runtime detail.\n{resolved}")
                 self._sessions_overview_detail_view.setPlainText(f"Failed to load session detail.\n{resolved}")
                 self._append_activity(f"Session detail load failed for {session_id}: {resolved}", kind="error")
                 return
@@ -4982,13 +5607,24 @@ def create_desktop_main_window(
                 for item in list(detail_payload.get("recent_messages") or [])
             ]
             self._render_conversation()
-            self._context_view.setPlainText(format_chat_context_text(detail_payload))
-            self._sessions_overview_detail_view.setPlainText(format_session_context_text(detail_payload))
-            self._models_view.setPlainText(format_chat_runtime_text(self._model_catalog, detail_payload))
+            self._context_view.setPlainText(
+                format_chat_context_text(detail_payload, self._selected_run_summary)
+            )
+            self._sessions_overview_detail_view.setPlainText(
+                format_session_context_text(detail_payload, self._selected_run_summary)
+            )
+            self._models_view.setPlainText(
+                format_chat_runtime_text(
+                    self._model_catalog,
+                    detail_payload,
+                    self._selected_run_summary,
+                )
+            )
             self._sync_model_combo_selection()
             self._refresh_chat_workspace_summary()
             self._update_approval_button_state()
             self._refresh_session_action_state()
+            self._refresh_run_action_state()
             self._refresh_settings_page()
             self._refresh_memory_page()
             self._maybe_prompt_for_pending_approval()
@@ -5026,6 +5662,17 @@ def create_desktop_main_window(
             self._share_session_button.setText("Unshare" if shared else "Share")
             self._refresh_chat_workspace_summary()
 
+        def _refresh_run_action_state(self) -> None:
+            can_cancel = desktop_run_can_cancel(self._selected_run_summary, send_busy=self._send_busy)
+            can_interrupt = desktop_run_can_interrupt(self._selected_run_summary, send_busy=self._send_busy)
+            can_resume = desktop_run_can_resume(self._selected_run_summary)
+            if self._interrupt_turn_button is not None:
+                self._interrupt_turn_button.setDisabled(not can_interrupt)
+            if self._resume_turn_button is not None:
+                self._resume_turn_button.setDisabled(not can_resume)
+            if self._stop_turn_button is not None:
+                self._stop_turn_button.setDisabled(not can_cancel)
+
         def _force_select_session(self, session_id: str) -> None:
             target = _compact_text(session_id)
             if not target:
@@ -5060,29 +5707,20 @@ def create_desktop_main_window(
             if not accepted or not renamed_title:
                 return
             try:
-                response = self._session_client.rename_session_sync(
-                    session_id,
-                    MainAgentSessionRenameRequest(title=renamed_title),
+                feedback = perform_desktop_session_rename(
+                    session_client=self._session_client,
+                    session_id=session_id,
+                    requested_title=renamed_title,
+                    fallback_title=current_title,
                 )
             except Exception as exc:
                 self._append_activity(f"Rename failed: {desktop_error_detail(exc)}", kind="error")
                 self.statusBar().showMessage("Rename failed.")
                 return
 
-            response_payload = surface_payload_from_dto(response)
-            applied_title = _compact_text(response_payload.get("title")) or renamed_title
-            feedback = SessionFeedbackService.mutation_feedback(
-                status=str(response_payload.get("status") or "renamed"),
-                title=applied_title,
-                shared=(
-                    response_payload.get("shared")
-                    if isinstance(response_payload.get("shared"), bool)
-                    else None
-                ),
-            )
-            self._append_activity(feedback.status_text, kind="session")
+            self._append_activity(feedback.activity_message, kind=feedback.activity_kind)
             self.statusBar().showMessage(feedback.status_text)
-            self._refresh_sessions(preferred_session_id=session_id)
+            self._refresh_sessions(preferred_session_id=feedback.preferred_session_id or session_id)
 
         def _toggle_share_current_session(self, checked: bool = False) -> None:
             _ = checked
@@ -5090,28 +5728,20 @@ def create_desktop_main_window(
             if not session_id:
                 self.statusBar().showMessage("Select a session first.")
                 return
-            next_shared = not bool(self._selected_session_detail.get("shared"))
             try:
-                response = self._session_client.set_session_shared_sync(
-                    session_id,
-                    MainAgentSessionShareRequest(shared=next_shared),
+                feedback = perform_desktop_share_toggle(
+                    session_client=self._session_client,
+                    session_id=session_id,
+                    selected_session_detail=self._selected_session_detail,
                 )
             except Exception as exc:
                 self._append_activity(f"Share toggle failed: {desktop_error_detail(exc)}", kind="error")
                 self.statusBar().showMessage("Share toggle failed.")
                 return
 
-            response_payload = surface_payload_from_dto(response)
-            shared = bool(response_payload.get("shared"))
-            title = _compact_text(response_payload.get("title")) or self._selected_session_title()
-            feedback = SessionFeedbackService.mutation_feedback(
-                status=str(response_payload.get("status") or ("shared" if shared else "unshared")),
-                title=title,
-                shared=shared,
-            )
-            self._append_activity(feedback.status_text, kind="session")
+            self._append_activity(feedback.activity_message, kind=feedback.activity_kind)
             self.statusBar().showMessage(feedback.status_text)
-            self._refresh_sessions(preferred_session_id=session_id)
+            self._refresh_sessions(preferred_session_id=feedback.preferred_session_id or session_id)
 
         def _fork_current_session(self, checked: bool = False) -> None:
             _ = checked
@@ -5129,28 +5759,20 @@ def create_desktop_main_window(
             if not accepted:
                 return
             try:
-                response = self._session_client.create_derived_session_sync(
-                    session_id,
-                    MainAgentSessionForkRequest(
-                        title=_compact_text(title) or None,
-                        surface="desktop",
-                    ),
+                feedback = perform_desktop_session_fork(
+                    session_client=self._session_client,
+                    session_id=session_id,
+                    parent_title=self._selected_session_title(),
+                    requested_title=title,
                 )
             except Exception as exc:
                 self._append_activity(f"Fork failed: {desktop_error_detail(exc)}", kind="error")
                 self.statusBar().showMessage("Fork failed.")
                 return
 
-            response_payload = surface_payload_from_dto(response)
-            created_id = _compact_text(response_payload.get("session_id"))
-            created_title = _compact_text(response_payload.get("title")) or created_id or "derived session"
-            feedback = SessionFeedbackService.fork_feedback(
-                title=created_title,
-                parent_title=self._selected_session_title(),
-            )
-            self._append_activity(feedback.status_text, kind="session")
+            self._append_activity(feedback.activity_message, kind=feedback.activity_kind)
             self.statusBar().showMessage(feedback.status_text)
-            self._refresh_sessions(preferred_session_id=created_id or session_id)
+            self._refresh_sessions(preferred_session_id=feedback.preferred_session_id or session_id)
 
         def _compact_current_session(self, checked: bool = False) -> None:
             _ = checked
@@ -5159,73 +5781,42 @@ def create_desktop_main_window(
                 self.statusBar().showMessage("Select a session first.")
                 return
             try:
-                response = self._session_client.control_session_sync(
-                    session_id,
-                    MainAgentSessionControlRequest(
-                        action="compact",
-                        reason="desktop compact request",
-                        surface="desktop",
-                    ),
+                feedback = perform_desktop_session_compact(
+                    session_client=self._session_client,
+                    session_id=session_id,
+                    selected_session_title=self._selected_session_title(),
                 )
             except Exception as exc:
                 self._append_activity(f"Compact failed: {desktop_error_detail(exc)}", kind="error")
                 self.statusBar().showMessage("Compact failed.")
                 return
 
-            response_payload = surface_payload_from_dto(response)
-            applied = bool(response_payload.get("applied"))
-            before = int(response_payload.get("message_count_before") or 0)
-            after = int(response_payload.get("message_count_after") or 0)
-            title = self._selected_session_title()
-            if applied:
-                self._append_activity(
-                    f"{title} compacted",
-                    kind="session",
-                    detail=f"Messages: {before} -> {after}",
-                )
-                self.statusBar().showMessage(f"Compacted {title}.")
-            else:
-                self._append_activity(
-                    f"{title} already compact",
-                    kind="session",
-                    detail=f"Messages: {before} -> {after}",
-                )
-                self.statusBar().showMessage(f"{title} was already compact.")
-            self._refresh_sessions(preferred_session_id=session_id)
+            self._append_activity(
+                feedback.activity_message,
+                kind=feedback.activity_kind,
+                detail=feedback.activity_detail,
+            )
+            self.statusBar().showMessage(feedback.status_text)
+            self._refresh_sessions(preferred_session_id=feedback.preferred_session_id or session_id)
 
         def _create_session(self, checked: bool = False) -> str | None:
             _ = checked
             current_session_id = self._current_session_id()
             try:
-                if current_session_id:
-                    created = self._session_client.create_derived_session_sync(
-                        current_session_id,
-                        MainAgentSessionForkRequest(
-                            title="Session",
-                            surface="desktop",
-                        ),
-                    )
-                else:
-                    created = self._session_client.create_session_sync(
-                        MainAgentSessionCreateRequest(
-                            workspace_dir=self._effective_workspace_dir(),
-                            surface="desktop",
-                            shared=False,
-                        )
-                    )
+                feedback = perform_desktop_session_creation(
+                    session_client=self._session_client,
+                    workspace_dir=self._effective_workspace_dir(),
+                    current_session_id=current_session_id,
+                )
             except Exception as exc:
                 self._append_activity(f"Create session failed: {desktop_error_detail(exc)}", kind="error")
                 self.statusBar().showMessage("Create session failed.")
                 return None
 
-            created_payload = surface_payload_from_dto(created)
-            session_id = _compact_text(created_payload.get("session_id"))
+            created_payload = feedback.response_payload
+            session_id = feedback.preferred_session_id or _compact_text(created_payload.get("session_id"))
             created_title = _compact_text(created_payload.get("title")) or session_id or "unknown"
-            create_feedback = SessionFeedbackService.creation_feedback(
-                title=created_title,
-                derived=bool(current_session_id),
-            )
-            self._append_activity(create_feedback.status_text, kind="session")
+            self._append_activity(feedback.activity_message, kind=feedback.activity_kind)
             if session_id:
                 self._refresh_health()
                 self._refresh_models()
@@ -5249,13 +5840,11 @@ def create_desktop_main_window(
                 self.statusBar().showMessage("No model option selected.")
                 return
             try:
-                response = self._session_client.update_session_model_sync(
-                    session_id,
-                    MainAgentSessionModelSelectionRequest(
+                response = self._model_client.set_agent_model_binding_sync(
+                    MainAgentModelBindingRequest(
                         provider_source=option.get("provider_source"),
                         provider_id=str(option.get("provider_id") or ""),
                         model_id=str(option.get("model_id") or ""),
-                        surface="desktop",
                     ),
                 )
             except Exception as exc:
@@ -5264,41 +5853,24 @@ def create_desktop_main_window(
                 return
 
             response_payload = surface_payload_from_dto(response)
-            status = _compact_text(response_payload.get("status")) or "selected"
-            selected_provider = _compact_text(
-                response_payload.get("selected_provider_id") or option.get("provider_id")
-            )
-            selected_model = _compact_text(
-                response_payload.get("selected_model_id") or option.get("model_id")
-            )
-            queued = bool(response_payload.get("queued"))
-            if queued:
-                pending_model = _compact_text(response_payload.get("pending_model_id")) or selected_model
-                feedback = SessionModelSelectionService.queued_feedback(
-                    model_label=f"{selected_provider}/{pending_model}",
-                    session_title=self._selected_session_title(),
-                )
-                self._append_activity(
-                    feedback.compact_text,
-                    kind="model",
-                )
-                self.statusBar().showMessage(feedback.compact_text)
-            else:
-                feedback = SessionModelSelectionService.applied_feedback(
-                    model_label=f"{selected_provider}/{selected_model}",
-                    session_title=self._selected_session_title(),
-                )
-                self._append_activity(
-                    feedback.compact_text,
-                    kind="model",
-                )
-                self.statusBar().showMessage(feedback.compact_text)
+            status = _compact_text(response_payload.get("binding_kind")) or "bound"
+            selected_provider = _compact_text(response_payload.get("provider_id") or option.get("provider_id"))
+            selected_model = _compact_text(response_payload.get("model_id") or option.get("model_id"))
+            feedback = f"Agent model bound: {selected_provider}/{selected_model}"
+            self._append_activity(feedback, kind="model")
+            self.statusBar().showMessage(feedback)
             self._load_selected_session_detail()
             self._refresh_models()
             self._append_activity(f"Model response status: {status}", kind="model")
 
         def _update_approval_button_state(self) -> None:
             pending = first_pending_approval(self._selected_session_detail, self._selected_run_summary)
+            self._approvals_button.setText(
+                resolve_desktop_approval_button_text(
+                    self._selected_session_detail,
+                    self._selected_run_summary,
+                )
+            )
             self._approvals_button.setDisabled(pending is None)
 
         def _maybe_prompt_for_pending_approval(self) -> None:
@@ -5355,43 +5927,96 @@ def create_desktop_main_window(
             if not session_id or not token:
                 return
             try:
-                run_id = self._current_run_id()
-                if run_id:
-                    response = self._run_client.respond_to_approval_sync(
-                        run_id,
-                        MainAgentRunApprovalRequest(
-                            approved=approved,
-                            token=token,
-                            surface="desktop",
-                        ),
-                    )
-                else:
-                    response = self._session_client.respond_to_approval_sync(
-                        session_id,
-                        MainAgentSessionApprovalRequest(
-                            approved=approved,
-                            token=token,
-                            surface="desktop",
-                        ),
-                    )
+                feedback = perform_desktop_pending_approval_resolution(
+                    run_client=self._run_client,
+                    session_client=self._session_client,
+                    session_id=session_id,
+                    run_id=self._current_run_id(),
+                    selected_session_detail=self._selected_session_detail,
+                    selected_run_summary=self._selected_run_summary,
+                    approved=approved,
+                )
             except Exception as exc:
                 activity_title, status_text = format_desktop_approval_failure(exc)
                 self._append_activity(activity_title, kind="error")
                 self.statusBar().showMessage(status_text)
                 return
 
-            response_payload = surface_payload_from_dto(response)
-            if _compact_text(response_payload.get("run_id")):
-                self._selected_run_summary = response_payload
-            decision = _compact_text(response_payload.get("decision")) or ("approved" if approved else "denied")
-            tool_name = (
-                _compact_text(response_payload.get("tool_name"))
-                or _compact_text((pending or {}).get("tool_name"))
-                or "tool"
-            )
+            if feedback.updated_run_summary is not None:
+                self._selected_run_summary = feedback.updated_run_summary
             self._approval_dialog_token = None
-            self._append_activity(f"Approval {decision}: {tool_name}", kind="approval")
-            self.statusBar().showMessage(f"Approval {decision}: {tool_name}")
+            self._append_activity(feedback.activity_message, kind=feedback.activity_kind)
+            self.statusBar().showMessage(feedback.status_text)
+            self._load_selected_session_detail()
+
+        def _cancel_current_run(self, checked: bool = False) -> None:
+            _ = checked
+            run_id = self._current_run_id()
+            if not run_id:
+                self.statusBar().showMessage("No active run to stop.")
+                return
+            try:
+                feedback = perform_desktop_run_cancel(
+                    run_client=self._run_client,
+                    run_id=run_id,
+                )
+            except Exception as exc:
+                self._append_activity(f"Stop failed: {desktop_error_detail(exc)}", kind="error")
+                self.statusBar().showMessage("Stop failed.")
+                return
+
+            if feedback.updated_run_summary is not None:
+                self._selected_run_summary = feedback.updated_run_summary
+            self._append_activity(feedback.activity_message, kind=feedback.activity_kind)
+            self.statusBar().showMessage(feedback.status_text)
+            self._refresh_run_action_state()
+            self._load_selected_session_detail()
+
+        def _interrupt_current_run(self, checked: bool = False) -> None:
+            _ = checked
+            run_id = self._current_run_id()
+            if not run_id:
+                self.statusBar().showMessage("No active run to pause.")
+                return
+            try:
+                feedback = perform_desktop_run_interrupt(
+                    run_client=self._run_client,
+                    run_id=run_id,
+                )
+            except Exception as exc:
+                self._append_activity(f"Pause failed: {desktop_error_detail(exc)}", kind="error")
+                self.statusBar().showMessage("Pause failed.")
+                return
+
+            if feedback.updated_run_summary is not None:
+                self._selected_run_summary = feedback.updated_run_summary
+            self._append_activity(feedback.activity_message, kind=feedback.activity_kind)
+            self.statusBar().showMessage(feedback.status_text)
+            self._refresh_run_action_state()
+            self._load_selected_session_detail()
+
+        def _resume_current_run(self, checked: bool = False) -> None:
+            _ = checked
+            run_id = self._current_run_id()
+            if not run_id:
+                self.statusBar().showMessage("No resumable run selected.")
+                return
+            try:
+                feedback = perform_desktop_run_resume(
+                    run_client=self._run_client,
+                    run_id=run_id,
+                    selected_run_summary=self._selected_run_summary,
+                )
+            except Exception as exc:
+                self._append_activity(f"Resume failed: {desktop_error_detail(exc)}", kind="error")
+                self.statusBar().showMessage("Resume failed.")
+                return
+
+            if feedback.updated_run_summary is not None:
+                self._selected_run_summary = feedback.updated_run_summary
+            self._append_activity(feedback.activity_message, kind=feedback.activity_kind)
+            self.statusBar().showMessage(feedback.status_text)
+            self._refresh_run_action_state()
             self._load_selected_session_detail()
 
         def _open_command_palette(self, checked: bool = False) -> None:
@@ -5406,6 +6031,9 @@ def create_desktop_main_window(
                 "Share / Unshare Session",
                 "Fork Session",
                 "Compact Session",
+                "Pause Turn",
+                "Resume Turn",
+                "Stop Turn",
                 "Refresh",
                 "Reconnect",
                 "Open Approvals",
@@ -5441,6 +6069,12 @@ def create_desktop_main_window(
                 self._fork_current_session()
             elif command == "compact session":
                 self._compact_current_session()
+            elif command == "pause turn":
+                self._interrupt_current_run()
+            elif command == "resume turn":
+                self._resume_current_run()
+            elif command == "stop turn":
+                self._cancel_current_run()
             elif command == "refresh":
                 self.refresh_snapshot()
             elif command == "reconnect":
@@ -5465,26 +6099,23 @@ def create_desktop_main_window(
                 return
 
             self._composer.clear()
-            self._conversation_messages.append(
-                {
-                    "role": "user",
-                    "content": message,
-                    "surface": "desktop",
-                }
+            feedback = record_desktop_prompt_submission(
+                self._conversation_messages,
+                session_id=session_id,
+                message=message,
             )
             self._render_conversation()
-            self._append_activity(f"Prompt submitted to {session_id}.", kind="session")
+            self._append_activity(feedback.activity_message, kind=feedback.activity_kind)
             self._set_send_busy(True)
 
             self._stream_target_session_id = session_id
             self._send_thread = qtcore.QThread(self)
             self._send_worker = ChatStreamWorker(
                 chat_client=self._chat_client,
-                request=MainAgentChatRequest(
+                request=build_desktop_chat_request(
                     session_id=session_id,
                     message=message,
                     workspace_dir=self._effective_workspace_dir(),
-                    surface="desktop",
                 ),
             )
             self._send_worker.moveToThread(self._send_thread)
@@ -5510,30 +6141,14 @@ def create_desktop_main_window(
             self._composer.setReadOnly(busy)
             self._apply_model_button.setDisabled(busy or not bool(self._model_options))
             self._refresh_session_action_state()
+            self._refresh_run_action_state()
             self._refresh_registry_action_state()
             self._refresh_provider_action_state()
             if busy:
                 self.statusBar().showMessage("Running desktop turn...")
 
         def _on_stream_chunk(self, chunk: str) -> None:
-            if (
-                self._conversation_messages
-                and self._conversation_messages[-1].get("role") == "assistant"
-                and self._conversation_messages[-1].get("surface") == "desktop"
-                and bool(self._conversation_messages[-1].get("streaming"))
-            ):
-                self._conversation_messages[-1]["content"] = (
-                    str(self._conversation_messages[-1].get("content") or "") + chunk
-                )
-            else:
-                self._conversation_messages.append(
-                    {
-                        "role": "assistant",
-                        "content": chunk,
-                        "surface": "desktop",
-                        "streaming": True,
-                    }
-                )
+            append_desktop_assistant_stream_chunk(self._conversation_messages, chunk)
             self._render_conversation()
 
         def _on_stream_activity(self, payload: object) -> None:
@@ -5558,49 +6173,20 @@ def create_desktop_main_window(
             self._load_selected_session_detail()
 
         def _on_stream_done(self, payload: object) -> None:
-            response = surface_payload_from_dto(payload)
-            reply = str(response.get("reply") or "")
-            if (
-                reply
-                and not (
-                    self._conversation_messages
-                    and self._conversation_messages[-1].get("role") == "assistant"
-                    and str(self._conversation_messages[-1].get("content") or "").strip()
-                )
-            ):
-                self._conversation_messages.append(
-                    {
-                        "role": "assistant",
-                        "content": reply,
-                        "surface": "desktop",
-                    }
-                )
-            if self._conversation_messages and self._conversation_messages[-1].get("role") == "assistant":
-                self._conversation_messages[-1].pop("streaming", None)
+            feedback = finalize_desktop_stream_completion(self._conversation_messages, payload)
             self._render_conversation()
-            token_usage = response.get("token_usage")
-            if token_usage is not None:
-                self._append_activity(
-                    "Turn completed",
-                    kind="status",
-                    detail=f"token_usage={token_usage}",
-                )
-            else:
-                self._append_activity("Turn completed", kind="status")
+            self._append_activity(
+                feedback.activity_message,
+                kind=feedback.activity_kind,
+                detail=feedback.activity_detail,
+            )
             self._load_selected_session_detail()
             self._refresh_models()
 
         def _on_stream_error(self, message: str) -> None:
-            error_text = message or "Desktop turn failed."
-            self._conversation_messages.append(
-                {
-                    "role": "system",
-                    "content": f"Desktop turn failed: {error_text}",
-                    "surface": "desktop",
-                }
-            )
+            feedback = finalize_desktop_stream_error(self._conversation_messages, message)
             self._render_conversation()
-            self._append_activity(f"Turn failed: {error_text}", kind="error")
+            self._append_activity(feedback.activity_message, kind=feedback.activity_kind)
             self._append_managed_gateway_excerpt("Turn failure diagnostics")
 
         def _on_stream_finished(self) -> None:

@@ -256,7 +256,6 @@ def _new_gateway_use_cases(
     session_task_service = SessionTaskService(
         runtime_manager=ports.session_task_runtime,
         session_agent_runtime=ports.session_agent_runtime,
-        session_model_runtime=ports.session_model_runtime,
     )
     run_control_service = RunControlApplicationService(
         run_runtime=ports.run_runtime,

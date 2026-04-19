@@ -6,7 +6,6 @@ from importlib import import_module
 
 __all__ = [
     "RuntimeSessionContextPolicyExecution",
-    "RuntimeSessionModelSelectionExecution",
     "RuntimeSessionOperatorHandler",
     "RuntimeSessionSkillMutationExecution",
 ]
@@ -15,10 +14,6 @@ _COMPAT_EXPORTS: dict[str, tuple[str, str]] = {
     "RuntimeSessionContextPolicyExecution": (
         ".handlers.session_operator_handler",
         "RuntimeSessionContextPolicyExecution",
-    ),
-    "RuntimeSessionModelSelectionExecution": (
-        ".handlers.session_operator_handler",
-        "RuntimeSessionModelSelectionExecution",
     ),
     "RuntimeSessionOperatorHandler": (".handlers.session_operator_handler", "RuntimeSessionOperatorHandler"),
     "RuntimeSessionSkillMutationExecution": (

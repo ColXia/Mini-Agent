@@ -9,7 +9,6 @@ from mini_agent.application.ports.agent_runtime_port import AgentRuntimePort
 from mini_agent.application.ports.model_runtime_port import ModelRuntimePort
 from mini_agent.application.ports.run_runtime_port import RunRuntimePort
 from mini_agent.application.ports.session_agent_runtime_port import SessionAgentRuntimePort
-from mini_agent.application.ports.session_model_selection_runtime_port import SessionModelSelectionRuntimePort
 from mini_agent.application.ports.session_task_port import SessionTaskPort
 from mini_agent.application.ports.session_task_runtime_port import SessionTaskRuntimePort
 from mini_agent.application.ports.workspace_runtime_port import WorkspaceRuntimePort
@@ -29,7 +28,6 @@ class RuntimeBackedUserServiceSupport(
     SessionTaskRuntimePort,
     RunRuntimePort,
     SessionAgentRuntimePort,
-    SessionModelSelectionRuntimePort,
     Protocol,
 ):
     """Narrow structural support contract for resolving runtime-backed typed ports."""
@@ -77,14 +75,6 @@ def _require_session_task_port(port: SessionTaskPort | None) -> SessionTaskPort:
 def _require_session_agent_runtime(runtime: SessionAgentRuntimePort | None) -> SessionAgentRuntimePort:
     if runtime is None:
         raise RuntimeError("Session agent compatibility runtime is not configured.")
-    return runtime
-
-
-def _require_session_model_runtime(
-    runtime: SessionModelSelectionRuntimePort | None,
-) -> SessionModelSelectionRuntimePort:
-    if runtime is None:
-        raise RuntimeError("Session model compatibility runtime is not configured.")
     return runtime
 
 
@@ -154,7 +144,6 @@ class RuntimeBackedUserServicePorts:
     session_task_runtime: SessionTaskRuntimePort
     session_task_port: SessionTaskPort
     session_agent_runtime: SessionAgentRuntimePort
-    session_model_runtime: SessionModelSelectionRuntimePort
     run_runtime: RunRuntimePort
     agent_runtime: AgentRuntimePort | None = None
     model_runtime: ModelRuntimePort | None = None
@@ -168,7 +157,6 @@ def resolve_runtime_backed_user_service_ports(
     session_task_runtime: SessionTaskRuntimePort | None = None,
     session_task_port: SessionTaskPort | None = None,
     session_agent_runtime: SessionAgentRuntimePort | None = None,
-    session_model_runtime: SessionModelSelectionRuntimePort | None = None,
     agent_runtime: AgentRuntimePort | None = None,
     run_runtime: RunRuntimePort | None = None,
     model_runtime: ModelRuntimePort | None = None,
@@ -186,7 +174,6 @@ def resolve_runtime_backed_user_service_ports(
             else (_raise_missing_session_task_port())
         ),
         session_agent_runtime=session_agent_runtime or cast(SessionAgentRuntimePort, runtime_manager),
-        session_model_runtime=session_model_runtime or cast(SessionModelSelectionRuntimePort, runtime_manager),
         run_runtime=run_runtime
         or (
             cast(RunRuntimePort, runtime_manager)
@@ -219,7 +206,6 @@ def assemble_typed_user_services(
     session_task_runtime: SessionTaskRuntimePort | None = None,
     session_task_port: SessionTaskPort | None = None,
     session_agent_runtime: SessionAgentRuntimePort | None = None,
-    session_model_runtime: SessionModelSelectionRuntimePort | None = None,
     agent_runtime: AgentRuntimePort | None = None,
     run_runtime: RunRuntimePort | None = None,
     model_runtime: ModelRuntimePort | None = None,
@@ -237,7 +223,6 @@ def assemble_typed_user_services(
     resolved_session_task_service = session_task_service or SessionTaskService(
         runtime_manager=_require_session_task_runtime(session_task_runtime),
         session_agent_runtime=_require_session_agent_runtime(session_agent_runtime),
-        session_model_runtime=_require_session_model_runtime(session_model_runtime),
     )
     resolved_run_control_service = run_control_service or RunControlApplicationService(
         run_runtime=run_runtime or UnavailableRunRuntimeAdapter(),
@@ -250,7 +235,6 @@ def assemble_typed_user_services(
     )
     resolved_model_service = model_service or ModelUserService(
         model_runtime=model_runtime,
-        session_model_runtime=_require_session_model_runtime(session_model_runtime),
     )
     resolved_workspace_service = _resolve_workspace_service(workspace_service, workspace_runtime)
     resolved_command_service = _resolve_command_service(command_service, command_runtime)
@@ -270,7 +254,6 @@ def assemble_runtime_backed_user_services(
     session_task_runtime: SessionTaskRuntimePort | None = None,
     session_task_port: SessionTaskPort | None = None,
     session_agent_runtime: SessionAgentRuntimePort | None = None,
-    session_model_runtime: SessionModelSelectionRuntimePort | None = None,
     agent_runtime: AgentRuntimePort | None = None,
     run_runtime: RunRuntimePort | None = None,
     model_runtime: ModelRuntimePort | None = None,
@@ -290,7 +273,6 @@ def assemble_runtime_backed_user_services(
         session_task_runtime=session_task_runtime,
         session_task_port=session_task_port,
         session_agent_runtime=session_agent_runtime,
-        session_model_runtime=session_model_runtime,
         agent_runtime=agent_runtime,
         run_runtime=run_runtime,
         model_runtime=model_runtime,
@@ -300,7 +282,6 @@ def assemble_runtime_backed_user_services(
     resolved_session_task_service = session_task_service or SessionTaskService(
         runtime_manager=_require_session_task_runtime(resolved_ports.session_task_runtime),
         session_agent_runtime=_require_session_agent_runtime(resolved_ports.session_agent_runtime),
-        session_model_runtime=_require_session_model_runtime(resolved_ports.session_model_runtime),
     )
 
     resolved_run_control_service = run_control_service or RunControlApplicationService(
@@ -316,7 +297,6 @@ def assemble_runtime_backed_user_services(
 
     resolved_model_service = model_service or ModelUserService(
         model_runtime=resolved_ports.model_runtime,
-        session_model_runtime=_require_session_model_runtime(resolved_ports.session_model_runtime),
     )
 
     resolved_workspace_service = _resolve_workspace_service(workspace_service, resolved_ports.workspace_runtime)

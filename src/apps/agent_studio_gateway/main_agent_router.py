@@ -63,8 +63,6 @@ from mini_agent.interfaces import (
     MainAgentSessionMessage,
     MainAgentSessionSkillRequest,
     MainAgentSessionSkillResponse,
-    MainAgentSessionModelSelectionRequest,
-    MainAgentSessionModelSelectionResponse,
     MainAgentSessionMutationResponse,
     MainAgentSessionRenameRequest,
     MainAgentSessionRuntimePolicyRequest,
@@ -502,24 +500,6 @@ def create_main_agent_router(deps: MainAgentRouterDependencies) -> APIRouter:
             **binding.as_kwargs(),
         )
         return ApiEnvelope[MainAgentSessionSkillResponse](ok=True, data=data)
-
-    @router.post(
-        "/api/v1/agent/sessions/{session_id}/model",
-        response_model=ApiEnvelope[MainAgentSessionModelSelectionResponse],
-    )
-    async def v1_update_session_model(
-        session_id: str,
-        request: MainAgentSessionModelSelectionRequest,
-    ) -> ApiEnvelope[MainAgentSessionModelSelectionResponse]:
-        binding = ApplicationInteractionBinding.from_request(request)
-        data = await _require_session_task_method("update_session_model_selection")(
-            session_id,
-            provider_source=request.provider_source,
-            provider_id=request.provider_id,
-            model_id=request.model_id,
-            **binding.as_kwargs(),
-        )
-        return ApiEnvelope[MainAgentSessionModelSelectionResponse](ok=True, data=data)
 
     @router.post("/api/v1/agent/sessions/{session_id}/policy", response_model=ApiEnvelope[MainAgentSessionRuntimePolicyResponse])
     async def v1_update_session_runtime_policy(

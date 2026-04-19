@@ -5,6 +5,9 @@ from __future__ import annotations
 from mini_agent.desktop.window import (
     _truncate_text,
     append_desktop_activity_entry,
+    append_desktop_assistant_stream_chunk,
+    build_desktop_chat_request,
+    count_desktop_pending_approvals,
     collect_memory_file_entries,
     collect_model_options,
     collect_provider_draft_model_entries,
@@ -13,9 +16,15 @@ from mini_agent.desktop.window import (
     desktop_error_detail,
     desktop_page_specs,
     desktop_provider_preset_specs,
+    resolve_desktop_run_state_badge,
     desktop_stream_activity_payload,
     first_pending_approval,
+    finalize_desktop_stream_completion,
+    finalize_desktop_stream_error,
+    format_chat_context_text,
+    format_chat_runtime_text,
     format_desktop_approval_failure,
+    format_desktop_run_summary_text,
     format_feature_bindings_text,
     format_memory_summary_text,
     format_model_catalog_text,
@@ -27,6 +36,8 @@ from mini_agent.desktop.window import (
     format_settings_summary_text,
     render_activity_html,
     render_conversation_html,
+    record_desktop_prompt_submission,
+    resolve_desktop_approval_button_text,
     resolve_desktop_context_usage_stats,
 )
 from mini_agent.transport import GatewayTransportError
@@ -34,6 +45,167 @@ from mini_agent.transport import GatewayTransportError
 
 def test_truncate_text_appends_ellipsis_when_limit_is_exceeded() -> None:
     assert _truncate_text("abcdefghijklmnopqrstuvwxyz", limit=10) == "abcdefghi…"
+
+
+def test_build_desktop_chat_request_preserves_surface_session_and_workspace_binding() -> None:
+    request = build_desktop_chat_request(
+        session_id=" sess-1 ",
+        message="  hello desktop  ",
+        workspace_dir=" D:/file/Mini-Agent ",
+    )
+
+    assert request.session_id == "sess-1"
+    assert request.message == "hello desktop"
+    assert request.workspace_dir == "D:/file/Mini-Agent"
+    assert request.surface == "desktop"
+
+
+def test_record_desktop_prompt_submission_appends_user_message_and_feedback() -> None:
+    messages: list[dict[str, object]] = []
+
+    feedback = record_desktop_prompt_submission(
+        messages,
+        session_id="sess-1",
+        message="hello desktop",
+    )
+
+    assert messages == [
+        {
+            "role": "user",
+            "content": "hello desktop",
+            "surface": "desktop",
+        }
+    ]
+    assert feedback.activity_message == "Prompt submitted to sess-1."
+    assert feedback.activity_kind == "session"
+
+
+def test_append_desktop_assistant_stream_chunk_reuses_streaming_tail_entry() -> None:
+    messages: list[dict[str, object]] = [
+        {
+            "role": "assistant",
+            "content": "hel",
+            "surface": "desktop",
+            "streaming": True,
+        }
+    ]
+
+    append_desktop_assistant_stream_chunk(messages, "lo")
+
+    assert messages == [
+        {
+            "role": "assistant",
+            "content": "hello",
+            "surface": "desktop",
+            "streaming": True,
+        }
+    ]
+
+
+def test_finalize_desktop_stream_completion_clears_streaming_and_keeps_partial_reply() -> None:
+    messages: list[dict[str, object]] = [
+        {
+            "role": "assistant",
+            "content": "partial reply",
+            "surface": "desktop",
+            "streaming": True,
+        }
+    ]
+
+    feedback = finalize_desktop_stream_completion(
+        messages,
+        {"reply": "full reply ignored", "token_usage": 512},
+    )
+
+    assert messages == [
+        {
+            "role": "assistant",
+            "content": "partial reply",
+            "surface": "desktop",
+        }
+    ]
+    assert feedback.activity_message == "Turn completed"
+    assert feedback.activity_detail == "token_usage=512"
+
+
+def test_finalize_desktop_stream_completion_fills_empty_assistant_placeholder() -> None:
+    messages: list[dict[str, object]] = [
+        {
+            "role": "assistant",
+            "content": "",
+            "surface": "desktop",
+            "streaming": True,
+        }
+    ]
+
+    feedback = finalize_desktop_stream_completion(
+        messages,
+        {"reply": "resolved reply"},
+    )
+
+    assert messages == [
+        {
+            "role": "assistant",
+            "content": "resolved reply",
+            "surface": "desktop",
+        }
+    ]
+    assert feedback.activity_detail is None
+
+
+def test_finalize_desktop_stream_error_clears_streaming_and_appends_system_message() -> None:
+    messages: list[dict[str, object]] = [
+        {
+            "role": "assistant",
+            "content": "partial",
+            "surface": "desktop",
+            "streaming": True,
+        }
+    ]
+
+    feedback = finalize_desktop_stream_error(messages, "gateway exploded")
+
+    assert messages == [
+        {
+            "role": "assistant",
+            "content": "partial",
+            "surface": "desktop",
+        },
+        {
+            "role": "system",
+            "content": "Desktop turn failed: gateway exploded",
+            "surface": "desktop",
+        },
+    ]
+    assert feedback.activity_message == "Turn failed: gateway exploded"
+    assert feedback.activity_kind == "error"
+
+
+def test_resolve_desktop_run_state_badge_prefers_run_truth_over_plain_session_busy_flag() -> None:
+    assert resolve_desktop_run_state_badge({}, {"waiting_on_approval": True}) == {
+        "text": "Waiting",
+        "tone": "accent",
+    }
+    assert resolve_desktop_run_state_badge({}, {"interrupt_requested": True}) == {
+        "text": "Interrupting",
+        "tone": "warning",
+    }
+    assert resolve_desktop_run_state_badge({}, {"cancel_requested": True}) == {
+        "text": "Cancelling",
+        "tone": "warning",
+    }
+    assert resolve_desktop_run_state_badge({"busy": True}, {}, send_busy=False) == {
+        "text": "Busy",
+        "tone": "warning",
+    }
+    assert resolve_desktop_run_state_badge({"recovery": {"state": "interrupted"}}, {}, send_busy=False) == {
+        "text": "Interrupted",
+        "tone": "muted",
+    }
+    assert resolve_desktop_run_state_badge({}, {}, send_busy=False) == {
+        "text": "Ready",
+        "tone": "success",
+    }
 
 
 def test_desktop_page_specs_exposes_first_wave_product_shell_order() -> None:
@@ -66,6 +238,43 @@ def test_format_session_row_shapes_compact_left_rail_text() -> None:
     assert text == "Session A | Busy"
 
 
+def test_format_session_row_prefers_waiting_and_control_states_over_plain_busy() -> None:
+    waiting = format_session_row(
+        {
+            "title": "Session A",
+            "busy": True,
+            "pending_approvals": [{"token": "approval-1"}],
+        }
+    )
+    cancelling = format_session_row(
+        {
+            "title": "Session B",
+            "busy": True,
+            "running_state": "cancellation requested",
+        }
+    )
+    interrupting = format_session_row(
+        {
+            "title": "Session C",
+            "busy": True,
+            "running_state": "interrupt requested",
+        }
+    )
+    interrupted = format_session_row(
+        {
+            "title": "Session D",
+            "busy": False,
+            "recovery": {"state": "interrupted"},
+            "shared": True,
+        }
+    )
+
+    assert waiting == "Session A | Waiting"
+    assert cancelling == "Session B | Cancelling"
+    assert interrupting == "Session C | Interrupting"
+    assert interrupted == "Session D | Interrupted | Shared"
+
+
 def test_format_session_context_text_includes_key_runtime_fields() -> None:
     text = format_session_context_text(
         {
@@ -82,13 +291,120 @@ def test_format_session_context_text_includes_key_runtime_fields() -> None:
             "pending_approvals": [],
             "memory_diagnostics": {"global": 1},
             "sandbox_diagnostics": {"mode": "default"},
-        }
+        },
+        {
+            "status": "waiting",
+            "phase": "awaiting_approval",
+            "control_mode": "approval_wait",
+            "running_state": "approval wait for shell",
+            "checkpoint": {
+                "checkpoint_id": "snap-1",
+                "mutation_count": 2,
+            },
+        },
     )
 
     assert "Title: Desk Session" in text
     assert "Running: tool running" in text
+    assert "Run Status: waiting" in text
+    assert "Checkpoint: snap-1 | mutations=2" in text
     assert "\"global\": 1" in text
     assert "\"mode\": \"default\"" in text
+
+
+def test_format_desktop_run_summary_text_includes_wait_and_checkpoint_details() -> None:
+    text = format_desktop_run_summary_text(
+        {
+            "status": "waiting",
+            "phase": "awaiting_approval",
+            "control_mode": "approval_wait",
+            "running_state": "approval wait for shell",
+            "approval_wait": {
+                "tool_name": "shell",
+                "approval_token": "approval-1",
+            },
+            "checkpoint": {
+                "checkpoint_id": "snap-1",
+                "mutation_count": 3,
+            },
+        }
+    )
+
+    assert "Run Status: waiting" in text
+    assert "Run Phase: awaiting_approval" in text
+    assert "Control: approval_wait" in text
+    assert "Approval Wait: shell (approval-1)" in text
+    assert "Checkpoint: snap-1 | mutations=3" in text
+
+
+def test_format_chat_context_text_appends_run_summary_block() -> None:
+    text = format_chat_context_text(
+        {
+            "busy": True,
+            "shared": False,
+            "selected_provider_id": "maas",
+            "selected_model_id": "astron-code-latest",
+            "updated_at": "2026-04-18T10:00:00Z",
+            "pending_approvals": [],
+        },
+        {
+            "status": "running",
+            "phase": "executing_tools",
+            "control_mode": "running",
+            "running_state": "tool call: shell",
+        },
+    )
+
+    assert "State: busy" in text
+    assert "Model: maas / astron-code-latest" in text
+    assert "Run Status: running" in text
+    assert "Run Phase: executing_tools" in text
+
+
+def test_format_chat_runtime_text_includes_run_summary_block() -> None:
+    text = format_chat_runtime_text(
+        {
+            "items": [
+                {
+                    "provider_id": "maas",
+                    "models": [{"model_id": "astron-code-latest"}],
+                }
+            ]
+        },
+        {
+            "selected_provider_id": "maas",
+            "selected_model_id": "astron-code-latest",
+        },
+        {
+            "status": "waiting",
+            "phase": "awaiting_approval",
+            "control_mode": "approval_wait",
+            "running_state": "approval wait for shell",
+        },
+    )
+
+    assert "Selected: maas / astron-code-latest" in text
+    assert "Providers: 1" in text
+    assert "Models: 1" in text
+    assert "Run Status: waiting" in text
+    assert "Run Phase: awaiting_approval" in text
+
+
+def test_format_chat_runtime_text_handles_missing_session_selection() -> None:
+    text = format_chat_runtime_text(
+        {
+            "items": [
+                {"provider_id": "maas", "models": [{"model_id": "astron-code-latest"}]},
+            ]
+        },
+        None,
+        None,
+    )
+
+    assert "Session: none" in text
+    assert "Selected: - / -" in text
+    assert "Providers: 1" in text
+    assert "Run: unavailable" in text
 
 
 def test_format_model_catalog_text_marks_current_session_model() -> None:
@@ -365,6 +681,30 @@ def test_first_pending_approval_prefers_run_approval_wait() -> None:
         "can_escalate": True,
         "wait_id": "wait-1",
     }
+
+
+def test_count_desktop_pending_approvals_prefers_run_wait_over_session_list() -> None:
+    assert count_desktop_pending_approvals(
+        {"pending_approvals": [{"token": "tok-session"}]},
+        {"approval_wait": {"approval_token": "tok-run", "tool_name": "shell"}},
+    ) == 1
+    assert count_desktop_pending_approvals(
+        {"pending_approvals": [{"token": "tok-1"}, {"token": "tok-2"}]},
+        {},
+    ) == 2
+    assert count_desktop_pending_approvals({}, {}) == 0
+
+
+def test_resolve_desktop_approval_button_text_includes_count_when_pending() -> None:
+    assert resolve_desktop_approval_button_text({}, {}) == "Approvals"
+    assert resolve_desktop_approval_button_text(
+        {"pending_approvals": [{"token": "tok-1"}, {"token": "tok-2"}]},
+        {},
+    ) == "Approvals (2)"
+    assert resolve_desktop_approval_button_text(
+        {"pending_approvals": [{"token": "tok-session"}]},
+        {"approval_wait": {"approval_token": "tok-run", "tool_name": "shell"}},
+    ) == "Approvals (1)"
 
 
 def test_render_conversation_html_separates_roles_and_escapes_content() -> None:

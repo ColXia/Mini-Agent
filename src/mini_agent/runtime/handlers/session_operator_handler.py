@@ -27,16 +27,11 @@ from mini_agent.interfaces import (
     MainAgentSessionContextResponse,
     MainAgentSessionControlResponse,
     MainAgentSessionMemoryResponse,
-    MainAgentSessionModelSelectionResponse,
     MainAgentSessionMutationResponse,
     MainAgentSessionRuntimePolicyResponse,
     MainAgentSessionSkillResponse,
 )
 from mini_agent.memory.command_service import MemoryCommandRequest
-from mini_agent.model_manager.session_selection_service import (
-    SessionModelSelectionPlan,
-    SessionModelSelectionService,
-)
 from mini_agent.runtime.support.session_command_coordinator import (
     RuntimeSessionCommandCoordinator,
     RuntimeSessionCommandTranscript,
@@ -85,11 +80,6 @@ class RuntimeSessionSkillMutationExecution:
     result: dict[str, Any]
 
 
-@dataclass(frozen=True, slots=True)
-class RuntimeSessionModelSelectionExecution:
-    plan: SessionModelSelectionPlan
-
-
 @dataclass(slots=True)
 class RuntimeSessionOperatorHandler:
     normalize_surface: Callable[[str | None], str]
@@ -101,15 +91,12 @@ class RuntimeSessionOperatorHandler:
     session_context_commands: ContextCommandService
     session_memory_commands: RuntimeSessionMemoryCommandHandler
     session_skill_commands: SkillCommandService
-    session_model_selection: SessionModelSelectionService
     session_runtime_policy: SessionRuntimePolicyService
     session_interrupt: RuntimeSessionInterruptHandler
     session_agent_runtime: "RuntimeSessionAgentRuntimeHandler"
     session_live_state: "RuntimeSessionLiveStateHandler"
     load_runtime_config: Callable[[], Any]
     selected_model_identity: Callable[["MainAgentSessionState"], tuple[str, str, str] | None]
-    pending_model_identity: Callable[["MainAgentSessionState"], tuple[str, str, str] | None]
-    set_pending_model_identity: Callable[["MainAgentSessionState", tuple[str, str, str] | None], None]
     persist_session: Callable[["MainAgentSessionState"], None]
     queue_workspace_skill_reload: Callable[..., Awaitable[tuple[str, ...]]]
     cleanup_mcp_connections: Callable[[], Awaitable[None]]
@@ -501,44 +488,6 @@ class RuntimeSessionOperatorHandler:
             result=execution.result,
         )
 
-    async def update_model_selection(
-        self,
-        session: "MainAgentSessionState",
-        *,
-        provider_source: str | None,
-        provider_id: str,
-        model_id: str,
-        surface: str | None = None,
-        channel_type: str | None = None,
-        conversation_id: str | None = None,
-        sender_id: str | None = None,
-    ) -> MainAgentSessionModelSelectionResponse:
-        request = self.session_model_selection.resolve_request(
-            provider_source=provider_source,
-            provider_id=provider_id,
-            model_id=model_id,
-        )
-        execution = await self.session_commands.execute_locked(
-            session,
-            operation=lambda: self._execute_model_selection_update(
-                session,
-                request=request,
-                surface=surface,
-                channel_type=channel_type,
-                conversation_id=conversation_id,
-                sender_id=sender_id,
-            ),
-            touch=lambda execution: execution.plan.touch_and_persist,
-            persist=lambda execution: execution.plan.touch_and_persist,
-        )
-        return self._build_session_model_selection_response(
-            session=session,
-            status=execution.plan.status,
-            applied=execution.plan.applied,
-            queued=execution.plan.queued,
-            surface=surface,
-        )
-
     async def update_runtime_policy(
         self,
         session: "MainAgentSessionState",
@@ -656,43 +605,6 @@ class RuntimeSessionOperatorHandler:
                 session.projection.active_surface or session.projection.origin_surface
             ),
             result=result,
-        )
-
-    def _apply_model_selection_plan_state(
-        self,
-        session: "MainAgentSessionState",
-        *,
-        plan: SessionModelSelectionPlan,
-    ) -> None:
-        if plan.update_pending_identity:
-            self.set_pending_model_identity(session, plan.pending_identity)
-
-    def _build_session_model_selection_response(
-        self,
-        *,
-        session: "MainAgentSessionState",
-        status: str,
-        applied: bool,
-        queued: bool,
-        surface: str | None,
-    ) -> MainAgentSessionModelSelectionResponse:
-        active_surface = self.normalize_surface(
-            session.projection.active_surface or session.projection.origin_surface or surface
-        )
-        selected_identity = self.selected_model_identity(session)
-        pending_identity = self.pending_model_identity(session)
-        return MainAgentSessionModelSelectionResponse(
-            status=status,
-            session_id=session.session_id,
-            active_surface=active_surface,
-            applied=applied,
-            queued=queued,
-            selected_model_source=selected_identity[0] if selected_identity is not None else None,
-            selected_provider_id=selected_identity[1] if selected_identity is not None else None,
-            selected_model_id=selected_identity[2] if selected_identity is not None else None,
-            pending_model_source=pending_identity[0] if pending_identity is not None else None,
-            pending_provider_id=pending_identity[1] if pending_identity is not None else None,
-            pending_model_id=pending_identity[2] if pending_identity is not None else None,
         )
 
     def _build_session_runtime_policy_response(
@@ -814,36 +726,6 @@ class RuntimeSessionOperatorHandler:
             result=result,
         )
 
-    async def _execute_model_selection_update(
-        self,
-        session: "MainAgentSessionState",
-        *,
-        request: Any,
-        surface: str | None,
-        channel_type: str | None,
-        conversation_id: str | None,
-        sender_id: str | None,
-    ) -> RuntimeSessionModelSelectionExecution:
-        plan = self.session_model_selection.plan_update(
-            request=request,
-            current_identity=self.selected_model_identity(session),
-            pending_identity=self.pending_model_identity(session),
-            busy=bool(session.projection.busy),
-            runtime_attached=session.runtime.agent is not None,
-        )
-        self._apply_model_selection_plan_state(session, plan=plan)
-        if plan.activate_identity is not None:
-            await self.session_agent_runtime.rebuild_agent_with_identity(session, plan.activate_identity)
-        if plan.bind_surface:
-            self.session_live_state.bind_surface(
-                session,
-                surface=surface,
-                channel_type=channel_type,
-                conversation_id=conversation_id,
-                sender_id=sender_id,
-            )
-        return RuntimeSessionModelSelectionExecution(plan=plan)
-
     @staticmethod
     def _session_control_command_name(action: str) -> str:
         normalized = normalize_session_control_action(action)
@@ -860,7 +742,6 @@ class RuntimeSessionOperatorHandler:
 
 
 __all__ = [
-    "RuntimeSessionModelSelectionExecution",
     "RuntimeSessionOperatorHandler",
     "RuntimeSessionRuntimePolicyExecution",
     "RuntimeSessionSkillMutationExecution",

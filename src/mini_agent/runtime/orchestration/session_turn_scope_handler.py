@@ -23,7 +23,7 @@ class RuntimeSessionTurnScopeHandler:
     clear_recovery_context_mutation: Callable[..., None]
     capture_prepared_context_state_mutation: Callable[["MainAgentSessionState"], None]
     restore_prepared_context_state_mutation: Callable[["MainAgentSessionState"], None]
-    apply_pending_session_model_selection: Callable[["MainAgentSessionState"], Awaitable[bool]]
+    ensure_agent_model_binding_for_turn: Callable[["MainAgentSessionState"], Awaitable[bool]]
     apply_pending_session_skill_reload: Callable[["MainAgentSessionState"], Awaitable[bool]]
     persist_session: Callable[["MainAgentSessionState"], None]
 
@@ -47,7 +47,7 @@ class RuntimeSessionTurnScopeHandler:
                 conversation_id=conversation_id,
                 sender_id=sender_id,
             )
-            await self.apply_pending_session_model_selection(session)
+            await self.ensure_agent_model_binding_for_turn(session)
             await self.apply_pending_session_skill_reload(session)
             recovery_context = self.build_recovery_turn_context(session)
             self.mark_turn_started(

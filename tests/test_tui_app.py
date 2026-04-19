@@ -123,6 +123,52 @@ class DummyRegistry:
         raise ValueError(f"Provider not found: {provider_id}")
 
 
+class _InMemoryAgentModelService:
+    def __init__(self, providers: list[dict[str, Any]]) -> None:
+        self._identity = self._resolve_default_identity(providers)
+
+    @staticmethod
+    def _resolve_default_identity(
+        providers: list[dict[str, Any]],
+    ) -> tuple[str, str, str] | None:
+        for provider in providers:
+            source = str(provider.get("source") or "").strip()
+            provider_id = str(provider.get("provider_id") or "").strip()
+            default_model_id = str(provider.get("default_model_id") or "").strip()
+            if source and provider_id and default_model_id:
+                return source, provider_id, default_model_id
+        return None
+
+    def update_model_binding(
+        self,
+        *,
+        agent_id: str | None = None,
+        provider_source: str | None = None,
+        provider_id: str | None = None,
+        model_id: str | None = None,
+    ) -> dict[str, Any]:
+        _ = agent_id
+        normalized_source = str(provider_source or "").strip()
+        normalized_provider = str(provider_id or "").strip()
+        normalized_model = str(model_id or "").strip()
+        self._identity = (
+            normalized_source,
+            normalized_provider,
+            normalized_model,
+        )
+        return {
+            "agent_id": "main-agent",
+            "binding_kind": "explicit",
+            "provider_source": normalized_source,
+            "provider_id": normalized_provider,
+            "model_id": normalized_model,
+        }
+
+    def explicit_model_identity(self, agent_id: str | None = None) -> tuple[str, str, str] | None:
+        _ = agent_id
+        return self._identity
+
+
 def _provider_transport_defaults(provider_id: str) -> tuple[str, str]:
     normalized = str(provider_id or "").strip().lower()
     if normalized == "anthropic":
@@ -224,7 +270,7 @@ def _new_app(
             skills_dir=str(tmp_path / "builtin-skills"),
         ),
     )
-    return MiniAgentTuiApp(
+    app = MiniAgentTuiApp(
         workspace=tmp_path,
         config_loader=lambda: test_config,
         registry=resolved_registry,
@@ -232,6 +278,8 @@ def _new_app(
         state_path=state_path,
         build_ui=False,
     )
+    app._agent_model_service = _InMemoryAgentModelService(resolved_registry.list_registry())  # type: ignore[attr-defined]
+    return app
 
 
 def _write_skill(skill_dir: Path, *, name: str, description: str, body: str) -> None:
@@ -745,6 +793,11 @@ class FakeGatewayClient:
         self._sessions: dict[str, dict[str, Any]] = {
             str(self._detail["session_id"]): self._detail,
         }
+        self._agent_binding_identity = (
+            str(self._detail.get("selected_model_source") or "").strip() or None,
+            str(self._detail.get("selected_provider_id") or "").strip() or None,
+            str(self._detail.get("selected_model_id") or "").strip() or None,
+        )
         self._skill_entries = [
             {
                 "name": "doc-coauthoring",
@@ -987,12 +1040,90 @@ class FakeGatewayClient:
         return asyncio.run(self.get_run(run_id))
 
     def _current_agent_model_identity(self) -> tuple[str, str, str] | None:
-        source = str(self._detail.get("selected_model_source") or "").strip()
-        provider_id = str(self._detail.get("selected_provider_id") or "").strip()
-        model_id = str(self._detail.get("selected_model_id") or "").strip()
+        source, provider_id, model_id = self._agent_binding_identity
         if not source or not provider_id or not model_id:
             return None
         return source, provider_id, model_id
+
+    @staticmethod
+    def _binding_provider_name(provider_id: str) -> str:
+        normalized = str(provider_id or "").strip().lower()
+        if normalized == "anthropic":
+            return "Anthropic"
+        if normalized == "ollama":
+            return "Ollama"
+        if normalized == "openai":
+            return "OpenAI"
+        return str(provider_id or "").strip() or "Provider"
+
+    def get_current_agent_model_binding_sync(self, *, agent_id: str | None = None) -> dict[str, Any]:
+        identity = self._current_agent_model_identity()
+        source, provider_id, model_id = identity or (None, None, None)
+        return {
+            "agent_id": agent_id or "main-agent",
+            "binding_kind": "explicit" if identity is not None else "automatic",
+            "provider": provider_id,
+            "provider_source": source,
+            "provider_id": provider_id,
+            "runtime_provider_id": provider_id,
+            "provider_name": self._binding_provider_name(provider_id or ""),
+            "model_id": model_id,
+            "display_name": model_id,
+            "switch_generation": len(self.model_calls),
+        }
+
+    def set_agent_model_binding_sync(
+        self,
+        *,
+        agent_id: str | None = None,
+        provider_source: str | None = None,
+        provider_id: str,
+        model_id: str,
+    ) -> dict[str, Any]:
+        detail = self._detail
+        normalized_source = str(provider_source or "preset").strip() or "preset"
+        normalized_provider = str(provider_id or "").strip()
+        normalized_model = str(model_id or "").strip()
+        self._agent_binding_identity = (
+            normalized_source,
+            normalized_provider,
+            normalized_model,
+        )
+        self.model_calls.append(
+            {
+                "session_id": str(detail.get("session_id") or ""),
+                "provider_source": normalized_source,
+                "provider_id": normalized_provider,
+                "model_id": normalized_model,
+                "surface": "tui",
+                "channel_type": detail.get("channel_type"),
+                "conversation_id": detail.get("conversation_id"),
+                "sender_id": detail.get("sender_id"),
+            }
+        )
+        if detail["busy"]:
+            detail["pending_model_source"] = normalized_source
+            detail["pending_provider_id"] = normalized_provider
+            detail["pending_model_id"] = normalized_model
+        else:
+            detail["selected_model_source"] = normalized_source
+            detail["selected_provider_id"] = normalized_provider
+            detail["selected_model_id"] = normalized_model
+            detail["pending_model_source"] = None
+            detail["pending_provider_id"] = None
+            detail["pending_model_id"] = None
+        return {
+            "agent_id": agent_id or "main-agent",
+            "binding_kind": "explicit",
+            "provider": normalized_provider,
+            "provider_source": normalized_source,
+            "provider_id": normalized_provider,
+            "runtime_provider_id": normalized_provider,
+            "provider_name": self._binding_provider_name(normalized_provider),
+            "model_id": normalized_model,
+            "display_name": normalized_model,
+            "switch_generation": len(self.model_calls),
+        }
 
     def set_agent_model_candidates_from_registry(self, providers: list[dict[str, Any]]) -> None:
         self._agent_model_candidate_providers = deepcopy(providers)

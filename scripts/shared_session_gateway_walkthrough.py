@@ -39,7 +39,6 @@ from mini_agent.interfaces import (  # noqa: E402
     MainAgentChatRequest,
     MainAgentSessionCancelRequest,
     MainAgentSessionControlRequest,
-    MainAgentSessionModelSelectionRequest,
     MainAgentSessionRenameRequest,
     MainAgentSessionShareRequest,
 )
@@ -97,22 +96,6 @@ class WalkthroughSurface:
             session_id,
             reason=request.reason,
             source=request.surface,
-            surface=request.surface,
-            channel_type=request.channel_type,
-            conversation_id=request.conversation_id,
-            sender_id=request.sender_id,
-        )
-
-    async def update_session_model_selection(
-        self,
-        session_id: str,
-        request: MainAgentSessionModelSelectionRequest,
-    ):
-        return await self.session_task_service.update_session_model_selection(
-            session_id,
-            provider_source=request.provider_source,
-            provider_id=request.provider_id,
-            model_id=request.model_id,
             surface=request.surface,
             channel_type=request.channel_type,
             conversation_id=request.conversation_id,
@@ -422,7 +405,6 @@ def _new_use_cases(
     session_task_service = SessionTaskService(
         runtime_manager=ports.session_task_runtime,
         session_agent_runtime=ports.session_agent_runtime,
-        session_model_runtime=ports.session_model_runtime,
     )
     run_control_service = RunControlApplicationService(
         run_runtime=ports.run_runtime,
@@ -641,123 +623,6 @@ async def _check_shared_control_and_cancel(root: Path) -> WalkthroughResult:
         excerpts={
             "control_detail": _clip(_format_detail(control_detail)),
             "cancel_detail": _clip(_format_detail(cancel_detail)),
-        },
-    )
-
-
-async def _check_shared_model_selection(root: Path) -> WalkthroughResult:
-    workspace = root / "workspace"
-    build_calls: list[tuple[str | None, str | None, str | None]] = []
-
-    async def _build_agent(_workspace: Path):
-        build_calls.append((None, None, None))
-        return _SelectableAgent(provider_source="preset", provider_id="openai", model_id="gpt-5.4")
-
-    async def _build_agent_with_selection(
-        _workspace: Path,
-        provider_source: str | None,
-        provider_id: str | None,
-        model_id: str | None,
-    ):
-        build_calls.append((provider_source, provider_id, model_id))
-        return _SelectableAgent(
-            provider_source=provider_source or "preset",
-            provider_id=provider_id or "openai",
-            model_id=model_id or "gpt-5.4",
-        )
-
-    assembly = _new_use_cases(
-        storage_dir=root / "model-runtime-store",
-        build_agent=_build_agent,
-        build_agent_with_selection=_build_agent_with_selection,
-    )
-    use_cases = assembly.surface_service
-
-    first = await use_cases.run_chat(
-        MainAgentChatRequest(
-            message="hello from qq",
-            workspace_dir=str(workspace),
-            session_id="sess-model",
-            surface="qq",
-            channel_type="qq",
-            conversation_id="group:model",
-            sender_id="user-model",
-        )
-    )
-    _require(first.reply == "gpt-5.4:hello from qq", "seed shared model reply mismatch")
-
-    detail_before = await use_cases.get_session_detail("sess-model", recent_limit=10)
-    _require(detail_before.selected_model_id == "gpt-5.4", "default shared selected model mismatch")
-
-    selected = await use_cases.update_session_model_selection(
-        "sess-model",
-        MainAgentSessionModelSelectionRequest(
-            provider_source="preset",
-            provider_id="openai",
-            model_id="gpt-5.3",
-            surface="tui",
-        ),
-    )
-    _require(selected.applied is True and selected.queued is False, "idle shared model switch should apply immediately")
-    _require(build_calls[-1] == ("preset", "openai", "gpt-5.3"), "shared model rebuild call mismatch")
-
-    detail_after_select = await use_cases.get_session_detail("sess-model", recent_limit=10)
-    _require(detail_after_select.selected_model_id == "gpt-5.3", "selected model detail mismatch after immediate switch")
-    _require(detail_after_select.pending_model_id is None, "pending model should be empty after immediate switch")
-
-    managed_session = await assembly.runtime_manager.get_or_create_session("sess-model", workspace)
-    managed_session.projection.busy = True
-    managed_session.projection.running_state = "qq request running"
-    queued = await use_cases.update_session_model_selection(
-        "sess-model",
-        MainAgentSessionModelSelectionRequest(
-            provider_source="preset",
-            provider_id="openai",
-            model_id="gpt-5.4",
-            surface="qq",
-            channel_type="qq",
-            conversation_id="group:model",
-            sender_id="user-model",
-        ),
-    )
-    _require(queued.applied is False and queued.queued is True, "busy shared model switch should queue")
-    _require(queued.pending_model_id == "gpt-5.4", "queued shared model id mismatch")
-
-    detail_after_queue = await use_cases.get_session_detail("sess-model", recent_limit=10)
-    _require(detail_after_queue.selected_model_id == "gpt-5.3", "selected model should stay active while queued")
-    _require(detail_after_queue.pending_model_id == "gpt-5.4", "pending model detail mismatch while queued")
-
-    managed_session.projection.busy = False
-    managed_session.projection.running_state = ""
-    second = await use_cases.run_chat(
-        MainAgentChatRequest(
-            message="continue after queued switch",
-            workspace_dir=str(workspace),
-            session_id="sess-model",
-            surface="qq",
-            channel_type="qq",
-            conversation_id="group:model",
-            sender_id="user-model",
-        )
-    )
-    _require(
-        second.reply == "gpt-5.4:continue after queued switch",
-        "queued shared model did not apply on the next turn",
-    )
-
-    detail_after_continue = await use_cases.get_session_detail("sess-model", recent_limit=10)
-    _require(detail_after_continue.selected_model_id == "gpt-5.4", "selected model mismatch after queued continuation")
-    _require(detail_after_continue.pending_model_id is None, "pending model should clear after queued continuation")
-
-    return WalkthroughResult(
-        name="shared-model-selection",
-        ok=True,
-        note="shared-session model switching applied immediately when idle and queued correctly when the session was busy",
-        excerpts={
-            "detail_before": _clip(_format_detail(detail_before)),
-            "detail_after_select": _clip(_format_detail(detail_after_select)),
-            "detail_after_queue": _clip(_format_detail(detail_after_queue)),
-            "detail_after_continue": _clip(_format_detail(detail_after_continue)),
         },
     )
 
@@ -1015,7 +880,6 @@ async def _run_all(root: Path) -> list[WalkthroughResult]:
     return [
         await _check_shared_activity_and_takeover(root / "shared-activity"),
         await _check_shared_control_and_cancel(root / "shared-control"),
-        await _check_shared_model_selection(root / "shared-model-selection"),
         await _check_import_export_roundtrip(root / "import-export"),
         await _check_restart_recovery_snapshot(root / "restart-recovery"),
         await _check_restart_persistence(root / "restart-persistence"),

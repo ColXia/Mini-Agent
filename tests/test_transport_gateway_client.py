@@ -686,7 +686,12 @@ def test_gateway_client_update_session_model_sync_uses_model_endpoint() -> None:
         captured["path"] = path
         captured["query"] = query
         captured["payload"] = payload
-        return {"status": "selected"}
+        return {
+            "agent_id": None,
+            "provider_source": "preset",
+            "provider_id": "openai",
+            "model_id": "gpt-5.4",
+        }
 
     client._request_json = _fake_request_json  # type: ignore[method-assign]
     payload = client.update_session_model_sync(
@@ -697,17 +702,26 @@ def test_gateway_client_update_session_model_sync_uses_model_endpoint() -> None:
         surface=" desktop ",
     )
 
-    assert payload == {"status": "selected"}
-    assert captured["method"] == "POST"
-    assert captured["path"] == "/api/v1/agent/sessions/sess-1/model"
+    assert payload == {
+        "status": "selected",
+        "session_id": "sess-1",
+        "active_surface": "desktop",
+        "applied": True,
+        "queued": False,
+        "selected_model_source": "preset",
+        "selected_provider_id": "openai",
+        "selected_model_id": "gpt-5.4",
+        "pending_model_source": None,
+        "pending_provider_id": None,
+        "pending_model_id": None,
+    }
+    assert captured["method"] == "PUT"
+    assert captured["path"] == "/api/v1/agent/model/binding"
     assert captured["payload"] == {
+        "agent_id": None,
         "provider_source": "preset",
         "provider_id": "openai",
         "model_id": "gpt-5.4",
-        "surface": "desktop",
-        "channel_type": None,
-        "conversation_id": None,
-        "sender_id": None,
     }
 
 

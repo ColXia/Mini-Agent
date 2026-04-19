@@ -159,7 +159,6 @@ class GatewayComposition:
             self._session_task_service = SessionTaskService(
                 runtime_manager=resolved_ports.session_task_runtime,
                 session_agent_runtime=resolved_ports.session_agent_runtime,
-                session_model_runtime=resolved_ports.session_model_runtime,
             )
         return self._session_task_service
 
@@ -204,7 +203,6 @@ class GatewayComposition:
                 runtime_manager=self.get_runtime_manager(),
                 session_task_runtime=self.get_runtime_manager(),
                 session_agent_runtime=self.get_runtime_manager(),
-                session_model_runtime=self.get_runtime_manager(),
                 model_runtime=self.get_model_runtime_adapter(),
                 workspace_runtime=self.get_workspace_runtime(),
             )
@@ -217,7 +215,6 @@ class GatewayComposition:
                 session_task_runtime=resolved_ports.session_task_runtime,
                 session_task_port=resolved_ports.session_task_port,
                 session_agent_runtime=resolved_ports.session_agent_runtime,
-                session_model_runtime=resolved_ports.session_model_runtime,
                 agent_runtime=resolved_ports.agent_runtime,
                 run_runtime=resolved_ports.run_runtime,
                 model_runtime=resolved_ports.model_runtime,

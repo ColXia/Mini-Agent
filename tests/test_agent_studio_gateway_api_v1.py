@@ -30,7 +30,6 @@ from mini_agent.interfaces import (
     MainAgentSessionControlResponse,
     MainAgentSessionMemoryResponse,
     MainAgentSessionMessage,
-    MainAgentSessionModelSelectionResponse,
     MainAgentSessionMutationResponse,
     MainAgentSessionRuntimePolicyResponse,
     MainAgentSessionSkillResponse,
@@ -834,37 +833,6 @@ def test_v1_agent_session_detail_and_operation_routes(monkeypatch) -> None:
                 },
             )
 
-        async def update_session_model_selection(
-            self,
-            session_id: str,
-            *,
-            provider_source: str | None = None,
-            provider_id: str | None = None,
-            model_id: str | None = None,
-            surface: str | None = None,
-            channel_type: str | None = None,
-            conversation_id: str | None = None,
-            sender_id: str | None = None,
-        ):
-            assert session_id == "sess-qq"
-            assert provider_source == "preset"
-            assert provider_id == "openai"
-            assert model_id == "gpt-5.3"
-            assert surface == "qq"
-            assert channel_type == "qq"
-            assert conversation_id == "group:demo"
-            assert sender_id == "user-1"
-            return MainAgentSessionModelSelectionResponse(
-                status="selected",
-                session_id="sess-qq",
-                active_surface="qq",
-                applied=True,
-                queued=False,
-                selected_model_source="preset",
-                selected_provider_id="openai",
-                selected_model_id="gpt-5.3",
-            )
-
     class _RunControlServiceStub:
         async def cancel_session_run(
             self,
@@ -1090,13 +1058,7 @@ def test_v1_agent_session_detail_and_operation_routes(monkeypatch) -> None:
                 "sender_id": "user-1",
             },
         )
-        assert model_response.status_code == 200
-        model_payload = model_response.json()
-        assert model_payload["ok"] is True
-        assert model_payload["data"]["status"] == "selected"
-        assert model_payload["data"]["selected_model_source"] == "preset"
-        assert model_payload["data"]["selected_provider_id"] == "openai"
-        assert model_payload["data"]["selected_model_id"] == "gpt-5.3"
+        assert model_response.status_code == 404
 
         approval_response = client.post(
             "/api/v1/agent/sessions/sess-qq/approval",
@@ -1684,19 +1646,6 @@ def test_v1_session_mutation_routes_prefer_session_task_service_over_agent_or_mo
                 result={"summary": "skills ok"},
             )
 
-        async def update_session_model_selection(self, session_id: str, **kwargs):
-            calls.append(("update_session_model_selection", session_id, kwargs))
-            return MainAgentSessionModelSelectionResponse(
-                status="selected",
-                session_id=session_id,
-                active_surface=str(kwargs.get("surface") or "desktop"),
-                applied=True,
-                queued=False,
-                selected_model_source=str(kwargs.get("provider_source") or ""),
-                selected_provider_id=str(kwargs.get("provider_id") or ""),
-                selected_model_id=str(kwargs.get("model_id") or ""),
-            )
-
         async def update_session_runtime_policy(self, session_id: str, **kwargs):
             calls.append(("update_session_runtime_policy", session_id, kwargs))
             return MainAgentSessionRuntimePolicyResponse(
@@ -1731,10 +1680,7 @@ def test_v1_session_mutation_routes_prefer_session_task_service_over_agent_or_mo
             )
 
     class _ModelServiceStub:
-        async def update_session_model_selection(self, session_id: str, **kwargs):
-            raise AssertionError(
-                f"model_service.update_session_model_selection should not be called: {session_id}, {kwargs}"
-            )
+        pass
 
     monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_session_task_service", _SessionTaskServiceStub())
     monkeypatch.setattr(gateway_main.GATEWAY_COMPOSITION, "_agent_service", _AgentServiceStub())
@@ -1778,8 +1724,7 @@ def test_v1_session_mutation_routes_prefer_session_task_service_over_agent_or_mo
                 "surface": "desktop",
             },
         )
-        assert model.status_code == 200
-        assert model.json()["data"]["selected_model_id"] == "gpt-5.4"
+        assert model.status_code == 404
 
         policy = client.post(
             "/api/v1/agent/sessions/sess-pref/policy",
@@ -1793,7 +1738,6 @@ def test_v1_session_mutation_routes_prefer_session_task_service_over_agent_or_mo
         "update_session_context",
         "manage_session_memory",
         "manage_session_skills",
-        "update_session_model_selection",
         "update_session_runtime_policy",
     ]
 

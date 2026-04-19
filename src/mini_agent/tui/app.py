@@ -79,6 +79,7 @@ from mini_agent.agent_core.skills.command_service import SkillCommandRequest
 from mini_agent.agent_core.skills.runtime_feedback import describe_skill_runtime_reload
 from mini_agent.config import Config
 from mini_agent.interfaces import (
+    MainAgentModelBindingRequest,
     MainAgentRunApprovalRequest,
     MainAgentRunCancelRequest,
     MainAgentSessionApprovalRequest,
@@ -88,7 +89,6 @@ from mini_agent.interfaces import (
     MainAgentDefaultSessionRequest,
     MainAgentSessionForkRequest,
     MainAgentSessionMemoryRequest,
-    MainAgentSessionModelSelectionRequest,
     MainAgentSessionRuntimePolicyResponse,
     MainAgentSessionRenameRequest,
     MainAgentSessionRuntimePolicyRequest,
@@ -97,11 +97,8 @@ from mini_agent.interfaces import (
     surface_payload_from_dto,
     surface_payload_list_from_dtos,
 )
+from mini_agent.model_manager.agent_model_service import AgentModelService
 from mini_agent.model_manager.model_registry_service import ModelRegistryService
-from mini_agent.model_manager.session_selection_service import (
-    SessionModelSelectionRequest,
-    SessionModelSelectionService,
-)
 from mini_agent.runtime.support.sandbox_state import (
     collect_sandbox_diagnostics,
     compact_sandbox_summary,
@@ -581,6 +578,7 @@ class TuiSessionRuntimeState:
     loop_bus: InMemoryLoopMessageBus | None = None
     cancel_event: asyncio.Event | None = None
     pending_resume_started: bool = False
+    execution_owner: str = "local"
 
 
 @dataclass(slots=True)
@@ -872,6 +870,10 @@ class MiniAgentTuiApp:
         self.initial_prompt = initial_prompt
         self._config_loader = config_loader
         self.registry = registry or ModelRegistryService()
+        self._agent_model_service = AgentModelService(
+            catalog_path=getattr(self.registry, "catalog_path", None),
+            load_runtime_config=self._load_runtime_config,
+        )
         self._transport_binding = TuiGatewayTransportBinding.from_gateway_client(
             gateway_client or GatewayClient()
         )
@@ -2625,6 +2627,34 @@ class MiniAgentTuiApp:
     def _runs_via_gateway(cls, session: TuiSession | None) -> bool:
         return session is not None and not cls._has_local_runtime_state(session)
 
+    @staticmethod
+    def _resolve_session_execution_owner(session: TuiSession) -> str:
+        projection = session.projection
+        origin_surface = _safe_text(projection.origin_surface).lower() or "tui"
+        has_external_channel = any(
+            (
+                _safe_text(projection.channel_type),
+                _safe_text(projection.conversation_id),
+                _safe_text(projection.sender_id),
+            )
+        )
+        if origin_surface == "tui" and not has_external_channel and not bool(projection.shared):
+            return "local"
+        return "gateway"
+
+    @staticmethod
+    def _prefers_local_model_binding(session: TuiSession) -> bool:
+        projection = session.projection
+        origin_surface = _safe_text(projection.origin_surface).lower() or "tui"
+        has_external_channel = any(
+            (
+                _safe_text(projection.channel_type),
+                _safe_text(projection.conversation_id),
+                _safe_text(projection.sender_id),
+            )
+        )
+        return origin_surface == "tui" and not has_external_channel and not bool(projection.shared)
+
     @classmethod
     def _session_summary_projection(cls, session: TuiSession | None) -> SessionSummaryProjection | None:
         if session is None:
@@ -3022,6 +3052,7 @@ class MiniAgentTuiApp:
 
     def _apply_remote_session_summary(self, session: TuiSession, payload: dict[str, Any]) -> None:
         self._remote_session_projector.apply_summary(session, payload)
+        session.runtime.execution_owner = self._resolve_session_execution_owner(session)
 
     def _apply_remote_session_detail(self, session: TuiSession, payload: dict[str, Any]) -> None:
         should_follow_output = self._should_follow_output_after_session_update(session)
@@ -3030,6 +3061,7 @@ class MiniAgentTuiApp:
             payload,
             preserve_follow_output=should_follow_output,
         )
+        session.runtime.execution_owner = self._resolve_session_execution_owner(session)
 
     def _apply_remote_session_messages(self, session: TuiSession, items: Sequence[dict[str, Any]]) -> None:
         self._remote_session_projector.apply_messages(session, items)
@@ -3227,6 +3259,7 @@ class MiniAgentTuiApp:
             ),
         )
         self._apply_remote_session_summary(session, payload)
+        session.runtime.execution_owner = self._resolve_session_execution_owner(session)
         self._apply_saved_session_ui_state(session)
         return session
 
@@ -4841,6 +4874,9 @@ class MiniAgentTuiApp:
         provider, model = selected
         return self._model_identity(provider, model)
 
+    def _current_agent_model_binding_identity(self) -> tuple[str, str, str] | None:
+        return self._agent_model_service.explicit_model_identity()
+
     def _set_model_cursor_by_identity(
         self,
         identity: tuple[str, str, str] | None,
@@ -4997,6 +5033,8 @@ class MiniAgentTuiApp:
         if active_identity is None:
             active_identity = self._selected_model_identity()
         pending_identity = self._session_pending_model_identity(session)
+        if pending_identity is None and not self._runs_via_gateway(session):
+            pending_identity = self._current_agent_model_binding_identity()
         if pending_identity is not None and pending_identity != active_identity:
             return (
                 f"{self._format_model_identity(active_identity)} -> "
@@ -5092,131 +5130,88 @@ class MiniAgentTuiApp:
         session: TuiSession,
         identity: tuple[str, str, str],
     ) -> None:
-        projection = session.projection
-        runtime = session.runtime
-        if self._runs_via_gateway(session):
-            await self._apply_remote_session_model_selection(session, identity)
-            return
-
-        plan = SessionModelSelectionService.plan_update(
-            request=SessionModelSelectionRequest(
-                provider_source=identity[0],
-                provider_id=identity[1],
-                model_id=identity[2],
-            ),
-            current_identity=self._session_active_model_identity(session),
-            pending_identity=self._session_pending_model_identity(session),
-            busy=bool(projection.busy),
-            runtime_attached=runtime.agent is not None,
-        )
-        if plan.update_pending_identity:
-            self._set_session_pending_model_identity(session, plan.pending_identity)
-        if plan.touch_and_persist and plan.activate_identity is None:
-            self._persist_session_state()
-        if plan.queued:
-            feedback = (
-                SessionModelSelectionService.already_queued_feedback(
-                    model_label=self._format_model_identity(identity),
-                    session_title=session.title,
-                )
-                if plan.already_queued
-                else SessionModelSelectionService.queued_feedback(
-                    model_label=self._format_model_identity(identity),
-                    session_title=session.title,
-                )
-            )
-            if plan.already_queued:
-                self._set_status(feedback.status_text)
-            else:
-                self._set_status(feedback.status_text)
+        active_identity = self._session_active_model_identity(session)
+        if active_identity == identity:
+            if self._session_pending_model_identity(session) is not None:
+                self._set_session_pending_model_identity(session, None)
+                self._persist_session_state()
             if session.session_id == self.current_session.session_id:
                 self._set_model_cursor_by_identity(identity)
+            self._set_status(f"{session.title} is already using {self._format_model_identity(identity)}.")
             self._render_all()
             return
 
-        if plan.already_selected:
+        if self._runs_via_gateway(session) and not self._prefers_local_model_binding(session):
+            await self._apply_remote_agent_model_binding(session, identity)
+            return
+
+        self._agent_model_service.update_model_binding(
+            provider_source=identity[0],
+            provider_id=identity[1],
+            model_id=identity[2],
+        )
+        if session.session_id == self.current_session.session_id:
+            self._set_model_cursor_by_identity(identity)
+
+        if session.projection.busy:
+            self._set_session_pending_model_identity(session, identity)
             self._set_status(
-                SessionModelSelectionService.already_selected_feedback(
-                    model_label=self._format_model_identity(identity),
-                    session_title=session.title,
-                ).status_text
+                f"Queued {self._format_model_identity(identity)} for {session.title}; "
+                "it will apply after the current turn."
             )
-            if session.session_id == self.current_session.session_id:
-                self._set_model_cursor_by_identity(identity)
+            self._persist_session_state()
             self._render_all()
             return
 
-        target_identity = plan.activate_identity or identity
-        applied_feedback = SessionModelSelectionService.applied_feedback(
-            model_label=self._format_model_identity(target_identity),
-            session_title=session.title,
-        )
         await self._activate_session_model_selection(
             session,
-            target_identity,
-            warm_prefix=applied_feedback.status_text.rstrip("."),
+            identity,
+            warm_prefix=f"Applied agent model {self._format_model_identity(identity)} for {session.title}",
         )
         self._render_all()
 
-    async def _apply_remote_session_model_selection(
+    async def _apply_remote_agent_model_binding(
         self,
         session: TuiSession,
         identity: tuple[str, str, str],
     ) -> None:
         projection = session.projection
         source, provider_id, model_id = identity
-        response = await self.remote_session_service.update_session_model(
-            session.session_id,
-            MainAgentSessionModelSelectionRequest(
+        response = await asyncio.to_thread(
+            self.remote_model_service.set_agent_model_binding_sync,
+            MainAgentModelBindingRequest(
                 provider_source=source,
                 provider_id=provider_id,
                 model_id=model_id,
-                **self._remote_request_binding_kwargs(session),
             ),
         )
-        await self._sync_remote_session_detail(session, recent_limit=80)
         response_payload = surface_payload_from_dto(response)
-        normalized_identity = (
-            self._normalize_remote_model_identity_payload(response_payload, prefix="pending_")
-            if response.queued
-            else self._normalize_remote_model_identity_payload(response_payload, prefix="selected_")
+        normalized_identity = self._normalize_session_model_identity_payload(
+            source=response_payload.get("provider_source"),
+            provider_id=response_payload.get("provider_id"),
+            model_id=response_payload.get("model_id"),
         )
-        if normalized_identity is not None and session.session_id == self.current_session.session_id:
-            self._set_model_cursor_by_identity(normalized_identity)
-        if response.queued:
+        resolved_identity = normalized_identity or identity
+        if projection.busy:
+            self._set_session_pending_model_identity(session, resolved_identity)
             projection.supplemental.remote_last_command_summary = (
-                f"model use | queued {self._format_model_identity(identity)}"
+                f"model use | queued {self._format_model_identity(resolved_identity)}"
             )
             self._set_status(
-                SessionModelSelectionService.queued_feedback(
-                    model_label=self._format_model_identity(identity),
-                    session_title=session.title,
-                ).status_text
+                f"Queued {self._format_model_identity(resolved_identity)} for {session.title}; "
+                "it will apply after the current turn."
             )
         else:
+            self._set_session_selected_model_identity(session, resolved_identity)
+            self._set_session_pending_model_identity(session, None)
             projection.supplemental.remote_last_command_summary = (
-                f"model use | applied {self._format_model_identity(identity)}"
+                f"model use | applied {self._format_model_identity(resolved_identity)}"
             )
-            self._set_status(
-                SessionModelSelectionService.applied_feedback(
-                    model_label=self._format_model_identity(identity),
-                    session_title=session.title,
-                ).status_text
-            )
+            self._set_status(f"Applied {self._format_model_identity(resolved_identity)} to {session.title}.")
+        if session.session_id == self.current_session.session_id:
+            self._set_model_cursor_by_identity(resolved_identity)
+        self._persist_session_state()
         self._render_all()
-
-    @classmethod
-    def _normalize_remote_model_identity_payload(
-        cls,
-        payload: dict[str, Any],
-        *,
-        prefix: str,
-    ) -> tuple[str, str, str] | None:
-        return cls._normalize_session_model_identity_payload(
-            source=payload.get(f"{prefix}model_source"),
-            provider_id=payload.get(f"{prefix}provider_id"),
-            model_id=payload.get(f"{prefix}model_id"),
-        )
 
     @classmethod
     def _normalize_session_model_identity_payload(
@@ -5232,18 +5227,20 @@ class MiniAgentTuiApp:
             model_id=model_id,
         )
 
-    async def _apply_pending_session_model_selection(self, session: TuiSession) -> None:
-        pending_identity = SessionModelSelectionService.pending_identity_to_apply(
-            pending_identity=self._session_pending_model_identity(session),
-            busy=bool(session.projection.busy),
-        )
-        if pending_identity is None:
+    async def _ensure_current_agent_model_binding_for_turn(self, session: TuiSession) -> None:
+        target_identity = self._current_agent_model_binding_identity()
+        if target_identity is None:
+            return
+        if self._session_active_model_identity(session) == target_identity:
+            if self._session_pending_model_identity(session) is not None:
+                self._set_session_pending_model_identity(session, None)
+                self._persist_session_state()
             return
         await self._activate_session_model_selection(
             session,
-            pending_identity,
+            target_identity,
             warm_prefix=(
-                f"Applied queued model {self._format_model_identity(pending_identity)} "
+                f"Applied agent model {self._format_model_identity(target_identity)} "
                 f"for {session.title}"
             ),
             clear_pending_skill_reload_on_success=bool(session.operator.pending_skill_reload),
@@ -6750,7 +6747,7 @@ class MiniAgentTuiApp:
             runtime.cancel_event = None
             projection.running_state = ""
             projection.pending_approvals = []
-            await self._apply_pending_session_model_selection(session)
+            await self._ensure_current_agent_model_binding_for_turn(session)
             self._persist_session_state()
             self._render_all()
 
@@ -7277,7 +7274,7 @@ class MiniAgentTuiApp:
             else:
                 runtime.pending_resume_started = False
             self._turn_state.finish_local_turn(session)
-            await self._apply_pending_session_model_selection(session)
+            await self._ensure_current_agent_model_binding_for_turn(session)
             await self._apply_pending_session_skill_reload(session)
             self._persist_session_state()
             self._render_all()
@@ -7285,6 +7282,7 @@ class MiniAgentTuiApp:
     async def _ensure_agent(self, session: TuiSession) -> Agent | None:
         operator = session.operator
         runtime = session.runtime
+        await self._ensure_current_agent_model_binding_for_turn(session)
         if operator.pending_skill_reload and self._has_local_runtime_state(session):
             applied = await self._apply_pending_session_skill_reload(session)
             if applied and runtime.agent is not None:
