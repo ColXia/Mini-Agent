@@ -6,14 +6,14 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from mini_agent.agent_core.session import SessionLifecyclePolicy, SessionResetMode
-from mini_agent.runtime.session_lifecycle import (
+from mini_agent.runtime.support.session_lifecycle import (
     SESSION_IDLE_SECONDS_ENV,
     SESSION_RESET_MODE_ENV,
     SurfaceSessionLifecycleRuntime,
     build_surface_session_key,
     resolve_session_lifecycle_policy,
 )
-from mini_agent.runtime.workspace_path_utils import workspace_path_key
+from mini_agent.workspace import workspace_path_key
 
 
 def _dt(year: int, month: int, day: int, hour: int, minute: int, second: int = 0) -> datetime:

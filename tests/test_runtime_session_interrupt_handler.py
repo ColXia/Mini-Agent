@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import asyncio
 
-from mini_agent.runtime.session_cancel_service import SessionCancelService
-from mini_agent.runtime.session_interrupt_handler import RuntimeSessionInterruptHandler
+from mini_agent.runtime.live_control.session_cancel_service import SessionCancelService
+from mini_agent.runtime.live_control.session_interrupt_handler import RuntimeSessionInterruptHandler
 from tests.runtime_contract_fixtures import (
     runtime_projection_stub,
     runtime_session_stub,

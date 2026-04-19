@@ -4,7 +4,7 @@ import asyncio
 from pathlib import Path
 from types import SimpleNamespace
 
-from mini_agent.runtime.session_agent_runtime_handler import RuntimeSessionAgentRuntimeHandler
+from mini_agent.runtime.handlers.session_agent_runtime_handler import RuntimeSessionAgentRuntimeHandler
 from tests.runtime_contract_fixtures import (
     RuntimeContractAgentStub,
     runtime_projection_stub,

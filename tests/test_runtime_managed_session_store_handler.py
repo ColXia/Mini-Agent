@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from mini_agent.runtime.session_managed_store_handler import RuntimeManagedSessionStoreHandler
+from mini_agent.runtime.orchestration.session_managed_store_handler import RuntimeManagedSessionStoreHandler
 
 
 def _dt() -> datetime:

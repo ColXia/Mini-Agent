@@ -23,7 +23,7 @@ from mini_agent.agent_core.engine import TurnStopReason
 from mini_agent.agent_core.execution import InMemoryLoopMessageBus
 from mini_agent.commands import CommandExecutionResult
 from mini_agent.config import AgentConfig, Config, LLMConfig, ToolsConfig
-from mini_agent.runtime.session_interrupt_handler import RuntimeSessionInterruptHandler
+from mini_agent.runtime.live_control.session_interrupt_handler import RuntimeSessionInterruptHandler
 from mini_agent.schema import LLMCompletionResult, Message
 from mini_agent.transport import GatewayTransportError
 from mini_agent.tui.app import MiniAgentTuiApp
@@ -276,6 +276,7 @@ def _new_app(
         registry=resolved_registry,
         gateway_client=resolved_gateway_client,
         state_path=state_path,
+        agent_model_binding_path=state_path.with_name("agent_model_binding.json"),
         build_ui=False,
     )
     app._agent_model_service = _InMemoryAgentModelService(resolved_registry.list_registry())  # type: ignore[attr-defined]
@@ -1037,7 +1038,9 @@ class FakeGatewayClient:
         return self._run_summary(self._run_session(normalized))
 
     def get_run_sync(self, run_id: str) -> dict[str, Any]:
-        return asyncio.run(self.get_run(run_id))
+        normalized = str(run_id or "").strip()
+        self.run_get_calls.append(normalized)
+        return self._run_summary(self._run_session(normalized))
 
     def _current_agent_model_identity(self) -> tuple[str, str, str] | None:
         source, provider_id, model_id = self._agent_binding_identity

@@ -6,9 +6,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from mini_agent.runtime.session_access_handler import RuntimeSessionAccessPlan
-from mini_agent.runtime.session_creation_handler import RuntimeSessionCreationCommand
-from mini_agent.runtime.session_registry_handler import RuntimeSessionRegistryHandler
+from mini_agent.runtime.handlers.session_access_handler import RuntimeSessionAccessPlan
+from mini_agent.runtime.handlers.session_creation_handler import RuntimeSessionCreationCommand
+from mini_agent.runtime.handlers.session_registry_handler import RuntimeSessionRegistryHandler
 from mini_agent.session import DEFAULT_SESSION_TITLE
 from tests.runtime_contract_fixtures import runtime_session_stub
 
@@ -118,4 +118,3 @@ async def test_runtime_session_registry_handler_passes_default_session_title_and
     assert command.title == DEFAULT_SESSION_TITLE
     assert command.default_title == DEFAULT_SESSION_TITLE
     assert command.is_default is True
-

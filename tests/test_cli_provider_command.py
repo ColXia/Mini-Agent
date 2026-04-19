@@ -253,7 +253,7 @@ def test_run_provider_command_probe(capsys, tmp_path: Path, monkeypatch) -> None
     )
 
     monkeypatch.setattr(
-        "mini_agent.application.operations_provider_use_cases.ProviderOperationsUseCases.probe_model_capabilities",
+        "mini_agent.application.use_cases.operations_provider_use_cases.ProviderOperationsUseCases.probe_model_capabilities",
         lambda self, **kwargs: type(
             "_ProbeResult",
             (),

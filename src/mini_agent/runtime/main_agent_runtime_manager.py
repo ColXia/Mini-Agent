@@ -112,7 +112,7 @@ from mini_agent.runtime.support.session_backed_run_id import (
     resolve_session_backed_session_id,
 )
 from mini_agent.runtime.support.tooling import reconfigure_agent_runtime_policy
-from mini_agent.runtime.support.workspace_path_utils import same_workspace_path, workspace_path_key
+from mini_agent.workspace import same_workspace_path, workspace_path_key
 from mini_agent.tools.mcp_loader import cleanup_mcp_connections
 _RUNTIME_SESSION_KIND = "main-agent-runtime"
 

@@ -43,7 +43,9 @@ from mini_agent.interfaces import (  # noqa: E402
     MainAgentSessionShareRequest,
 )
 from mini_agent.runtime.main_agent_runtime_manager import MainAgentRuntimeManager  # noqa: E402
-from mini_agent.runtime.session_snapshot_handler import RuntimeSessionSnapshotImportCommand  # noqa: E402
+from mini_agent.runtime.orchestration.session_snapshot_handler import (  # noqa: E402
+    RuntimeSessionSnapshotImportCommand,
+)
 
 
 @dataclass(frozen=True)

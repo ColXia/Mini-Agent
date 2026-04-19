@@ -1,8 +1,8 @@
 """Lazy runtime package exports.
 
-Avoid eager imports here so submodule imports like ``mini_agent.runtime.tooling``
-do not pull in the full runtime manager graph during package initialization.
-That keeps CLI/skill support import paths free from circular import failures.
+Avoid eager imports here so package-level exports do not pull in the full runtime
+manager graph during package initialization. That keeps CLI and surface imports
+free from circular import failures while the real owners live in subpackages.
 """
 
 from __future__ import annotations

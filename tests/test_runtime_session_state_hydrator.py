@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
-from mini_agent.runtime.session_hydration_builder import RuntimeSessionHydrationPayload
-from mini_agent.runtime.session_runtime_state_hydrator import RuntimeSessionStateHydrator
+from mini_agent.runtime.orchestration.session_hydration_builder import RuntimeSessionHydrationPayload
+from mini_agent.runtime.orchestration.session_runtime_state_hydrator import RuntimeSessionStateHydrator
 from tests.runtime_contract_fixtures import RuntimeContractAgentStub, runtime_projection_stub, runtime_session_stub
 
 

@@ -7,7 +7,7 @@ import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
 
-from mini_agent.application.operations_provider_use_cases import ProviderOperationsUseCases
+from mini_agent.application.use_cases.operations_provider_use_cases import ProviderOperationsUseCases
 from mini_agent.interfaces import (
     StudioFeatureModelBindingRequest,
     StudioModelCapabilityProbeRequest,
@@ -177,11 +177,11 @@ def test_discover_provider_models_for_local_ollama_uses_ollama_discovery_type(
         )()
 
     monkeypatch.setattr(
-        "mini_agent.application.operations_provider_use_cases.ModelDiscoveryService.discover_models",
+        "mini_agent.application.use_cases.operations_provider_use_cases.ModelDiscoveryService.discover_models",
         _fake_discover_models,
     )
     monkeypatch.setattr(
-        "mini_agent.application.operations_provider_use_cases.recommend_discovered_model",
+        "mini_agent.application.use_cases.operations_provider_use_cases._recommend_discovered_model",
         lambda provider_type, result, curated_order=None, official_default=None: type(
             "_Recommendation",
             (),
@@ -214,11 +214,11 @@ def test_validate_provider_connection_reports_reachable_no_models_for_empty_inve
         return type("_Result", (), {"available_models": []})()
 
     monkeypatch.setattr(
-        "mini_agent.application.operations_provider_use_cases.ModelDiscoveryService.discover_models",
+        "mini_agent.application.use_cases.operations_provider_use_cases.ModelDiscoveryService.discover_models",
         _fake_discover_models,
     )
     monkeypatch.setattr(
-        "mini_agent.application.operations_provider_use_cases.recommend_discovered_model",
+        "mini_agent.application.use_cases.operations_provider_use_cases._recommend_discovered_model",
         lambda provider_type, result, curated_order=None, official_default=None: None,
     )
 
@@ -379,7 +379,7 @@ def test_provider_use_cases_probe_model_capabilities(tmp_path: Path, monkeypatch
     use_cases = _build_use_cases(repo_root=repo_root, workspace_root=workspace_root)
 
     monkeypatch.setattr(
-        "mini_agent.application.operations_provider_use_cases.ModelCapabilityProbeService.probe_model",
+        "mini_agent.application.use_cases.operations_provider_use_cases.ModelCapabilityProbeService.probe_model",
         lambda self, **kwargs: {
             "source": "custom",
             "provider_id": "maas",

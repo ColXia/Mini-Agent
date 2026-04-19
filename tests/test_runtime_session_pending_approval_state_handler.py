@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timezone
 
-from mini_agent.runtime.session_pending_approval_state_handler import (
+from mini_agent.runtime.live_control.session_pending_approval_state_handler import (
     RuntimeSessionPendingApprovalStateHandler,
 )
 from tests.runtime_contract_fixtures import runtime_session_stub, runtime_state_stub

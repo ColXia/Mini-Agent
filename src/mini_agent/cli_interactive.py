@@ -58,7 +58,7 @@ from .agent_core.kernel import AgentKernelBuildOptions, build_agent_kernel
 from .config import Config
 from .config_bootstrap import load_entry_config
 from .model_manager.model_registry_service import ModelRegistryService
-from .runtime.sandbox_state import collect_sandbox_diagnostics, compact_sandbox_summary
+from .runtime.support.sandbox_state import collect_sandbox_diagnostics, compact_sandbox_summary
 from .runtime.support.session_lifecycle import SurfaceSessionLifecycleRuntime
 from .agent_core.context.control_result_service import (
     SessionContextControlResultService,

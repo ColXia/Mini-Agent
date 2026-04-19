@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from mini_agent.runtime.session_hydration_coordinator import (
+from mini_agent.runtime.orchestration.session_hydration_coordinator import (
     RuntimeSessionHydrationCoordinator,
 )
 from tests.runtime_contract_fixtures import runtime_session_stub

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
-from mini_agent.runtime.session_persistence_record_builder import RuntimeSessionPersistenceRecordBuilder
+from mini_agent.runtime.support.session_persistence_record_builder import RuntimeSessionPersistenceRecordBuilder
 from tests.runtime_contract_fixtures import (
     RuntimeContractAgentStub,
     lineage_state_stub,

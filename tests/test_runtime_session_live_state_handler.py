@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime, timezone
 
 from mini_agent.agent_core.contracts import RunControlMode
-from mini_agent.runtime.session_live_state_handler import RuntimeSessionLiveStateHandler
+from mini_agent.runtime.live_control.session_live_state_handler import RuntimeSessionLiveStateHandler
 from tests.runtime_contract_fixtures import (
     RuntimeContractAgentStub,
     runtime_projection_stub,

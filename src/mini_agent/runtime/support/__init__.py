@@ -88,7 +88,7 @@ from .tooling import (
     resolve_runtime_policy,
 )
 from .turn_context_provider_builder import build_turn_context_providers
-from .workspace_path_utils import same_workspace_path, workspace_path_key
+from mini_agent.workspace import same_workspace_path, workspace_path_key
 
 __all__ = [
     "ACTIVE_REMOTE_CHANNEL_ADAPTERS",

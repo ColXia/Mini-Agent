@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from mini_agent.runtime.sandbox_state import collect_sandbox_diagnostics
+from mini_agent.runtime.support.sandbox_state import collect_sandbox_diagnostics
 from tests.runtime_contract_fixtures import (
     RuntimeContractAgentStub,
     runtime_policy_engine_stub,

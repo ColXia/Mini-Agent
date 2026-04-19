@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from types import SimpleNamespace
 
-from mini_agent.runtime.session_local_agent_runtime_handler import LocalSessionAgentRuntimeHandler
+from mini_agent.runtime.support.session_local_agent_runtime_handler import LocalSessionAgentRuntimeHandler
 
 
 def test_local_session_agent_runtime_handler_rebuilds_with_identity_and_clears_pending_state() -> None:

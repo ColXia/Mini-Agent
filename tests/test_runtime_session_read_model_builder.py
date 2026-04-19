@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
-from mini_agent.runtime.session_read_model_builder import RuntimeSessionReadModelBuilder
+from mini_agent.runtime.read_models.session_read_model_builder import RuntimeSessionReadModelBuilder
 from tests.runtime_contract_fixtures import (
     RuntimeContractAgentStub,
     lineage_state_stub,

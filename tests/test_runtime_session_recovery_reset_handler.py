@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from mini_agent.runtime.session_recovery_reset_handler import RuntimeSessionRecoveryResetHandler
+from mini_agent.runtime.live_control.session_recovery_reset_handler import RuntimeSessionRecoveryResetHandler
 from tests.runtime_contract_fixtures import (
     RuntimeContractAgentStub,
     runtime_projection_stub,

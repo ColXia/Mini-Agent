@@ -10,7 +10,7 @@ import pytest
 from mini_agent.agent_core.execution.sandbox import SandboxBackend, SandboxManager
 from mini_agent.agent_core.execution.sandbox.windows import SandboxTransformResult
 from mini_agent.config import AgentConfig, Config, LLMConfig, SecurityConfig, ToolsConfig
-from mini_agent.runtime.tooling import resolve_runtime_policy
+from mini_agent.runtime.support.tooling import resolve_runtime_policy
 from mini_agent.security.policy import BashCommandPolicyDecision
 from mini_agent.tools.bash_tool import BackgroundShellManager, BashKillTool, BashOutputTool, BashTool
 from mini_agent.workspace_runtime import DirectWorkspaceExecutor, InMemoryMutationLedger

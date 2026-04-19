@@ -858,6 +858,7 @@ class MiniAgentTuiApp:
         registry: ModelRegistryService | None = None,
         gateway_client: GatewayClient | None = None,
         state_path: Path | None = None,
+        agent_model_binding_path: Path | None = None,
         session_lifecycle_runtime: SurfaceSessionLifecycleRuntime | None = None,
         session_lifecycle_policy: SessionLifecyclePolicy | None = None,
         build_ui: bool = True,
@@ -871,6 +872,7 @@ class MiniAgentTuiApp:
         self._config_loader = config_loader
         self.registry = registry or ModelRegistryService()
         self._agent_model_service = AgentModelService(
+            binding_state_path=agent_model_binding_path,
             catalog_path=getattr(self.registry, "catalog_path", None),
             load_runtime_config=self._load_runtime_config,
         )
@@ -5145,20 +5147,27 @@ class MiniAgentTuiApp:
             await self._apply_remote_agent_model_binding(session, identity)
             return
 
-        self._agent_model_service.update_model_binding(
-            provider_source=identity[0],
-            provider_id=identity[1],
-            model_id=identity[2],
-        )
+        binding_store_error = ""
+        try:
+            self._agent_model_service.update_model_binding(
+                provider_source=identity[0],
+                provider_id=identity[1],
+                model_id=identity[2],
+            )
+        except Exception as exc:
+            binding_store_error = _safe_text(exc) or type(exc).__name__
         if session.session_id == self.current_session.session_id:
             self._set_model_cursor_by_identity(identity)
 
         if session.projection.busy:
             self._set_session_pending_model_identity(session, identity)
-            self._set_status(
+            message = (
                 f"Queued {self._format_model_identity(identity)} for {session.title}; "
                 "it will apply after the current turn."
             )
+            if binding_store_error:
+                message += " Binding store unavailable; queued change stays session-local."
+            self._set_status(message)
             self._persist_session_state()
             self._render_all()
             return
@@ -5168,6 +5177,10 @@ class MiniAgentTuiApp:
             identity,
             warm_prefix=f"Applied agent model {self._format_model_identity(identity)} for {session.title}",
         )
+        if binding_store_error:
+            self._set_status(
+                f"{self.status} Binding store unavailable; using session-local selection ({binding_store_error})."
+            )
         self._render_all()
 
     async def _apply_remote_agent_model_binding(
@@ -5228,7 +5241,9 @@ class MiniAgentTuiApp:
         )
 
     async def _ensure_current_agent_model_binding_for_turn(self, session: TuiSession) -> None:
-        target_identity = self._current_agent_model_binding_identity()
+        target_identity = self._session_pending_model_identity(session)
+        if target_identity is None:
+            target_identity = self._current_agent_model_binding_identity()
         if target_identity is None:
             return
         if self._session_active_model_identity(session) == target_identity:

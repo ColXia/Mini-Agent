@@ -8,7 +8,7 @@ from fastapi import HTTPException
 from mini_agent.config import AgentConfig, Config, LLMConfig, SecurityConfig, ToolsConfig
 from mini_agent.runtime.main_agent_runtime_contracts import MainAgentRuntimeDiagnostics
 from mini_agent.runtime.workspace_runtime_adapter import MainAgentWorkspaceRuntimeAdapter
-from mini_agent.runtime.support.workspace_path_utils import same_workspace_path
+from mini_agent.workspace import same_workspace_path
 from mini_agent.workspace_runtime import build_direct_workspace_runtime_bundle
 
 

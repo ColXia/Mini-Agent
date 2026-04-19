@@ -3,8 +3,8 @@ from __future__ import annotations
 import pytest
 from fastapi import HTTPException
 
-from mini_agent.runtime.session_agent_control_handler import RuntimeSessionAgentControlHandler
-from mini_agent.runtime.session_control_models import RuntimeSessionControlCommand
+from mini_agent.runtime.handlers.session_agent_control_handler import RuntimeSessionAgentControlHandler
+from mini_agent.runtime.support.session_control_models import RuntimeSessionControlCommand
 from tests.runtime_contract_fixtures import (
     RuntimeContractAgentStub,
     runtime_projection_stub,

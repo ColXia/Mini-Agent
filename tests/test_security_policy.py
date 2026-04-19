@@ -8,7 +8,7 @@ from mini_agent.agent_core.execution import PermissionDecision, ToolBuilder, Too
 from mini_agent.agent_core.execution.tools import DeclarativeToolAttributes
 from mini_agent.config import AgentConfig, Config, LLMConfig, SecurityConfig, ToolsConfig
 from mini_agent.agent_core.execution.sandbox import NetworkAccessMode
-from mini_agent.runtime.tooling import (
+from mini_agent.runtime.support.tooling import (
     add_workspace_tools,
     build_approval_engine,
     build_workspace_sandbox_manager,

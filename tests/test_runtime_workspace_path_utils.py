@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from mini_agent.runtime.workspace_path_utils import (
+from mini_agent.workspace import (
     same_workspace_path,
     workspace_path_key,
 )

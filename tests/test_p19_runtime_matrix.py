@@ -16,7 +16,7 @@ from mini_agent.runtime.main_agent_runtime_contracts import (
 from mini_agent.runtime.main_agent_runtime_manager import (
     MainAgentRuntimeManager,
 )
-from mini_agent.runtime.main_agent_runtime_policy_loader import (
+from mini_agent.runtime.support.main_agent_runtime_policy_loader import (
     MAIN_AGENT_MAIN_WORKSPACE_ENV,
     MAIN_AGENT_RUNTIME_MODE_ENV,
     MAIN_AGENT_TEAM_MAX_AGENTS_ENV,

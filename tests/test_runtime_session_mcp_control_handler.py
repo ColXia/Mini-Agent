@@ -5,8 +5,8 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
 
-from mini_agent.runtime.session_control_models import RuntimeSessionControlCommand
-from mini_agent.runtime.session_mcp_control_handler import RuntimeSessionMcpControlHandler
+from mini_agent.runtime.support.session_control_models import RuntimeSessionControlCommand
+from mini_agent.runtime.handlers.session_mcp_control_handler import RuntimeSessionMcpControlHandler
 from tests.runtime_contract_fixtures import runtime_projection_stub, runtime_session_stub
 
 

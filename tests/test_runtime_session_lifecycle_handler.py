@@ -5,8 +5,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from mini_agent.agent_core.session import SessionLifecycleManager, SessionLifecyclePolicy, SessionResetMode
-from mini_agent.runtime.session_runtime_lifecycle_handler import RuntimeSessionLifecycleHandler
-from mini_agent.runtime.session_runtime_policy_coordinator import RuntimeSessionPolicyCoordinator
+from mini_agent.runtime.orchestration.session_runtime_lifecycle_handler import RuntimeSessionLifecycleHandler
+from mini_agent.runtime.orchestration.session_runtime_policy_coordinator import RuntimeSessionPolicyCoordinator
 from tests.runtime_contract_fixtures import runtime_session_stub
 
 

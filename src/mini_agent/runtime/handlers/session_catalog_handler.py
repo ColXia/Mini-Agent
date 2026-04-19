@@ -12,7 +12,7 @@ try:
     from mini_agent.interaction import normalize_surface_label
 except Exception:  # pragma: no cover - compatibility path for staged interaction extraction
     from mini_agent.runtime.support.interaction_surface import normalize_surface_label
-from mini_agent.runtime.support.workspace_path_utils import workspace_path_key
+from mini_agent.workspace import workspace_path_key
 
 if TYPE_CHECKING:
     from mini_agent.interfaces import (

@@ -5,7 +5,7 @@ import asyncio
 from pathlib import Path
 from types import SimpleNamespace
 
-from mini_agent.turn_context import RuntimeTurnContext, SkillCatalogTurnContextProvider
+from mini_agent.agent_core.context.turn_context import RuntimeTurnContext, SkillCatalogTurnContextProvider
 
 
 DEFAULT_CASES: list[tuple[str, str]] = [

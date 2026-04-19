@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
-from mini_agent.runtime.session_admin_handler import RuntimeSessionAdminHandler
+from mini_agent.runtime.handlers.session_admin_handler import RuntimeSessionAdminHandler
 from tests.runtime_contract_fixtures import (
     runtime_projection_stub,
     runtime_session_stub,

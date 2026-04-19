@@ -274,15 +274,19 @@ async def _fake_build_agent_kernel(*, workspace_dir, options):
 def _new_app(root: Path) -> MiniAgentTuiApp:
     root.mkdir(parents=True, exist_ok=True)
     tui_app_module.build_agent_kernel = _fake_build_agent_kernel
+    state_path = root / ".mini-agent" / "tui_sessions.json"
+    agent_model_binding_path = root / ".mini-agent" / "agent_model_binding.json"
     init_kwargs: dict[str, Any] = {
         "workspace": root,
         "registry": _ChecklistRegistry(),
         "gateway_client": FakeGatewayClient(profile="local"),
-        "state_path": root / ".mini-agent" / "tui_sessions.json",
+        "state_path": state_path,
         "build_ui": False,
     }
     if "config_loader" in inspect.signature(MiniAgentTuiApp.__init__).parameters:
         init_kwargs["config_loader"] = _test_config
+    if "agent_model_binding_path" in inspect.signature(MiniAgentTuiApp.__init__).parameters:
+        init_kwargs["agent_model_binding_path"] = agent_model_binding_path
     app = MiniAgentTuiApp(
         **init_kwargs,
     )

@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from fastapi import HTTPException
 
-from mini_agent.application.channel_novel_action_handler import ChannelNovelActionHandler
+from mini_agent.application.use_cases.channel_novel_action_handler import ChannelNovelActionHandler
 from mini_agent.interfaces import ChannelMessageRequest
 
 

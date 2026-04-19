@@ -160,6 +160,7 @@ async def _run_walkthrough(root: Path) -> list[WalkthroughStep]:
     results: list[WalkthroughStep] = []
     workspace = root / "workspace"
     state_path = workspace / ".mini-agent" / "tui_sessions.json"
+    agent_model_binding_path = workspace / ".mini-agent" / "agent_model_binding.json"
     workspace.mkdir(parents=True, exist_ok=True)
 
     with create_pipe_input() as pipe_input:
@@ -184,6 +185,8 @@ async def _run_walkthrough(root: Path) -> list[WalkthroughStep]:
                 }
                 if "config_loader" in inspect.signature(MiniAgentTuiApp.__init__).parameters:
                     init_kwargs["config_loader"] = _test_config
+                if "agent_model_binding_path" in inspect.signature(MiniAgentTuiApp.__init__).parameters:
+                    init_kwargs["agent_model_binding_path"] = agent_model_binding_path
                 app = MiniAgentTuiApp(**init_kwargs)
                 _configure_local_session_harness(app)
                 run_task = asyncio.create_task(app.run())

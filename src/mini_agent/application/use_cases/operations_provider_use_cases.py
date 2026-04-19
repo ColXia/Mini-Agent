@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import importlib
 import json
 from pathlib import Path
 from typing import Any
@@ -52,12 +51,6 @@ from .operations_path_policy import OperationsPathPolicy
 
 
 _OLLAMA_SENTINEL_API_KEY = "ollama"
-
-
-def _recommend_discovered_model_compat(*args: Any, **kwargs: Any) -> Any:
-    module = importlib.import_module("mini_agent.application.operations_provider_use_cases")
-    callback = getattr(module, "recommend_discovered_model", _recommend_discovered_model)
-    return callback(*args, **kwargs)
 
 
 class ProviderOperationsUseCases:
@@ -563,7 +556,7 @@ class ProviderOperationsUseCases:
                 continue
             seen.add(lowered)
             deduped.append(model_id)
-        recommendation = _recommend_discovered_model_compat(provider_type, result)
+        recommendation = _recommend_discovered_model(provider_type, result)
         return deduped, recommendation.model_id if recommendation is not None else None
 
     def _prepare_provider_payload(self, payload: StudioProviderUpsertRequest) -> dict[str, Any]:

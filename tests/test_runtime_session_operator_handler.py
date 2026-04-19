@@ -3,8 +3,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from mini_agent.agent_core.context.command_service import ContextCommandService, ContextCommandRequest
-from mini_agent.runtime.runtime_policy_service import SessionRuntimePolicyService
-from mini_agent.runtime.session_operator_handler import RuntimeSessionOperatorHandler
+from mini_agent.runtime.support.runtime_policy_service import SessionRuntimePolicyService
+from mini_agent.runtime.handlers.session_operator_handler import RuntimeSessionOperatorHandler
 from tests.runtime_contract_fixtures import runtime_projection_stub, runtime_session_stub
 
 
@@ -19,7 +19,6 @@ def _build_operator_handler(**overrides):
         session_context_commands=ContextCommandService(),
         session_memory_commands=SimpleNamespace(),
         session_skill_commands=SimpleNamespace(),
-        session_model_selection=SimpleNamespace(),
         session_runtime_policy=SessionRuntimePolicyService(),
         session_interrupt=SimpleNamespace(),
         session_agent_runtime=SimpleNamespace(
@@ -30,8 +29,6 @@ def _build_operator_handler(**overrides):
         ),
         load_runtime_config=lambda: None,
         selected_model_identity=lambda _session: None,
-        pending_model_identity=lambda _session: None,
-        set_pending_model_identity=lambda _session, _identity: None,
         persist_session=lambda _session: None,
         queue_workspace_skill_reload=lambda *args, **kwargs: None,  # noqa: ARG005
         cleanup_mcp_connections=lambda: None,

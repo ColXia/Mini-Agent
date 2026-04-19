@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from mini_agent.runtime.session_payload_codec import RuntimeSessionPayloadCodec
+from mini_agent.runtime.read_models.session_payload_codec import RuntimeSessionPayloadCodec
 from tests.runtime_contract_fixtures import RuntimeContractAgentStub
 
 

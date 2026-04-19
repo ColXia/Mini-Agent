@@ -6,7 +6,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
-from mini_agent.runtime.support.workspace_path_utils import same_workspace_path, workspace_path_key
+from mini_agent.workspace import (
+    WorkspaceKind,
+    WorkspaceManifest,
+    WorkspaceRecord,
+    same_workspace_path,
+    workspace_path_key,
+)
 from mini_agent.workspace_runtime import build_direct_workspace_runtime_bundle
 
 
@@ -55,10 +61,7 @@ class MainAgentWorkspaceRuntimeAdapter:
         if callable(validator):
             validator(target)
         self._selected_workspace_dir = target
-        descriptor = await self._descriptor_for_path(target)
-        descriptor["switched"] = True
-        descriptor["active"] = True
-        return descriptor
+        return await self._descriptor_for_path(target)
 
     async def get_workspace_runtime_summary(self, workspace_id: str | None = None) -> dict[str, Any]:
         descriptor = (
@@ -147,29 +150,19 @@ class MainAgentWorkspaceRuntimeAdapter:
         active_workspace = await self._resolve_active_workspace_path()
         sessions = await self.runtime_manager.list_sessions(workspace_dir=None, shared_only=False)
 
-        grouped: dict[str, dict[str, Any]] = {}
+        grouped: dict[str, WorkspaceRecord] = {}
 
-        def ensure(path: Path) -> dict[str, Any]:
+        def ensure(path: Path) -> WorkspaceRecord:
             key = workspace_path_key(path)
-            item = grouped.get(key)
-            if item is None:
-                item = {
-                    "workspace_id": key,
-                    "workspace_dir": str(path),
-                    "title": path.name or str(path),
-                    "default": same_workspace_path(path, main_workspace),
-                    "kind": "default" if same_workspace_path(path, main_workspace) else "project",
-                    "session_count": 0,
-                    "default_session_count": 0,
-                    "shared_session_count": 0,
-                    "busy_session_count": 0,
-                    "last_updated_at": None,
-                    "active": same_workspace_path(path, active_workspace),
-                }
-                grouped[key] = item
-            else:
-                item["active"] = bool(item.get("active")) or same_workspace_path(path, active_workspace)
-            return item
+            record = grouped.get(key)
+            if record is None:
+                record = self._build_workspace_record(
+                    path=path,
+                    main_workspace=main_workspace,
+                    active_workspace=active_workspace,
+                )
+                grouped[key] = record
+            return record
 
         ensure(main_workspace)
 
@@ -177,20 +170,14 @@ class MainAgentWorkspaceRuntimeAdapter:
             workspace_dir = self._summary_workspace_path(summary)
             if workspace_dir is None:
                 continue
-            item = ensure(workspace_dir)
-            if bool(_item_value(summary, "is_default", False)):
-                item["default_session_count"] += 1
-            else:
-                item["session_count"] += 1
-            if bool(_item_value(summary, "shared", False)):
-                item["shared_session_count"] += 1
-            if bool(_item_value(summary, "busy", False)):
-                item["busy_session_count"] += 1
-            updated_at = _safe_text(_item_value(summary, "updated_at"))
-            if updated_at and (item["last_updated_at"] is None or updated_at > str(item["last_updated_at"])):
-                item["last_updated_at"] = updated_at
+            grouped[workspace_path_key(workspace_dir)] = ensure(workspace_dir).observe_session(
+                shared=bool(_item_value(summary, "shared", False)),
+                busy=bool(_item_value(summary, "busy", False)),
+                is_default=bool(_item_value(summary, "is_default", False)),
+                updated_at=_safe_text(_item_value(summary, "updated_at")),
+            )
 
-        return list(grouped.values())
+        return [record.to_summary_dict() for record in grouped.values()]
 
     async def _descriptor_for_path(self, path: Path) -> dict[str, Any]:
         for item in await self._collect_workspaces():
@@ -199,19 +186,12 @@ class MainAgentWorkspaceRuntimeAdapter:
                 return dict(item)
 
         main_workspace = await self._main_workspace_dir()
-        return {
-            "workspace_id": workspace_path_key(path),
-            "workspace_dir": str(path),
-            "title": path.name or str(path),
-            "default": same_workspace_path(path, main_workspace),
-            "kind": "default" if same_workspace_path(path, main_workspace) else "project",
-            "session_count": 0,
-            "default_session_count": 0,
-            "shared_session_count": 0,
-            "busy_session_count": 0,
-            "last_updated_at": None,
-            "active": same_workspace_path(path, await self._resolve_active_workspace_path()),
-        }
+        active_workspace = await self._resolve_active_workspace_path()
+        return self._build_workspace_record(
+            path=path,
+            main_workspace=main_workspace,
+            active_workspace=active_workspace,
+        ).to_summary_dict()
 
     async def _main_workspace_dir(self) -> Path:
         diagnostics = await self.runtime_manager.get_runtime_diagnostics()
@@ -219,6 +199,36 @@ class MainAgentWorkspaceRuntimeAdapter:
         if raw_main_workspace:
             return Path(raw_main_workspace).expanduser().resolve()
         return self.repo_root.resolve()
+
+    def _build_workspace_record(
+        self,
+        *,
+        path: Path,
+        main_workspace: Path,
+        active_workspace: Path,
+    ) -> WorkspaceRecord:
+        manifest = self._build_workspace_manifest(path=path, main_workspace=main_workspace)
+        record = WorkspaceRecord.from_manifest(
+            manifest,
+            default=manifest.kind is WorkspaceKind.DEFAULT,
+        )
+        if same_workspace_path(path, active_workspace):
+            record = record.mark_active(switched=self._is_switched_workspace(path, main_workspace))
+        return record
+
+    @staticmethod
+    def _build_workspace_manifest(*, path: Path, main_workspace: Path) -> WorkspaceManifest:
+        if same_workspace_path(path, main_workspace):
+            return WorkspaceManifest.default_workspace(path)
+        return WorkspaceManifest.project_workspace(path)
+
+    def _is_switched_workspace(self, path: Path, main_workspace: Path) -> bool:
+        if self._selected_workspace_dir is None:
+            return False
+        return same_workspace_path(path, self._selected_workspace_dir) and not same_workspace_path(
+            path,
+            main_workspace,
+        )
 
     @staticmethod
     def _summary_workspace_path(summary: Any) -> Path | None:

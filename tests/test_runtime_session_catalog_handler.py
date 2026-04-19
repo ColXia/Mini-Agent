@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
-from mini_agent.runtime.session_catalog_handler import RuntimeSessionCatalogHandler
+from mini_agent.runtime.handlers.session_catalog_handler import RuntimeSessionCatalogHandler
 
 
 def _same_workspace(left: Path, right: Path) -> bool:
@@ -53,4 +53,3 @@ def test_runtime_session_catalog_handler_keeps_default_session_when_filtering_wo
     )
 
     assert [item.session_id for item in summaries] == ["default"]
-

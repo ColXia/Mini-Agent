@@ -6,13 +6,13 @@ import pytest
 
 from mini_agent.agent_core.session import SessionResetMode
 from mini_agent.runtime.main_agent_runtime_contracts import MainAgentRuntimeMode
-from mini_agent.runtime.main_agent_runtime_policy_loader import (
+from mini_agent.runtime.support.main_agent_runtime_policy_loader import (
     MAIN_AGENT_MAIN_WORKSPACE_ENV,
     MAIN_AGENT_RUNTIME_MODE_ENV,
     MAIN_AGENT_TEAM_MAX_AGENTS_ENV,
     load_main_agent_runtime_policy,
 )
-from mini_agent.runtime.session_lifecycle import (
+from mini_agent.runtime.support.session_lifecycle import (
     SESSION_IDLE_SECONDS_ENV,
     SESSION_RESET_MODE_ENV,
 )

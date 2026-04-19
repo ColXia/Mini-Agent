@@ -4,7 +4,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
-from mini_agent.runtime.session_access_handler import RuntimeSessionAccessCommand, RuntimeSessionAccessHandler
+from mini_agent.runtime.handlers.session_access_handler import (
+    RuntimeSessionAccessCommand,
+    RuntimeSessionAccessHandler,
+)
 from mini_agent.session import DEFAULT_SESSION_ID
 
 
@@ -99,4 +102,3 @@ def test_runtime_session_access_handler_supports_default_session_routing_when_en
     assert plan.workspace_dir == main_workspace
     assert plan.is_default_session is True
     assert plan.normalized_title_hint == ""
-

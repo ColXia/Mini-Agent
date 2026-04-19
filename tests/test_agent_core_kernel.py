@@ -19,7 +19,7 @@ from mini_agent.config import (
 )
 from mini_agent.model_manager.runtime import RoutedLLMSettings
 from mini_agent.schema import LLMProvider
-from mini_agent.runtime.tooling import initialize_agent_tools
+from mini_agent.runtime.support.tooling import initialize_agent_tools
 from mini_agent.tools.base import Tool, ToolResult
 
 
@@ -614,7 +614,7 @@ async def test_initialize_agent_tools_reports_skill_and_mcp_bootstrap_failures(
     monkeypatch.setattr("mini_agent.tools.mcp_loader.load_mcp_tools_async", _fake_load_mcp_tools_async)
     monkeypatch.setattr("mini_agent.tools.mcp_loader.set_mcp_timeout_config", lambda **kwargs: None)
     monkeypatch.setattr(
-        "mini_agent.runtime.tooling.resolve_runtime_mcp_config_path",
+        "mini_agent.runtime.support.tooling.resolve_runtime_mcp_config_path",
         lambda _config: tmp_path / "mcp.json",
     )
 

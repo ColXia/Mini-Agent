@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from mini_agent.runtime.session_cancel_service import SessionCancelService
-from mini_agent.runtime.session_control_error_service import SessionControlErrorService
-from mini_agent.runtime.session_pending_approval_service import SessionPendingApprovalService
+from mini_agent.runtime.live_control.session_cancel_service import SessionCancelService
+from mini_agent.runtime.support.session_control_error_service import SessionControlErrorService
+from mini_agent.runtime.live_control.session_pending_approval_service import SessionPendingApprovalService
 
 
 def test_session_control_error_service_maps_busy_detail() -> None:

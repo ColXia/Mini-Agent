@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import importlib
 from dataclasses import dataclass
 from typing import Any
 
@@ -35,14 +34,6 @@ from .surface_chat_flow_handler import (
     SurfaceChatExecutionResult,
     SurfaceChatStreamEvent,
 )
-
-
-def _get_model_route_diagnostics_state_compat() -> dict[str, Any]:
-    module = importlib.import_module("mini_agent.application.agent_route_execution_handler")
-    callback = getattr(module, "get_model_route_diagnostics_state", _get_model_route_diagnostics_state)
-    return callback()
-
-
 @dataclass(frozen=True)
 class _ResolvedMessageRoute:
     agent_id: str
@@ -84,7 +75,7 @@ class AgentRouteExecutionHandler:
         self._route_agent_counts: dict[str, int] = {}
 
     async def get_routing_diagnostics(self) -> MainAgentRoutingDiagnostics:
-        model_route_state = _get_model_route_diagnostics_state_compat()
+        model_route_state = _get_model_route_diagnostics_state()
         async with self._route_stats_lock:
             return MainAgentRoutingDiagnostics(
                 total_resolutions=self._route_total,

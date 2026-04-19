@@ -8,7 +8,7 @@ from fastapi import HTTPException
 
 from mini_agent.memory.command_service import MemoryCommandError, MemoryCommandRequest
 from mini_agent.memory.diagnostics import build_memory_diagnostics
-from mini_agent.runtime.session_memory_command_handler import (
+from mini_agent.runtime.handlers.session_memory_command_handler import (
     RuntimeSessionMemoryCommand,
     RuntimeSessionMemoryCommandHandler,
 )

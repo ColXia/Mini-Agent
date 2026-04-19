@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from mini_agent.runtime.session_creation_handler import (
+from mini_agent.runtime.handlers.session_creation_handler import (
     RuntimeSessionCreationCommand,
     RuntimeSessionCreationHandler,
 )

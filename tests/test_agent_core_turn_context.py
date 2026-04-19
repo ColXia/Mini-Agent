@@ -8,7 +8,7 @@ import pytest
 from mini_agent.agent_core.engine import Agent, TurnStopReason
 from mini_agent.logger import AgentLogger
 from mini_agent.agent_core.skills.path_resolver import resolve_workspace_skills_dir
-from mini_agent.runtime.turn_context_provider_builder import build_turn_context_providers
+from mini_agent.runtime.support.turn_context_provider_builder import build_turn_context_providers
 from mini_agent.schema import LLMCompletionResult
 from mini_agent.tools.mcp.lifecycle import clear_registered_connections, register_connection
 from mini_agent.tools.mcp.naming import mcp_tool_alias

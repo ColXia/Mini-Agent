@@ -311,7 +311,7 @@ def test_ops_model_role_and_feature_binding_contracts(_catalog_path):
 
 def test_ops_model_probe_contract(monkeypatch):
     monkeypatch.setattr(
-        "mini_agent.application.operations_provider_use_cases.ModelCapabilityProbeService.probe_model",
+        "mini_agent.application.use_cases.operations_provider_use_cases.ModelCapabilityProbeService.probe_model",
         lambda self, **kwargs: {
             "source": "custom",
             "provider_id": "maas",

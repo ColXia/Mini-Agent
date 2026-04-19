@@ -9,7 +9,7 @@ from zipfile import ZipFile
 import pytest
 
 from mini_agent.config import AgentConfig, Config, LLMConfig, SecurityConfig, ToolsConfig
-from mini_agent.runtime.tooling import add_workspace_tools, resolve_runtime_policy
+from mini_agent.runtime.support.tooling import add_workspace_tools, resolve_runtime_policy
 from mini_agent.tools.docling_parse import (
     DoclingParseTool,
     DoclingParser,

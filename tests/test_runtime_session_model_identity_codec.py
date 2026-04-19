@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from mini_agent.runtime.session_model_identity_codec import RuntimeSessionModelIdentityCodec
+from mini_agent.runtime.read_models.session_model_identity_codec import RuntimeSessionModelIdentityCodec
 from tests.runtime_contract_fixtures import (
     RuntimeContractAgentStub,
     runtime_projection_stub,
