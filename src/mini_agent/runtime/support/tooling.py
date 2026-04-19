@@ -166,7 +166,14 @@ def add_workspace_tools(
     if config.tools.enable_file_tools and is_allowed("docling_parse"):
         from mini_agent.tools.docling_parse import DoclingParser
 
-        tools.append(DoclingParseTool(parser=DoclingParser(ocr_adapter=ocr_adapter)))
+        tools.append(
+            DoclingParseTool(
+                parser=DoclingParser(
+                    ocr_adapter=ocr_adapter,
+                    workspace_executor=workspace_executor,
+                )
+            )
+        )
 
     if getattr(config.tools, "enable_knowledge_base", True) and is_allowed("knowledge_base_query"):
         tools.append(
@@ -177,12 +184,18 @@ def add_workspace_tools(
         )
 
     if config.tools.enable_note and is_allowed("record_note"):
-        tools.append(SessionNoteTool(memory_root=str(workspace_dir)))
+        tools.append(
+            SessionNoteTool(
+                memory_root=str(workspace_dir),
+                workspace_executor=workspace_executor,
+            )
+        )
     if config.tools.enable_note and is_allowed("recall_notes"):
         tools.append(
             RecallNoteTool(
                 memory_root=str(workspace_dir),
                 embedding_provider=embedding_provider,
+                workspace_executor=workspace_executor,
             )
         )
     if config.tools.enable_note and is_allowed("user_modeling"):

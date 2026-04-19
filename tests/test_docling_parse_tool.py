@@ -16,6 +16,7 @@ from mini_agent.tools.docling_parse import (
     DoclingParseResult,
     DoclingUnavailableError,
 )
+from mini_agent.workspace_runtime import DefaultOutsideZonePolicy, DirectWorkspaceExecutor, WorkspaceAccessScope
 
 
 def test_docling_parser_text_fallback_markdown(tmp_path):
@@ -211,6 +212,38 @@ def test_docling_parser_custom_adapter_for_binary(tmp_path):
     assert result.used_docling is True
     assert result.output_format == "html"
     assert result.content == "converted content"
+
+
+def test_docling_parser_rejects_outside_source_when_workspace_executor_bound(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    outside = tmp_path / "outside.txt"
+    outside.write_text("outside", encoding="utf-8")
+
+    parser = DoclingParser(workspace_executor=DirectWorkspaceExecutor(workspace))
+
+    with pytest.raises(PermissionError, match="escapes workspace root"):
+        parser.parse_file(path=outside, output_format="markdown")
+
+
+def test_docling_parser_allows_outside_source_read_when_outside_zone_scope_enabled(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    outside = tmp_path / "outside.txt"
+    outside.write_text("outside via outside-zone", encoding="utf-8")
+
+    parser = DoclingParser(
+        workspace_executor=DirectWorkspaceExecutor(
+            workspace,
+            scope=WorkspaceAccessScope.WITH_OUTSIDE_ZONE,
+            outside_zone_policy=DefaultOutsideZonePolicy(protected_roots=()),
+        )
+    )
+
+    result = parser.parse_file(path=outside, output_format="markdown")
+
+    assert result.used_docling is False
+    assert "outside via outside-zone" in result.content
 
 
 @pytest.mark.asyncio

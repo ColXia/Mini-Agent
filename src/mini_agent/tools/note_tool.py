@@ -14,7 +14,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Protocol
 
-from mini_agent.memory.memory_files import discover_memory_layout, ensure_memory_file
+from mini_agent.memory.memory_files import discover_memory_layout
+from mini_agent.workspace_runtime import MutationKind, WorkspaceExecutor
 
 from .base import Tool, ToolResult
 
@@ -43,13 +44,19 @@ class MemoryNote:
 class MarkdownMemoryStore:
     """Store and load memory notes from markdown files."""
 
-    def __init__(self, memory_root: str = "./workspace"):
+    def __init__(
+        self,
+        memory_root: str = "./workspace",
+        *,
+        workspace_executor: WorkspaceExecutor | None = None,
+    ):
         requested_root = Path(memory_root).expanduser().resolve()
         layout = discover_memory_layout(requested_root)
         self.memory_root = layout.anchor_dir
         self.workspace_root = requested_root
         self.long_term_file = layout.memory_file or (self.memory_root / "MEMORY.md")
         self.daily_dir = self.memory_root / "memory"
+        self.workspace_executor = workspace_executor
 
     def append_note(
         self,
@@ -67,7 +74,6 @@ class MarkdownMemoryStore:
         note_line = f"- [{now.isoformat()}] [{category}] {content_payload}"
 
         if scope in ("long_term", "both"):
-            ensure_memory_file(self.long_term_file, title="# Long-Term Memory")
             self._append_markdown_line(
                 self.long_term_file,
                 "# Long-Term Memory\n\n",
@@ -86,7 +92,7 @@ class MarkdownMemoryStore:
         notes: list[MemoryNote] = []
 
         notes.extend(self._parse_file(self.long_term_file))
-        for daily_file in sorted(self.daily_dir.glob("*.md")):
+        for daily_file in self._iter_daily_files():
             notes.extend(self._parse_file(daily_file))
 
         return notes
@@ -98,6 +104,19 @@ class MarkdownMemoryStore:
             return str(path)
 
     def _append_markdown_line(self, path: Path, header: str, note_line: str) -> None:
+        if self.workspace_executor is not None:
+            try:
+                existing = self.workspace_executor.read_text(path, encoding="utf-8")
+            except FileNotFoundError:
+                existing = header
+            else:
+                if not existing:
+                    existing = header
+            separator = "" if existing.endswith(("\n", "\r")) else "\n"
+            payload = f"{existing}{separator}{note_line}\n"
+            self.workspace_executor.write_text(path, payload, encoding="utf-8")
+            return
+
         path.parent.mkdir(parents=True, exist_ok=True)
 
         if not path.exists():
@@ -109,11 +128,16 @@ class MarkdownMemoryStore:
         path.write_text(f"{existing}{separator}{note_line}\n", encoding="utf-8")
 
     def _parse_file(self, path: Path) -> list[MemoryNote]:
-        if not path.exists():
+        try:
+            if self.workspace_executor is not None:
+                content = self.workspace_executor.read_text(path, encoding="utf-8")
+            else:
+                content = path.read_text(encoding="utf-8")
+        except FileNotFoundError:
             return []
 
         notes: list[MemoryNote] = []
-        for line in path.read_text(encoding="utf-8").splitlines():
+        for line in content.splitlines():
             match = _NOTE_LINE_PATTERN.match(line.strip())
             if not match:
                 continue
@@ -129,12 +153,33 @@ class MarkdownMemoryStore:
 
         return notes
 
+    def _iter_daily_files(self) -> list[Path]:
+        if self.workspace_executor is None:
+            return sorted(self.daily_dir.glob("*.md"))
+
+        access = self.workspace_executor.resolve_access(
+            self.daily_dir,
+            kind=MutationKind.READ,
+            detail="list workspace memory notes",
+        )
+        if not access.resolved_path.exists():
+            return []
+        return sorted(access.resolved_path.glob("*.md"))
+
 
 class SessionNoteTool(Tool):
     """Tool for recording session notes in markdown memory files."""
 
-    def __init__(self, memory_root: str = "./workspace"):
-        self.memory_store = MarkdownMemoryStore(memory_root=memory_root)
+    def __init__(
+        self,
+        memory_root: str = "./workspace",
+        *,
+        workspace_executor: WorkspaceExecutor | None = None,
+    ):
+        self.memory_store = MarkdownMemoryStore(
+            memory_root=memory_root,
+            workspace_executor=workspace_executor,
+        )
 
     @property
     def name(self) -> str:
@@ -225,8 +270,13 @@ class RecallNoteTool(Tool):
         self,
         memory_root: str = "./workspace",
         embedding_provider: EmbeddingProvider | Callable[[str], list[float]] | None = None,
+        *,
+        workspace_executor: WorkspaceExecutor | None = None,
     ):
-        self.memory_store = MarkdownMemoryStore(memory_root=memory_root)
+        self.memory_store = MarkdownMemoryStore(
+            memory_root=memory_root,
+            workspace_executor=workspace_executor,
+        )
         self.embedding_provider = embedding_provider
 
     @property

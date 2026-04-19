@@ -14,6 +14,7 @@ import xml.etree.ElementTree as ET
 from zipfile import ZipFile
 
 from mini_agent.tools.base import Tool, ToolResult
+from mini_agent.workspace_runtime import MutationKind, WorkspaceExecutor
 
 
 SUPPORTED_INPUT_EXTENSIONS = {
@@ -69,12 +70,17 @@ class DoclingParser:
         adapter: DoclingParserAdapter | None = None,
         *,
         ocr_adapter: DoclingOCRAdapter | None = None,
+        workspace_executor: WorkspaceExecutor | None = None,
     ) -> None:
         self._adapter = adapter
         self._ocr_adapter = ocr_adapter
+        self._workspace_executor = workspace_executor
 
     def set_ocr_adapter(self, adapter: DoclingOCRAdapter | None) -> None:
         self._ocr_adapter = adapter
+
+    def set_workspace_executor(self, executor: WorkspaceExecutor | None) -> None:
+        self._workspace_executor = executor
 
     def parse_file(
         self,
@@ -83,7 +89,7 @@ class DoclingParser:
         output_format: str = "markdown",
         enable_ocr: bool = False,
     ) -> DoclingParseResult:
-        source = Path(path).expanduser().resolve()
+        source = self._resolve_source_path(path)
         fmt = self._normalize_output_format(output_format)
 
         if not source.exists() or not source.is_file():
@@ -243,7 +249,10 @@ class DoclingParser:
                 metadata=metadata,
             )
         if ext == ".pdf":
-            text, metadata = self._parse_pdf_optional(source)
+            text, metadata = self._parse_pdf_optional(
+                source,
+                workspace_executor=self._workspace_executor,
+            )
             return self._build_binary_result(
                 source=source,
                 output_format=output_format,
@@ -357,7 +366,11 @@ class DoclingParser:
         }
 
     @staticmethod
-    def _parse_pdf_optional(source: Path) -> tuple[str, dict[str, Any]]:
+    def _parse_pdf_optional(
+        source: Path,
+        *,
+        workspace_executor: WorkspaceExecutor | None = None,
+    ) -> tuple[str, dict[str, Any]]:
         try:
             from pypdf import PdfReader  # type: ignore
 
@@ -381,11 +394,20 @@ class DoclingParser:
         pdftotext = shutil.which("pdftotext")
         if pdftotext:
             try:
+                execution_cwd = None
+                if workspace_executor is not None:
+                    execution_cwd = str(
+                        workspace_executor.resolve_execution_root(
+                            cwd=source.parent,
+                            detail="tool docling_parse pdf backend",
+                        ).resolved_path
+                    )
                 output = subprocess.run(
                     [pdftotext, "-layout", str(source), "-"],
                     capture_output=True,
                     text=True,
                     check=True,
+                    cwd=execution_cwd,
                 )
             except subprocess.CalledProcessError as exc:
                 raise DoclingParseError(
@@ -399,6 +421,16 @@ class DoclingParser:
         raise DoclingUnavailableError(
             "pdf parsing backend is unavailable; install `pypdf`, ensure `pdftotext` is on PATH, or provide an adapter."
         )
+
+    def _resolve_source_path(self, path: str | Path) -> Path:
+        source = Path(path).expanduser().resolve()
+        if self._workspace_executor is None:
+            return source
+        return self._workspace_executor.resolve_access(
+            source,
+            kind=MutationKind.READ,
+            detail="tool docling_parse",
+        ).resolved_path
 
     @staticmethod
     def _xlsx_shared_strings(archive: ZipFile) -> list[str]:
@@ -498,8 +530,15 @@ class DoclingParser:
 class DoclingParseTool(Tool):
     """Tool wrapper for document parsing with optional OCR flag."""
 
-    def __init__(self, parser: DoclingParser | None = None) -> None:
-        self._parser = parser or DoclingParser()
+    def __init__(
+        self,
+        parser: DoclingParser | None = None,
+        *,
+        workspace_executor: WorkspaceExecutor | None = None,
+    ) -> None:
+        self._parser = parser or DoclingParser(workspace_executor=workspace_executor)
+        if parser is not None and workspace_executor is not None:
+            self._parser.set_workspace_executor(workspace_executor)
 
     @property
     def name(self) -> str:

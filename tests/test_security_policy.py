@@ -16,7 +16,9 @@ from mini_agent.runtime.tooling import (
 )
 from mini_agent.tools.base import ToolResult
 from mini_agent.tools.bash_tool import BashTool
+from mini_agent.tools.docling_parse import DoclingParseTool
 from mini_agent.tools.file_tools import EditTool, ReadTool, WriteTool
+from mini_agent.tools.note_tool import RecallNoteTool, SessionNoteTool
 
 
 @pytest.fixture(autouse=True)
@@ -165,6 +167,28 @@ def test_workspace_tooling_injects_sandbox_manager_into_bash(tmp_path):
     assert edit_tool.workspace_executor is bash_tool.workspace_executor
     transformed = bash_tool.sandbox_manager.transform("echo ok", cwd=tmp_path)
     assert transformed.env_overrides["MINI_AGENT_SANDBOX_BACKEND"]
+
+
+def test_workspace_tooling_injects_workspace_executor_into_docling_and_note_tools(tmp_path):
+    config = _make_config(SecurityConfig(approval_profile="build", sandbox_mode="workspace"))
+    engine = resolve_runtime_policy(config)
+
+    tools: list[object] = []
+    add_workspace_tools(
+        tools,
+        config,
+        tmp_path,
+        policy_engine=engine,
+    )
+
+    bash_tool = next(tool for tool in tools if isinstance(tool, BashTool))
+    docling_tool = next(tool for tool in tools if isinstance(tool, DoclingParseTool))
+    record_tool = next(tool for tool in tools if isinstance(tool, SessionNoteTool))
+    recall_tool = next(tool for tool in tools if isinstance(tool, RecallNoteTool))
+
+    assert docling_tool._parser._workspace_executor is bash_tool.workspace_executor
+    assert record_tool.memory_store.workspace_executor is bash_tool.workspace_executor
+    assert recall_tool.memory_store.workspace_executor is bash_tool.workspace_executor
 
 
 def test_workspace_sandbox_manager_uses_configured_network_policy(tmp_path):

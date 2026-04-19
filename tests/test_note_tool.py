@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from mini_agent.tools.note_tool import RecallNoteTool, SessionNoteTool
+from mini_agent.workspace_runtime import DirectWorkspaceExecutor
 
 
 class FakeEmbeddingProvider:
@@ -179,3 +180,36 @@ async def test_record_note_uses_discovered_memory_anchor():
         recall_result = await recall_tool.execute(query="deterministic planner")
         assert recall_result.success
         assert "source: MEMORY.md" in recall_result.content
+
+
+@pytest.mark.asyncio
+async def test_note_tools_support_injected_workspace_executor(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    executor = DirectWorkspaceExecutor(workspace)
+
+    record_tool = SessionNoteTool(
+        memory_root=str(workspace),
+        workspace_executor=executor,
+    )
+    recall_tool = RecallNoteTool(
+        memory_root=str(workspace),
+        workspace_executor=executor,
+    )
+
+    result = await record_tool.execute(
+        content="Workspace runtime owns note writes",
+        category="runtime",
+        scope="both",
+    )
+    assert result.success
+
+    memory_text = (workspace / "MEMORY.md").read_text(encoding="utf-8")
+    daily_files = sorted((workspace / "memory").glob("*.md"))
+    assert "Workspace runtime owns note writes" in memory_text
+    assert len(daily_files) == 1
+    assert "Workspace runtime owns note writes" in daily_files[0].read_text(encoding="utf-8")
+
+    recall_result = await recall_tool.execute(query="runtime owns")
+    assert recall_result.success
+    assert "Workspace runtime owns note writes" in recall_result.content
