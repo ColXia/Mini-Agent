@@ -1,0 +1,358 @@
+整体方向是对的，而且比现在文档里的“四入口并列”更接近真实产品形态。
+
+**我对这版方案的判断**
+
+可以成立，但要做一个关键修正：
+
+- `CLI` 不应再被定义成主要用户入口
+- 它应降级为 `Command Subsystem / Command Fabric`
+- 真正的主用户面应该变成：
+  - `TUI`：开发者端
+  - `Desktop`：用户端
+  - `Remote Interaction`：远程扩展端
+
+也就是说，不再是“四个并列入口”，而是：
+
+```text
+User Surfaces
+  ├─ TUI (developer surface)
+  ├─ Desktop (user surface)
+  └─ Remote Interaction (remote extension surface)
+
+Shared Command Subsystem
+  └─ "/" command grammar / command execution semantics
+```
+
+这个改法最大的好处是：  
+它终于把“CLI 是命令能力”和“CLI 是产品入口”这两个概念分开了。
+
+---
+
+## 1. 你这版方案里最对的地方
+
+### 1.1 CLI 降级为命令子系统
+这是正确方向。
+
+因为你现在真正想保留的，不是“CLI 界面本身”，而是：
+
+- `"/"` 命令语法
+- 命令解析
+- 命令执行契约
+- 命令反馈语义
+
+这些东西本来就更像共享子系统，而不是必须单独站成一个产品入口。
+
+所以以后更准确的说法应是：
+
+- CLI 不再是主产品入口
+- CLI 语义沉淀为 `shared command subsystem`
+- TUI / Desktop / Remote 都复用它
+
+---
+
+### 1.2 TUI 和 Desktop 并列
+这也对。
+
+因为这两者确实是两种不同用户群的主要交互面：
+
+- `TUI` 面向开发者、高信息密度、强操作
+- `Desktop` 面向普通用户、图形化、服务导向
+
+它们应该拿同一套服务，但不共享 UI 状态，不互相模拟。
+
+---
+
+### 1.3 Remote 作为 TUI 的上层扩展
+这个说法我认为“方向对，但要改术语”。
+
+如果你的意思是：
+
+- remote 复用 TUI 这套开发者导向的交互语义
+- remote 不是一个独立的业务真相层
+- remote 更像把 TUI 的能力投射到远程通道
+
+那这个方向是成立的。
+
+但我不建议直接写成“Remote 是 TUI 上层”，因为容易误解成：
+
+- remote 依赖 TUI UI
+- remote 是 TUI 的包装器
+- remote 复用 TUI 本地状态
+
+更准确的说法应该是：
+
+**Remote Interaction 是复用 TUI/Command 语义的远程交互扩展面。**
+
+也就是：
+
+- 它在产品层面不是和 TUI 完全平级的独立系统
+- 但在实现层面也不是 TUI 的 UI 外壳
+- 它应复用：
+  - command subsystem
+  - agent-side services
+  - shared task/session/runtime services
+
+---
+
+## 2. 我建议你把“入口模型”改成什么
+
+我建议正式改成：
+
+## 主用户面
+- `TUI`
+- `Desktop`
+- `Remote Interaction`
+
+## 共享交互子系统
+- `Command Subsystem`
+- 负责：
+  - `/` 命令
+  - 快捷操作语义
+  - 统一命令解析
+  - 命令执行反馈契约
+
+## 运行方式
+- `headless`
+- 只是运行模式，不是入口
+
+这样以后文档里就不再写“四个并列入口”，而是写：
+
+**三个主用户面 + 一个共享命令子系统**
+
+这会更真实。
+
+---
+
+## 3. 用户侧服务分模块，这个方案我赞成
+
+你说用户侧多做几个模块：
+
+- agent 的
+- workspace 管理的
+- 模型块的
+
+这个方向是对的，而且和你前面定下的底层边界也一致。
+
+我建议用户侧 facade 明确拆成 4 块，而不是 3 块：
+
+- `Agent User Service`
+- `Workspace User Service`
+- `Model User Service`
+- `Command User Service`
+
+原因是：
+
+- agent / workspace / model 是主要业务模块
+- 但 `/` 命令这块如果不单独成一块，后面很容易又散回到各 surface 自己实现
+
+---
+
+## 4. 但有一个点你不能省：Session 不能从业务上消失
+
+虽然你现在想把用户侧主体更多放在 agent 上，我认同。  
+但 `Session` 不能因为“用户界面不强调它”就从服务设计里隐掉。
+
+更准确的关系应该是：
+
+- 用户侧主操作对象是 `Agent`
+- 用户侧主环境对象是 `Workspace`
+- 用户侧主资源对象是 `Model`
+- 但任务/对话状态仍然由 `Session` 承载
+
+所以我建议：
+
+- `Session` 不必作为前端一级产品模块突出展示
+- 但它必须仍然是业务逻辑层里的稳定子域
+
+更现实的做法是：
+
+### `Agent User Service`
+对用户暴露：
+- 当前 agent
+- 当前 agent 运行状态
+- 当前 agent 绑定模型
+- 当前 agent 任务入口
+
+内部其实仍然调：
+- session service
+- run service
+- approval service
+
+也就是说，**Session 可以退到业务内核里的任务子域，但不能消失。**
+
+---
+
+## 5. 我建议的用户侧分层结构
+
+你现在这版最合理的结构，我建议写成这样：
+
+```text
+User Surfaces
+  ├─ TUI
+  ├─ Desktop
+  └─ Remote Interaction
+
+User Interaction Layer
+  ├─ Agent UI Module
+  ├─ Workspace UI Module
+  ├─ Model UI Module
+  └─ Command UI Module
+
+User Service Layer
+  ├─ Agent User Service
+  ├─ Workspace User Service
+  ├─ Model User Service
+  └─ Command User Service
+
+Business Logic Layer
+  ├─ Agent Application Service
+  ├─ Session/Task Service
+  ├─ Workspace Service
+  ├─ Model Service
+  ├─ Approval Service
+  └─ Capability/Context Orchestration
+
+Runtime / Core Layer
+  ├─ AgentInstance / Run Kernel
+  ├─ WorkspaceRuntime
+  ├─ ModelPool + AgentModelService
+  ├─ Skill/Memory Resolvers
+  └─ Permission Engine
+```
+
+这个结构里，用户侧确实是按 `agent / workspace / model / command` 分块的。  
+但底下业务层仍然保留 `session/task`，这样不会把任务状态搞丢。
+
+---
+
+## 6. `用户服务` 和 `业务逻辑层` 的关系要讲清楚
+
+你说：
+
+> 下面是服务层，业务逻辑层
+
+这个思路可以，但最好再精确一点，不然“服务层”太容易又变成第二套业务层。
+
+我建议分成：
+
+### `User Service Layer`
+面向 surface 的编排接口。
+
+特点：
+- 为 TUI / Desktop / Remote 提供稳定接口
+- 聚合多个底层业务服务
+- 面向用户交互组织 API
+- 不直接持有业务真相
+
+### `Business Logic Layer`
+真正的 use case / domain orchestration。
+
+特点：
+- 管 task/session/run
+- 管 workspace lifecycle
+- 管 agent model binding
+- 管 approvals / context / capability resolution
+- 是共享真相的主要编排层
+
+这两个不要混。
+
+否则很容易出现：
+- Desktop 一套 service
+- TUI 一套 service
+- Remote 一套 service
+
+然后每层都在写“用户服务”，最后重复。
+
+---
+
+## 7. 远程侧作为 TUI 上层扩展，怎么落才不出问题
+
+如果你坚持这个产品关系，我建议这样落：
+
+### 产品定位上
+- Remote 是开发者端能力的远程投射
+- 它更接近 TUI 能力，而不是 Desktop 能力
+
+### 实现上
+- Remote 不直接依赖 TUI 模块
+- Remote 依赖：
+  - Command User Service
+  - Agent User Service
+  - Workspace User Service
+  - 同一套业务逻辑层
+
+### 不要做的事
+- 不要把 TUI 的 panel/view state 暴露给 Remote
+- 不要把 TUI 的交互状态机当成 Remote 的后端
+- 不要把 Remote 写成 “TUI over chat”
+
+所以正确表述是：
+
+**Remote 在产品角色上偏向 TUI 扩展，在架构实现上仍是独立 surface。**
+
+这两个层次要分开讲。
+
+---
+
+## 8. 这版方案和前面 v11.1 底层是否冲突
+
+整体不冲突，反而更顺。
+
+和前面底层方案能很好对齐：
+
+- 用户侧主对象是 `Agent`
+- 工作环境对象是 `Workspace`
+- 模型对象单独成块
+- 命令系统共享
+- `Session` 退到业务任务层
+- `ModelPool + AgentModelService` 不再被 UI/workspace/session 污染
+
+这比旧的“四入口平级 + CLI作为主入口”更自然。
+
+---
+
+## 9. 我建议你现在就改掉的几个旧表述
+
+如果按你这版思路，后面文档里这些话要改：
+
+### 旧表述
+- `CLI / TUI / DesktopUI / Remote Interaction` 四入口并列
+- `CLI` 是 canonical base interaction entrance
+- `Remote Interaction` 是和 TUI/Desktop 完全并列的一类主产品面
+
+### 新表述建议
+- 主用户面：`TUI / Desktop / Remote Interaction`
+- 共享交互子系统：`Command Subsystem`
+- `CLI` 是命令系统的直接承载形式，而不是主要产品入口
+- `Remote Interaction` 是复用 developer-facing command/agent semantics 的远程扩展面
+
+---
+
+## 10. 我对这版方案的最终评价
+
+我的评价是：
+
+**这是比当前文档更正确的用户侧架构。**
+
+因为它做对了三件事：
+
+- 把 `CLI` 从“产品入口”纠正成“共享命令系统”
+- 把 `TUI` 和 `Desktop` 变成真正的主用户面
+- 把用户侧业务分块到 `agent / workspace / model / command`，而不是按界面临时堆逻辑
+
+但要注意两条红线：
+
+- `Session` 可以退到业务层，不可以消失
+- `Remote` 可以在产品角色上贴近 TUI，但不能在实现上绑死到 TUI UI
+
+---
+
+## 11. 我最建议的下一步
+
+如果你认可这版判断，我建议下一步直接做两件事之一：
+
+- `A`：写一版 **用户侧架构修正版文档**
+- `B`：直接出 **用户侧模块图 + 服务接口草案**
+
+我更建议先做 `A + 一个简版模块图`。  
+这样你后面再继续桌面端/TUI/远程侧设计时，就不会再被旧的“四入口并列”框架拖住。

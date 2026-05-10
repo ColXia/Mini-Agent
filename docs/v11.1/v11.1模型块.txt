@@ -1,0 +1,532 @@
+你说得对，这里要纠偏。
+
+我上一版把“模型供应”和“工作区策略”缠在一起了，这不符合你现在定下来的核心原则。  
+按你这次的口径，**模型系统必须从 workspace/session 里抽出来，成为只服务 agent 的独立底层系统**。
+
+下面给你一版修正后的方案。
+
+---
+
+**v11.1 修正版：模型供应底层方案**
+
+## 1. 总原则
+
+模型这块重新定成三句话：
+
+- **模型供应只服务 Agent**
+- **模型不和 Workspace 混**
+- **模型选择、绑定、适配、切换，都是 Agent 与模型核心模块之间的事，Session 不参与**
+
+也就是说：
+
+- Workspace 不决定主对话模型
+- Session 不持有模型选择状态
+- 模型能力判断不走 session/workspace 逻辑
+- Agent 只拿“当前绑定好的模型服务”来运行
+
+功能性模型另算：
+
+- embedding / ocr / rerank 这些不走主 Agent 模型链
+- 以后由 **Workspace 侧中间模块** 去接模型池
+- 不放进当前 agent 主模型系统里
+
+---
+
+## 2. 新的正式拆分
+
+模型系统只拆成两大块：
+
+### 2.1 `ModelPool`
+模型池，负责“有什么模型可供使用”。
+
+它只负责供应侧事实：
+
+- provider registry
+- model catalog
+- provider credentials / endpoints
+- 协议族类
+- 模型能力事实
+- 健康状态
+- breaker / failover 元数据
+- adapter factory 所需原料
+
+它**不负责**：
+
+- 当前 agent 选了谁
+- 当前 session 用谁
+- 当前 workspace 偏好谁
+
+它是一个全局供应池。
+
+---
+
+### 2.2 `AgentModelService`
+Agent 模型服务，负责“这个 Agent 当前用谁”。
+
+它只负责 agent 侧运行绑定：
+
+- agent 默认模型策略
+- agent 当前主模型绑定
+- 模型切换
+- 模型能力适配
+- 模型调用入口
+- 回退链选择
+- 向 Core 暴露统一 `ModelAdapter`
+
+它**不负责**：
+
+- provider 存储
+- workspace 策略
+- session 覆盖
+- feature 模型编排
+
+---
+
+## 3. 正式边界
+
+### `ModelPool` 负责什么
+- 有哪些 provider
+- 有哪些 model
+- 每个 model 的能力事实是什么
+- 每个 provider 当前是否健康
+- 如何构造某个 model 的 adapter
+
+### `AgentModelService` 负责什么
+- 某个 Agent 当前绑定哪个模型
+- 如何切换模型
+- 如何根据模型能力裁剪 agent 行为
+- 如何把模型暴露给 Agent Core 使用
+
+### `Agent Core` 只负责什么
+- 调用统一模型接口
+- 根据能力 profile 决定启不用 tool / thinking / 长上下文策略
+- 不关心 provider / endpoint / secret / workspace
+
+---
+
+## 4. 新的对象模型
+
+我建议这次把模型底层对象定成这 7 个。
+
+### 4.1 `ProviderEntry`
+全局供应商定义。
+
+包含：
+- `provider_id`
+- `protocol_family`
+- `api_base`
+- `secret_ref`
+- `headers`
+- `timeout`
+- `enabled`
+- `priority`
+
+---
+
+### 4.2 `ModelDescriptor`
+模型目录条目。
+
+包含：
+- `provider_id`
+- `model_id`
+- `display_name`
+- `model_kind`
+- `context_window`
+- `learned_token_limit`
+- `supports_tools`
+- `supports_thinking`
+- `capability_confidence`
+- `metadata`
+
+这里的 `model_kind` 先只服务 Agent 主模型，建议固定成：
+- `chat`
+- `reasoning`
+
+功能模型以后单独出去，不塞进这套主链。
+
+---
+
+### 4.3 `ModelCapabilityProfile`
+模型能力画像。
+
+这是 Agent 真正关心的模型事实。
+
+包含：
+- `supports_tools`
+- `supports_thinking`
+- `context_window`
+- `token_limit`
+- `structured_output_support`
+- `streaming_support`
+- `capability_source`
+- `capability_confidence`
+
+**Agent 的行为适配完全基于这个对象。**
+
+---
+
+### 4.4 `ModelPoolSnapshot`
+某个时刻模型池的可用快照。
+
+包含：
+- 当前可用 provider
+- 当前可用 model descriptors
+- 健康状态
+- breaker 状态
+- failover 候选关系
+
+这个对象主要给 `AgentModelService` 选模型时用。
+
+---
+
+### 4.5 `AgentModelPolicy`
+Agent 静态模型策略。
+
+这是 AgentProfile 里该持有的模型偏好，不是 workspace 的。
+
+包含：
+- 默认 route intent
+- 默认模型偏好
+- 本 Agent 是否偏本地 / 偏远程
+- fallback 偏好
+- tool-heavy / reasoning-heavy 倾向
+
+注意：
+- 这是 **Agent 的策略**
+- 不是 session 选项
+- 不是 workspace 策略
+
+---
+
+### 4.6 `AgentModelBinding`
+Agent 当前主模型绑定。
+
+这是最关键的运行对象。
+
+包含：
+- `agent_id`
+- `provider_id`
+- `model_id`
+- `binding_kind`
+- `capability_profile`
+- `fallback_chain`
+- `bound_at`
+- `switch_generation`
+
+Agent 当前到底用哪个模型，就看它。
+
+---
+
+### 4.7 `ModelAdapterFactory`
+把 `AgentModelBinding` 转成统一模型适配器。
+
+负责：
+- 找到 provider 配置
+- 解 secret
+- 构造 client
+- 适配协议
+- 输出统一 `ModelAdapter`
+
+Core 永远不直接碰 OpenAI / Anthropic / Ollama 客户端。
+
+---
+
+## 5. 关键关系图
+
+```text
+ModelPool
+  ├─ ProviderEntry
+  ├─ ModelDescriptor
+  ├─ Capability facts
+  ├─ Health / Breaker / Failover
+  └─ ModelAdapterFactory
+
+AgentProfile
+  └─ AgentModelPolicy
+
+AgentInstance
+  └─ AgentModelBinding
+
+AgentModelService
+  ├─ reads ModelPool
+  ├─ applies AgentModelPolicy
+  ├─ maintains AgentModelBinding
+  ├─ exposes switch interface
+  └─ returns ModelAdapter + ModelCapabilityProfile
+
+AgentCore
+  └─ consumes ModelAdapter + ModelCapabilityProfile
+```
+
+---
+
+## 6. 选择 / 绑定 / 适配 / 切换的正确位置
+
+你这句很关键：
+
+> 选择绑定适配维持这块是单独的核心模块提供切换接口到用户侧就行，和session无关。
+
+我完全同意，所以建议正式这样落：
+
+### 6.1 选择
+由 `AgentModelService` 完成。
+
+输入：
+- `AgentModelPolicy`
+- `ModelPoolSnapshot`
+- 显式切换请求
+
+输出：
+- `AgentModelBinding`
+
+---
+
+### 6.2 绑定
+绑定状态挂在：
+- `AgentInstance`
+
+不挂在：
+- `Session`
+- `Workspace`
+
+---
+
+### 6.3 适配
+由 `AgentModelService + ModelAdapterFactory` 完成。
+
+适配结果包括：
+- 统一 `ModelAdapter`
+- `ModelCapabilityProfile`
+
+---
+
+### 6.4 切换
+提供统一接口给上层：
+
+- `switch_agent_model(agent_id, target)`
+- `clear_agent_model_override(agent_id)`
+- `get_agent_model_binding(agent_id)`
+- `list_agent_model_candidates(agent_id)`
+
+这些接口属于 **agent-model core module**，不是 session service。
+
+---
+
+## 7. Session 为什么必须彻底退出模型主链
+
+因为一旦 Session 介入模型选择，就会出现这些问题：
+
+- 同一个 Agent 换 session 时模型状态漂移
+- session 关闭或切换会误伤 agent 模型绑定
+- checkpoint / resume 把模型状态和任务状态绑死
+- 模型切换语义会变成“任务级配置”，而不是 agent 级运行能力
+
+这和你现在想要的“Agent 是可迁移主体”冲突。
+
+所以这次应明确：
+
+- Session 不拥有模型选择权
+- Session 不保存主模型绑定
+- Session 不参与模型适配逻辑
+
+Session 最多只看到“当前 agent 正在使用哪个模型”的只读事实。
+
+---
+
+## 8. Workspace 为什么也不能进入模型主链
+
+这点同理。
+
+如果 workspace 也参与主模型选择，会带来：
+
+- agent 切换工作区时主模型被隐式改写
+- 默认工作区与项目工作区变成“模型配置源”
+- agent portability 被 workspace policy 反绑架
+
+这和你刚刚明确的原则冲突。
+
+所以 v11.1 修正版里：
+
+- Workspace 不决定 Agent 主模型
+- Workspace 不筛选 Agent 主模型
+- Workspace 不覆盖 Agent 主模型绑定
+
+Workspace 以后只在**功能模型中间模块**里使用模型池，不碰主 Agent 模型链。
+
+---
+
+## 9. 功能性模型怎么处理
+
+你已经把这条讲得很清楚了，我按你的方向定下来：
+
+### 主模型系统现在只处理：
+- Agent 对话模型
+- Agent 推理模型
+
+### 功能性模型以后走：
+- Workspace 中间模块
+
+比如未来可能会有：
+
+- `WorkspaceFeatureRuntime`
+- `WorkspaceEmbeddingService`
+- `WorkspaceOcrService`
+
+它们从 `ModelPool` 取模型服务，但不进入 Agent 主模型绑定系统。
+
+所以最终会变成两条线：
+
+### 9.1 Agent Main Model Line
+`ModelPool -> AgentModelService -> AgentCore`
+
+### 9.2 Workspace Feature Model Line
+`ModelPool -> WorkspaceFeatureMiddleware -> RAG/OCR/DocParse/...`
+
+这两条线共享供应池，但不共享主绑定状态。
+
+---
+
+## 10. 模型能力支持怎么接 Agent
+
+你这句也很关键：
+
+> 模型支持能力也是agent和模型侧的事，模型具备agent就使用，不支持agent就不使用。
+
+这意味着，能力判断不能再散在 session/workspace/feature 逻辑里。  
+它应该正式落在：
+
+- `ModelCapabilityProfile`
+- `AgentCore capability gating`
+
+推荐规则：
+
+### 10.1 如果模型支持 tools
+- Agent 开启 tool planning / tool calling
+
+### 10.2 如果模型不支持 tools
+- Agent 不走 tool 调用路径
+- 必要时直接退化成纯文本模式
+
+### 10.3 如果模型支持 thinking
+- Agent 可以启用 reasoning/thinking 模式
+
+### 10.4 如果模型不支持 thinking
+- Agent 不启用该路径
+- 不做伪 thinking 模拟
+
+### 10.5 context/token 能力
+- Agent 上下文预算按模型能力画像收缩
+- 不让 session/workspace 乱改这类核心事实
+
+所以这里的关系很明确：
+
+- 模型提供能力事实
+- Agent 决定是否用这些能力
+- Session/Workspace 不参与裁决
+
+---
+
+## 11. `CapabilitySnapshot` 在修正版里的位置
+
+上一版我把模型也塞进一个大快照里，方向没错，但需要纠偏。
+
+现在正确做法是：
+
+`CapabilitySnapshot` 里保留 agent 当前主模型绑定结果，但这个结果只来自 agent-model core，不来自 workspace/session。
+
+建议字段改成：
+
+- `agent_model_binding`
+- `agent_model_capability_profile`
+- `agent_model_route_diagnostics`
+
+不要再混：
+- workspace model policy
+- session model selection
+- feature model bindings
+
+后两者不该进入这条主线。
+
+---
+
+## 12. 对当前仓库的重构建议
+
+你现在的 `model_manager/` 基础其实还不错，但语义要改。
+
+### 建议保留到 `ModelPool` 的
+- [provider.py](d:/file/Mini-Agent/src/mini_agent/model_manager/provider.py)
+- [preset_providers.py](d:/file/Mini-Agent/src/mini_agent/model_manager/preset_providers.py)
+- [model_registry_service.py](d:/file/Mini-Agent/src/mini_agent/model_manager/model_registry_service.py)
+- [capability_probe.py](d:/file/Mini-Agent/src/mini_agent/model_manager/capability_probe.py)
+- [health_monitor.py](d:/file/Mini-Agent/src/mini_agent/model_manager/health_monitor.py)
+- [circuit_breaker.py](d:/file/Mini-Agent/src/mini_agent/model_manager/circuit_breaker.py)
+- [failover.py](d:/file/Mini-Agent/src/mini_agent/model_manager/failover.py)
+
+这些都应该归到“供应池”。
+
+---
+
+### 建议重写或替换的
+- [session_selection_service.py](d:/file/Mini-Agent/src/mini_agent/model_manager/session_selection_service.py)
+
+这条线按你现在的原则已经不对了。  
+它应该被替换成类似：
+
+- `agent_selection_service.py`
+- 或 `agent_model_service.py`
+
+也就是：
+- 按 agent 选模型
+- 不按 session 选模型
+
+---
+
+### 建议拆分 [runtime.py](d:/file/Mini-Agent/src/mini_agent/model_manager/runtime.py)
+现在它承担了太多事。
+
+建议拆成：
+
+- `model_pool_service.py`
+- `agent_model_binding_service.py`
+- `model_adapter_factory.py`
+- `model_route_diagnostics.py`
+
+这样语义会干净很多。
+
+---
+
+## 13. 修正版后的正式方案结论
+
+这次修正后，模型供应的正确架构是：
+
+- **模型池** 是全局供应系统，只提供模型资源、能力事实和 adapter 构造能力
+- **Agent 模型服务** 是独立核心模块，只负责 Agent 当前主模型的选择、绑定、切换、适配
+- **Session 不参与**
+- **Workspace 不参与**
+- **功能模型以后走 Workspace 中间模块**
+- **Core 只消费 Agent 当前绑定好的 `ModelAdapter + ModelCapabilityProfile`**
+
+压成一句话就是：
+
+**模型供应只做池，Agent 侧只做绑定，Workspace 和 Session 都不进入主模型链。**
+
+---
+
+## 14. 我建议的下一步
+
+这条线现在已经够清楚了，下一步最适合直接开：
+
+**v11.2 模型核心对象设计**
+
+把这几个对象一次定死：
+
+- `ProviderEntry`
+- `ModelDescriptor`
+- `ModelCapabilityProfile`
+- `ModelPoolSnapshot`
+- `AgentModelPolicy`
+- `AgentModelBinding`
+- `ModelAdapterFactory`
+- `AgentModelService`
+
+如果你愿意，我下一条就直接按这个口径，给你写一版 **v11.2 模型核心对象详细设计报告**。

@@ -1,0 +1,310 @@
+第一组我建议直接定为 `v11.2 Agent Kernel Contract`。这组现在是最优先的，因为它决定了后面所有东西到底该连到谁上面: 用户服务、桌面端、TUI、模型切换、工作区挂载、审批、恢复、日志，都要先知道内核里的“真对象”是谁。
+
+**为什么这组先做**
+- 现在仓库里，运行真相还没有被单独收成一组稳定契约，所以很多能力只能继续挂在“大对象”上。
+- 如果先做用户侧四个服务，不先收内核契约，那么这些服务最后大概率还是会继续依赖 `session` 或者直接依赖 `Agent`，项目会再次回到“表面分层、底层缠绕”。
+- 你这轮的目标不是继续堆功能，而是让项目进入“可继续迭代、不容易再次失控”的状态。那第一刀就该切内核真边界。
+
+**先看现状**
+当前代码已经很明确地暴露出几个混点。
+
+- [engine.py](d:/file/Mini-Agent/src/mini_agent/agent_core/engine.py) 里的 `Agent` 现在同时混了静态能力、模型客户端、工具表、工作区路径、审批引擎、sandbox、运行循环状态。它实际上把 `Profile + Instance + Attachment + RunExecutor` 几层都揉在一起了。
+- [session_state.py](d:/file/Mini-Agent/src/mini_agent/runtime/session_state.py) 里的 `MainAgentSessionRuntimeHostState` 直接持有 `agent`、`cancel_event`、`pending_approvals`。这意味着“会话容器”已经变成了“执行主体宿主”，这和你已经确定的“Session 是任务边界，不是 Agent 本体”相冲突。
+- [runtime_bindings.py](d:/file/Mini-Agent/src/mini_agent/agent_core/runtime_bindings.py) 其实已经摸到了正确方向，它说明“绑定关系”和“运行服务”本来就应该外置，只是现在还没上升成完整的 kernel contract。
+- [main_agent_runtime_manager.py](d:/file/Mini-Agent/src/mini_agent/runtime/main_agent_runtime_manager.py) 现在很大，本质原因不是代码风格问题，而是缺少“谁是核心运行对象”的明确边界，导致 session manager 被迫吞很多本不该属于它的职责。
+
+所以第一组不是抽象讨论，而是在解决一个非常现实的问题: 现在项目里“谁才是 agent 运行真相”还不够清楚。
+
+**我建议的第一组核心对象**
+下面这组对象，建议作为 `v11.2 kernel contract` 的第一层正式定义。
+
+**`AgentProfile`**
+这是“静态定义体”，不是运行体。
+
+它拥有:
+- agent 的稳定身份
+- 内建 tool catalog 声明
+- internal skills
+- 默认模型路由意图
+- 稳定行为默认值
+- 能力声明，比如是否支持审批、恢复、长任务、背景运行
+
+它不拥有:
+- 当前会话
+- 当前工作区
+- 当前运行状态
+- 审批等待
+- checkpoint
+- journal cursor
+- live client
+
+一句话说，`AgentProfile` 回答的是“这个 agent 天生是什么”。
+
+**`AgentInstance`**
+这是“持久执行主体”，也是你这轮最关键的对象。
+
+它拥有:
+- `instance_id`
+- 绑定的 `profile_id`
+- 当前生命周期状态，比如 `idle / attached / running / waiting_approval / paused / failed`
+- 当前活跃 `run_id`
+- 当前 attachment 引用
+- checkpoint head
+- journal head
+- 中断/恢复/取消控制状态
+- 恢复时需要的最小内核状态
+
+它不拥有:
+- 工作区文件树
+- session transcript
+- workspace memory 全量
+- MCP 连接实现
+- RAG 实现
+- 模型 provider client 实例
+
+一句话说，`AgentInstance` 回答的是“现在这个 agent 作为一个持续存在的执行者，处在什么状态”。
+
+这里很重要的一条约束我建议直接锁死:
+- 一个 `AgentInstance` 基线设计只允许同时有一个 active run。
+这样会极大减少后续混乱。并发、多子 agent、并行 run 以后再扩。
+
+**`Run`**
+`Run` 不是 `Session`，也不是整个 `AgentInstance`。它是一次正式执行单元。
+
+它拥有:
+- `run_id`
+- `agent_instance_id`
+- `workspace_id`
+- `session_id`
+- 触发来源，比如 user submit、approval resume、restore resume、scheduled trigger
+- 当前 phase 和 status
+- step cursor
+- waiting reason
+- capability snapshot 引用
+- checkpoint 引用
+- journal span
+- terminal result
+
+它不拥有:
+- 整个 session 历史
+- workspace 全局状态
+- agent 的长期身份
+- live tool objects
+
+一句话说，`Run` 回答的是“这一次执行现在做到哪一步”。
+
+这里我建议你把一条规则定死:
+- `Agent` 可以跨工作区移动，但不能在同一个 `Run` 中途切换工作区或切换 session。
+也就是:
+- 跨工作区迁移发生在 run 之间
+- 不是 run 内部动态漂移
+
+这条规则会非常救项目，能防止恢复、日志、审批、工具副作用全部失真。
+
+**`WorkspaceAttachment` 和 `SessionAttachment`**
+我不建议只放一个模糊的 `AttachmentState`，因为这会重新把 workspace 和 session 糊成一个“上下文包”。
+
+更稳的做法是拆成两个显式附件对象。
+
+`WorkspaceAttachment` 负责:
+- `workspace_id`
+- root boundary
+- 对应 `WorkspaceRuntime`
+- outside-zone policy 引用
+- 工作区权限表引用
+- 运行时挂载模式
+
+`SessionAttachment` 负责:
+- `session_id`
+- task memory scope
+- transcript scope
+- session approval scope
+- 当前 session context provider 引用
+
+然后 `Run` 使用一个聚合绑定，比如 `RunAttachment`，把这两个 attachment 绑到一起。
+
+这样做的好处是:
+- 你不会再把“任务上下文”误当成“执行世界”
+- 也不会把“工作区宿主”误当成“session 本体”
+
+**`CapabilitySnapshot`**
+这个对象很关键，我建议保留，而且提升优先级。
+
+它拥有:
+- 本次 run 可见的 tools
+- 解析后的 tool grant / policy 视图
+- 可见 skill 层
+- 可见 memory scope
+- 绑定的主模型身份
+- 绑定的模型能力画像
+- 当前 workspace runtime mode
+- 审批策略视图
+
+它不拥有:
+- live tool 实例
+- live model client
+- session 数据
+- workspace 数据本体
+
+它的价值是:
+- run 不应该在执行中途不断去重新解析“我现在到底有什么能力”
+- 一次 run 应消费一个稳定快照
+- 如果模型切换、权限变化、skill 变化大到影响执行语义，要么新建 run，要么显式生成新 snapshot revision，而不是偷偷热变更
+
+这会直接解决你后面模型系统和 agent 核心之间的衔接问题。
+
+**`Checkpoint`**
+这个对象是“可恢复性”的核心，不是附属功能。
+
+它拥有:
+- `checkpoint_id`
+- `run_id`
+- `agent_instance_id`
+- step cursor
+- journal offset
+- attachment refs
+- capability snapshot hash
+- waiting reason
+- 可安全恢复的最小状态
+- 必要的恢复版本信息
+
+它不应该保存:
+- asyncio primitive
+- 活的模型 client
+- 活的 tool 对象
+- API key
+- 进程句柄
+- 文件句柄
+
+checkpoint 的建议落点:
+- run 创建并完成 attachment 后
+- 进入有副作用 tool batch 前
+- tool batch 成功提交后
+- assistant 回复落盘后
+- 进入 waiting approval 前
+- pause/cancel terminalize 前
+
+一句话说，checkpoint 是“恢复锚点”，不是“全量镜像”。
+
+**`ExecutionJournal`**
+这个对象和 transcript 不是一回事，和现在的运行日志也不是一回事。
+
+它应该记录语义事件，比如:
+- `run_created`
+- `attachment_bound`
+- `capability_snapshot_resolved`
+- `context_prepared`
+- `model_request_started`
+- `model_response_received`
+- `tool_batch_planned`
+- `approval_requested`
+- `approval_decided`
+- `tool_started`
+- `tool_finished`
+- `checkpoint_committed`
+- `interrupted`
+- `resumed`
+- `cancelled`
+- `completed`
+- `failed`
+
+它的作用不是给用户看聊天记录，而是给内核做:
+- 恢复
+- 回放
+- 审计
+- 故障定位
+- rollback 基础
+
+这里要特别区分:
+- `Session transcript` 是用户任务对话事实
+- `ExecutionJournal` 是内核运行事实
+- `logger` 里的通用 events 是观测基础设施
+
+三者可以共享底层存储技术，但概念上不能混。
+
+**这些对象之间的关系**
+关系建议很简单，越简单越好。
+
+- 一个 `AgentProfile` 可以对应多个 `AgentInstance`
+- 一个 `AgentInstance` 在时间上可以产生多个 `Run`
+- 基线下一个 `AgentInstance` 同时只允许一个 active `Run`
+- 一个 `Workspace` 可以有多个 `Session`
+- 一个 `Session` 可以承载多个 `Run`
+- 一个 `Run` 绑定一个 `WorkspaceAttachment + SessionAttachment`
+- 一个 `Run` 有一个主 `CapabilitySnapshot`
+- 一个 `Run` 有多个 `Checkpoint`
+- 一个 `Run` 有一条 append-only `ExecutionJournal`
+
+这样，真相域就清楚了:
+- Agent 的真相在 `Profile + Instance`
+- 任务的真相在 `Session`
+- 执行的真相在 `Run`
+- 恢复的真相在 `Checkpoint + Journal`
+- 工作区世界的真相在 `Workspace + WorkspaceRuntime`
+
+**中断、恢复、取消应该怎么放**
+这部分如果不先定义，后面 UI 和服务层会非常乱。
+
+我建议这样收:
+
+- `interrupt` 是对 active `Run` 的协作式打断请求，目标状态是 `paused` 或 `waiting_approval`
+- `resume` 是恢复同一个 `Run`，不是新开 session，也不是复制 agent
+- `cancel` 是终止当前 `Run`，但不销毁 `AgentInstance`
+- session 可以结束，workspace 可以切走，但这些都不等于 run cancel
+- approval wait 是 `Run` 的状态，不是 `Session` 的本体状态。session 只是把它展示出来
+
+换句话说:
+- UI 层可以从 session 入口发起操作
+- 但 kernel 真正操作的对象应该是 `run_id`
+这一点非常关键，后面的 `AgentUserService` 才不会设计错。
+
+**什么该持久化，什么不该持久化**
+这轮一定要先讲清楚，不然后面恢复和安全边界都会糊。
+
+应该持久化:
+- `AgentProfile` 的静态元数据
+- `AgentInstance` 的最小持续状态
+- `Run` 的状态、phase、terminal result
+- `CapabilitySnapshot` 的解析结果
+- `Checkpoint`
+- `ExecutionJournal`
+- `Session` 的 transcript / session memory / summary
+- `Workspace` 的 memory / skills / artifacts / archives
+
+不应该持久化:
+- live `LLMClient`
+- live tool object
+- `asyncio.Event`
+- `asyncio.Lock`
+- sandbox process handle
+- raw secret
+- 未归一化的 provider SDK 对象
+
+模型这块也一样:
+- 持久化的是 `provider_source / provider_id / model_id / capability facts`
+- 不是模型客户端对象本身
+
+**为什么这一组会直接决定后续所有模块**
+因为后面每个服务模块其实都在等这组边界。
+
+- `AgentUserService` 要知道自己操作的是 `AgentInstance` 还是 `Run`
+- `WorkspaceUserService` 要知道自己管理的是工作区资源，还是 run attachment
+- `ModelUserService` 要知道模型切换是改 `AgentProfile` 默认，改 `AgentInstance` 当前绑定，还是只影响新 `Run` 的 snapshot
+- `CommandUserService` 要知道 `/interrupt` `/resume` `/approve` 到底命中 `session` 还是 `run`
+- Desktop/TUI/Remote 都要知道它们展示的是 session 视图、run 视图，还是 instance 视图
+
+如果这组不先收，后面再多做服务层，也只是把混乱包装得更漂亮。
+
+**我对第一组的结论**
+第一组最该定下来的，不是更多“层”，而是这六个问题:
+
+- `AgentProfile` 和 `AgentInstance` 必须拆开
+- `Run` 必须从 `Session` 里独立出来
+- `WorkspaceAttachment` 和 `SessionAttachment` 必须显式建模
+- `CapabilitySnapshot` 必须成为 run 的一等公民
+- `Checkpoint` 和 `ExecutionJournal` 必须成为恢复基础设施，而不是附属日志
+- `interrupt / resume / cancel / approval` 的真目标必须是 `Run`
+
+这组一旦定住，后面你要的“服务层、业务逻辑层、桌面端、TUI、模型配置、工作区治理”都会明显顺很多。
+
+下一步我最建议的是把这轮讨论正式落成 `v11.2 Agent Kernel Contract Design` 文档，并继续第二层讨论: `Run/Attachment/Checkpoint/Journal` 的状态机和字段级契约。这样就不是概念正确，而是可以直接拿来指导重构了。

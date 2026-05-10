@@ -1,0 +1,1069 @@
+**Mini-Agent v11.1 详细设计方案**
+基于两条新前提重写：
+
+- `DefaultWorkspace` 是一个**完整工作区**，不是降级版、临时版或特殊半工作区；它只是“默认工作区”
+- `子 agent` 设计**暂时废弃，不作为 v11.1 落地目标，也不作为当前架构驱动项**
+
+这版 v11.1 的目标，是把 `Agent / Workspace / Session / Tool / Skill / Memory / Permission / WorkspaceRuntime` 的关系正式定版，作为后续继续重构和功能开发的骨架。
+
+---
+
+## 1. v11.1 的总定义
+
+Mini-Agent v11.1 采用：
+
+**Portable Agent + Full Workspace World + Workspace-Bound Execution + External Policy Control**
+
+意思是：
+
+- `Agent` 是便携的能力主体，可以迁移到不同工作区
+- `Workspace` 是完整持久执行世界，`DefaultWorkspace` 也是完整工作区的一种
+- `Session` 是工作区内的任务容器
+- `Tool` 是 Agent 持有的能力，不是工作区持有的能力
+- `Tool` 的实际执行必须绑定到当前 `WorkspaceRuntime`
+- 权限、审批、路径边界、外部访问限制全部由外部策略系统控制
+- `MCP` 和 `RAG` 都是外围能力，不进入 Agent Core
+
+---
+
+## 2. v11.1 的四条核心原则
+
+### 2.1 Agent 持有能力，Workspace 持有世界
+- Agent 自身持有工具能力、内部 skill、运行内核、执行协议
+- Workspace 持有文件、workspace memory、workspace skills、RAG 配置、session 归档、权限表
+
+### 2.2 所有真实执行都发生在某个 Workspace 中
+- 系统里不存在“完全无工作区执行”的正式运行态
+- 如果没有进入具体项目工作区，就进入 `DefaultWorkspace`
+- 所以所有 run 都必然附着在某个 workspace 上
+
+### 2.3 Tool 属于 Agent，但 Tool 执行受 WorkspaceRuntime 和权限系统约束
+- Agent 会不会某个工具，是能力问题
+- 当前能不能执行、能访问哪里、需不需要审批，是策略问题
+- 能力面与控制面必须彻底分离
+
+### 2.4 Session 是任务真相，不再被定义为全系统唯一真相
+- Session 只对任务与对话负责
+- Workspace 对持久执行世界负责
+- AgentInstance 对执行内核状态负责
+
+---
+
+## 3. v11.1 的正式实体模型
+
+v11.1 固定 7 个一等实体：
+
+- `AgentProfile`
+- `AgentInstance`
+- `Workspace`
+- `WorkspaceRuntime`
+- `Session`
+- `Run`
+- `CapabilitySnapshot`
+
+---
+
+## 4. 各实体职责定义
+
+### 4.1 `AgentProfile`
+静态身份与能力定义。
+
+包含：
+- agent id
+- 名称、角色、身份描述
+- 默认模型路由偏好
+- 内建 tool catalog
+- 内建 internal skills
+- 默认 memory / context / approval 策略
+- 默认行为特征
+
+不包含：
+- 某次 run 的执行状态
+- 某个 workspace 的附着状态
+- 某个 session 的任务状态
+
+---
+
+### 4.2 `AgentInstance`
+运行中的持久执行主体。
+
+包含：
+- 当前内核状态机
+- checkpoint 指针
+- execution journal
+- interrupt / resume / cancel 状态
+- pending approval 状态
+- 当前 active run 元数据
+- 当前 active attachment 元数据
+
+不包含：
+- workspace 文件系统实现
+- session 全部内容本体
+- RAG/MCP 实现细节
+
+核心理解：
+- `AgentProfile` 是静态模板
+- `AgentInstance` 是活着的执行主体
+
+---
+
+### 4.3 `Workspace`
+完整持久执行世界。
+
+包含：
+- workspace id
+- root path
+- workspace kind
+- 文件树
+- workspace memory
+- workspace skills
+- session records / session archive
+- workspace 权限表
+- workspace runtime 配置
+- workspace RAG 配置
+- 索引与知识资产
+- 产物与审计文件
+
+`DefaultWorkspace` 的处理方式：
+- **不是单独的特殊类**
+- 它就是 `Workspace(kind="default")`
+- 与普通项目工作区使用同一模型、同一接口、同一生命周期机制
+
+因此推荐的数据模型是：
+
+```python
+class WorkspaceKind(str, Enum):
+    DEFAULT = "default"
+    PROJECT = "project"
+```
+
+而不是再做一个完全分叉的 `DefaultWorkspace` 类型。
+
+---
+
+### 4.4 `WorkspaceRuntime`
+与 workspace 集成的执行环境，是正式外围基础设施。
+
+负责：
+- 将 workspace root 挂载为执行边界
+- 文件读写边界控制
+- shell 执行
+- 代码运行
+- 进程监督
+- 网络与资源限制
+- mutation ledger
+- diff
+- snapshot
+- 恢复与回滚支持
+
+推荐 backend：
+- `direct`
+- `container_mounted`
+- `isolated_copy`
+
+但对外统一成 `WorkspaceRuntimePort`。
+
+---
+
+### 4.5 `Session`
+工作区内的任务容器。
+
+包含：
+- session id
+- workspace id
+- 标题、状态、时间戳
+- 对话历史
+- 当前任务 scratchpad
+- session memory
+- 当前审批记录
+- 当前任务级策略覆盖项
+- 当前任务归档摘要
+
+关键规则：
+- Session **必须属于某个 Workspace**
+- Agent 可以迁移工作区，但 Session 不会“漂浮”
+- 切换 workspace 时，应该 attach 到目标 workspace 内的某个 session，或新建 session
+
+---
+
+### 4.6 `Run`
+一次实际执行。
+
+包含：
+- run id
+- agent_instance_id
+- workspace_id
+- session_id
+- start checkpoint
+- current step
+- current status
+- capability snapshot hash
+- trace / journal cursor
+
+Run 是：
+- checkpoint 的直接单位
+- interrupt/resume 的直接单位
+- rollback 的直接追踪单位
+
+---
+
+### 4.7 `CapabilitySnapshot`
+本次运行的最终能力快照。
+
+这是 v11.1 的关键对象之一。
+
+它不是“Agent 原始能力”，而是：
+
+**Agent 能力 + 全局扩展 + 工作区扩展 + 当前策略裁剪 + 当前工作区运行环境**
+之后得到的**最终可执行能力集合**。
+
+包含：
+- resolved tools
+- resolved skills
+- visible memory scopes
+- enabled external resources
+- resolved model route
+- current permission constraints
+- current workspace runtime mode
+
+Run 只消费 `CapabilitySnapshot`，不直接到处查动态源。
+
+---
+
+## 5. v11.1 的真相域划分
+
+这是这版方案的根本。
+
+### 5.1 `Agent Truth`
+由 `AgentProfile + AgentInstance` 共同构成。
+
+负责：
+- 静态身份
+- 内建能力
+- 执行内核状态
+- 当前 run 生命周期状态
+
+---
+
+### 5.2 `Workspace Truth`
+由 `Workspace` 负责。
+
+负责：
+- 文件系统状态
+- workspace memory
+- workspace skills
+- session 归档
+- workspace RAG
+- 权限与审计资产
+
+---
+
+### 5.3 `Session Truth`
+由 `Session` 负责。
+
+负责：
+- 当前任务消息
+- 当前任务短期记忆
+- 当前任务审批记录
+- 当前任务进度与归档摘要
+
+---
+
+### 5.4 `Surface Truth`
+由 CLI/TUI/Desktop/Remote 各自持有，但只限本地视图态。
+
+负责：
+- 输入框草稿
+- 滚动位置
+- 展开折叠
+- 高亮、选择、布局态
+
+不能负责：
+- session 真相
+- workspace 真相
+- agent 内核真相
+
+---
+
+## 6. v11.1 的能力系统总结构
+
+能力系统分为 5 类：
+
+- `Tools`
+- `Skills`
+- `Memory Access`
+- `External Capabilities`
+- `Model Access`
+
+其中：
+- Tools 是 Agent 核心能力
+- Skills 是三层解析能力
+- Memory 是三层访问能力
+- External Capabilities 是外围 broker 能力
+- Model Access 是统一协议，不绑定供应商实现
+
+---
+
+## 7. Tool 系统详细设计
+
+### 7.1 总原则
+Tool 是 Agent 持有的能力，不属于 Workspace。  
+但 Tool 的真实执行必须绑定到 `WorkspaceRuntime`。
+
+建议固定四个对象：
+
+- `ToolSpec`
+- `ToolBinding`
+- `ToolPolicy`
+- `ToolGrant`
+
+---
+
+### 7.2 `ToolSpec`
+工具定义本体。
+
+字段建议：
+- `tool_name`
+- `namespace`
+- `description`
+- `operation_kind`
+- `requires_workspace_runtime`
+- `supports_outside_workspace`
+- `supports_mutation_tracking`
+- `default_risk_level`
+- `input_schema`
+- `output_schema`
+
+示例：
+- `core.file.read`
+- `core.file.write`
+- `core.file.edit`
+- `core.shell.exec`
+- `core.code.run`
+
+---
+
+### 7.3 `ToolBinding`
+工具在当前运行态下的执行绑定。
+
+字段建议：
+- `tool_name`
+- `workspace_id`
+- `runtime_id`
+- `resolved_path_scope`
+- `resolved_exec_backend`
+- `resolved_limits`
+- `binding_valid_until`
+
+没有 `ToolBinding`，工具不能执行。
+
+---
+
+### 7.4 `ToolPolicy`
+外部权限控制结果。
+
+字段建议：
+- `decision`: `allow | deny | approval_required`
+- `path_policy`
+- `network_policy`
+- `resource_policy`
+- `timeout_override`
+- `mutation_tracking_mode`
+- `reason`
+
+---
+
+### 7.5 `ToolGrant`
+审批或策略系统发放的临时授权。
+
+字段建议：
+- `grant_id`
+- `tool_name`
+- `workspace_id`
+- `session_id`
+- `run_id`
+- `granted_scope`
+- `expires_at`
+- `grant_source`
+
+适合：
+- outside workspace 读取
+- 高风险 shell 执行
+- 临时放行某次写操作
+
+---
+
+## 8. 文件 / Shell / 代码执行的正式规则
+
+这三类都是 Agent 内建核心工具能力，但执行必须走 `WorkspaceRuntime`。
+
+### 8.1 文件工具
+- `read/write/edit` 默认都要求 workspace runtime 绑定
+- 默认路径范围是当前 attached workspace root
+- 访问 attached workspace 外路径时进入外部路径裁决
+
+### 8.2 Shell 执行
+- 默认在当前 workspace root 下执行
+- 工作目录由 workspace runtime 决定
+- 可被 Permission Engine 改写为：
+  - direct
+  - container
+  - isolated_copy
+
+### 8.3 代码运行
+- 与 shell 一样走 workspace runtime
+- 默认代码产物落在当前 workspace
+- 是否允许网络、外部进程、长时运行，由策略系统决定
+
+---
+
+## 9. Workspace 路径域与访问模型
+
+因为 `DefaultWorkspace` 也是完整工作区，所以系统不再采用“有/无工作区”模型，而采用：
+
+- `Attached Workspace Zone`
+- `Outside Zone`
+
+也就是说：
+
+- 当前 attached 的 workspace 可能是 default，也可能是 project
+- 当前所有操作默认都在 attached workspace 内发生
+- attached workspace 外的一切都属于 `Outside Zone`
+
+这是 v11.1 对上一版的一个关键修正。
+
+### 9.1 Attached Workspace Zone
+- 当前活跃工作区根目录及其受管资源
+- 读写执行默认发生在这里
+- 权限由该 workspace 的 ACL 控制
+
+### 9.2 Outside Zone
+- 当前 attached workspace 根目录外的区域
+- 默认更严格
+- 是否允许访问由 Permission Engine 决定
+
+---
+
+## 10. Permission Engine 详细设计
+
+权限系统必须外置，不进 Agent Core。
+
+建议独立为：
+
+`PermissionEngine`
+
+输入：
+- agent profile / instance
+- workspace manifest
+- session record
+- run metadata
+- tool request
+- target paths
+- execution mode
+
+输出：
+- `allow`
+- `deny`
+- `approval_required`
+- `constraint_rewrite`
+
+### 10.1 约束改写能力
+这是必须支持的功能，不是附加项。
+
+例如 Permission Engine 可以返回：
+- 允许执行，但必须容器模式
+- 允许读取，但禁止写
+- 允许 shell，但禁止网络
+- 允许文件写，但只能在白名单目录
+- 允许运行，但超时 10 秒
+
+这会把“权限系统”从粗暴开关，提升为“执行约束裁决系统”。
+
+---
+
+## 11. Skill 三层设计
+
+正式固定三层：
+
+- `Internal Skills`
+- `Global Skills`
+- `Workspace Skills`
+
+---
+
+### 11.1 `Internal Skills`
+- Agent 内建、核心、稳定
+- 属于 `AgentProfile`
+- 是 agent 身份组成部分
+- 不允许被 global/workspace 覆盖
+
+命名空间建议：
+- `core.*`
+
+---
+
+### 11.2 `Global Skills`
+- 全局安装/扩展/接入/加载
+- 属于用户或系统级 registry
+- 多 workspace 可复用
+- 不进入 Agent 内核，只参与能力解析
+
+命名空间建议：
+- `global.*`
+
+---
+
+### 11.3 `Workspace Skills`
+- 仅属于当前 workspace
+- 可由本地学习、沉淀、项目经验形成
+- 不上升到 global
+- 不进入 internal
+
+命名空间建议：
+- `ws.*`
+
+---
+
+### 11.4 Skill 解析规则
+不是覆盖模型，而是装配模型。
+
+规则建议：
+- internal 保留区，不可覆盖
+- global 是共享扩展区
+- workspace 是局部扩展区
+- 最终由 `SkillResolver` 输出 `ResolvedSkillSet`
+
+---
+
+## 12. Memory 三层设计
+
+正式固定三层：
+
+- `Session Memory`
+- `Workspace Memory`
+- `Global Memory`
+
+---
+
+### 12.1 `Session Memory`
+- 当前任务 working memory
+- scratchpad
+- 当前 run 恢复提示
+- 当前任务临时事实
+
+写入默认目标：
+- session
+
+---
+
+### 12.2 `Workspace Memory`
+- 项目经验
+- 工作区历史经验
+- 本地沉淀知识
+- 与 workspace 生命周期绑定
+
+写入方式：
+- session 摘要沉淀
+- workspace 级显式记录
+- 自动提炼但受治理策略控制
+
+---
+
+### 12.3 `Global Memory`
+- 用户偏好
+- 长期学习
+- 与 workspace 无关的偏好和经验事实
+
+写入规则建议：
+- 默认不自动写
+- 需要显式治理或高置信策略
+- 防止局部经验污染全局偏好
+
+---
+
+### 12.4 Memory 解析规则
+读取时建议优先级：
+
+- session
+- workspace
+- global
+
+写入时建议默认目标：
+
+- session
+
+提升路径建议：
+- session -> workspace：允许
+- workspace -> global：默认不自动
+- session -> global：默认不自动
+
+---
+
+## 13. RAG 的正式定位
+
+RAG 明确定义为：
+
+**Workspace 外围能力**
+
+不是：
+- Agent 内核能力
+- Agent 固有知识模型
+- Session 内部系统
+
+而是：
+- 当前 workspace 的可配置知识增强设施
+
+建议：
+- workspace 有 `knowledge_config`
+- 开启后，`ContextAssembler` 可以从 `WorkspaceKnowledgeService` 拉上下文
+- 未配置则完全不影响 Core
+
+Agent 只持有：
+- 使用知识增强接口的能力
+
+不持有：
+- RAG 实现本身
+
+---
+
+## 14. MCP 的正式定位
+
+MCP 彻底外置。
+
+正式定义：
+
+- MCP 不属于 `agent_core/`
+- MCP 不属于 `runtime kernel`
+- MCP 不属于 skill 内圈
+- Agent 只通过统一的 `ExternalCapabilityBroker` 使用外部工具/资源
+- MCP 只是 broker 的一种实现 backend
+
+推荐结构：
+
+- `ExternalCapabilityBroker`
+- `McpCapabilityAdapter`
+
+Core 只知道：
+- 有外部工具/资源可用
+- 它们被 broker 暴露为标准外部能力描述
+
+Core 不知道：
+- MCP session
+- MCP 初始化
+- MCP protocol
+- MCP lifecycle
+
+---
+
+## 15. 子 Agent 的处理
+
+v11.1 明确：
+
+**不设计，不落地，不作为当前架构驱动项。**
+
+这意味着：
+- 当前不为子 agent 增加专门模型
+- 当前不为 delegation 设计继承矩阵
+- 当前不把 child session / child instance 作为核心边界依据
+- 现有相关实现若存在，也不作为 v11.1 总体架构的主导方向
+
+这样可以避免这轮方案被未来可能做的多 agent 复杂度拖偏。
+
+---
+
+## 16. CapabilitySnapshot 详细设计
+
+这是 v11.1 的中枢对象之一。
+
+建议包含：
+
+- `resolved_tools`
+- `resolved_tool_policies`
+- `resolved_skills`
+- `visible_memory_scopes`
+- `enabled_external_capabilities`
+- `resolved_model_route`
+- `workspace_runtime_mode`
+- `approval_profile`
+- `context_policy`
+
+生成来源：
+- AgentProfile
+- AgentInstance state
+- Global skill registry
+- Workspace skill registry
+- Memory resolver
+- External capability broker
+- Permission Engine
+- WorkspaceRuntime
+- Session overrides
+
+刷新时机建议：
+- run 开始前
+- resume 前
+- approval 放行后
+- workspace 切换后
+- global/workspace capability 变更后
+
+---
+
+## 17. ContextAssembler 详细设计
+
+上下文组装明确放在 Core 外。
+
+建议由 `ContextAssembler` 负责从以下来源拼装：
+
+- `Session Context`
+- `Workspace Context`
+- `Global Memory Context`
+- `Recovery Context`
+- `Capability Context`
+
+### 17.1 Session Context
+- 当前消息
+- 当前任务 scratchpad
+- 当前任务状态摘要
+
+### 17.2 Workspace Context
+- 相关文件
+- workspace memory
+- workspace skills 产生的本地知识
+- workspace policies
+
+### 17.3 Global Memory Context
+- 用户偏好
+- 长期学习事实
+
+### 17.4 Recovery Context
+- 上次 checkpoint
+- 上次失败点
+- 未完成步骤
+
+### 17.5 Capability Context
+- 当前可用 tools
+- 当前可用 skills
+- 当前外部资源能力
+
+然后输出给 Core 所消费的 `ContextProvider`。
+
+---
+
+## 18. Run / Checkpoint / Journal / Rollback 设计
+
+### 18.1 Run
+一个 session 内可以有多个 run。  
+run 是执行态的单位，不是 session 的替代品。
+
+---
+
+### 18.2 Checkpoint 粒度建议
+建议在这些点落 checkpoint：
+
+- run 启动
+- model 输出准备提交前
+- tool call 发起前
+- tool result 返回后
+- approval 请求发出前
+- approval 结果返回后
+- resume 前后
+- run 结束时
+
+---
+
+### 18.3 Execution Journal
+记录内核执行轨迹：
+
+- model steps
+- tool steps
+- approvals
+- interrupts
+- resumes
+- failures
+- finish
+
+---
+
+### 18.4 Mutation Ledger
+记录 workspace 层副作用：
+
+- 写了哪些文件
+- 删了哪些文件
+- 改了哪些文件
+- 跑了哪些命令
+- 有没有 snapshot
+- 是否可逆
+
+这本账应归 `WorkspaceRuntime` 视角，不归 Core 视角。
+
+---
+
+### 18.5 Rollback 三层
+保留三层回退：
+
+- `Kernel Rollback`
+- `Mutation Rollback`
+- `Workspace Snapshot Rollback`
+
+`Kernel Rollback`
+- 回退 AgentInstance 状态机
+- 不回退文件副作用
+
+`Mutation Rollback`
+- 回退受控文件工具的改动
+- 依赖 mutation ledger
+
+`Workspace Snapshot Rollback`
+- 回退整个工作区快照
+- 适合高风险操作
+
+---
+
+## 19. 模型供应与 Core 的关系
+
+保持外置。
+
+### 19.1 Core 内
+- 只定义 `ModelAdapter` 协议
+- 消费 `resolved model route`
+
+### 19.2 Core 外
+- provider registry
+- model routing
+- capability probing
+- token/context metadata
+- provider-specific config
+
+最终输入 Core 的只应是：
+- 本次 run 的统一模型调用适配器
+- 本次上下文与工具协议
+
+---
+
+## 20. 工作区切换与 Agent 迁移语义
+
+这是 v11.1 的重点之一。
+
+### 20.1 Agent 可以迁移
+- AgentProfile/AgentInstance 不绑定固定 workspace
+- 可从 default workspace 切到 project workspace
+- 也可从 project workspace 切回 default workspace
+
+### 20.2 迁移必须显式 attach
+不允许隐式漂移。
+
+建议语义：
+- `detach current workspace`
+- `flush or suspend run`
+- `attach target workspace`
+- `bind workspace runtime`
+- `open or create target session`
+- `refresh capability snapshot`
+
+### 20.3 Session 不跟着漂移
+- Session 永远属于其原 workspace
+- Agent 迁移工作区后，必须 attach 目标 workspace 内的新/已有 session
+
+---
+
+## 21. DefaultWorkspace 的正式设计建议
+
+既然它是完整工作区，建议与普通 workspace 共用同一 manifest。
+
+推荐 manifest 字段：
+
+```python
+class WorkspaceManifest(BaseModel):
+    workspace_id: str
+    title: str
+    root_dir: str
+    kind: Literal["default", "project"]
+    runtime_policy: dict[str, Any]
+    permission_policy: dict[str, Any]
+    rag_config: dict[str, Any]
+    created_at: str
+    updated_at: str
+```
+
+推荐目录语义：
+- default workspace 也有自己的：
+  - `sessions/`
+  - `memory/`
+  - `skills/`
+  - `artifacts/`
+  - `runtime/`
+  - `workspace manifest`
+
+区别只在：
+- `kind="default"`
+- 初始默认策略可能更保守
+
+但**结构上完全一致**。
+
+---
+
+## 22. 仓库模块建议映射
+
+推荐未来目标形态：
+
+### `src/mini_agent/agent_core/`
+- `agent_profile.py`
+- `agent_instance.py`
+- `kernel.py`
+- `run_state.py`
+- `checkpoint.py`
+- `journal.py`
+- `tool_spec.py`
+- `skill_contract.py`
+- `capability_snapshot.py`
+- `ports.py`
+
+### `src/mini_agent/runtime/`
+- `agent_attachment.py`
+- `workspace_attachment.py`
+- `session_attachment.py`
+- `run_supervisor.py`
+- `approval_runtime.py`
+- `recovery_coordinator.py`
+
+### `src/mini_agent/workspace_runtime/`
+- `runtime.py`
+- `permission_engine.py`
+- `mutation_ledger.py`
+- `snapshot_service.py`
+- `sandbox_backend.py`
+- `path_policy.py`
+
+### `src/mini_agent/skills/`
+- `internal/`
+- `global_registry.py`
+- `workspace_registry.py`
+- `resolver.py`
+
+### `src/mini_agent/memory/`
+- `session_store.py`
+- `workspace_store.py`
+- `global_store.py`
+- `resolver.py`
+
+### `src/mini_agent/rag/`
+- `workspace_knowledge_service.py`
+
+### `src/mini_agent/external_capabilities/`
+- `broker.py`
+- `mcp/`
+
+这样能把当前 repo 里零散交叉的 `sandbox / mcp / tool / runtime / workspace` 语义拉直。
+
+---
+
+## 23. v11.1 的阶段性落地顺序
+
+建议分 5 段，不要一次大爆改。
+
+### P1. 真相域与实体建模
+先落：
+- Workspace kind
+- AgentProfile / AgentInstance
+- Session belongs-to Workspace
+- CapabilitySnapshot 基础模型
+
+### P2. WorkspaceRuntime 基础设施
+先落：
+- workspace runtime port
+- permission engine
+- path policy
+- mutation ledger 基础版
+
+### P3. Tool 系统重构
+先落：
+- ToolSpec
+- ToolBinding
+- ToolPolicy
+- ToolGrant
+- file/shell/code 三类工具统一接入
+
+### P4. Skill / Memory 三层解析
+先落：
+- internal/global/workspace skill resolver
+- session/workspace/global memory resolver
+
+### P5. 外围能力接入
+先落：
+- RAG 作为 workspace feature
+- MCP 通过 ExternalCapabilityBroker 外挂
+- surfaces 只消费共享能力快照与 shared services
+
+---
+
+## 24. v11.1 的验收标准
+
+如果这版设计真正落地，至少要满足：
+
+- Agent 不换 tool catalog，也能在 default/project workspace 间迁移
+- 同一 tool request 在不同 workspace 下会因 policy 不同得到不同决策
+- 系统中任何正式 run 都发生在某个 workspace 中
+- DefaultWorkspace 与普通 workspace 使用同一数据模型
+- Session 必须绑定 workspace
+- skill 能按 internal/global/workspace 三层解析
+- memory 能按 session/workspace/global 三层解析
+- MCP 下线或异常不会影响 Core 启动
+- workspace 未配置 RAG 时系统仍能正常运行
+- rollback 至少支持 kernel rollback，并为文件工具保留 mutation rollback 通道
+- 子 agent 不作为当前架构的任何必选依赖
+
+---
+
+## 25. 当前仍需继续讨论的关键问题
+
+我建议下一轮只继续讨论下面 5 个点：
+
+1. `ToolGrant` 是按 `run` 生效，还是可跨 session 短时复用  
+我倾向：默认按 `run` 生效，最多可选 session-scoped。
+
+2. `Global Memory` 的写入门槛  
+我倾向：默认显式写入，不自动提升。
+
+3. `Workspace Skills` 的生成与治理方式  
+我倾向：先允许人工/半自动写入，不做自动无限增长。
+
+4. `Outside Zone` 的默认读策略  
+我倾向：默认审批，而不是默认允许。
+
+5. `workspace_runtime/` 是否新建独立模块  
+我倾向：值得单独建，避免继续和通用 runtime 混杂。
+
+---
+
+## 26. 这版 v11.1 的最终结论
+
+这版正式定为：
+
+- `DefaultWorkspace` 是完整工作区，只是 `kind="default"`
+- 所有 run 都发生在某个 attached workspace 中
+- Agent 是可迁移能力主体，不是 workspace-owned 实体
+- Tool 属于 Agent 核心能力，但执行绑定 WorkspaceRuntime
+- 权限完全外置，由 PermissionEngine 控制
+- Skills 固定三层：internal / global / workspace
+- Memory 固定三层：session / workspace / global
+- RAG 是 workspace 外围 feature
+- MCP 彻底外置，通过 external broker 接入
+- 子 agent 暂时不做，不作为设计驱动项
+- Run 前解析 CapabilitySnapshot，Run 中只消费快照
+- rollback 保持 kernel / mutation / snapshot 三层模型
+
+如果你同意这版方向，下一步我最建议直接进入：
+
+**v11.2 能力系统对象设计**
+把这些对象一次定死：
+
+- `ToolSpec`
+- `ToolBinding`
+- `ToolPolicy`
+- `ToolGrant`
+- `SkillResolver`
+- `MemoryResolver`
+- `CapabilitySnapshot`
+
+这会是后续真正最关键的一步。
+
+ToolGrant采用现在的两级权限设计，默认权限是run级，完全权限是session。由用户设置，agent只接受即可。工作区外的权限是由工作区边界设置的，这个界限不要混淆，工作区外授权严格遵守run级。Global Memory只在用户明确授权的情况下可以上升，不设置自动上升。Workspace Skills只做用户要求创建skill时创建，不进行任何自动学习实现，创建依据根据session和workspace内容写，这两个本身就支持被agent获取，对用户创建skill没有苦难，只在工作区剩下，要迁移到其他工作区由用户操作。Outside Zone的话，对外默认有读操作，修改操作必须获得用户授权不然拒绝，删除等操作直接拒绝，后续增加白名单/黑名单，比如系统级文件只有读权限，却审批，但现在先按只有读权限、修改权限需审批，无删除权限来，可以先拉一个黑名单把系统级范围加进去。可以把 workspace_runtime/ 拆成独立模块。这些设计是上层设计，现在需要讨论最核心的基础底层接入，模型供应这块怎么衔接这次的大重构调整？用户侧等下一轮讨论
