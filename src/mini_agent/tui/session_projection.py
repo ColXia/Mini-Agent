@@ -5,10 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from mini_agent.session.projections import SessionSummaryProjection
+from mini_agent.utils.text import safe_text
 
 
 def _safe_text(value: object | None) -> str:
-    return " ".join(str(value or "").split())
+    return safe_text(value)
 
 
 @dataclass(frozen=True)

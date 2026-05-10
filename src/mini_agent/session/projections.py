@@ -12,10 +12,11 @@ from mini_agent.interfaces.agent import (
     MainAgentSessionRecoverySnapshot,
     MainAgentSessionSummary,
 )
+from mini_agent.utils.text import safe_text
 
 
 def _safe_text(value: object | None) -> str:
-    return " ".join(str(value or "").split())
+    return safe_text(value)
 
 
 def _safe_multiline_text(value: object | None) -> str:

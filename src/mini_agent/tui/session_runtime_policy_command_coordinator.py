@@ -10,10 +10,11 @@ from mini_agent.runtime.orchestration.session_runtime_policy_coordinator import 
     SessionRuntimePolicyPlan,
     SessionRuntimePolicyService,
 )
+from mini_agent.utils.text import safe_text
 
 
 def _safe_text(value: Any) -> str:
-    return " ".join(str(value or "").split())
+    return safe_text(value)
 
 
 def _response_value(response: Any, field: str) -> Any:

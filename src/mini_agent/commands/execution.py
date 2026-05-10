@@ -41,13 +41,14 @@ from mini_agent.tools.mcp.command_service import (
     McpReloadOutcome,
 )
 from mini_agent.tools.knowledge_base_control_service import KnowledgeBaseControlService
+from mini_agent.utils.text import safe_text
 
 from .metadata import build_command_usage_text, build_unknown_action_text
 from .mcp_support import collect_mcp_operator_snapshot, format_mcp_server_list, format_mcp_status
 
 
 def _safe_text(value: Any) -> str:
-    return " ".join(str(value or "").split())
+    return safe_text(value)
 
 
 async def _maybe_await(value: Any) -> Any:

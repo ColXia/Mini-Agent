@@ -208,7 +208,8 @@ def _label_from_iso_timestamp(value: Any) -> str:
 
 
 def _safe_text(value: Any) -> str:
-    return " ".join(str(value or "").split())
+    from mini_agent.utils.text import safe_text
+    return safe_text(value)
 
 
 def _safe_session_title(value: str, *, fallback: str) -> str:

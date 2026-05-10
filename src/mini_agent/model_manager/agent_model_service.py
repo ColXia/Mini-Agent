@@ -21,10 +21,11 @@ from mini_agent.model_manager.runtime import (
     resolve_routed_llm_settings,
     resolve_session_model_selection_identity,
 )
+from mini_agent.utils.text import safe_text
 
 
 def _safe_text(value: Any) -> str:
-    return " ".join(str(value or "").split())
+    return safe_text(value)
 
 
 def _utc_now_iso() -> str:

@@ -5,10 +5,11 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 from mini_agent.transport.gateway_error import extract_gateway_error_info
+from mini_agent.utils.text import safe_text
 
 
 def _safe_text(value: object) -> str:
-    return " ".join(str(value or "").split())
+    return safe_text(value)
 
 
 class RemoteStreamErrorService:

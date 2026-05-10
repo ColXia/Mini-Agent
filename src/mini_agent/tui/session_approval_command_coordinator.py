@@ -11,10 +11,11 @@ from mini_agent.runtime.live_control.session_pending_approval_service import (
     SessionPendingApprovalService,
 )
 from mini_agent.transport.gateway_error import extract_gateway_error_info
+from mini_agent.utils.text import safe_text
 
 
 def _safe_text(value: Any) -> str:
-    return " ".join(str(value or "").split())
+    return safe_text(value)
 
 
 def _response_value(response: Any, field: str) -> Any:

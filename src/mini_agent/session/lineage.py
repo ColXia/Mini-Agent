@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from mini_agent.agent_core.session.lineage import SessionLineageNode, SessionLineageStore
+from mini_agent.utils.text import safe_text
 
 if TYPE_CHECKING:
     from mini_agent.session.store_records import MainAgentSessionState
@@ -22,7 +23,7 @@ class MainAgentSessionLineageState:
 
 
 def _safe_text(value: object) -> str:
-    return " ".join(str(value or "").split())
+    return safe_text(value)
 
 
 @dataclass(slots=True)

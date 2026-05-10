@@ -7,10 +7,11 @@ from typing import Any, Callable
 
 from mini_agent.transport.remote_chat_service_port import RemoteChatServicePort
 from mini_agent.transport.remote_stream_error_service import RemoteStreamErrorService
+from mini_agent.utils.text import safe_text
 
 
 def _safe_text(value: Any) -> str:
-    return " ".join(str(value or "").split())
+    return safe_text(value)
 
 
 def _normalize_chat_content(value: Any) -> str:

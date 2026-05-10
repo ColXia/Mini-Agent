@@ -5,9 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
+from mini_agent.utils.text import safe_text
+
 
 def _safe_text(value: object) -> str:
-    return " ".join(str(value or "").split())
+    return safe_text(value)
 
 
 def _agent_model_label(agent: Any) -> str | None:

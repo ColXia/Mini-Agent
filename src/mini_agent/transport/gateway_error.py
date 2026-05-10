@@ -5,9 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 import re
 
+from mini_agent.utils.text import safe_text
+
 
 def _safe_text(value: object) -> str:
-    return " ".join(str(value or "").split())
+    return safe_text(value)
 
 
 _GATEWAY_HTTP_ERROR_RE = re.compile(r"^Gateway HTTP (?P<status>\d+):\s*(?P<detail>.+)$")

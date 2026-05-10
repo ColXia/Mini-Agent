@@ -10,6 +10,7 @@ from mini_agent.runtime.support.workspace_path_utils import (
     same_workspace_path,
     workspace_path_key,
 )
+from mini_agent.utils.text import safe_text
 from mini_agent.workspace.domain import WorkspaceKind, WorkspaceManifest, WorkspaceRecord
 
 
@@ -26,7 +27,7 @@ def _is_relative_to(candidate: Path, root: Path) -> bool:
 
 
 def _safe_text(value: object) -> str:
-    return " ".join(str(value or "").split())
+    return safe_text(value)
 
 
 def _item_value(item: Any, field: str, default: Any = None) -> Any:

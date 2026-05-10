@@ -14,6 +14,7 @@ from uuid import uuid4
 
 from mini_agent.memory.session_search import SessionSearchIndex
 from mini_agent.runtime.support.sandbox_state import normalize_sandbox_diagnostics
+from mini_agent.utils.text import safe_text
 from mini_agent.workspace_runtime.snapshot_store import (
     capture_shared_workspace_snapshot,
     workspace_runtime_snapshot_payload,
@@ -90,7 +91,7 @@ def _sanitize_session_id(session_id: str) -> str:
 
 
 def _safe_text(value: object) -> str:
-    return " ".join(str(value or "").split())
+    return safe_text(value)
 
 
 @dataclass(slots=True)

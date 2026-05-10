@@ -5,11 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Sequence
 
+from mini_agent.utils.text import safe_text
 from .projections import SessionPendingApprovalProjection, SessionRecoveryProjection
 
 
 def _safe_text(value: object | None) -> str:
-    return " ".join(str(value or "").split())
+    return safe_text(value)
 
 
 def _compact_text(value: object | None, *, max_length: int = 120) -> str | None:

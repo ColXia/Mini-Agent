@@ -8,10 +8,11 @@ from typing import Any, Callable
 
 from mini_agent.commands.execution import CommandExecutionResult
 from mini_agent.tools.mcp.command_service import McpReloadOutcome
+from mini_agent.utils.text import safe_text
 
 
 def _safe_text(value: Any) -> str:
-    return " ".join(str(value or "").split())
+    return safe_text(value)
 
 
 def _response_value(response: Any, field: str) -> Any:

@@ -7,10 +7,11 @@ from typing import Any
 
 from mini_agent.tools.mcp.command_service import McpReloadOutcome, build_mcp_reload_warm_prefix
 from mini_agent.tui.local_agent_runtime_handler import LocalSessionAgentRuntimeHandler
+from mini_agent.utils.text import safe_text
 
 
 def _safe_text(value: object) -> str:
-    return " ".join(str(value or "").split())
+    return safe_text(value)
 
 
 @dataclass(slots=True)

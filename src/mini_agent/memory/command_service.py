@@ -31,10 +31,11 @@ from mini_agent.memory.operator_actions import (
 )
 from mini_agent.memory.runtime_backend import RuntimeMemoryBackend, WorkspaceRuntimeMemoryBackend
 from mini_agent.memory.service import MemoryService
+from mini_agent.utils.text import safe_text
 
 
 def _safe_text(value: object) -> str:
-    return " ".join(str(value or "").split())
+    return safe_text(value)
 
 
 SUPPORTED_MEMORY_ACTIONS = frozenset(

@@ -7,10 +7,11 @@ from typing import Any, Callable, Sequence
 
 from mini_agent.interfaces.surface_payload_adapter import surface_payload_from_dto
 from mini_agent.session.projections import SessionDetailProjection, SessionSummaryProjection
+from mini_agent.utils.text import safe_text
 
 
 def _safe_text(value: object) -> str:
-    return " ".join(str(value or "").split())
+    return safe_text(value)
 
 
 @dataclass(slots=True)

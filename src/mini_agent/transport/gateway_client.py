@@ -14,10 +14,11 @@ import httpx
 
 from mini_agent.runtime.support.interaction_surface import resolve_interaction_binding
 from mini_agent.transport.gateway_error import GatewayTransportError
+from mini_agent.utils.text import safe_text
 
 
 def _safe_text(value: Any) -> str:
-    return " ".join(str(value or "").split())
+    return safe_text(value)
 
 
 class GatewayClient:
