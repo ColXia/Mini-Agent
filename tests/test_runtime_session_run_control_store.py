@@ -503,3 +503,70 @@ def test_run_control_store_restored_pending_approval_becomes_recovery_only(tmp_p
     assert session.runtime.pending_approval_waiters == {}
 
 
+def test_run_control_store_cancel_event_resolves_through_bridge(tmp_path: Path) -> None:
+    async def _run() -> None:
+        store = RuntimeSessionRunControlStore()
+        session = _session(tmp_path)
+        session.projection.busy = True
+
+        # Before begin_turn, cancel_event should be None
+        assert store.cancel_event(session) is None
+
+        # begin_turn creates the bridge with a cancel_event
+        store.begin_turn(session, surface="desktop", detail="running")
+
+        # cancel_event should now be available through the store
+        cancel_event = store.cancel_event(session)
+        assert cancel_event is not None
+        assert isinstance(cancel_event, asyncio.Event)
+        assert cancel_event.is_set() is False
+
+        # The same event should be synced to session.runtime for compatibility
+        assert session.runtime.cancel_event is cancel_event
+
+        # Requesting cancel should set the event
+        store.request_cancel(session, reason="user_cancel", source="desktop")
+        assert cancel_event.is_set() is True
+
+        # After finish_turn, cancel_event should be cleared
+        session.projection.busy = False
+        store.finish_turn(session)
+        assert store.cancel_event(session) is None
+        assert session.runtime.cancel_event is None
+
+    asyncio.run(_run())
+
+
+def test_run_control_store_cancel_event_adopts_from_session_runtime(tmp_path: Path) -> None:
+    async def _run() -> None:
+        store = RuntimeSessionRunControlStore()
+        session = _session(tmp_path)
+
+        # Pre-create a cancel_event and set it on session.runtime
+        pre_existing_event = asyncio.Event()
+        session.runtime.cancel_event = pre_existing_event
+
+        # The store should adopt this event when accessing it (before begin_turn)
+        resolved_event = store.cancel_event(session)
+        assert resolved_event is pre_existing_event
+
+        # However, begin_turn creates a NEW bridge with a new event
+        # This is expected behavior - each turn starts fresh
+        session.projection.busy = True
+        store.begin_turn(session, surface="desktop", detail="running")
+
+        # The cancel_event is now the new one from the bridge
+        new_event = store.cancel_event(session)
+        assert new_event is not None
+        assert new_event is not pre_existing_event
+
+        # Setting it through request_cancel should use the new event
+        store.request_cancel(session, reason="user_cancel", source="desktop")
+
+        assert new_event.is_set() is True
+        # The pre-existing event is NOT set because begin_turn created a new one
+        assert pre_existing_event.is_set() is False
+
+    asyncio.run(_run())
+
+

@@ -60,7 +60,7 @@ class RuntimeSessionInterruptHandler:
             raise HTTPException(status_code=409, detail=SessionCancelService.no_running_turn_detail())
 
         store = self._store()
-        cancel_event = getattr(session.runtime, "cancel_event", None)
+        cancel_event = store.cancel_event(session)
         if cancel_event is None:
             raise HTTPException(status_code=409, detail=SessionCancelService.not_cancellable_detail())
 
