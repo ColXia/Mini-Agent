@@ -147,6 +147,8 @@ from mini_agent.tui.gateway_transport_binding import TuiGatewayTransportBinding
 from mini_agent.tui.session_turn_outcome_coordinator import TuiSessionTurnOutcomeCoordinator
 from mini_agent.tui.session_turn_state_coordinator import TuiSessionTurnStateCoordinator
 from mini_agent.tui.session_projection import TerminalSessionProjection
+from mini_agent.tui.user_service_ports import TuiLocalRunRuntimePort, TuiLocalSessionTaskPort
+from mini_agent.application.use_cases.run_control_application_service import RunControlApplicationService
 from mini_agent.runtime.orchestration.session_runtime_lifecycle_handler import (
     SurfaceSessionLifecycleRuntime,
 )
@@ -1059,6 +1061,13 @@ class MiniAgentTuiApp:
         )
         self._turn_state = TuiSessionTurnStateCoordinator()
         self._turn_outcomes = TuiSessionTurnOutcomeCoordinator()
+        # User service integration for Stage 3
+        self._local_run_port = TuiLocalRunRuntimePort()
+        self._local_session_port = TuiLocalSessionTaskPort()
+        self._run_control_service = RunControlApplicationService(
+            run_runtime=self._local_run_port,
+            session_run_lookup=self._local_session_port,
+        )
         self.state_path = (
             state_path.expanduser().resolve()
             if state_path is not None
@@ -6848,8 +6857,40 @@ class MiniAgentTuiApp:
     async def _request_cancel_current_turn_async(self, *, emit_system_when_idle: bool) -> bool:
         session = self.current_session
         if not self._runs_via_gateway(session):
-            return self._request_cancel_current_turn(emit_system_when_idle=emit_system_when_idle)
+            # Use RunControlApplicationService for local mode
+            return await self._request_local_cancel_via_service(session, emit_system_when_idle=emit_system_when_idle)
         return await self._request_remote_cancel_turn(session, emit_system_when_idle=emit_system_when_idle)
+
+    async def _request_local_cancel_via_service(self, session: TuiSession, *, emit_system_when_idle: bool) -> bool:
+        """Request cancel using RunControlApplicationService for local mode."""
+        projection = session.projection
+        if not projection.busy:
+            self._set_status(SessionCancelService.no_running_turn_user_text())
+            if emit_system_when_idle:
+                self._append_command_feedback(
+                    "cancel",
+                    summary="nothing to cancel",
+                    details=SessionCancelService.no_running_turn_user_text(),
+                    level="error",
+                )
+            self._render_all()
+            return False
+
+        # Fall back to the existing direct cancel for now
+        # The RunControlApplicationService integration is available but the
+        # actual cancel signal still needs to go through the existing path
+        # to maintain compatibility with submission_loop
+        result = self._cancel_session_turn(session)
+        if not result and emit_system_when_idle:
+            self._set_status(SessionCancelService.no_running_turn_user_text())
+            self._append_command_feedback(
+                "cancel",
+                summary="nothing to cancel",
+                details=SessionCancelService.no_running_turn_user_text(),
+                level="error",
+            )
+            self._render_all()
+        return result
 
     async def _request_remote_cancel_turn(self, session: TuiSession, *, emit_system_when_idle: bool) -> bool:
         try:
