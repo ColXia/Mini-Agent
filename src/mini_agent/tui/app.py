@@ -1062,7 +1062,11 @@ class MiniAgentTuiApp:
         self._turn_state = TuiSessionTurnStateCoordinator()
         self._turn_outcomes = TuiSessionTurnOutcomeCoordinator()
         # User service integration for Stage 3
-        self._local_run_port = TuiLocalRunRuntimePort()
+        self._run_control_store = RuntimeSessionRunControlStore()
+        self._local_run_port = TuiLocalRunRuntimePort(
+            run_control_store=self._run_control_store,
+            session_resolver=self._resolve_session_by_id,
+        )
         self._local_session_port = TuiLocalSessionTaskPort()
         self._run_control_service = RunControlApplicationService(
             run_runtime=self._local_run_port,
@@ -3496,6 +3500,16 @@ class MiniAgentTuiApp:
         for index, session in enumerate(self.sessions):
             if session.session_id == target:
                 return index
+        return None
+
+    def _resolve_session_by_id(self, session_id: str) -> TuiSession | None:
+        """Resolve a TuiSession by session_id for user service integration."""
+        target = _safe_text(session_id)
+        if not target:
+            return None
+        for session in self.sessions:
+            if session.session_id == target:
+                return session
         return None
 
     def _find_session_index_by_selector(self, selector: str) -> int | None:
@@ -6821,7 +6835,8 @@ class MiniAgentTuiApp:
                 )
             self._render_all()
             return True
-        cancel_event = runtime.cancel_event
+        # Use run control store to access cancel_event from run-owned control bridge
+        cancel_event = self._run_control_store.cancel_event(session)
         if cancel_event is None or cancel_event.is_set():
             return False
         cancel_event.set()
