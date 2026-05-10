@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import sys
 
@@ -18,9 +19,58 @@ from mini_agent.dev.p19_rollout_reporting import (  # noqa: E402
     build_weekly_rollout_payload,
     build_weekly_rollout_report,
     evaluate_target_bands,
+    get_target_bands,
     list_target_profiles,
     summarize_weekly_rollout,
 )
+
+
+# Environment variables that can indicate deployment stage
+_CI_ENV_VARS = [
+    "DEPLOYMENT_STAGE",
+    "ENVIRONMENT",
+    "ENV",
+    "STAGE",
+    "CI_ENV",
+    "GITHUB_ENV",
+]
+
+
+def _detect_target_profile_from_env() -> str:
+    """Detect target profile from CI environment variables.
+
+    Returns:
+        Detected profile name, or 'stage' as default fallback
+    """
+    for env_var in _CI_ENV_VARS:
+        value = os.environ.get(env_var, "").strip().lower()
+        if not value:
+            continue
+        # Normalize common environment names to profile names
+        if value in ("dev", "development"):
+            return "dev"
+        if value in ("stage", "staging", "stg"):
+            return "stage"
+        if value in ("prod", "production"):
+            return "prod"
+        # Direct match with profile names
+        if value in list_target_profiles():
+            return value
+    return "stage"
+
+
+def _resolve_target_profile(profile_arg: str) -> str:
+    """Resolve target profile from argument or environment.
+
+    Args:
+        profile_arg: The --target-profile argument value
+
+    Returns:
+        Resolved profile name
+    """
+    if profile_arg == "auto":
+        return _detect_target_profile_from_env()
+    return profile_arg
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -65,9 +115,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     parser.add_argument(
         "--target-profile",
-        choices=list_target_profiles(),
         default="stage",
-        help="Target KPI profile (environment band).",
+        help="Target KPI profile (environment band). Use 'auto' to detect from CI environment variables.",
     )
     parser.add_argument(
         "--report-file",
@@ -102,6 +151,12 @@ def _default_json_report_file(*, now: datetime) -> Path:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv or sys.argv[1:])
+    resolved_profile = _resolve_target_profile(args.target_profile)
+    # Validate resolved profile
+    if resolved_profile not in list_target_profiles():
+        print(f"[p19-weekly] invalid target profile: {resolved_profile}", file=sys.stderr)
+        return 1
+
     now = datetime.now(timezone.utc)
     summary = summarize_weekly_rollout(
         repo_root=REPO_ROOT,
@@ -125,7 +180,7 @@ def main(argv: list[str] | None = None) -> int:
         promotion_pattern=args.promotion_pattern,
         runtime_snapshot_pattern=args.runtime_snapshot_pattern,
     )
-    target_eval = evaluate_target_bands(summary=summary, target_profile=args.target_profile)
+    target_eval = evaluate_target_bands(summary=summary, target_profile=resolved_profile)
 
     report_file = Path(args.report_file).expanduser().resolve() if args.report_file else _default_report_file(now=now)
     json_report_file = (
@@ -138,7 +193,7 @@ def main(argv: list[str] | None = None) -> int:
     report_file.write_text(
         build_weekly_rollout_report(
             summary=summary,
-            target_profile=args.target_profile,
+            target_profile=resolved_profile,
             previous_summary=previous_summary,
         ),
         encoding="utf-8",
@@ -147,7 +202,7 @@ def main(argv: list[str] | None = None) -> int:
         json.dumps(
             build_weekly_rollout_payload(
                 summary=summary,
-                target_profile=args.target_profile,
+                target_profile=resolved_profile,
                 previous_summary=previous_summary,
             ),
             ensure_ascii=False,
@@ -160,9 +215,12 @@ def main(argv: list[str] | None = None) -> int:
     print(f"[p19-weekly] report: {report_file}")
     print(f"[p19-weekly] json_report: {json_report_file}")
     print(f"[p19-weekly] overall: {summary.overall}")
+    if args.target_profile == "auto":
+        print(f"[p19-weekly] target_profile=auto -> {resolved_profile}")
+    else:
+        print(f"[p19-weekly] target_profile={resolved_profile}")
     print(
-        f"[p19-weekly] target_profile={args.target_profile} "
-        f"target_status={'PASS' if target_eval.pass_all else 'ATTENTION'}"
+        f"[p19-weekly] target_status={'PASS' if target_eval.pass_all else 'ATTENTION'}"
     )
     print(
         "[p19-weekly] window counts: "

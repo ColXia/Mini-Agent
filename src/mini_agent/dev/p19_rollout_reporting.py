@@ -654,6 +654,105 @@ def _build_mode_split_rows(summary: WeeklyRolloutSummary) -> list[dict[str, str]
     return rows
 
 
+def _build_kpi_sparkline(values: list[float | int | None], max_points: int = 20) -> list[float | int]:
+    """Build a sparkline-compatible series from KPI values.
+
+    Args:
+        values: List of KPI values (may contain None for missing data)
+        max_points: Maximum number of points to include (older values truncated)
+
+    Returns:
+        List of values suitable for sparkline rendering (None replaced with sentinel)
+    """
+    if not values:
+        return []
+
+    # Truncate to most recent max_points
+    truncated = values[-max_points:] if len(values) > max_points else values
+
+    # Replace None with -1 sentinel for numeric sparkline rendering
+    result: list[float | int] = []
+    for val in truncated:
+        if val is None:
+            result.append(-1)
+        else:
+            result.append(val)
+    return result
+
+
+def _build_kpi_sparklines(summary: WeeklyRolloutSummary) -> dict[str, list[float | int]]:
+    """Build sparkline data for all tracked KPIs.
+
+    Returns:
+        Dict mapping KPI names to sparkline value series
+    """
+    sparklines: dict[str, list[float | int]] = {}
+
+    # Matrix pass rate sparkline (from individual reports)
+    matrix_rates: list[float] = []
+    for report in summary.matrix_reports:
+        matrix_rates.append(1.0 if report.status == "PASS" else 0.0)
+    sparklines["matrix_pass_rate"] = _build_kpi_sparkline(matrix_rates)
+
+    # Deterministic pass rate sparkline
+    deterministic_rates: list[float] = []
+    for report in summary.deterministic_reports:
+        deterministic_rates.append(1.0 if report.status == "PASS" else 0.0)
+    sparklines["deterministic_pass_rate"] = _build_kpi_sparkline(deterministic_rates)
+
+    # Promotion ready rate sparkline
+    promotion_rates: list[float] = []
+    for report in summary.promotion_reports:
+        promotion_rates.append(1.0 if report.status == "READY" else 0.0)
+    sparklines["promotion_ready_rate"] = _build_kpi_sparkline(promotion_rates)
+
+    # Saturation counter sparkline
+    saturation_values = [float(v) for v in summary.saturation_values]
+    sparklines["saturation_counter"] = _build_kpi_sparkline(saturation_values)
+
+    # Conflict counter sparkline
+    conflict_values = [float(v) for v in summary.conflict_values]
+    sparklines["conflict_counter"] = _build_kpi_sparkline(conflict_values)
+
+    # Active sessions sparkline (from runtime snapshots)
+    active_sessions = [float(s.active_sessions) for s in summary.runtime_snapshots]
+    sparklines["active_sessions"] = _build_kpi_sparkline(active_sessions)
+
+    return sparklines
+
+
+def _build_kpi_sparkline_metadata(summary: WeeklyRolloutSummary) -> dict[str, Any]:
+    """Build sparkline metadata for dashboard rendering.
+
+    Returns:
+        Dict with sparkline data and metadata for each KPI
+    """
+    sparklines = _build_kpi_sparklines(summary)
+
+    metadata: dict[str, Any] = {}
+    for kpi_name, values in sparklines.items():
+        if not values:
+            metadata[kpi_name] = {
+                "values": [],
+                "count": 0,
+                "min": None,
+                "max": None,
+                "last": None,
+            }
+            continue
+
+        numeric_values = [v for v in values if v >= 0]
+        metadata[kpi_name] = {
+            "values": values,
+            "count": len(values),
+            "min": min(numeric_values) if numeric_values else None,
+            "max": max(numeric_values) if numeric_values else None,
+            "last": values[-1] if values else None,
+        }
+
+    return metadata
+
+
 def build_weekly_rollout_payload(
     *,
     summary: WeeklyRolloutSummary,
@@ -665,6 +764,7 @@ def build_weekly_rollout_payload(
     target_eval = evaluate_target_bands(summary=summary, target_profile=target_profile)
     remediation_hints = build_target_remediation_hints(summary=summary, target_profile=target_profile)
     mode_split_rows = _build_mode_split_rows(summary)
+    sparkline_metadata = _build_kpi_sparkline_metadata(summary)
     payload: dict[str, Any] = {
         "overall": summary.overall,
         "target_profile": target_eval.profile,
@@ -692,6 +792,7 @@ def build_weekly_rollout_payload(
             "conflict_max": summary.conflict_max,
             "conflict_trend": summary.conflict_trend,
         },
+        "sparklines": sparkline_metadata,
         "checklist": {
             "has_matrix_runs": summary.checklist.has_matrix_runs,
             "has_deterministic_runs": summary.checklist.has_deterministic_runs,
