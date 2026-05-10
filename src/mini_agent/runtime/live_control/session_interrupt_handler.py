@@ -47,7 +47,6 @@ class RuntimeSessionApprovalExecution:
 @dataclass(slots=True)
 class RuntimeSessionInterruptHandler:
     normalize_surface: Callable[[str | None], str | None]
-    pending_approvals_from_raw: Callable[[Any], list[dict[str, Any]]]
     run_control_store: RuntimeSessionRunControlStore | None = None
 
     def execute_cancel(
@@ -91,8 +90,6 @@ class RuntimeSessionInterruptHandler:
     ) -> RuntimeSessionApprovalExecution:
         store = self._store()
         pending = store.pending_approval_payloads(session)
-        if not pending:
-            pending = self.pending_approvals_from_raw(session.runtime.pending_approvals)
         try:
             target = SessionPendingApprovalService.resolve_target(
                 pending=pending,
@@ -108,7 +105,8 @@ class RuntimeSessionInterruptHandler:
 
         future = store.pending_approval_waiter(session, token=target.token)
         if future is None:
-            future = session.runtime.pending_approval_waiters.get(target.token)
+            waiters = store.pending_approval_waiters(session)
+            future = waiters.get(target.token)
         try:
             SessionPendingApprovalService.ensure_waiter(future)
         except PendingApprovalResolutionError as exc:

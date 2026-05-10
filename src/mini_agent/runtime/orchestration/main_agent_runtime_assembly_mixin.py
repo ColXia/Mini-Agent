@@ -462,7 +462,6 @@ class MainAgentRuntimeAssemblyMixin:
         )
         self._session_interrupt = RuntimeSessionInterruptHandler(
             normalize_surface=normalize_surface_label,
-            pending_approvals_from_raw=RuntimeSessionPendingApprovalStateHandler.pending_approvals_from_raw,
             run_control_store=self._session_run_control,
         )
         self._session_context_commands = ContextCommandService()

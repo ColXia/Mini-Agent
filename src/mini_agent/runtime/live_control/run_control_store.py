@@ -81,6 +81,10 @@ class RuntimeSessionRunControlStore:
         """Return the cancel_event from the run-owned control bridge."""
         return self._registry.cancel_event(session)
 
+    def pending_approval_waiters(self, session: "MainAgentSessionState") -> dict[str, Any]:
+        """Return all pending approval waiters from the run-owned control bridge."""
+        return self._registry.pending_approval_waiters(session)
+
     def begin_turn(
         self,
         session: "MainAgentSessionState",

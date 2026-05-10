@@ -29,7 +29,6 @@ def test_interrupt_handler_cancel_sets_event_and_releases_pending_waiters() -> N
         )
         handler = RuntimeSessionInterruptHandler(
             normalize_surface=lambda value: value,
-            pending_approvals_from_raw=lambda raw: list(raw or []),
         )
 
         execution = handler.execute_cancel(session, reason="user_cancel")
@@ -66,7 +65,6 @@ def test_interrupt_handler_resolves_single_pending_approval_and_finalizes_waiter
         )
         handler = RuntimeSessionInterruptHandler(
             normalize_surface=lambda value: value,
-            pending_approvals_from_raw=lambda raw: list(raw or []),
         )
 
         execution = handler.execute_approval(session, approved=True, token=None)

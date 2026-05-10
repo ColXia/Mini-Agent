@@ -146,6 +146,13 @@ class RuntimeKernelStateRegistry:
         bridge = self._adopt_runtime_bridge(session)
         return bridge.cancel_event
 
+    def pending_approval_waiters(
+        self, session: "MainAgentSessionState"
+    ) -> dict[str, asyncio.Future[bool | None]]:
+        """Return all pending approval waiters from the run-owned control bridge."""
+        bridge = self._adopt_runtime_bridge(session)
+        return dict(bridge.pending_approval_waiters)
+
     def begin_turn(
         self,
         session: "MainAgentSessionState",
