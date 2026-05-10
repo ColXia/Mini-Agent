@@ -2265,7 +2265,7 @@ def run_list_command(args: argparse.Namespace) -> None:
 
 def run_stack_command(args: argparse.Namespace) -> None:
     """Run runtime stack manager command."""
-    from .dev.runtime_stack_manager import RuntimeStackManager
+    from .workspace_runtime.runtime_stack_manager import RuntimeStackManager
 
     source_root = Path(__file__).resolve().parents[1]
     repo_root = source_root.parent

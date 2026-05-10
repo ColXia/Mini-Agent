@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from mini_agent.desktop.gateway_supervisor import DesktopGatewaySupervisor
-from mini_agent.dev.runtime_stack_manager import RuntimeStackStatus
+from mini_agent.workspace_runtime.runtime_stack_manager import RuntimeStackStatus
 
 
 def _status(

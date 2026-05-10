@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from mini_agent.dev.runtime_stack_manager import (
+from mini_agent.workspace_runtime.runtime_stack_manager import (
     RuntimeStackManager,
     RuntimeStackStatus,
     is_port_listening,

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from mini_agent.dev.runtime_stack_manager import RuntimeStackManager
+from mini_agent.workspace_runtime.runtime_stack_manager import RuntimeStackManager
 
 
 def test_runtime_stack_status_reads_state(monkeypatch, tmp_path: Path) -> None:
@@ -31,7 +31,7 @@ def test_runtime_stack_status_reads_state(monkeypatch, tmp_path: Path) -> None:
     )
 
     monkeypatch.setattr(
-        "mini_agent.dev.runtime_stack_manager.is_process_alive",
+        "mini_agent.workspace_runtime.runtime_stack_manager.is_process_alive",
         lambda pid: pid in {11, 22},
     )
 
@@ -64,7 +64,7 @@ def test_runtime_stack_down_returns_log_paths(monkeypatch, tmp_path: Path) -> No
     )
 
     monkeypatch.setattr(
-        "mini_agent.dev.runtime_stack_manager._terminate_process",
+        "mini_agent.workspace_runtime.runtime_stack_manager._terminate_process",
         lambda pid, force=False: True,
     )
 
