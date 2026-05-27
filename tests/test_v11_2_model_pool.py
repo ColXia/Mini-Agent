@@ -15,7 +15,7 @@ from mini_agent.model_manager.model_pool_contracts import (
 )
 from mini_agent.model_manager.model_pool import (
     BreakerStatus,
-    HealthStatus,
+    ProviderHealthSnapshot,
     ModelPool,
     ModelPoolSnapshot,
     build_model_pool_from_preset,
@@ -86,7 +86,7 @@ class TestModelPool:
             api_base="https://api.test.com/v1",
             provider_name="Test Provider",
         ))
-        status = HealthStatus(
+        status = ProviderHealthSnapshot(
             provider_id="test-provider",
             is_healthy=True,
             latency_ms=100,
@@ -270,8 +270,8 @@ class TestModelPoolSnapshot:
             api_base="https://b.api.com",
             provider_name="Provider B",
         )
-        health_a = HealthStatus(provider_id="provider-a", is_healthy=True)
-        health_b = HealthStatus(provider_id="provider-b", is_healthy=False)
+        health_a = ProviderHealthSnapshot(provider_id="provider-a", is_healthy=True)
+        health_b = ProviderHealthSnapshot(provider_id="provider-b", is_healthy=False)
         snapshot = ModelPoolSnapshot(
             snapshot_id="test-snapshot",
             available_providers=(provider_a, provider_b),

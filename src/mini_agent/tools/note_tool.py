@@ -12,9 +12,10 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Protocol
+from typing import Any, Callable
 
 from mini_agent.memory.memory_files import discover_memory_layout
+from mini_agent.rag.embeddings import EmbeddingProvider
 from mini_agent.workspace_runtime.mutation_ledger import MutationKind
 from mini_agent.workspace_runtime.workspace_executor import WorkspaceExecutor
 
@@ -25,13 +26,6 @@ _NOTE_LINE_PATTERN = re.compile(
     r"^- \[(?P<timestamp>[^\]]+)\] \[(?P<category>[^\]]+)\] (?P<content>.+)$"
 )
 _VALID_SCOPES = {"long_term", "daily", "both"}
-
-
-class EmbeddingProvider(Protocol):
-    """Optional embedding provider used for semantic recall ranking."""
-
-    def embed(self, text: str) -> list[float]:
-        ...
 
 
 @dataclass(frozen=True)

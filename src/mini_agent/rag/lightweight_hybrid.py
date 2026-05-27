@@ -9,8 +9,10 @@ import json
 import math
 from pathlib import Path
 import re
-from typing import Any, Callable, Protocol
+from typing import Any, Callable
 from uuid import uuid4
+
+from mini_agent.rag.embeddings import EmbeddingProvider
 
 
 TOKEN_PATTERN = re.compile(r"[a-zA-Z0-9_\-\u4e00-\u9fff]+")
@@ -210,13 +212,6 @@ def _cosine(vec_a: list[float], vec_b: list[float]) -> float:
     if not vec_a or not vec_b or len(vec_a) != len(vec_b):
         return 0.0
     return sum(a * b for a, b in zip(vec_a, vec_b))
-
-
-class EmbeddingProvider(Protocol):
-    """Optional sync embedding provider used for vector ranking."""
-
-    def embed(self, text: str) -> list[float]:
-        ...
 
 
 @dataclass(frozen=True)

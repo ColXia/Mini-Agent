@@ -1,70 +1,226 @@
-from dataclasses import dataclass
+import unittest
 import json
-import sys
+import io
+from check_bounding_boxes import get_bounding_box_messages
 
 
-# Script to check that the `fields.json` file that Claude creates when analyzing PDFs
-# does not have overlapping bounding boxes. See forms.md.
+# Currently this is not run automatically in CI; it's just for documentation and manual checking.
+class TestGetBoundingBoxMessages(unittest.TestCase):
+    
+    def create_json_stream(self, data):
+        """Helper to create a JSON stream from data"""
+        return io.StringIO(json.dumps(data))
+    
+    def test_no_intersections(self):
+        """Test case with no bounding box intersections"""
+        data = {
+            "form_fields": [
+                {
+                    "description": "Name",
+                    "page_number": 1,
+                    "label_bounding_box": [10, 10, 50, 30],
+                    "entry_bounding_box": [60, 10, 150, 30]
+                },
+                {
+                    "description": "Email",
+                    "page_number": 1,
+                    "label_bounding_box": [10, 40, 50, 60],
+                    "entry_bounding_box": [60, 40, 150, 60]
+                }
+            ]
+        }
+        
+        stream = self.create_json_stream(data)
+        messages = get_bounding_box_messages(stream)
+        self.assertTrue(any("SUCCESS" in msg for msg in messages))
+        self.assertFalse(any("FAILURE" in msg for msg in messages))
+    
+    def test_label_entry_intersection_same_field(self):
+        """Test intersection between label and entry of the same field"""
+        data = {
+            "form_fields": [
+                {
+                    "description": "Name",
+                    "page_number": 1,
+                    "label_bounding_box": [10, 10, 60, 30],
+                    "entry_bounding_box": [50, 10, 150, 30]  # Overlaps with label
+                }
+            ]
+        }
+        
+        stream = self.create_json_stream(data)
+        messages = get_bounding_box_messages(stream)
+        self.assertTrue(any("FAILURE" in msg and "intersection" in msg for msg in messages))
+        self.assertFalse(any("SUCCESS" in msg for msg in messages))
+    
+    def test_intersection_between_different_fields(self):
+        """Test intersection between bounding boxes of different fields"""
+        data = {
+            "form_fields": [
+                {
+                    "description": "Name",
+                    "page_number": 1,
+                    "label_bounding_box": [10, 10, 50, 30],
+                    "entry_bounding_box": [60, 10, 150, 30]
+                },
+                {
+                    "description": "Email",
+                    "page_number": 1,
+                    "label_bounding_box": [40, 20, 80, 40],  # Overlaps with Name's boxes
+                    "entry_bounding_box": [160, 10, 250, 30]
+                }
+            ]
+        }
+        
+        stream = self.create_json_stream(data)
+        messages = get_bounding_box_messages(stream)
+        self.assertTrue(any("FAILURE" in msg and "intersection" in msg for msg in messages))
+        self.assertFalse(any("SUCCESS" in msg for msg in messages))
+    
+    def test_different_pages_no_intersection(self):
+        """Test that boxes on different pages don't count as intersecting"""
+        data = {
+            "form_fields": [
+                {
+                    "description": "Name",
+                    "page_number": 1,
+                    "label_bounding_box": [10, 10, 50, 30],
+                    "entry_bounding_box": [60, 10, 150, 30]
+                },
+                {
+                    "description": "Email",
+                    "page_number": 2,
+                    "label_bounding_box": [10, 10, 50, 30],  # Same coordinates but different page
+                    "entry_bounding_box": [60, 10, 150, 30]
+                }
+            ]
+        }
+        
+        stream = self.create_json_stream(data)
+        messages = get_bounding_box_messages(stream)
+        self.assertTrue(any("SUCCESS" in msg for msg in messages))
+        self.assertFalse(any("FAILURE" in msg for msg in messages))
+    
+    def test_entry_height_too_small(self):
+        """Test that entry box height is checked against font size"""
+        data = {
+            "form_fields": [
+                {
+                    "description": "Name",
+                    "page_number": 1,
+                    "label_bounding_box": [10, 10, 50, 30],
+                    "entry_bounding_box": [60, 10, 150, 20],  # Height is 10
+                    "entry_text": {
+                        "font_size": 14  # Font size larger than height
+                    }
+                }
+            ]
+        }
+        
+        stream = self.create_json_stream(data)
+        messages = get_bounding_box_messages(stream)
+        self.assertTrue(any("FAILURE" in msg and "height" in msg for msg in messages))
+        self.assertFalse(any("SUCCESS" in msg for msg in messages))
+    
+    def test_entry_height_adequate(self):
+        """Test that adequate entry box height passes"""
+        data = {
+            "form_fields": [
+                {
+                    "description": "Name",
+                    "page_number": 1,
+                    "label_bounding_box": [10, 10, 50, 30],
+                    "entry_bounding_box": [60, 10, 150, 30],  # Height is 20
+                    "entry_text": {
+                        "font_size": 14  # Font size smaller than height
+                    }
+                }
+            ]
+        }
+        
+        stream = self.create_json_stream(data)
+        messages = get_bounding_box_messages(stream)
+        self.assertTrue(any("SUCCESS" in msg for msg in messages))
+        self.assertFalse(any("FAILURE" in msg for msg in messages))
+    
+    def test_default_font_size(self):
+        """Test that default font size is used when not specified"""
+        data = {
+            "form_fields": [
+                {
+                    "description": "Name",
+                    "page_number": 1,
+                    "label_bounding_box": [10, 10, 50, 30],
+                    "entry_bounding_box": [60, 10, 150, 20],  # Height is 10
+                    "entry_text": {}  # No font_size specified, should use default 14
+                }
+            ]
+        }
+        
+        stream = self.create_json_stream(data)
+        messages = get_bounding_box_messages(stream)
+        self.assertTrue(any("FAILURE" in msg and "height" in msg for msg in messages))
+        self.assertFalse(any("SUCCESS" in msg for msg in messages))
+    
+    def test_no_entry_text(self):
+        """Test that missing entry_text doesn't cause height check"""
+        data = {
+            "form_fields": [
+                {
+                    "description": "Name",
+                    "page_number": 1,
+                    "label_bounding_box": [10, 10, 50, 30],
+                    "entry_bounding_box": [60, 10, 150, 20]  # Small height but no entry_text
+                }
+            ]
+        }
+        
+        stream = self.create_json_stream(data)
+        messages = get_bounding_box_messages(stream)
+        self.assertTrue(any("SUCCESS" in msg for msg in messages))
+        self.assertFalse(any("FAILURE" in msg for msg in messages))
+    
+    def test_multiple_errors_limit(self):
+        """Test that error messages are limited to prevent excessive output"""
+        fields = []
+        # Create many overlapping fields
+        for i in range(25):
+            fields.append({
+                "description": f"Field{i}",
+                "page_number": 1,
+                "label_bounding_box": [10, 10, 50, 30],  # All overlap
+                "entry_bounding_box": [20, 15, 60, 35]   # All overlap
+            })
+        
+        data = {"form_fields": fields}
+        
+        stream = self.create_json_stream(data)
+        messages = get_bounding_box_messages(stream)
+        # Should abort after ~20 messages
+        self.assertTrue(any("Aborting" in msg for msg in messages))
+        # Should have some FAILURE messages but not hundreds
+        failure_count = sum(1 for msg in messages if "FAILURE" in msg)
+        self.assertGreater(failure_count, 0)
+        self.assertLess(len(messages), 30)  # Should be limited
+    
+    def test_edge_touching_boxes(self):
+        """Test that boxes touching at edges don't count as intersecting"""
+        data = {
+            "form_fields": [
+                {
+                    "description": "Name",
+                    "page_number": 1,
+                    "label_bounding_box": [10, 10, 50, 30],
+                    "entry_bounding_box": [50, 10, 150, 30]  # Touches at x=50
+                }
+            ]
+        }
+        
+        stream = self.create_json_stream(data)
+        messages = get_bounding_box_messages(stream)
+        self.assertTrue(any("SUCCESS" in msg for msg in messages))
+        self.assertFalse(any("FAILURE" in msg for msg in messages))
+    
 
-
-@dataclass
-class RectAndField:
-    rect: list[float]
-    rect_type: str
-    field: dict
-
-
-# Returns a list of messages that are printed to stdout for Claude to read.
-def get_bounding_box_messages(fields_json_stream) -> list[str]:
-    messages = []
-    fields = json.load(fields_json_stream)
-    messages.append(f"Read {len(fields['form_fields'])} fields")
-
-    def rects_intersect(r1, r2):
-        disjoint_horizontal = r1[0] >= r2[2] or r1[2] <= r2[0]
-        disjoint_vertical = r1[1] >= r2[3] or r1[3] <= r2[1]
-        return not (disjoint_horizontal or disjoint_vertical)
-
-    rects_and_fields = []
-    for f in fields["form_fields"]:
-        rects_and_fields.append(RectAndField(f["label_bounding_box"], "label", f))
-        rects_and_fields.append(RectAndField(f["entry_bounding_box"], "entry", f))
-
-    has_error = False
-    for i, ri in enumerate(rects_and_fields):
-        # This is O(N^2); we can optimize if it becomes a problem.
-        for j in range(i + 1, len(rects_and_fields)):
-            rj = rects_and_fields[j]
-            if ri.field["page_number"] == rj.field["page_number"] and rects_intersect(ri.rect, rj.rect):
-                has_error = True
-                if ri.field is rj.field:
-                    messages.append(f"FAILURE: intersection between label and entry bounding boxes for `{ri.field['description']}` ({ri.rect}, {rj.rect})")
-                else:
-                    messages.append(f"FAILURE: intersection between {ri.rect_type} bounding box for `{ri.field['description']}` ({ri.rect}) and {rj.rect_type} bounding box for `{rj.field['description']}` ({rj.rect})")
-                if len(messages) >= 20:
-                    messages.append("Aborting further checks; fix bounding boxes and try again")
-                    return messages
-        if ri.rect_type == "entry":
-            if "entry_text" in ri.field:
-                font_size = ri.field["entry_text"].get("font_size", 14)
-                entry_height = ri.rect[3] - ri.rect[1]
-                if entry_height < font_size:
-                    has_error = True
-                    messages.append(f"FAILURE: entry bounding box height ({entry_height}) for `{ri.field['description']}` is too short for the text content (font size: {font_size}). Increase the box height or decrease the font size.")
-                    if len(messages) >= 20:
-                        messages.append("Aborting further checks; fix bounding boxes and try again")
-                        return messages
-
-    if not has_error:
-        messages.append("SUCCESS: All bounding boxes are valid")
-    return messages
-
-if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: check_bounding_boxes.py [fields.json]")
-        sys.exit(1)
-    # Input file should be in the `fields.json` format described in forms.md.
-    with open(sys.argv[1]) as f:
-        messages = get_bounding_box_messages(f)
-    for msg in messages:
-        print(msg)
+if __name__ == '__main__':
+    unittest.main()

@@ -25,7 +25,7 @@ class DiscoveredModule:
 
 
 @dataclass
-class DiscoveryResult:
+class ModuleScanResult:
     """Result of a discovery scan."""
 
     modules: list[DiscoveredModule] = field(default_factory=list)
@@ -158,18 +158,18 @@ class BaseScanner:
 class SubprogramScanner(BaseScanner):
     """Scanner for discovering subprograms."""
 
-    def scan(self) -> DiscoveryResult:
-        return DiscoveryResult(modules=self.scan_directory("subprograms", "subprogram"))
+    def scan(self) -> ModuleScanResult:
+        return ModuleScanResult(modules=self.scan_directory("subprograms", "subprogram"))
 
 
 class ChannelScanner(BaseScanner):
     """Scanner for discovering channels."""
 
-    def scan(self) -> DiscoveryResult:
-        return DiscoveryResult(modules=self.scan_directory("channels", "channel"))
+    def scan(self) -> ModuleScanResult:
+        return ModuleScanResult(modules=self.scan_directory("channels", "channel"))
 
 
-def discover_all(base_path: Path | None = None) -> tuple[DiscoveryResult, DiscoveryResult]:
+def discover_all(base_path: Path | None = None) -> tuple[ModuleScanResult, ModuleScanResult]:
     """Discover all subprograms and channels from the repo root."""
 
     subprogram_scanner = SubprogramScanner(base_path)
@@ -180,7 +180,7 @@ def discover_all(base_path: Path | None = None) -> tuple[DiscoveryResult, Discov
 __all__ = [
     "ChannelScanner",
     "DiscoveredModule",
-    "DiscoveryResult",
+    "ModuleScanResult",
     "SubprogramScanner",
     "discover_all",
 ]

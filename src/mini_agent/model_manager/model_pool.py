@@ -15,13 +15,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
 from mini_agent.model_manager.model_pool_contracts import (
-    AgentModelBinding,
-    CapabilityConfidence,
-    CapabilitySource,
     CapabilityTruth,
     ModelCapabilityProfile,
     ModelDescriptor,
@@ -30,7 +26,6 @@ from mini_agent.model_manager.model_pool_contracts import (
     ProviderSource,
     ProtocolFamily,
 )
-from mini_agent.model_manager.provider import ProviderConfig, ProviderCatalog
 from mini_agent.model_manager.preset_providers import PresetProvider, get_preset_provider_config
 from mini_agent.utils.text import safe_text
 
@@ -44,7 +39,7 @@ def _utc_now() -> datetime:
 
 
 @dataclass(frozen=True, slots=True)
-class HealthStatus:
+class ProviderHealthSnapshot:
     """Health status for a provider."""
 
     provider_id: str
@@ -75,7 +70,7 @@ class ModelPoolSnapshot:
     snapshot_id: str
     available_providers: tuple[ProviderEntry, ...]
     available_models: tuple[ModelDescriptor, ...]
-    health_status: tuple[HealthStatus, ...] = ()
+    health_status: tuple[ProviderHealthSnapshot, ...] = ()
     breaker_status: tuple[BreakerStatus, ...] = ()
     failover_candidates: dict[str, tuple[str, ...]] = field(default_factory=dict)
     snapshot_timestamp: datetime | None = None
@@ -145,7 +140,7 @@ class ModelPool:
 
     _providers: dict[str, ProviderEntry] = field(default_factory=dict)
     _models: dict[str, ModelDescriptor] = field(default_factory=dict)
-    _health_status: dict[str, HealthStatus] = field(default_factory=dict)
+    _health_status: dict[str, ProviderHealthSnapshot] = field(default_factory=dict)
     _breaker_status: dict[str, BreakerStatus] = field(default_factory=dict)
     _failover_map: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
@@ -219,7 +214,7 @@ class ModelPool:
         """List all models that support thinking."""
         return [m for m in self._models.values() if m.is_thinking_capable]
 
-    def update_health_status(self, status: HealthStatus) -> None:
+    def update_health_status(self, status: ProviderHealthSnapshot) -> None:
         """Update health status for a provider."""
         self._health_status[status.provider_id] = status
 
@@ -227,7 +222,7 @@ class ModelPool:
         """Update circuit breaker status for a provider."""
         self._breaker_status[status.provider_id] = status
 
-    def get_health_status(self, provider_id: str) -> HealthStatus | None:
+    def get_health_status(self, provider_id: str) -> ProviderHealthSnapshot | None:
         """Get health status for a provider."""
         return self._health_status.get(_safe_text(provider_id))
 
@@ -372,7 +367,7 @@ __all__ = [
     "BreakerStatus",
     "build_model_pool_from_preset",
     "clear_shared_model_pool",
-    "HealthStatus",
+    "ProviderHealthSnapshot",
     "ModelPool",
     "ModelPoolSnapshot",
     "shared_model_pool",
