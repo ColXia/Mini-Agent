@@ -59,14 +59,22 @@ mcp.json
 # Frontend build cache
 *.tsbuildinfo
 
+# Local development tracking (personal notes, not for GitHub)
+/HABITS.md
+/TASKS.md
+/progress.md
+/task_plan.md
+/findings.md
+/MEMORY.md
+/USER.md
+/CLAUDE.md
+
 # Local runtime artifacts
 src/memory/*.md
 src/smoke_test*
 .mini-agent/
 .tmp-*/
 /memory/
-/MEMORY.md
-/USER.md
 /.git_status_snapshot.txt
 tmp_*.json
 delete.vbs
