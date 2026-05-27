@@ -7,14 +7,10 @@ Mini-Agent 是一个以终端为主入口的 Agent 平台，当前重点是 `TUI
 
 ## 当前状态
 
-- **版本**: v0.2.0
-- **架构版本**: v11.1（稳定），v11.2-v11.5（已完成），v11.6-v11.20（已实现，设计文档已补全）
-- **测试**: 1726 passed, 17 skipped, 3 failed
-- **源代码**: ~350+ .py 文件，24 个顶层模块包
+- **版本**: v0.2.0 | **架构**: v11.1 | **协议**: MIT
+- **测试**: 1723 passed, 17 skipped
+- **Python**: >= 3.10
 - 主入口：`CLI`、`TUI`、`桌面端`（PySide6）、`远程侧`（QQ Bot）
-- 默认本地工作流：`TUI`、`CLI`、`headless`
-- 可选运行栈：gateway + QQ 远程适配器
-- 浏览器 `WebUI` / `OpenWebUI`：已删除
 
 ## 依赖与参考的边界
 
@@ -48,17 +44,6 @@ Mini-Agent 当前真实依赖：
 - [`src/mini_agent/skills`](./src/mini_agent/skills) 下的内置 skills
 - [`scripts/`](./scripts) 下的脚本
 - [`tests/`](./tests) 下的测试
-
-### 仅参考，不是运行依赖
-
-项目在设计和实现上参考过外部 Agent 项目，但它们不是当前仓库的运行时依赖：
-
-- `codex`
-- `gemini-cli`
-- `opencode`
-- 本地 `extracted-src` 对照工程
-
-实际映射见 [`docs/OSS_REFERENCE_INDEX.md`](./docs/OSS_REFERENCE_INDEX.md)。
 
 ## 快速开始
 
@@ -167,7 +152,7 @@ src/apps/desktop_ui/            DesktopUI 启动入口
 src/apps/qqbot_channel/         QQ 远程适配器（Node.js）
 src/subprograms/                子程序（文档解析/知识库/记忆管理）
 scripts/                        走查、冒烟、维护脚本
-tests/                          自动化测试（1746 个用例）
+tests/                          自动化测试（1723 个用例）
 docs/                           项目文档、设计文档、历史归档
   docs/project-documentation/   最新中文项目文档
   docs/plans/                   v11.6-v11.20 设计规划
@@ -180,9 +165,6 @@ workspace/                      本地运行产物与测试输出
 - 内置 skills 位于 [`src/mini_agent/skills`](./src/mini_agent/skills)
 - 工作区 / 自定义 skills 通过 `/skill ...` 管理
 - MCP 通过统一运行时与命令面接入
-- 相关文档：
-  - [`docs/P28_BUILTIN_SKILL_REALIGNMENT_PLAN.md`](./docs/P28_BUILTIN_SKILL_REALIGNMENT_PLAN.md)
-  - [`src/mini_agent/skills/README.md`](./src/mini_agent/skills/README.md)
 
 ## 测试
 
@@ -196,15 +178,10 @@ uv run mini-agent doctor
 ## 相关文档
 
 - **最新中文项目文档**: [`docs/project-documentation/`](./docs/project-documentation/)
-- **v11 架构设计**: [`docs/v11.1/`](./docs/v11.1/)
-- **v11 设计规划**: [`docs/plans/`](./docs/plans/)
-- [`docs/DOCS_INDEX.md`](./docs/DOCS_INDEX.md)
-- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)
-- [`docs/DEVELOPMENT_GUIDE_CN.md`](./docs/DEVELOPMENT_GUIDE_CN.md)
-- [`docs/DEVELOPMENT_INDEX.md`](./docs/DEVELOPMENT_INDEX.md)
+- **架构设计**: [`docs/v11.1/`](./docs/v11.1/) | [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)
+- **开发指南**: [`docs/DEVELOPMENT_GUIDE_CN.md`](./docs/DEVELOPMENT_GUIDE_CN.md)
+- **API 契约**: [`docs/API_V1_CONTRACT_SKELETON.md`](./docs/API_V1_CONTRACT_SKELETON.md)
 
-## 说明
+## 协议
 
-- 旧的 `git submodule` skills 初始化流程已不是当前主路径。
-- 旧 README 中只讲 `config.yaml` 的方式已经过时；当前预设供应商主路径是环境变量 + `.env.local`。
-- 历史文档和旧开发日志已归入 [`docs/archive/`](./docs/archive/)。
+MIT — 详见 [LICENSE](./LICENSE)。

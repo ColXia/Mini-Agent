@@ -2,62 +2,15 @@
 
 English | [中文](./README_CN.md)
 
-Mini-Agent is a terminal-first agent platform focused on real TUI / CLI / headless usage.
-It combines a shared session-runtime core with provider/model management, memory and RAG wiring,
-bundled skills, MCP integration, and an optional gateway + Remote Interaction workflow currently carried by the QQ adapter.
+A terminal-first AI agent platform with TUI, CLI, headless, and desktop interfaces.
+Built with a modular v11 architecture — agent engine, model management, memory/RAG,
+tool system, MCP integration, and an optional HTTP gateway with remote interaction support.
 
 ## Current Status
 
-- Primary entrances: `CLI`, `TUI`, `Desktop`, `Remote`
-- Default local workflows: `TUI`, `CLI`, `headless`
-- Optional runtime stack: gateway + active QQ remote adapter
-- Browser `WebUI` / `OpenWebUI`: removed
-- Current architecture direction: post-`P37` structure-aligned baseline with active repo-hygiene closeout (`P32b`)
-
-## Dependency vs Reference
-
-### Real runtime dependencies
-
-Mini-Agent currently depends on:
-
-- `Python >= 3.10`
-- `uv` for environment and command execution
-- Python packages declared in [pyproject.toml](./pyproject.toml), including:
-  - `pydantic`
-  - `pyyaml`
-  - `httpx`
-  - `requests`
-  - `mcp`
-  - `tiktoken`
-  - `prompt-toolkit`
-  - `openai`
-  - `anthropic`
-  - `fastapi`
-  - `uvicorn`
-  - `python-dotenv`
-- Optional Node.js dependencies for the active QQ remote adapter app in [`src/apps/qqbot_channel/package.json`](./src/apps/qqbot_channel/package.json):
-  - `dotenv`
-  - `qq-official-bot`
-
-### Bundled, not external dependencies
-
-These are shipped in-repo and do not require `git submodule` setup:
-
-- bundled skills under [`src/mini_agent/skills`](./src/mini_agent/skills)
-- project scripts under [`scripts/`](./scripts)
-- tests under [`tests/`](./tests)
-
-### Reference projects only
-
-The project studies and borrows ideas from external agent projects, but does not directly depend on them at runtime.
-These are references, not install-time dependencies:
-
-- `codex`
-- `gemini-cli`
-- `opencode`
-- local `extracted-src` comparisons
-
-See [`docs/OSS_REFERENCE_INDEX.md`](./docs/OSS_REFERENCE_INDEX.md) for the actual mapping.
+- **Version**: v0.2.0 | **Architecture**: v11.1 | **License**: MIT
+- **Tests**: 1723 passed, 17 skipped
+- **Python**: >= 3.10
 
 ## Quick Start
 
@@ -69,112 +22,108 @@ cd Mini-Agent
 uv sync
 ```
 
-### 2. Configure provider keys
+### 2. Configure a provider API key
 
-Preset providers read official environment variable names first, then `.env.local`.
-
-Supported preset keys:
-
-- `OPENAI_API_KEY`
-- `ANTHROPIC_API_KEY`
-- `GEMINI_API_KEY`
-- `MINIMAX_API_KEY`
-
-Local development fallback:
+Set at least one provider key (environment variable or `.env.local`):
 
 ```bash
 cp .env.local.example .env.local
+# Edit .env.local with your key(s)
 ```
 
-Then fill in only the keys you actually use.
+Supported providers: **OpenAI**, **Anthropic**, **MiniMax**, **Gemini**, and custom OpenAI-compatible endpoints.
 
-Priority is:
-
-1. system environment variables
-2. local `.env.local`
-
-### 3. Run Mini-Agent
+### 3. Run
 
 ```bash
-uv run mini
+uv run mini                # Auto-detect terminal: TUI if TTY, headless otherwise
+uv run mini-agent --mode tui    # Force full-screen terminal UI
+uv run mini-agent --prompt "hello"  # Single prompt, non-interactive
+uv run mini-agent serve --port 8008  # Start HTTP API server
+uv run mini-agent desktop        # Launch PySide6 desktop app (optional)
 ```
 
-Useful entrypoints:
+## Features
 
-```bash
-uv run mini-agent --mode tui
-uv run mini-agent --mode cli
-uv run mini-agent --prompt "hello"
-uv run mini-agent serve --port 8008
-uv run mini-agent stack up
-uv run mini qq
+| Area | Capabilities |
+|------|-------------|
+| **Agent Engine** | Full execution loop, state machine, permission/approval engine, checkpoints & recovery |
+| **Multi-Interface** | TUI (full-screen terminal), Desktop (PySide6), CLI (interactive), Headless (scripts/CI), HTTP API |
+| **Model Management** | Multi-provider (OpenAI/Anthropic/MiniMax/Ollama), model pool, health monitoring, circuit breaker, auto-failover |
+| **Tool System** | Shell execution, file read/write/edit, MCP protocol, knowledge base query, skill loading |
+| **Memory System** | Working memory, short/long-term memory, auto-consolidation, relevance retrieval, session search |
+| **RAG** | Built-in lightweight hybrid store: BM25 + vector similarity + RRF fusion |
+| **Skills** | 18 built-in skills (Android/iOS/React/Flutter/Web/MCP/etc.), extensible via workspace skills |
+| **Session Management** | Multi-session, rename/delete/clone/share, persistent storage |
+| **Workspace** | File boundary control, mutation ledger, snapshot/rollback, stack management |
+| **Remote Interaction** | QQ Bot adapter sharing the same session context as TUI |
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────┐
+│  Surface Layer:  TUI  │  Desktop  │  CLI  │  HTTP API  │
+├─────────────────────────────────────────────┤
+│  Application Layer:  Use Cases  │  Ports  │  Facades  │
+├─────────────────────────────────────────────┤
+│  Agent Core:  Engine  │  Loop  │  Context  │  Permissions  │
+├─────────────────────────────────────────────┤
+│  Services:  Model  │  Memory  │  Tools  │  Skills  │  RAG  │
+├─────────────────────────────────────────────┤
+│  Infrastructure:  Runtime  │  Session  │  Workspace  │  LLM  │
+└─────────────────────────────────────────────┘
 ```
 
-## Model and Provider Setup
-
-Preset providers:
-
-- discovered from official API key env vars
-- can auto-discover available model lists
-- support switching in `/model` or the TUI `models` panel
-
-Custom providers:
-
-- persisted to `~/.mini-agent/providers.json`
-- configured through `provider add` / Studio ops flows
-- shown above preset providers in the unified model registry
-
-Useful commands:
-
-```bash
-uv run mini-agent provider list
-uv run mini-agent provider add --help
-uv run mini-agent models --list-presets
-uv run mini-agent models minimax --latest
-```
+See [`docs/project-documentation/`](./docs/project-documentation/) for detailed Chinese documentation.
 
 ## Repository Layout
 
 ```text
-src/mini_agent/                 Core runtime, commands, TUI, agent, memory, models
-src/apps/agent_studio_gateway/  Gateway / API host
-src/apps/desktop_ui/            DesktopUI bootstrap / packaging app
-src/apps/qqbot_channel/         Optional QQ remote adapter app
-scripts/                        Walkthroughs, smoke scripts, maintenance helpers
-tests/                          Automated test suite
-docs/                           Active and archived project documentation
-workspace/                      Runtime output and local test artifacts
+src/mini_agent/
+  agent_core/         Agent engine, execution loop, permissions, context
+  application/        Hexagonal ports/adapters, use cases, facades
+  runtime/            Session handlers, orchestration, live control
+  model_manager/      Model pool, registry, health monitoring, failover
+  memory/             Working/short/long-term memory, consolidation
+  tools/              Shell, file, MCP, knowledge base tools
+  skills/             Bundled skills (18 categories)
+  tui/                Full-screen terminal UI (prompt_toolkit)
+  desktop/            PySide6 desktop application
+  transport/          HTTP gateway client & remote clients
+  llm/                Anthropic & OpenAI protocol adapters
+  session/            Session persistence & projections
+  workspace_runtime/  Workspace executor, snapshot store, stack manager
+  interfaces/         Interface DTOs & contracts
+  schema/             Core data models
+  commands/           Command parsing, completion, metadata
+  security/           Policy engine, audit, key store
+  rag/                Lightweight hybrid retrieval (BM25 + vector)
+  ops/                Health checks, diagnostics, observability
+  config/             Configuration templates
+  user_services/      User-facing service facades (in application/)
+  utils/              Shared utilities
+  dev/                Development tooling
+src/apps/             Gateway server, desktop entry, QQ Bot adapter
+src/subprograms/      Document parser, knowledge base, memory manager
+tests/                301 test files, 1723 test cases
+docs/                 Project docs, architecture plans, design records
 ```
-
-## Skills and MCP
-
-- Builtin skills are bundled in-repo under [`src/mini_agent/skills`](./src/mini_agent/skills)
-- Workspace/custom skills are managed through `/skill ...` commands
-- MCP support is integrated through the runtime and command surfaces
-- Common project docs for this area:
-  - [`docs/P28_BUILTIN_SKILL_REALIGNMENT_PLAN.md`](./docs/P28_BUILTIN_SKILL_REALIGNMENT_PLAN.md)
-  - [`src/mini_agent/skills/README.md`](./src/mini_agent/skills/README.md)
 
 ## Testing
 
 ```bash
-uv run pytest
-uv run pytest tests/test_markdown_links.py -q
-uv run mini-agent --help
-uv run mini-agent doctor
+uv run pytest                    # Full suite (1723 tests)
+uv run pytest tests/test_retry.py -v  # Specific module
+uv run mini-agent doctor          # Runtime diagnostics
 ```
 
-## Related Docs
+## Documentation
 
-- [`docs/DOCS_INDEX.md`](./docs/DOCS_INDEX.md)
-- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)
-- [`docs/DEVELOPMENT_GUIDE.md`](./docs/DEVELOPMENT_GUIDE.md)
-- [`docs/DEVELOPMENT_GUIDE_CN.md`](./docs/DEVELOPMENT_GUIDE_CN.md)
-- [`docs/DEVELOPMENT_INDEX.md`](./docs/DEVELOPMENT_INDEX.md)
-- [`docs/OSS_REFERENCE_INDEX.md`](./docs/OSS_REFERENCE_INDEX.md)
+- **Chinese docs**: [`docs/project-documentation/`](./docs/project-documentation/)
+- **Architecture**: [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)
+- **Development guide**: [`docs/DEVELOPMENT_GUIDE.md`](./docs/DEVELOPMENT_GUIDE.md)
+- **API contract**: [`docs/API_V1_CONTRACT_SKELETON.md`](./docs/API_V1_CONTRACT_SKELETON.md)
 
-## Notes
+## License
 
-- The old `git submodule`-based skill setup is no longer the current project path.
-- The old `config.yaml`-only README flow is outdated; env vars + `.env.local` are the active preset-provider path.
-- Historical docs and old devlogs are kept under [`docs/archive/`](./docs/archive/).
+MIT — see [LICENSE](./LICENSE).
