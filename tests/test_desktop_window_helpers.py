@@ -715,8 +715,8 @@ def test_render_conversation_html_separates_roles_and_escapes_content() -> None:
         ]
     )
 
-    assert "user | desktop" in html_text
-    assert "assistant | desktop" in html_text
+    assert "用户 | desktop" in html_text
+    assert "助手 | desktop" in html_text
     assert "hello &lt;world&gt;" in html_text
     assert "line 1<br>line 2" in html_text
 
@@ -734,7 +734,7 @@ def test_render_activity_html_renders_cards_with_detail_and_preview() -> None:
         ]
     )
 
-    assert "12:34:56 | approval" in html_text
+    assert "12:34:56 | 审批" in html_text
     assert "shell needs approval" in html_text
     assert "cmd /c dir" in html_text
     assert "reason: elevated shell" in html_text
@@ -799,7 +799,7 @@ def test_render_activity_html_supports_thinking_cards() -> None:
         ]
     )
 
-    assert "12:34:56 | thinking" in html_text
+    assert "12:34:56 | 思考" in html_text
     assert "Thinking" in html_text
     assert "plan next step" in html_text
 
