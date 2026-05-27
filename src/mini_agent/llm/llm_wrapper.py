@@ -2,17 +2,41 @@
 
 from __future__ import annotations
 
+import importlib
 import logging
 from typing import AsyncIterator
 
 from ..retry import RetryConfig
 from ..schema.schema import LLMCompletionResult, LLMProvider, LLMStreamEvent, Message
-from .anthropic_client import AnthropicClient
 from .base import LLMClientBase
-from .openai_client import OpenAIClient
 from .protocol_binding import ProtocolExecutionProfile
 
 logger = logging.getLogger(__name__)
+
+_CLIENT_MODULES: dict[LLMProvider, str] = {
+    LLMProvider.ANTHROPIC: ".anthropic_client",
+    LLMProvider.OPENAI: ".openai_client",
+}
+
+_CLIENT_CLASSES: dict[LLMProvider, str] = {
+    LLMProvider.ANTHROPIC: "AnthropicClient",
+    LLMProvider.OPENAI: "OpenAIClient",
+}
+
+
+def _import_client_class(provider: LLMProvider) -> type[LLMClientBase]:
+    module_name = _CLIENT_MODULES.get(provider)
+    class_name = _CLIENT_CLASSES.get(provider)
+    if not module_name or not class_name:
+        raise ValueError(f"Unsupported provider: {provider}")
+    try:
+        mod = importlib.import_module(module_name, package=__package__)
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError(
+            f"Provider SDK for '{provider.value}' is not installed. "
+            f"Install it with: uv pip install {provider.value.lower()}"
+        ) from exc
+    return getattr(mod, class_name)
 
 
 class LLMClient:
@@ -31,19 +55,11 @@ class LLMClient:
         self.model = profile.model
         self.retry_config = retry_config or RetryConfig()
 
-        self._client: LLMClientBase
-        if profile.provider == LLMProvider.ANTHROPIC:
-            self._client = AnthropicClient(
-                profile=profile,
-                retry_config=retry_config,
-            )
-        elif profile.provider == LLMProvider.OPENAI:
-            self._client = OpenAIClient(
-                profile=profile,
-                retry_config=retry_config,
-            )
-        else:
-            raise ValueError(f"Unsupported provider: {profile.provider}")
+        client_cls = _import_client_class(profile.provider)
+        self._client: LLMClientBase = client_cls(
+            profile=profile,
+            retry_config=retry_config,
+        )
 
         logger.info(
             "Initialized LLM client with provider: %s, api_base: %s",

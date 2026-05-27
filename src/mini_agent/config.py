@@ -221,10 +221,21 @@ class Config(BaseModel):
         """Load configuration from the default search path."""
         config_path = cls.get_default_config_path()
         if not config_path.exists():
-            raise FileNotFoundError(
-                "Configuration file not found. Place config.yaml in src/mini_agent/config/ (preferred) or ~/.mini-agent/config/."
-            )
+            config_path = cls._bootstrap_default_config(config_path)
         return cls.from_yaml(config_path, allow_interactive_setup=allow_interactive_setup)
+
+    @classmethod
+    def _bootstrap_default_config(cls, fallback_path: Path) -> Path:
+        example = cls.find_config_file("config-example.yaml")
+        if example and example.exists():
+            fallback_path.parent.mkdir(parents=True, exist_ok=True)
+            fallback_path.write_text(example.read_text(encoding="utf-8"), encoding="utf-8")
+            print(f"[INFO] Created default config from template: {fallback_path}")
+            return fallback_path
+        raise FileNotFoundError(
+            "Configuration file not found. Place config.yaml in "
+            "src/mini_agent/config/ (preferred) or ~/.mini-agent/config/."
+        )
 
     @staticmethod
     def _load_yaml_mapping(config_path: Path) -> dict[str, object]:

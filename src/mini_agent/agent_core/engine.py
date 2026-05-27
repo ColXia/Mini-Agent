@@ -10,8 +10,6 @@ from pathlib import Path
 from time import perf_counter
 from typing import Any, Awaitable, Callable, Optional
 
-import tiktoken
-
 from mini_agent.agent_core.context.context_compaction import LayeredContextCompactor, estimate_tokens
 from mini_agent.agent_core.execution.permissions.approval import ApprovalEngine
 from mini_agent.agent_core.history.summarization import AgentHistoryCompactionService
@@ -1250,7 +1248,8 @@ class Agent:
         Uses cl100k_base encoder (GPT-4/Claude/M2 compatible)
         """
         try:
-            # Use cl100k_base encoder (used by GPT-4 and most modern models)
+            import tiktoken
+
             encoding = tiktoken.get_encoding("cl100k_base")
         except Exception:
             # Fallback: if tiktoken initialization fails, use simple estimation
