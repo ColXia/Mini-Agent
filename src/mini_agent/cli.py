@@ -1261,17 +1261,20 @@ def run_unified_terminal_mode(args: argparse.Namespace) -> None:
 
     # auto mode:
     if prompt:
+        print(f"{Colors.DIM}[Info] Running in headless mode with your prompt...{Colors.RESET}")
         run_headless_mode(args)
         return
 
     piped_prompt = _read_non_tty_prompt()
     if piped_prompt:
+        print(f"{Colors.DIM}[Info] Running in headless mode (piped input)...{Colors.RESET}")
         auto_args = argparse.Namespace(**vars(args))
         auto_args.prompt = piped_prompt
         run_headless_mode(auto_args)
         return
 
     if sys.stdin.isatty() and sys.stdout.isatty():
+        print(f"{Colors.DIM}[Info] Starting TUI (full-screen terminal). Press Ctrl+C to exit.{Colors.RESET}")
         run_tui_mode(args)
         return
 
