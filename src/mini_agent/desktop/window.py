@@ -57,33 +57,33 @@ from mini_agent.transport.remote_stream_error_service import RemoteStreamErrorSe
 DESKTOP_PAGE_SPECS: tuple[dict[str, str], ...] = (
     {
         "id": "chat",
-        "label": "Chat",
-        "description": "Focused conversation workspace with recent chats and on-demand runtime context.",
+        "label": "对话",
+        "description": "专注的对话工作区，包含最近会话和运行时上下文。",
     },
     {
         "id": "models",
-        "label": "Models",
-        "description": "Model inventory, capability facts, role assignment, and feature binding workflows.",
+        "label": "模型",
+        "description": "模型清单、能力信息、角色分配和功能绑定。",
     },
     {
         "id": "providers",
-        "label": "Providers",
-        "description": "Provider configuration, connection health, and supplier setup flows.",
+        "label": "服务商",
+        "description": "服务商配置、连接健康状态和供应商设置。",
     },
     {
         "id": "settings",
-        "label": "Settings",
-        "description": "Desktop preferences, workspace controls, and current runtime overview.",
+        "label": "设置",
+        "description": "桌面偏好设置、工作区控制和运行时概览。",
     },
     {
         "id": "sessions",
-        "label": "Sessions",
-        "description": "Session history workspace and current session diagnostics.",
+        "label": "会话",
+        "description": "会话历史工作区和当前会话诊断信息。",
     },
     {
         "id": "memory",
-        "label": "Memory",
-        "description": "Durable note memory and memory-file editing follow-up workspace.",
+        "label": "记忆",
+        "description": "持久化笔记记忆和记忆文件编辑工作区。",
     },
 )
 
@@ -836,16 +836,23 @@ def render_conversation_html(messages: list[dict[str, Any]]) -> str:
     if not messages:
         return (
             "<html><body style='font-family: \"Segoe UI Variable\", \"SF Pro Text\", \"Microsoft YaHei UI\"; "
-            "color: #67778b; background: transparent;'>"
-            "<div style='padding: 10px 2px; opacity: 0.82;'>No transcript entries yet.</div>"
+            "color: #565f89; background: transparent;'>"
+            "<div style='padding: 10px 2px; opacity: 0.82;'>暂无对话记录。</div>"
             "</body></html>"
         )
 
+    # Tokyo Night inspired colors
     role_styles = {
-        "user": ("#14243a", "#eef5ff", "#d9e7fb", "#5e8fda"),
-        "assistant": ("#1b2838", "#ffffff", "#e2e8f0", "#b4c2d4"),
-        "system": ("#342046", "#f6efff", "#e8dcff", "#b388ee"),
-        "tool": ("#123126", "#edf9f2", "#d7efe2", "#67c28b"),
+        "user": ("#c0caf5", "#24283b", "#414868", "#7aa2f7"),
+        "assistant": ("#c0caf5", "#1f2335", "#414868", "#7aa2f7"),
+        "system": ("#bb9af7", "#2a2a3f", "#5a4a7a", "#bb9af7"),
+        "tool": ("#9ece6a", "#2a3a2f", "#4a5a4a", "#9ece6a"),
+    }
+    role_labels = {
+        "user": "用户",
+        "assistant": "助手",
+        "system": "系统",
+        "tool": "工具",
     }
     parts = [
         "<html><body style='font-family: \"Segoe UI Variable\", \"SF Pro Text\", \"Microsoft YaHei UI\"; "
@@ -855,13 +862,14 @@ def render_conversation_html(messages: list[dict[str, Any]]) -> str:
         role = _compact_text(message.get("role")).lower() or "assistant"
         surface = _compact_text(message.get("surface")) or "-"
         content = html.escape(str(message.get("content") or "")).replace("\n", "<br>")
-        fg, bg, border, accent = role_styles.get(role, ("#1b2838", "#ffffff", "#e2e8f0", "#9eb0c8"))
+        fg, bg, border, accent = role_styles.get(role, ("#c0caf5", "#1f2335", "#414868", "#7aa2f7"))
+        role_label = role_labels.get(role, role)
         parts.append(
             "<div style='margin: 0 0 12px 0; padding: 14px 16px; "
-            f"border: 1px solid {border}; background: {bg}; color: {fg}; border-radius: 16px;'>"
+            f"border: 1px solid {border}; background: {bg}; color: {fg};'>"
             f"<div style='display: inline-block; margin-bottom: 8px; padding: 3px 9px; "
-            f"border-radius: 999px; background: {accent}; color: #ffffff; font-size: 11px; font-weight: 600;'>"
-            f"{html.escape(role)} | {html.escape(surface)}</div>"
+            f"background: {accent}; color: #1a1b26; font-size: 11px; font-weight: 600;'>"
+            f"{html.escape(role_label)} | {html.escape(surface)}</div>"
             f"<div style='font-size: 13px; line-height: 1.58;'>{content or '&nbsp;'}</div>"
             "</div>"
         )
@@ -874,22 +882,35 @@ def render_activity_html(entries: list[dict[str, Any]]) -> str:
     if not entries:
         return (
             "<html><body style='font-family: \"Segoe UI Variable\", \"SF Pro Text\", \"Microsoft YaHei UI\"; "
-            "color: #67778b; background: transparent;'>"
-            "<div style='padding: 10px 2px; opacity: 0.82;'>No activity yet.</div>"
+            "color: #565f89; background: transparent;'>"
+            "<div style='padding: 10px 2px; opacity: 0.82;'>暂无活动记录。</div>"
             "</body></html>"
         )
 
+    # Tokyo Night inspired colors - sharp geometric style
     palette = {
-        "activity": ("#18304c", "#f3f7fd", "#dbe6f3", "#7ea5db"),
-        "approval": ("#4a3411", "#fff8eb", "#f5e4b8", "#e0b251"),
-        "delegation": ("#113223", "#eef9f3", "#d7ecdf", "#68bd8f"),
-        "error": ("#4c1f1f", "#fff2f2", "#f0d2d2", "#d98282"),
-        "gateway": ("#35224a", "#f7f1ff", "#eadfff", "#af8ae2"),
-        "health": ("#123326", "#eefaf3", "#d7ecdf", "#63bb88"),
-        "model": ("#1d2850", "#f3f4ff", "#dfe3ff", "#7d8fe6"),
-        "session": ("#163845", "#eef9fc", "#d6eaf0", "#67bdd5"),
-        "status": ("#1a3046", "#f1f7fc", "#dce8f3", "#7fb2da"),
-        "thinking": ("#35224a", "#f8f4ff", "#eadfff", "#ab84eb"),
+        "activity": ("#c0caf5", "#24283b", "#414868", "#7aa2f7"),
+        "approval": ("#e0af68", "#3a3020", "#5a4a3a", "#e0af68"),
+        "delegation": ("#9ece6a", "#2a3a2f", "#4a5a4a", "#9ece6a"),
+        "error": ("#f7768e", "#3a2a2f", "#5a4a4a", "#f7768e"),
+        "gateway": ("#bb9af7", "#2a2a3f", "#5a4a7a", "#bb9af7"),
+        "health": ("#9ece6a", "#2a3a2f", "#4a5a4a", "#9ece6a"),
+        "model": ("#7dcfff", "#2a3a4f", "#4a5a6a", "#7dcfff"),
+        "session": ("#7aa2f7", "#24283b", "#414868", "#7aa2f7"),
+        "status": ("#c0caf5", "#24283b", "#414868", "#7aa2f7"),
+        "thinking": ("#bb9af7", "#2a2a3f", "#5a4a7a", "#bb9af7"),
+    }
+    kind_labels = {
+        "activity": "活动",
+        "approval": "审批",
+        "delegation": "委托",
+        "error": "错误",
+        "gateway": "网关",
+        "health": "健康",
+        "model": "模型",
+        "session": "会话",
+        "status": "状态",
+        "thinking": "思考",
     }
     parts = [
         "<html><body style='font-family: \"Segoe UI Variable\", \"SF Pro Text\", \"Microsoft YaHei UI\"; "
@@ -898,18 +919,19 @@ def render_activity_html(entries: list[dict[str, Any]]) -> str:
     for entry in entries:
         kind = _compact_text(entry.get("kind")).lower() or "activity"
         timestamp = _compact_text(entry.get("timestamp")) or "--:--:--"
-        title = html.escape(_compact_text(entry.get("title")) or "activity")
+        title = html.escape(_compact_text(entry.get("title")) or "活动")
         detail = str(entry.get("detail") or "")
         preview = _compact_text(entry.get("preview"))
-        fg, bg, border, accent = palette.get(kind, ("#1b2838", "#ffffff", "#e2e8f0", "#9eb0c8"))
+        fg, bg, border, accent = palette.get(kind, ("#c0caf5", "#1f2335", "#414868", "#7aa2f7"))
+        kind_label = kind_labels.get(kind, kind)
         parts.append(
             "<div style='margin: 0 0 10px 0; padding: 12px 14px; "
-            f"border: 1px solid {border}; background: {bg}; color: {fg}; border-radius: 14px;'>"
+            f"border: 1px solid {border}; background: {bg}; color: {fg};'>"
             f"<div style='display: inline-block; margin-bottom: 8px; padding: 3px 9px; "
-            f"border-radius: 999px; background: {accent}; color: #ffffff; font-size: 11px; font-weight: 600;'>"
-            f"{html.escape(kind)}</div>"
+            f"background: {accent}; color: #1a1b26; font-size: 11px; font-weight: 600;'>"
+            f"{html.escape(kind_label)}</div>"
             f"<div style='font-size: 11px; opacity: 0.72; margin-bottom: 5px;'>"
-            f"{html.escape(timestamp)} | {html.escape(kind)}</div>"
+            f"{html.escape(timestamp)} | {html.escape(kind_label)}</div>"
             f"<div style='font-size: 13px; font-weight: 600; margin-bottom: 4px;'>{title}</div>"
         )
         if preview:
@@ -1392,13 +1414,13 @@ def create_desktop_main_window(
             self.update()
 
         def _colors(self) -> tuple[Any, Any, Any]:
-            track = qtgui.QColor("#d8e0ea")
-            text = qtgui.QColor("#5e6d81")
+            track = qtgui.QColor("#414868")
+            text = qtgui.QColor("#a9b1d6")
             palette = {
-                "low": qtgui.QColor("#2f6ecb"),
-                "medium": qtgui.QColor("#c9831d"),
-                "high": qtgui.QColor("#c34f4f"),
-                "muted": qtgui.QColor("#aab6c5"),
+                "low": qtgui.QColor("#9ece6a"),
+                "medium": qtgui.QColor("#e0af68"),
+                "high": qtgui.QColor("#f7768e"),
+                "muted": qtgui.QColor("#565f89"),
             }
             return track, palette.get(self._tone, palette["muted"]), text
 
@@ -1664,44 +1686,40 @@ def create_desktop_main_window(
             qtcore.QTimer.singleShot(0, self._sync_window_chrome)
 
         def _apply_chrome_style(self) -> None:
+            # Tokyo Night inspired palette - sharp geometric style
+            # Background: #1a1b26 (deep blue-black)
+            # Surface: #24283b (elevated surface)
+            # Border: #414868 (subtle borders)
+            # Text: #c0caf5 (primary text)
+            # Muted: #565f89 (secondary text)
+            # Accent: #7aa2f7 (blue)
+            # Success: #9ece6a (green)
+            # Warning: #e0af68 (orange)
+            # Error: #f7768e (red)
+            # Purple: #bb9af7 (purple)
+            # Cyan: #7dcfff (cyan)
             self.setStyleSheet(
                 """
                 QMainWindow, QWidget {
                     background: transparent;
-                    color: #182537;
+                    color: #c0caf5;
                     font-family: "Segoe UI Variable", "SF Pro Text", "Microsoft YaHei UI";
                     font-size: 13px;
                 }
                 QWidget#desktopCentral {
-                    background: qlineargradient(
-                        x1: 0, y1: 0, x2: 1, y2: 1,
-                        stop: 0 #edf1f6,
-                        stop: 0.52 #e7ecf3,
-                        stop: 1 #dde4ee
-                    );
+                    background: #1a1b26;
                 }
                 QFrame#desktopWindowSurface {
-                    background: qlineargradient(
-                        x1: 0, y1: 0, x2: 1, y2: 1,
-                        stop: 0 #fbfcfe,
-                        stop: 0.52 #f6f8fb,
-                        stop: 1 #eef2f7
-                    );
+                    background: #1a1b26;
                     border: none;
-                    border-radius: 24px;
                 }
                 QFrame#desktopWindowSurface[shellMaximized="true"] {
-                    border-radius: 0;
                 }
                 QFrame#desktopTopBar {
-                    background: rgba(248, 250, 252, 0.96);
-                    border-bottom: 1px solid #dbe1e9;
-                    border-top-left-radius: 24px;
-                    border-top-right-radius: 24px;
+                    background: #24283b;
+                    border-bottom: 1px solid #414868;
                 }
                 QFrame#desktopTopBar[shellMaximized="true"] {
-                    border-top-left-radius: 0;
-                    border-top-right-radius: 0;
                 }
                 QWidget#desktopTitleDragBar {
                     background: transparent;
@@ -1710,9 +1728,8 @@ def create_desktop_main_window(
                     background: transparent;
                 }
                 QWidget#desktopTopActionsPanel {
-                    background: rgba(244, 247, 251, 0.96);
-                    border: 1px solid #dde4ec;
-                    border-radius: 16px;
+                    background: #24283b;
+                    border: 1px solid #414868;
                 }
                 QWidget#desktopTopPageNavPanel {
                     background: transparent;
@@ -1731,103 +1748,94 @@ def create_desktop_main_window(
                 QFrame#desktopPageHeader {
                     background: transparent;
                     border: none;
-                    border-radius: 0;
                 }
                 QFrame#desktopWorkspaceCard {
-                    background: rgba(255, 255, 255, 0.92);
-                    border: 1px solid #dde4ec;
-                    border-radius: 20px;
+                    background: #24283b;
+                    border: 1px solid #414868;
                 }
                 QFrame#desktopWorkspaceHero {
-                    background: qlineargradient(
-                        x1: 0, y1: 0, x2: 1, y2: 1,
-                        stop: 0 rgba(255, 255, 255, 0.98),
-                        stop: 1 rgba(241, 247, 255, 0.98)
-                    );
-                    border: 1px solid #d9e4f0;
-                    border-radius: 22px;
+                    background: #24283b;
+                    border: 1px solid #414868;
                 }
                 QFrame#desktopSurfaceHeader {
                     background: transparent;
                     border: none;
                 }
                 QFrame#desktopStatCard {
-                    background: rgba(255, 255, 255, 0.82);
-                    border: 1px solid #d8e0ea;
-                    border-radius: 13px;
+                    background: #24283b;
+                    border: 1px solid #414868;
                 }
                 QLabel#desktopStatLabel {
-                    color: #728197;
+                    color: #565f89;
                     font-size: 10px;
                     font-weight: 600;
                     text-transform: uppercase;
                 }
                 QLabel#desktopStatValue {
-                    color: #17263a;
+                    color: #c0caf5;
                     font-size: 13px;
                     font-weight: 600;
                 }
                 QLabel#desktopTopMetaLabel {
-                    color: #7c8899;
+                    color: #565f89;
                     font-size: 11px;
                     font-weight: 600;
                 }
                 QLabel#desktopTopMetaValue {
-                    color: #17263a;
+                    color: #c0caf5;
                     font-size: 12px;
                     font-weight: 600;
                 }
                 QLabel#desktopTopMetaValue[metaRole="workspace"] {
-                    color: #304055;
+                    color: #a9b1d6;
                     font-weight: 500;
                 }
                 QLabel#desktopBrand {
                     font-size: 20px;
                     font-weight: 700;
-                    color: #111c2b;
+                    color: #ffffff;
                 }
                 QLabel#desktopBrandSubtitle {
-                    color: #6b7788;
+                    color: #565f89;
                     font-size: 12px;
                 }
                 QLabel#desktopTopNote {
-                    color: #5d6a7c;
+                    color: #565f89;
                     font-size: 12px;
                 }
                 QLabel#desktopPageTitle {
                     font-size: 20px;
                     font-weight: 700;
-                    color: #152233;
+                    color: #ffffff;
                 }
                 QLabel#desktopPageDescription {
-                    color: #697788;
+                    color: #565f89;
                     font-size: 12px;
                 }
                 QLabel#desktopSurfaceTitle {
-                    color: #152336;
+                    color: #c0caf5;
                     font-size: 15px;
                     font-weight: 700;
                 }
                 QLabel#desktopHeroEyebrow {
-                    color: #7b8aa0;
+                    color: #7aa2f7;
                     font-size: 10px;
                     font-weight: 700;
                     letter-spacing: 0.12em;
                 }
                 QLabel#desktopHeroTitle {
-                    color: #102033;
+                    color: #ffffff;
                     font-size: 24px;
                     font-weight: 700;
                 }
                 QLabel#desktopHeroMeta {
-                    color: #607084;
+                    color: #565f89;
                     font-size: 12px;
                 }
                 QLabel#desktopInfoBadge {
-                    background: rgba(248, 251, 255, 0.96);
-                    color: #506074;
-                    border: 1px solid #d9e0e8;
-                    border-radius: 12px;
+                    background: #24283b;
+                    color: #a9b1d6;
+                    border: 1px solid #414868;
                     min-height: 24px;
                     max-height: 24px;
                     padding: 2px 12px;
@@ -1835,209 +1843,192 @@ def create_desktop_main_window(
                     font-weight: 600;
                 }
                 QLabel#desktopInfoBadge[badgeTone="accent"] {
-                    background: rgba(232, 242, 255, 0.98);
-                    color: #1f5bb4;
-                    border-color: #cfe0fb;
+                    background: #3d59a1;
+                    color: #7aa2f7;
+                    border-color: #5d6d9e;
                 }
                 QLabel#desktopInfoBadge[badgeTone="success"] {
-                    background: rgba(235, 249, 241, 0.98);
-                    color: #2d7a56;
-                    border-color: #d4ebdd;
+                    background: #2a4a3a;
+                    color: #9ece6a;
+                    border-color: #3d5a4a;
                 }
                 QLabel#desktopInfoBadge[badgeTone="warning"] {
-                    background: rgba(255, 247, 232, 0.98);
-                    color: #8a6131;
-                    border-color: #f0dfbd;
+                    background: #4a4030;
+                    color: #e0af68;
+                    border-color: #5d5a4a;
                 }
                 QPushButton#desktopPagePill {
                     background: transparent;
-                    color: #5c6b7d;
+                    color: #565f89;
                     border: 1px solid transparent;
-                    border-radius: 12px;
                     padding: 6px 11px;
                     font-weight: 600;
                 }
                 QPushButton#desktopPagePill:hover {
-                    background: rgba(255, 255, 255, 0.76);
-                    color: #1d2c40;
+                    background: #24283b;
+                    color: #c0caf5;
                 }
                 QPushButton#desktopPagePill[navActive="true"] {
-                    background: rgba(255, 255, 255, 0.98);
-                    color: #16253b;
-                    border-color: #d8e0e9;
+                    background: #3d59a1;
+                    color: #ffffff;
+                    border-color: #5d6d9e;
                 }
                 QGroupBox {
                     font-weight: 600;
-                    border: 1px solid #d9e0e9;
-                    border-radius: 16px;
+                    border: 1px solid #414868;
                     margin-top: 10px;
                     padding-top: 10px;
-                    background: rgba(255, 255, 255, 0.93);
+                    background: #24283b;
                 }
                 QGroupBox::title {
                     subcontrol-origin: margin;
                     left: 12px;
                     padding: 0 6px;
-                    color: #243247;
+                    color: #a9b1d6;
                 }
                 QGroupBox#desktopPanel {
                     margin-top: 12px;
                     padding-top: 12px;
-                    border-radius: 18px;
                 }
                 QGroupBox#desktopPanel::title {
                     left: 14px;
                 }
                 QWidget#desktopPanelTools, QFrame#desktopPanelTools {
-                    background: rgba(245, 248, 251, 0.96);
-                    border: 1px solid #dde4ec;
-                    border-radius: 14px;
+                    background: #1f2335;
+                    border: 1px solid #414868;
                 }
                 QFrame#desktopRailHeaderBar {
-                    background: rgba(247, 249, 252, 0.98);
-                    border: 1px solid #e0e7ef;
-                    border-radius: 15px;
+                    background: #24283b;
+                    border: 1px solid #414868;
                 }
                 QFrame#desktopComposerShell {
-                    background: qlineargradient(
-                        x1: 0, y1: 0, x2: 1, y2: 1,
-                        stop: 0 rgba(252, 253, 255, 0.99),
-                        stop: 1 rgba(245, 248, 252, 0.99)
-                    );
-                    border: 1px solid #dce4ed;
-                    border-radius: 20px;
+                    background: #24283b;
+                    border: 1px solid #414868;
                 }
                 QFrame#desktopComposerControlsFrame {
-                    background: rgba(255, 255, 255, 0.72);
-                    border: 1px solid #e1e7ef;
-                    border-radius: 14px;
+                    background: #1f2335;
+                    border: 1px solid #414868;
                 }
                 QLabel#desktopInlineSectionLabel {
-                    color: #738195;
+                    color: #565f89;
                     font-size: 10px;
                     font-weight: 700;
                     text-transform: uppercase;
                 }
                 QPushButton {
-                    background: rgba(246, 248, 251, 0.96);
-                    color: #1a2738;
-                    border: 1px solid #d7dfe8;
-                    border-radius: 12px;
+                    background: #24283b;
+                    color: #c0caf5;
+                    border: 1px solid #414868;
                     padding: 7px 14px;
                 }
                 QPushButton:hover {
-                    background: #edf2f7;
+                    background: #3d59a1;
+                    border-color: #5d6d9e;
                 }
                 QPushButton:pressed {
-                    background: #e5ebf3;
+                    background: #3d59a1;
                 }
                 QPushButton:disabled {
-                    color: #8b98aa;
-                    background: #f2f5f9;
-                    border-color: #e0e5ec;
+                    color: #565f89;
+                    background: #1f2335;
+                    border-color: #292e42;
                 }
                 QPushButton#desktopTopAction {
                     background: transparent;
                     border: none;
-                    border-radius: 12px;
                     padding: 6px 10px;
-                    color: #566476;
+                    color: #565f89;
                     font-size: 12px;
                     font-weight: 600;
                     text-align: left;
                 }
                 QPushButton#desktopTopAction:hover {
-                    background: rgba(255, 255, 255, 0.78);
-                    color: #1c2b3f;
+                    background: #24283b;
+                    color: #c0caf5;
                 }
                 QPushButton#desktopTopAction:pressed {
-                    background: rgba(228, 234, 242, 0.92);
+                    background: #3d59a1;
                 }
                 QPushButton[tone="ghost"] {
                     background: transparent;
                     border: none;
-                    color: #5c6a7c;
-                    border-radius: 10px;
+                    color: #565f89;
                     padding: 7px 10px;
                     font-weight: 600;
                 }
                 QPushButton[tone="ghost"]:hover {
-                    background: rgba(255, 255, 255, 0.86);
-                    color: #1e2c40;
+                    background: #24283b;
+                    color: #c0caf5;
                 }
                 QPushButton[tone="ghost"]:pressed {
-                    background: rgba(228, 234, 242, 0.92);
+                    background: #3d59a1;
                 }
                 QPushButton[compactAction="true"] {
-                    border-radius: 10px;
                     padding: 5px 10px;
                     font-size: 11px;
                 }
                 QPushButton[tone="primary"] {
-                    background: #215db8;
-                    color: #ffffff;
-                    border: 1px solid #1f57a8;
-                    border-radius: 11px;
+                    background: #7aa2f7;
+                    color: #1a1b26;
+                    border: 1px solid #7aa2f7;
                     padding: 7px 12px;
                     font-weight: 700;
                 }
                 QPushButton[tone="primary"]:hover {
-                    background: #1f56aa;
-                    border-color: #1b4e9a;
+                    background: #5d6d9e;
+                    border-color: #5d6d9e;
                 }
                 QPushButton[tone="primary"]:pressed {
-                    background: #1a4a91;
+                    background: #3d59a1;
                 }
                 QPushButton[tone="danger"] {
-                    background: #fff4f4;
-                    color: #a34a4a;
-                    border: 1px solid #efcfcf;
-                    border-radius: 11px;
+                    background: #3d2a3a;
+                    color: #f7768e;
+                    border: 1px solid #5d3a4a;
                     padding: 7px 12px;
                     font-weight: 700;
                 }
                 QPushButton[tone="danger"]:hover {
-                    background: #fdeaea;
-                    border-color: #e8bcbc;
+                    background: #4d3a4a;
+                    border-color: #6d4a5a;
                 }
                 QToolButton#desktopWindowControlMinimize,
                 QToolButton#desktopWindowControlMaximize,
                 QToolButton#desktopWindowControlClose {
-                    color: #4d5d70;
-                    border: 1px solid #d5dce6;
-                    border-radius: 12px;
+                    color: #565f89;
+                    border: 1px solid #414868;
                     padding: 0;
                     font-size: 13px;
                     font-weight: 700;
-                    background: rgba(248, 250, 252, 0.94);
+                    background: #24283b;
                 }
                 QToolButton#desktopWindowControlMinimize:hover,
                 QToolButton#desktopWindowControlMaximize:hover,
                 QToolButton#desktopWindowControlClose:hover {
-                    border-color: #c3ccd8;
-                    background: rgba(238, 242, 247, 0.98);
+                    border-color: #5d6d9e;
+                    background: #3d59a1;
                 }
                 QToolButton#desktopWindowControlMinimize {
-                    background: rgba(248, 250, 252, 0.94);
+                    background: #24283b;
                 }
                 QToolButton#desktopWindowControlMaximize {
-                    background: rgba(248, 250, 252, 0.94);
+                    background: #24283b;
                 }
                 QToolButton#desktopWindowControlClose {
-                    background: rgba(248, 250, 252, 0.94);
+                    background: #24283b;
                 }
                 QToolButton#desktopWindowControlClose:hover {
-                    background: rgba(253, 235, 235, 0.98);
-                    border-color: #e7c7c7;
-                    color: #a94442;
+                    background: #f7768e;
+                    border-color: #f7768e;
+                    color: #1a1b26;
                 }
                 QListWidget, QTextBrowser, QPlainTextEdit, QLineEdit, QComboBox, QSpinBox {
-                    background: rgba(253, 254, 255, 0.96);
-                    border: 1px solid #d8e0e9;
-                    border-radius: 12px;
+                    background: #1f2335;
+                    border: 1px solid #414868;
                     padding: 6px 8px;
-                    selection-background-color: #dfe8f6;
-                    selection-color: #152336;
+                    selection-background-color: #3d59a1;
+                    selection-color: #ffffff;
+                    color: #c0caf5;
                 }
                 QComboBox::drop-down {
                     border: none;
@@ -2046,21 +2037,18 @@ def create_desktop_main_window(
                 QLineEdit[compactField="true"],
                 QComboBox[compactField="true"],
                 QSpinBox[compactField="true"] {
-                    background: rgba(255, 255, 255, 0.78);
-                    border: 1px solid #d7dfe8;
-                    border-radius: 10px;
+                    background: #1f2335;
+                    border: 1px solid #414868;
                     padding: 5px 8px;
                     min-height: 30px;
                 }
                 QListWidget#desktopListSurface {
-                    background: rgba(250, 251, 253, 0.98);
-                    border: 1px solid #d9e0e9;
-                    border-radius: 14px;
+                    background: #1f2335;
+                    border: 1px solid #414868;
                     padding: 5px;
                 }
                 QListWidget#desktopListSurface::item {
                     border: 1px solid transparent;
-                    border-radius: 11px;
                     padding: 7px 9px;
                     margin: 2px 0;
                 }
@@ -2069,18 +2057,17 @@ def create_desktop_main_window(
                     margin: 1px 0;
                 }
                 QListWidget#desktopListSurface::item:hover {
-                    background: rgba(255, 255, 255, 0.86);
+                    background: #24283b;
                 }
                 QListWidget#desktopListSurface::item:selected {
-                    background: rgba(234, 240, 248, 0.98);
-                    border-color: #d2dae5;
-                    color: #182538;
+                    background: #3d59a1;
+                    border-color: #5d6d9e;
+                    color: #ffffff;
                 }
                 QPlainTextEdit#desktopReadSurface,
                 QTextBrowser#desktopReadSurface {
-                    background: rgba(252, 253, 255, 0.99);
-                    border: 1px solid #dfe5ed;
-                    border-radius: 16px;
+                    background: #1f2335;
+                    border: 1px solid #414868;
                     padding: 12px 14px;
                 }
                 QPlainTextEdit#desktopComposeSurface {
@@ -2089,46 +2076,39 @@ def create_desktop_main_window(
                     padding: 2px 0;
                 }
                 QTabWidget#desktopAuxTabs::pane {
-                    background: rgba(255, 255, 255, 0.95);
-                    border: 1px solid #dde4ec;
-                    border-radius: 16px;
+                    background: #24283b;
+                    border: 1px solid #414868;
                     top: -1px;
                 }
                 QTabWidget#desktopAuxTabs QTabBar::tab {
                     background: transparent;
-                    color: #6a788b;
+                    color: #565f89;
                     border: 1px solid transparent;
-                    border-radius: 10px;
                     padding: 5px 9px;
                     margin-right: 3px;
                     font-weight: 600;
                 }
                 QTabWidget#desktopAuxTabs QTabBar::tab:selected {
-                    background: rgba(255, 255, 255, 0.98);
-                    color: #1a2940;
-                    border-color: #d8e0e9;
+                    background: #3d59a1;
+                    color: #ffffff;
+                    border-color: #5d6d9e;
                 }
                 QTabWidget#desktopAuxTabs QTabBar::tab:hover {
-                    background: rgba(244, 247, 251, 0.98);
-                    color: #233349;
+                    background: #24283b;
+                    color: #c0caf5;
                 }
                 QSplitter::handle {
-                    background: rgba(212, 220, 230, 0.95);
+                    background: #414868;
                     width: 6px;
                     height: 6px;
                     margin: 4px;
-                    border-radius: 3px;
                 }
                 QStatusBar#desktopStatusBar {
-                    background: rgba(248, 249, 251, 0.94);
-                    color: #5c6b7d;
-                    border-top: 1px solid #d9dfe7;
-                    border-bottom-left-radius: 24px;
-                    border-bottom-right-radius: 24px;
+                    background: #24283b;
+                    color: #565f89;
+                    border-top: 1px solid #414868;
                 }
                 QStatusBar#desktopStatusBar[shellMaximized="true"] {
-                    border-bottom-left-radius: 0;
-                    border-bottom-right-radius: 0;
                 }
                 """
             )
@@ -2229,12 +2209,13 @@ def create_desktop_main_window(
             self,
             *,
             object_name: str = "desktopWorkspaceCard",
-            spacing: int = 12,
+            spacing: int = 6,
+            margins: tuple[int, int, int, int] = (6, 6, 6, 6),
         ) -> tuple[Any, Any]:
             frame = qtwidgets.QFrame()
             frame.setObjectName(object_name)
             layout = qtwidgets.QVBoxLayout(frame)
-            layout.setContentsMargins(16, 16, 16, 16)
+            layout.setContentsMargins(*margins)
             layout.setSpacing(spacing)
             return frame, layout
 
@@ -2341,7 +2322,7 @@ def create_desktop_main_window(
 
             brand = qtwidgets.QLabel("Mini-Agent")
             brand.setObjectName("desktopBrand")
-            subtitle = qtwidgets.QLabel("Desktop workspace")
+            subtitle = qtwidgets.QLabel("桌面工作区")
             subtitle.setObjectName("desktopBrandSubtitle")
             self._note_value = qtwidgets.QLabel(self._connection.note or "-")
             self._note_value.setObjectName("desktopTopNote")
@@ -2353,26 +2334,26 @@ def create_desktop_main_window(
             title_layout.addWidget(brand, 0)
             title_layout.addSpacing(8)
 
-            self._status_value = qtwidgets.QLabel("Connecting")
+            self._status_value = qtwidgets.QLabel("连接中")
             self._gateway_value = qtwidgets.QLabel(self._connection.base_url)
             self._workspace_value = qtwidgets.QLabel(str(self._connection.workspace))
             self._sessions_value = qtwidgets.QLabel("0")
             self._mode_value = qtwidgets.QLabel(self._mode_text())
             self._set_runtime_note(self._connection.note or "-")
             self._refresh_runtime_identity()
-            self._new_session_button = qtwidgets.QPushButton("New Session")
+            self._new_session_button = qtwidgets.QPushButton("新建会话")
             self._new_session_button.setObjectName("desktopTopAction")
             self._new_session_button.clicked.connect(self._create_session)
-            self._refresh_button = qtwidgets.QPushButton("Refresh")
+            self._refresh_button = qtwidgets.QPushButton("刷新")
             self._refresh_button.setObjectName("desktopTopAction")
             self._refresh_button.clicked.connect(self.refresh_snapshot)
-            self._reconnect_button = qtwidgets.QPushButton("Reconnect")
+            self._reconnect_button = qtwidgets.QPushButton("重连")
             self._reconnect_button.setObjectName("desktopTopAction")
             self._reconnect_button.clicked.connect(self._reconnect_gateway)
-            self._approvals_button = qtwidgets.QPushButton("Approvals")
+            self._approvals_button = qtwidgets.QPushButton("审批")
             self._approvals_button.setObjectName("desktopTopAction")
             self._approvals_button.clicked.connect(self._open_pending_approval_dialog)
-            self._command_button = qtwidgets.QPushButton("Commands")
+            self._command_button = qtwidgets.QPushButton("命令")
             self._command_button.setObjectName("desktopTopAction")
             self._command_button.clicked.connect(self._open_command_palette)
             for button in (
@@ -2401,19 +2382,19 @@ def create_desktop_main_window(
             self._window_minimize_button = self._build_window_control_button(
                 object_name="desktopWindowControlMinimize",
                 text="–",
-                tooltip="Minimize Window",
+                tooltip="最小化",
                 handler=self.showMinimized,
             )
             self._window_maximize_button = self._build_window_control_button(
                 object_name="desktopWindowControlMaximize",
                 text="□",
-                tooltip="Maximize Window",
+                tooltip="最大化",
                 handler=self._toggle_window_maximize_restore,
             )
             self._window_close_button = self._build_window_control_button(
                 object_name="desktopWindowControlClose",
                 text="×",
-                tooltip="Close Window",
+                tooltip="关闭",
                 handler=self.close,
             )
             for button in (
@@ -2436,9 +2417,9 @@ def create_desktop_main_window(
             meta_layout = qtwidgets.QHBoxLayout(meta_panel)
             meta_layout.setContentsMargins(0, 0, 0, 0)
             meta_layout.setSpacing(16)
-            meta_layout.addWidget(self._build_top_meta_item("Status", self._status_value), 0)
-            meta_layout.addWidget(self._build_top_meta_item("Sessions", self._sessions_value), 0)
-            meta_layout.addWidget(self._build_top_meta_item("Workspace", self._workspace_value), 1)
+            meta_layout.addWidget(self._build_top_meta_item("状态", self._status_value), 0)
+            meta_layout.addWidget(self._build_top_meta_item("会话", self._sessions_value), 0)
+            meta_layout.addWidget(self._build_top_meta_item("工作区", self._workspace_value), 1)
             top_layout.addWidget(meta_panel, 0)
 
             self._runtime_stat_cards = []
@@ -2819,7 +2800,7 @@ def create_desktop_main_window(
             return edges
 
         def _cursor_for_resize_edges(self, edges: Any) -> Any:
-            if not int(edges):
+            if not edges or edges.value == 0:
                 return None
             if edges in {qtcore.Qt.Edge.LeftEdge, qtcore.Qt.Edge.RightEdge}:
                 return qtcore.Qt.CursorShape.SizeHorCursor
@@ -2847,7 +2828,7 @@ def create_desktop_main_window(
         def _start_window_resize(self, global_point: Any) -> bool:
             local_point = self.mapFromGlobal(global_point) if global_point is not None else None
             edges = self._resize_edges_for_point(local_point)
-            if not int(edges):
+            if not edges or edges.value == 0:
                 return False
             handle = self.windowHandle()
             if handle is None:
@@ -2879,24 +2860,69 @@ def create_desktop_main_window(
         def resizeEvent(self, event: Any) -> None:  # noqa: N802 - Qt naming
             super().resizeEvent(event)
             self._relayout_top_panel()
+            self._adapt_layout_to_window_size()
+
+        def _adapt_layout_to_window_size(self) -> None:
+            """Adapt layout elements based on current window size using responsive breakpoints."""
+            width = self.width()
+
+            # Responsive breakpoints
+            # Compact: < 800px, Standard: 800-1200px, Wide: 1200-1600px, Ultra: > 1600px
+
+            # Adjust right panel width proportionally
+            if hasattr(self, '_activity_panel_widget') and self._activity_panel_widget is not None:
+                panel_width = max(180, min(280, int(width * 0.18)))
+                self._activity_panel_widget.setMinimumWidth(panel_width)
+                self._activity_panel_widget.setMaximumWidth(panel_width + 40)
+
+            # Adjust composer height based on window height
+            if hasattr(self, '_composer') and self._composer is not None:
+                height = self.height()
+                composer_min = max(40, int(height * 0.06))
+                composer_max = max(60, min(100, int(height * 0.10)))
+                self._composer.setMinimumHeight(composer_min)
+                self._composer.setMaximumHeight(composer_max)
+
+            # Adjust button sizes for compact mode
+            compact_mode = width < 900
+            if hasattr(self, '_send_button') and self._send_button is not None:
+                button_width = 52 if not compact_mode else 44
+                self._send_button.setMinimumWidth(button_width)
+
+            # Adjust model combo width
+            if hasattr(self, '_model_combo') and self._model_combo is not None:
+                combo_min = 100 if not compact_mode else 80
+                combo_max = 140 if not compact_mode else 100
+                self._model_combo.setMinimumWidth(combo_min)
+                self._model_combo.setMaximumWidth(combo_max)
+
+            # Adjust splitter stretch factors for different widths
+            if hasattr(self, '_chat_splitter') and self._chat_splitter is not None:
+                if width >= 1200:
+                    # Wide: 对话区大，右侧面板适中
+                    self._chat_splitter.setStretchFactor(0, 6)
+                    self._chat_splitter.setStretchFactor(1, 1)
+                    if hasattr(self, '_activity_panel_widget') and self._activity_panel_widget is not None:
+                        self._activity_panel_widget.show()
+                elif width >= 800:
+                    # Standard: 标准比例
+                    self._chat_splitter.setStretchFactor(0, 5)
+                    self._chat_splitter.setStretchFactor(1, 1)
+                    if hasattr(self, '_activity_panel_widget') and self._activity_panel_widget is not None:
+                        self._activity_panel_widget.show()
+                else:
+                    # Compact: 隐藏右侧面板，最大化对话区
+                    self._chat_splitter.setStretchFactor(0, 1)
+                    self._chat_splitter.setStretchFactor(1, 0)
+                    if hasattr(self, '_activity_panel_widget') and self._activity_panel_widget is not None:
+                        self._activity_panel_widget.hide()
 
         def _build_workspace_shell(self) -> Any:
             shell_frame = qtwidgets.QFrame()
             shell_frame.setObjectName("desktopWorkspaceShell")
             shell_layout = qtwidgets.QVBoxLayout(shell_frame)
-            shell_layout.setContentsMargins(18, 14, 18, 14)
-            shell_layout.setSpacing(10)
-
-            header = qtwidgets.QFrame()
-            header.setObjectName("desktopPageHeader")
-            header_layout = qtwidgets.QHBoxLayout(header)
-            header_layout.setContentsMargins(4, 0, 4, 0)
-            header_layout.setSpacing(0)
-            self._page_title = qtwidgets.QLabel("Chat")
-            self._page_title.setObjectName("desktopPageTitle")
-            header_layout.addWidget(self._page_title)
-            header_layout.addStretch(1)
-            shell_layout.addWidget(header)
+            shell_layout.setContentsMargins(0, 0, 0, 0)
+            shell_layout.setSpacing(0)
 
             self._page_stack = qtwidgets.QStackedWidget()
             self._page_stack.setSizePolicy(
@@ -2918,90 +2944,31 @@ def create_desktop_main_window(
             body_splitter = qtwidgets.QSplitter(qtcore.Qt.Horizontal)
             body_splitter.setObjectName("desktopContentSplit")
             body_splitter.setChildrenCollapsible(False)
-            body_splitter.setHandleWidth(10)
+            body_splitter.setHandleWidth(6)
 
-            session_card, session_layout = self._build_workspace_card()
-            session_card.setMinimumWidth(208)
-            session_card.setMaximumWidth(268)
-            rail_primary_frame = qtwidgets.QFrame()
-            rail_primary_frame.setObjectName("desktopRailHeaderBar")
-            rail_primary_row = qtwidgets.QHBoxLayout(rail_primary_frame)
-            rail_primary_row.setContentsMargins(8, 6, 8, 6)
-            rail_primary_row.setSpacing(6)
-            chats_title = qtwidgets.QLabel("Chats")
-            chats_title.setObjectName("desktopSurfaceTitle")
-            self._chat_session_count_badge = self._build_info_badge("0 chats", tone="accent")
-            self._chat_session_count_badge.setMinimumWidth(80)
-            self._chat_selection_badge = self._build_info_badge("No selection")
-            self._chat_selection_badge.hide()
-            self._chat_create_session_button = qtwidgets.QPushButton("New Chat")
-            self._chat_create_session_button.clicked.connect(self._create_session)
-            self._style_action_button(self._chat_create_session_button, tone="primary", compact=True)
-            self._chat_create_session_button.setMinimumWidth(94)
-            self._chat_create_session_button.setSizePolicy(
-                qtwidgets.QSizePolicy.Policy.Maximum,
-                qtwidgets.QSizePolicy.Policy.Fixed,
-            )
-            rail_primary_row.addWidget(chats_title, 0)
-            rail_primary_row.addWidget(self._chat_session_count_badge, 0)
-            rail_primary_row.addStretch(1)
-            rail_primary_row.addWidget(self._chat_create_session_button, 0)
-            session_layout.addWidget(rail_primary_frame)
-
-            self._session_list = qtwidgets.QListWidget()
-            self._style_list_surface(self._session_list, dense=True)
-            self._session_list.currentRowChanged.connect(self._on_session_selected)
-            session_layout.addWidget(self._session_list)
-
-            session_actions_frame = qtwidgets.QFrame()
-            session_actions_frame.setObjectName("desktopPanelTools")
-            session_actions = qtwidgets.QGridLayout(session_actions_frame)
-            session_actions.setContentsMargins(5, 5, 5, 5)
-            session_actions.setHorizontalSpacing(3)
-            session_actions.setVerticalSpacing(3)
-            self._rename_session_button = qtwidgets.QPushButton("Rename")
-            self._rename_session_button.clicked.connect(self._rename_current_session)
-            self._share_session_button = qtwidgets.QPushButton("Share")
-            self._share_session_button.clicked.connect(self._toggle_share_current_session)
-            self._fork_session_button = qtwidgets.QPushButton("Fork")
-            self._fork_session_button.clicked.connect(self._fork_current_session)
-            self._compact_session_button = qtwidgets.QPushButton("Compact")
-            self._compact_session_button.clicked.connect(self._compact_current_session)
-            for button in (
-                self._rename_session_button,
-                self._share_session_button,
-                self._fork_session_button,
-                self._compact_session_button,
-            ):
-                self._style_action_button(button, tone="ghost", compact=True)
-            session_actions.addWidget(self._rename_session_button, 0, 0)
-            session_actions.addWidget(self._share_session_button, 0, 1)
-            session_actions.addWidget(self._fork_session_button, 1, 0)
-            session_actions.addWidget(self._compact_session_button, 1, 1)
-            session_layout.addWidget(session_actions_frame)
-            body_splitter.addWidget(session_card)
-
+            # === 主对话区（最大化空间）===
             conversation_stage = qtwidgets.QWidget()
             conversation_layout = qtwidgets.QVBoxLayout(conversation_stage)
             conversation_layout.setContentsMargins(0, 0, 0, 0)
-            conversation_layout.setSpacing(6)
+            conversation_layout.setSpacing(4)
 
-            self._chat_session_title_label = qtwidgets.QLabel("New chat")
+            self._chat_session_title_label = qtwidgets.QLabel("新会话")
             self._chat_session_title_label.setObjectName("desktopHeroTitle")
             self._chat_session_title_label.setWordWrap(True)
             self._chat_session_title_label.hide()
-            self._chat_session_meta_label = qtwidgets.QLabel("Start a conversation.")
+            self._chat_session_meta_label = qtwidgets.QLabel("开始一段对话。")
             self._chat_session_meta_label.setObjectName("desktopHeroMeta")
             self._chat_session_meta_label.setWordWrap(True)
             self._chat_session_meta_label.hide()
 
-            self._chat_visibility_badge = self._build_info_badge("Private")
+            self._chat_visibility_badge = self._build_info_badge("私有")
             self._chat_visibility_badge.hide()
-            self._chat_state_badge = self._build_info_badge("Ready", tone="success")
+            self._chat_state_badge = self._build_info_badge("就绪", tone="success")
             self._chat_state_badge.hide()
-            self._chat_model_badge = self._build_info_badge("Provider / model not set", tone="accent")
+            self._chat_model_badge = self._build_info_badge("未设置服务商/模型", tone="accent")
             self._chat_model_badge.hide()
 
+            # 对话视图：最大化空间
             transcript_card, transcript_layout = self._build_workspace_card()
             self._conversation_view = qtwidgets.QTextBrowser()
             self._conversation_view.setOpenExternalLinks(False)
@@ -3009,75 +2976,79 @@ def create_desktop_main_window(
             transcript_layout.addWidget(self._conversation_view, 1)
             conversation_layout.addWidget(transcript_card, 1)
 
+            # Composer：紧凑设计
             composer_shell = qtwidgets.QFrame()
             composer_shell.setObjectName("desktopComposerShell")
             composer_shell_layout = qtwidgets.QVBoxLayout(composer_shell)
-            composer_shell_layout.setContentsMargins(9, 9, 9, 9)
-            composer_shell_layout.setSpacing(5)
-
-            composer_meta_row = qtwidgets.QHBoxLayout()
-            composer_meta_row.setContentsMargins(0, 0, 0, 0)
-            composer_meta_row.setSpacing(6)
-            composer_meta_row.addStretch(1)
-            self._context_usage_ring = ContextUsageRing()
-            composer_meta_row.addWidget(
-                self._context_usage_ring,
-                0,
-                qtcore.Qt.AlignmentFlag.AlignRight,
-            )
-            composer_shell_layout.addLayout(composer_meta_row)
+            composer_shell_layout.setContentsMargins(6, 6, 6, 6)
+            composer_shell_layout.setSpacing(4)
 
             self._composer = qtwidgets.QPlainTextEdit()
             self._composer.setObjectName("desktopComposeSurface")
-            self._composer.setPlaceholderText("Type a prompt for the selected session. Ctrl+Enter to send.")
-            self._composer.setMinimumHeight(56)
-            self._composer.setMaximumHeight(164)
+            self._composer.setPlaceholderText("输入提示词，按 Ctrl+Enter 发送...")
+            self._composer.setMinimumHeight(48)
+            self._composer.setMaximumHeight(120)
             self._composer.setVerticalScrollBarPolicy(qtcore.Qt.ScrollBarPolicy.ScrollBarAsNeeded)
             self._composer.installEventFilter(self)
             self._composer.textChanged.connect(self._adjust_composer_height)
             composer_shell_layout.addWidget(self._composer)
 
+            # 控制栏：单行紧凑设计
             composer_controls_frame = qtwidgets.QFrame()
             composer_controls_frame.setObjectName("desktopComposerControlsFrame")
             composer_actions = qtwidgets.QHBoxLayout(composer_controls_frame)
-            composer_actions.setContentsMargins(8, 5, 8, 5)
-            composer_actions.setSpacing(8)
+            composer_actions.setContentsMargins(4, 4, 4, 4)
+            composer_actions.setSpacing(4)
+
+            # 模型选择
             self._model_combo = qtwidgets.QComboBox()
             self._style_compact_field(self._model_combo)
-            self._model_combo.setMinimumWidth(118)
-            self._model_combo.setMaximumWidth(156)
-            self._model_combo.setMinimumContentsLength(9)
+            self._model_combo.setMinimumWidth(100)
+            self._model_combo.setMaximumWidth(140)
+            self._model_combo.setMinimumContentsLength(8)
             self._model_combo.setSizeAdjustPolicy(
                 qtwidgets.QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
             )
             self._model_combo.currentIndexChanged.connect(self._refresh_model_combo_tooltip)
-            self._apply_model_button = qtwidgets.QPushButton("Apply")
+
+            # 应用模型按钮
+            self._apply_model_button = qtwidgets.QPushButton("应用")
             self._apply_model_button.clicked.connect(self._apply_selected_model)
-            self._style_action_button(self._apply_model_button, tone="ghost", compact=True)
-            self._apply_model_button.setMinimumWidth(56)
-            self._send_button = qtwidgets.QPushButton("Send")
+            self._apply_model_button.setMinimumWidth(48)
+
+            # 上下文使用指示器
+            self._context_usage_ring = ContextUsageRing()
+
+            # 右侧按钮组
+            self._send_button = qtwidgets.QPushButton("发送")
             self._send_button.clicked.connect(self._send_current_prompt)
             self._send_button.setDefault(True)
-            self._send_button.setMinimumWidth(72)
-            self._interrupt_turn_button = qtwidgets.QPushButton("Pause")
+            self._send_button.setMinimumWidth(52)
+            self._interrupt_turn_button = qtwidgets.QPushButton("暂停")
             self._interrupt_turn_button.clicked.connect(self._interrupt_current_run)
-            self._interrupt_turn_button.setMinimumWidth(62)
-            self._resume_turn_button = qtwidgets.QPushButton("Resume")
+            self._interrupt_turn_button.setMinimumWidth(48)
+            self._resume_turn_button = qtwidgets.QPushButton("继续")
             self._resume_turn_button.clicked.connect(self._resume_current_run)
-            self._resume_turn_button.setMinimumWidth(68)
-            self._stop_turn_button = qtwidgets.QPushButton("Stop")
+            self._resume_turn_button.setMinimumWidth(48)
+            self._stop_turn_button = qtwidgets.QPushButton("停止")
             self._stop_turn_button.clicked.connect(self._cancel_current_run)
-            self._stop_turn_button.setMinimumWidth(62)
-            self._clear_button = qtwidgets.QPushButton("Clear")
+            self._stop_turn_button.setMinimumWidth(48)
+            self._clear_button = qtwidgets.QPushButton("清空")
             self._clear_button.clicked.connect(self._composer.clear)
-            self._clear_button.setMinimumWidth(56)
+            self._clear_button.setMinimumWidth(48)
+
+            # 按钮样式
             self._style_action_button(self._clear_button, tone="ghost", compact=True)
             self._style_action_button(self._interrupt_turn_button, tone="ghost", compact=True)
             self._style_action_button(self._resume_turn_button, tone="ghost", compact=True)
             self._style_action_button(self._stop_turn_button, tone="danger", compact=True)
             self._style_action_button(self._send_button, tone="primary", compact=True)
-            composer_actions.addWidget(self._model_combo, 1)
-            composer_actions.addWidget(self._apply_model_button, 0)
+            self._style_action_button(self._apply_model_button, tone="ghost", compact=True)
+
+            # 布局：模型选择 | 上下文指示器 | 操作按钮
+            composer_actions.addWidget(self._model_combo)
+            composer_actions.addWidget(self._apply_model_button)
+            composer_actions.addWidget(self._context_usage_ring)
             composer_actions.addStretch(1)
             composer_actions.addWidget(self._clear_button)
             composer_actions.addWidget(self._interrupt_turn_button)
@@ -3088,46 +3059,132 @@ def create_desktop_main_window(
             conversation_layout.addWidget(composer_shell)
             body_splitter.addWidget(conversation_stage)
 
+            # === 右侧面板：会话列表 + 信息标签页（上下结构）===
+            right_panel = qtwidgets.QWidget()
+            right_panel.setMinimumWidth(180)
+            right_panel.setMaximumWidth(260)
+            right_panel_layout = qtwidgets.QVBoxLayout(right_panel)
+            right_panel_layout.setContentsMargins(0, 0, 0, 0)
+            right_panel_layout.setSpacing(4)
+
+            # 上半部分：会话列表（紧凑）
+            session_card, session_layout = self._build_workspace_card()
+
+            # 紧凑的头部
+            rail_primary_frame = qtwidgets.QFrame()
+            rail_primary_frame.setObjectName("desktopRailHeaderBar")
+            rail_primary_row = qtwidgets.QHBoxLayout(rail_primary_frame)
+            rail_primary_row.setContentsMargins(6, 4, 6, 4)
+            rail_primary_row.setSpacing(4)
+            chats_title = qtwidgets.QLabel("会话")
+            chats_title.setObjectName("desktopSurfaceTitle")
+            self._chat_session_count_badge = self._build_info_badge("0", tone="accent")
+            self._chat_session_count_badge.setMinimumWidth(24)
+            self._chat_selection_badge = self._build_info_badge("未选择")
+            self._chat_selection_badge.hide()
+            self._chat_create_session_button = qtwidgets.QPushButton("+")
+            self._chat_create_session_button.clicked.connect(self._create_session)
+            self._style_action_button(self._chat_create_session_button, tone="primary", compact=True)
+            self._chat_create_session_button.setMinimumWidth(28)
+            self._chat_create_session_button.setMaximumWidth(28)
+            rail_primary_row.addWidget(chats_title, 0)
+            rail_primary_row.addWidget(self._chat_session_count_badge, 0)
+            rail_primary_row.addStretch(1)
+            rail_primary_row.addWidget(self._chat_create_session_button, 0)
+            session_layout.addWidget(rail_primary_frame)
+
+            self._session_list = qtwidgets.QListWidget()
+            self._style_list_surface(self._session_list, dense=True)
+            self._session_list.currentRowChanged.connect(self._on_session_selected)
+            session_layout.addWidget(self._session_list, 1)
+
+            # Store reference for responsive layout
+            self._session_list_widget = session_card
+
+            # 会话操作按钮：紧凑单行
+            session_actions_frame = qtwidgets.QFrame()
+            session_actions_frame.setObjectName("desktopPanelTools")
+            session_actions = qtwidgets.QHBoxLayout(session_actions_frame)
+            session_actions.setContentsMargins(4, 4, 4, 4)
+            session_actions.setSpacing(2)
+            self._rename_session_button = qtwidgets.QPushButton("重命名")
+            self._rename_session_button.clicked.connect(self._rename_current_session)
+            self._share_session_button = qtwidgets.QPushButton("分享")
+            self._share_session_button.clicked.connect(self._toggle_share_current_session)
+            self._fork_session_button = qtwidgets.QPushButton("复制")
+            self._fork_session_button.clicked.connect(self._fork_current_session)
+            self._compact_session_button = qtwidgets.QPushButton("压缩")
+            self._compact_session_button.clicked.connect(self._compact_current_session)
+            for button in (
+                self._rename_session_button,
+                self._share_session_button,
+                self._fork_session_button,
+                self._compact_session_button,
+            ):
+                self._style_action_button(button, tone="ghost", compact=True)
+                button.setMaximumWidth(60)
+            session_actions.addWidget(self._rename_session_button)
+            session_actions.addWidget(self._share_session_button)
+            session_actions.addWidget(self._fork_session_button)
+            session_actions.addWidget(self._compact_session_button)
+            session_layout.addWidget(session_actions_frame)
+
+            right_panel_layout.addWidget(session_card, 1)
+
+            # 下半部分：信息标签页
             workspace_card, workspace_layout = self._build_workspace_card()
-            workspace_card.setMinimumWidth(248)
-            workspace_card.setMaximumWidth(320)
-            workspace_layout.addWidget(self._build_surface_header("Workspace"))
+
             self._chat_aux_tabs = qtwidgets.QTabWidget()
             self._chat_aux_tabs.setObjectName("desktopAuxTabs")
             self._chat_aux_tabs.setDocumentMode(True)
+            self._chat_aux_tabs.setTabPosition(qtwidgets.QTabWidget.TabPosition.North)
 
+            # 上下文标签
             context_page = qtwidgets.QWidget()
             context_layout = qtwidgets.QVBoxLayout(context_page)
-            context_layout.setContentsMargins(10, 10, 10, 10)
-            context_layout.setSpacing(8)
+            context_layout.setContentsMargins(4, 4, 4, 4)
+            context_layout.setSpacing(4)
             self._context_view = qtwidgets.QPlainTextEdit()
             self._context_view.setReadOnly(True)
+            self._context_view.setLineWrapMode(qtwidgets.QPlainTextEdit.LineWrapMode.WidgetWidth)
             self._style_read_surface(self._context_view)
             context_layout.addWidget(self._context_view)
-            self._chat_aux_tabs.addTab(context_page, "Context")
+            self._chat_aux_tabs.addTab(context_page, "上下文")
 
+            # 运行时标签
             self._models_view = qtwidgets.QPlainTextEdit()
             self._models_view.setReadOnly(True)
             self._style_read_surface(self._models_view)
-            self._chat_aux_tabs.addTab(self._models_view, "Runtime")
+            self._chat_aux_tabs.addTab(self._models_view, "运行时")
 
+            # 活动标签
             activity_page = qtwidgets.QWidget()
             activity_layout = qtwidgets.QVBoxLayout(activity_page)
-            activity_layout.setContentsMargins(10, 10, 10, 10)
-            activity_layout.setSpacing(8)
+            activity_layout.setContentsMargins(4, 4, 4, 4)
+            activity_layout.setSpacing(4)
             self._activity_view = qtwidgets.QTextBrowser()
             self._activity_view.setOpenExternalLinks(False)
             self._style_read_surface(self._activity_view)
             activity_layout.addWidget(self._activity_view)
-            self._chat_aux_tabs.addTab(activity_page, "Activity")
+            self._chat_aux_tabs.addTab(activity_page, "活动")
             workspace_layout.addWidget(self._chat_aux_tabs, 1)
-            body_splitter.addWidget(workspace_card)
+            right_panel_layout.addWidget(workspace_card, 1)
 
-            body_splitter.setStretchFactor(0, 2)
-            body_splitter.setStretchFactor(1, 13)
-            body_splitter.setStretchFactor(2, 2)
+            body_splitter.addWidget(right_panel)
+
+            # Store reference for responsive layout
+            self._activity_panel_widget = right_panel
+
+            # 比例调整：对话区最大化，右侧面板紧凑
+            body_splitter.setStretchFactor(0, 5)  # 对话区
+            body_splitter.setStretchFactor(1, 1)  # 右侧面板
+
+            # Store reference for responsive layout
+            self._chat_splitter = body_splitter
+
             layout.addWidget(body_splitter, 1)
-            qtcore.QTimer.singleShot(0, lambda: body_splitter.setSizes([240, 1020, 276]))
+            # 初始尺寸：对话区最大化，右侧面板 220
+            qtcore.QTimer.singleShot(0, lambda: body_splitter.setSizes([900, 220]))
             qtcore.QTimer.singleShot(0, self._adjust_composer_height)
             return page
 
@@ -3135,27 +3192,21 @@ def create_desktop_main_window(
             page = qtwidgets.QWidget()
             layout = qtwidgets.QVBoxLayout(page)
             layout.setContentsMargins(0, 0, 0, 0)
-            layout.setSpacing(12)
+            layout.setSpacing(8)
 
             splitter = qtwidgets.QSplitter(qtcore.Qt.Horizontal)
             splitter.setObjectName("desktopContentSplit")
             splitter.setChildrenCollapsible(False)
-            splitter.setHandleWidth(10)
+            splitter.setHandleWidth(6)
 
             list_card, list_layout = self._build_workspace_card()
-            list_layout.addWidget(
-                self._build_surface_header(
-                    "Registry",
-                    "Browse the resolved model inventory, then filter, classify, or inspect capability facts.",
-                )
-            )
             filter_bar, filter_row = self._build_panel_tools_frame()
-            filter_row.addWidget(self._build_section_label("Search"), 0)
+            filter_row.addWidget(self._build_section_label("搜索"), 0)
             self._model_registry_search = qtwidgets.QLineEdit()
             self._style_compact_field(self._model_registry_search)
-            self._model_registry_search.setPlaceholderText("Filter by provider, model, role, or capability")
+            self._model_registry_search.setPlaceholderText("按服务商、模型、角色或能力筛选")
             self._model_registry_search.textChanged.connect(self._refresh_registry_model_list)
-            self._refresh_registry_button = qtwidgets.QPushButton("Refresh Registry")
+            self._refresh_registry_button = qtwidgets.QPushButton("刷新")
             self._refresh_registry_button.clicked.connect(self._refresh_ops_registry_snapshot)
             self._style_action_button(self._refresh_registry_button, tone="ghost")
             filter_row.addWidget(self._model_registry_search, 1)
@@ -3168,28 +3219,22 @@ def create_desktop_main_window(
             splitter.addWidget(list_card)
 
             inspector_card, inspector_layout = self._build_workspace_card()
-            inspector_layout.addWidget(
-                self._build_surface_header(
-                    "Inspector",
-                    "Confirm roles, probe capabilities, and keep feature bindings explicit and easy to audit.",
-                )
-            )
             self._models_aux_tabs = qtwidgets.QTabWidget()
             self._models_aux_tabs.setObjectName("desktopAuxTabs")
             self._models_aux_tabs.setDocumentMode(True)
 
             detail_page = qtwidgets.QWidget()
             detail_layout = qtwidgets.QVBoxLayout(detail_page)
-            detail_layout.setContentsMargins(12, 12, 12, 12)
-            detail_layout.setSpacing(10)
+            detail_layout.setContentsMargins(8, 8, 8, 8)
+            detail_layout.setSpacing(6)
             role_frame, role_row = self._build_panel_tools_frame()
-            role_row.addWidget(self._build_section_label("Role"), 0)
+            role_row.addWidget(self._build_section_label("角色"), 0)
             self._registry_model_role_combo = qtwidgets.QComboBox()
             self._style_compact_field(self._registry_model_role_combo)
             self._registry_model_role_combo.addItems(list(DESKTOP_MODEL_ROLE_OPTIONS))
-            self._registry_set_role_button = qtwidgets.QPushButton("Set Role")
+            self._registry_set_role_button = qtwidgets.QPushButton("设置角色")
             self._registry_set_role_button.clicked.connect(self._set_selected_registry_model_role)
-            self._registry_probe_button = qtwidgets.QPushButton("Probe Capabilities")
+            self._registry_probe_button = qtwidgets.QPushButton("探测能力")
             self._registry_probe_button.clicked.connect(self._probe_selected_registry_model)
             self._style_action_button(self._registry_set_role_button, tone="primary")
             self._style_action_button(self._registry_probe_button, tone="ghost")
@@ -3197,30 +3242,24 @@ def create_desktop_main_window(
             role_row.addWidget(self._registry_set_role_button)
             role_row.addWidget(self._registry_probe_button)
             detail_layout.addWidget(role_frame)
-            detail_layout.addWidget(
-                self._build_surface_header(
-                    "Capability Detail",
-                    "Review provider family, context window, and model capability truth before promoting the model.",
-                )
-            )
             self._model_registry_detail_view = qtwidgets.QPlainTextEdit()
             self._model_registry_detail_view.setReadOnly(True)
             self._style_read_surface(self._model_registry_detail_view)
             detail_layout.addWidget(self._model_registry_detail_view, 1)
-            self._models_aux_tabs.addTab(detail_page, "Detail")
+            self._models_aux_tabs.addTab(detail_page, "详情")
 
             bindings_page = qtwidgets.QWidget()
             bindings_layout = qtwidgets.QVBoxLayout(bindings_page)
-            bindings_layout.setContentsMargins(12, 12, 12, 12)
-            bindings_layout.setSpacing(10)
+            bindings_layout.setContentsMargins(8, 8, 8, 8)
+            bindings_layout.setSpacing(6)
             binding_frame, binding_row = self._build_panel_tools_frame()
-            binding_row.addWidget(self._build_section_label("Feature"), 0)
+            binding_row.addWidget(self._build_section_label("功能"), 0)
             self._feature_binding_role_combo = qtwidgets.QComboBox()
             self._style_compact_field(self._feature_binding_role_combo)
             self._feature_binding_role_combo.addItems(list(DESKTOP_FEATURE_ROLE_OPTIONS))
-            self._registry_bind_feature_button = qtwidgets.QPushButton("Bind Feature")
+            self._registry_bind_feature_button = qtwidgets.QPushButton("绑定功能")
             self._registry_bind_feature_button.clicked.connect(self._bind_selected_registry_feature_model)
-            self._registry_clear_feature_button = qtwidgets.QPushButton("Clear Binding")
+            self._registry_clear_feature_button = qtwidgets.QPushButton("清除绑定")
             self._registry_clear_feature_button.clicked.connect(self._clear_selected_feature_binding)
             self._style_action_button(self._registry_bind_feature_button, tone="primary")
             self._style_action_button(self._registry_clear_feature_button, tone="danger")
@@ -3228,17 +3267,11 @@ def create_desktop_main_window(
             binding_row.addWidget(self._registry_bind_feature_button)
             binding_row.addWidget(self._registry_clear_feature_button)
             bindings_layout.addWidget(binding_frame)
-            bindings_layout.addWidget(
-                self._build_surface_header(
-                    "Feature Bindings",
-                    "Bind the runtime embedding or OCR slot explicitly so higher-level features stay predictable.",
-                )
-            )
             self._feature_bindings_view = qtwidgets.QPlainTextEdit()
             self._feature_bindings_view.setReadOnly(True)
             self._style_read_surface(self._feature_bindings_view)
             bindings_layout.addWidget(self._feature_bindings_view, 1)
-            self._models_aux_tabs.addTab(bindings_page, "Bindings")
+            self._models_aux_tabs.addTab(bindings_page, "绑定")
 
             inspector_layout.addWidget(self._models_aux_tabs, 1)
             splitter.addWidget(inspector_card)
@@ -3252,25 +3285,19 @@ def create_desktop_main_window(
             page = qtwidgets.QWidget()
             layout = qtwidgets.QVBoxLayout(page)
             layout.setContentsMargins(0, 0, 0, 0)
-            layout.setSpacing(12)
+            layout.setSpacing(8)
 
             splitter = qtwidgets.QSplitter(qtcore.Qt.Horizontal)
             splitter.setObjectName("desktopContentSplit")
             splitter.setChildrenCollapsible(False)
-            splitter.setHandleWidth(10)
+            splitter.setHandleWidth(6)
 
             list_card, list_layout = self._build_workspace_card()
-            list_layout.addWidget(
-                self._build_surface_header(
-                    "Providers",
-                    "Manage cloud suppliers, local runtimes, and connection presets without mixing them into the chat stage.",
-                )
-            )
             provider_actions_frame, provider_actions = self._build_panel_tools_frame()
-            provider_actions.addWidget(self._build_section_label("Catalog"), 0)
-            self._provider_refresh_button = qtwidgets.QPushButton("Refresh")
+            provider_actions.addWidget(self._build_section_label("操作"), 0)
+            self._provider_refresh_button = qtwidgets.QPushButton("刷新")
             self._provider_refresh_button.clicked.connect(self._refresh_ops_providers_snapshot)
-            self._provider_new_button = qtwidgets.QPushButton("New Draft")
+            self._provider_new_button = qtwidgets.QPushButton("新建")
             self._provider_new_button.clicked.connect(self._reset_provider_draft)
             self._style_action_button(self._provider_refresh_button, tone="ghost")
             self._style_action_button(self._provider_new_button, tone="primary")
@@ -3287,20 +3314,14 @@ def create_desktop_main_window(
             editor_shell = qtwidgets.QWidget()
             editor_shell_layout = qtwidgets.QVBoxLayout(editor_shell)
             editor_shell_layout.setContentsMargins(0, 0, 0, 0)
-            editor_shell_layout.setSpacing(12)
+            editor_shell_layout.setSpacing(8)
 
             detail_card, detail_layout = self._build_workspace_card()
-            detail_layout.addWidget(
-                self._build_surface_header(
-                    "Provider Detail",
-                    "Inspect health, breaker state, and saved connection details for the current supplier.",
-                )
-            )
             detail_tools_frame, detail_button_row = self._build_panel_tools_frame()
-            detail_button_row.addWidget(self._build_section_label("Selected Provider"), 0)
-            self._provider_health_button = qtwidgets.QPushButton("Refresh Health")
+            detail_button_row.addWidget(self._build_section_label("已选"), 0)
+            self._provider_health_button = qtwidgets.QPushButton("刷新状态")
             self._provider_health_button.clicked.connect(self._refresh_selected_provider_health)
-            self._provider_delete_button = qtwidgets.QPushButton("Delete Provider")
+            self._provider_delete_button = qtwidgets.QPushButton("删除")
             self._provider_delete_button.clicked.connect(self._delete_selected_provider)
             self._style_action_button(self._provider_health_button, tone="ghost")
             self._style_action_button(self._provider_delete_button, tone="danger")
@@ -3315,32 +3336,26 @@ def create_desktop_main_window(
             editor_shell_layout.addWidget(detail_card, 2)
 
             editor_card, editor_layout = self._build_workspace_card()
-            editor_layout.addWidget(
-                self._build_surface_header(
-                    "Provider Editor",
-                    "Build a fast connection draft first, then classify discovered models once the provider is saved.",
-                )
-            )
             self._provider_editor_tabs = qtwidgets.QTabWidget()
             self._provider_editor_tabs.setObjectName("desktopAuxTabs")
             self._provider_editor_tabs.setDocumentMode(True)
 
             connection_page = qtwidgets.QWidget()
             form_layout = qtwidgets.QFormLayout(connection_page)
-            form_layout.setContentsMargins(16, 18, 16, 16)
-            form_layout.setSpacing(10)
+            form_layout.setContentsMargins(12, 12, 12, 12)
+            form_layout.setSpacing(8)
             self._provider_preset_note = qtwidgets.QLabel(
-                "Choose a preset to quick-fill the protocol family and endpoint, then adjust model ids and credentials."
+                "选择预设快速填充协议族和端点，然后调整模型ID和凭证。"
             )
             self._provider_preset_note.setWordWrap(True)
             self._provider_preset_note.hide()
-            self._provider_validation_note = qtwidgets.QLabel("Connection not tested for current draft.")
+            self._provider_validation_note = qtwidgets.QLabel("当前草稿未测试连接。")
             self._provider_validation_note.setWordWrap(True)
             preset_bar = qtwidgets.QWidget()
             preset_bar.setObjectName("desktopPanelTools")
             preset_bar_layout = qtwidgets.QHBoxLayout(preset_bar)
-            preset_bar_layout.setContentsMargins(8, 8, 8, 8)
-            preset_bar_layout.setSpacing(8)
+            preset_bar_layout.setContentsMargins(6, 6, 6, 6)
+            preset_bar_layout.setSpacing(6)
             for preset in desktop_provider_preset_specs():
                 button = qtwidgets.QPushButton(preset["label"])
                 self._style_action_button(button, tone="ghost")
@@ -3361,12 +3376,12 @@ def create_desktop_main_window(
             self._provider_api_key_input.setEchoMode(qtwidgets.QLineEdit.EchoMode.Password)
             self._provider_default_model_input = qtwidgets.QLineEdit()
             self._provider_models_edit = qtwidgets.QPlainTextEdit()
-            self._provider_models_edit.setPlaceholderText("One model id per line, or comma-separated.")
-            self._provider_models_edit.setMinimumHeight(88)
+            self._provider_models_edit.setPlaceholderText("每行一个模型ID，或用逗号分隔。")
+            self._provider_models_edit.setMinimumHeight(72)
             self._provider_headers_edit = qtwidgets.QPlainTextEdit()
-            self._provider_headers_edit.setPlaceholderText('Optional JSON headers, for example: {"x-tenant":"demo"}')
-            self._provider_headers_edit.setMinimumHeight(72)
-            self._provider_enabled_checkbox = qtwidgets.QCheckBox("Enabled")
+            self._provider_headers_edit.setPlaceholderText('可选JSON请求头，例如: {"x-tenant":"demo"}')
+            self._provider_headers_edit.setMinimumHeight(56)
+            self._provider_enabled_checkbox = qtwidgets.QCheckBox("启用")
             self._provider_priority_spin = qtwidgets.QSpinBox()
             self._provider_priority_spin.setRange(-1000, 1000)
             self._provider_timeout_spin = qtwidgets.QSpinBox()
@@ -3383,27 +3398,27 @@ def create_desktop_main_window(
                 self._provider_timeout_spin,
             ):
                 self._style_compact_field(widget)
-            form_layout.addRow("Quick Presets", preset_bar)
+            form_layout.addRow("预设", preset_bar)
             form_layout.addRow("", self._provider_preset_note)
             form_layout.addRow("", self._provider_validation_note)
-            form_layout.addRow("Provider ID", self._provider_id_input)
-            form_layout.addRow("Name", self._provider_name_input)
-            form_layout.addRow("API Type", self._provider_type_combo)
-            form_layout.addRow("Base URL", self._provider_base_input)
-            form_layout.addRow("API Key", self._provider_api_key_input)
-            form_layout.addRow("Default Model", self._provider_default_model_input)
-            form_layout.addRow("Models", self._provider_models_edit)
-            form_layout.addRow("Headers", self._provider_headers_edit)
-            form_layout.addRow("Enabled", self._provider_enabled_checkbox)
-            form_layout.addRow("Priority", self._provider_priority_spin)
-            form_layout.addRow("Timeout", self._provider_timeout_spin)
+            form_layout.addRow("ID", self._provider_id_input)
+            form_layout.addRow("名称", self._provider_name_input)
+            form_layout.addRow("类型", self._provider_type_combo)
+            form_layout.addRow("URL", self._provider_base_input)
+            form_layout.addRow("密钥", self._provider_api_key_input)
+            form_layout.addRow("默认模型", self._provider_default_model_input)
+            form_layout.addRow("模型列表", self._provider_models_edit)
+            form_layout.addRow("请求头", self._provider_headers_edit)
+            form_layout.addRow("", self._provider_enabled_checkbox)
+            form_layout.addRow("优先级", self._provider_priority_spin)
+            form_layout.addRow("超时(秒)", self._provider_timeout_spin)
 
             provider_form_actions = qtwidgets.QHBoxLayout()
-            self._provider_validate_button = qtwidgets.QPushButton("Test Connection")
+            self._provider_validate_button = qtwidgets.QPushButton("测试连接")
             self._provider_validate_button.clicked.connect(self._validate_provider_connection)
-            self._provider_discover_button = qtwidgets.QPushButton("Discover Models")
+            self._provider_discover_button = qtwidgets.QPushButton("发现模型")
             self._provider_discover_button.clicked.connect(self._discover_provider_models)
-            self._provider_save_button = qtwidgets.QPushButton("Save Provider")
+            self._provider_save_button = qtwidgets.QPushButton("保存")
             self._provider_save_button.clicked.connect(self._save_provider_draft)
             self._style_action_button(self._provider_validate_button, tone="ghost")
             self._style_action_button(self._provider_discover_button, tone="ghost")
@@ -3413,14 +3428,14 @@ def create_desktop_main_window(
             provider_form_actions.addStretch(1)
             provider_form_actions.addWidget(self._provider_save_button)
             form_layout.addRow("", provider_form_actions)
-            self._provider_editor_tabs.addTab(connection_page, "Connection")
+            self._provider_editor_tabs.addTab(connection_page, "连接")
 
             shortcuts_panel = qtwidgets.QWidget()
             shortcuts_layout = qtwidgets.QVBoxLayout(shortcuts_panel)
-            shortcuts_layout.setContentsMargins(0, 8, 0, 0)
-            shortcuts_layout.setSpacing(8)
+            shortcuts_layout.setContentsMargins(0, 6, 0, 0)
+            shortcuts_layout.setSpacing(6)
             self._provider_model_shortcuts_note = qtwidgets.QLabel(
-                "Save the provider, then use these shortcuts to classify or bind the current draft models."
+                "保存服务商后，使用这些快捷方式分类或绑定当前草稿模型。"
             )
             self._provider_model_shortcuts_note.setWordWrap(True)
             self._provider_model_shortcuts_note.hide()
@@ -3432,7 +3447,7 @@ def create_desktop_main_window(
             shortcuts_layout.addWidget(self._provider_draft_model_list)
 
             default_row = qtwidgets.QHBoxLayout()
-            self._provider_draft_default_button = qtwidgets.QPushButton("Use As Default")
+            self._provider_draft_default_button = qtwidgets.QPushButton("设为默认")
             self._provider_draft_default_button.clicked.connect(self._use_selected_provider_model_as_default)
             self._style_action_button(self._provider_draft_default_button, tone="ghost")
             default_row.addWidget(self._provider_draft_default_button)
@@ -3443,7 +3458,7 @@ def create_desktop_main_window(
             self._provider_draft_model_role_combo = qtwidgets.QComboBox()
             self._style_compact_field(self._provider_draft_model_role_combo)
             self._provider_draft_model_role_combo.addItems(list(DESKTOP_MODEL_ROLE_OPTIONS))
-            self._provider_draft_set_role_button = qtwidgets.QPushButton("Apply Role")
+            self._provider_draft_set_role_button = qtwidgets.QPushButton("应用角色")
             self._provider_draft_set_role_button.clicked.connect(self._set_selected_provider_draft_model_role)
             self._style_action_button(self._provider_draft_set_role_button, tone="primary")
             role_row.addWidget(self._provider_draft_model_role_combo)
@@ -3454,13 +3469,13 @@ def create_desktop_main_window(
             self._provider_draft_feature_combo = qtwidgets.QComboBox()
             self._style_compact_field(self._provider_draft_feature_combo)
             self._provider_draft_feature_combo.addItems(list(DESKTOP_FEATURE_ROLE_OPTIONS))
-            self._provider_draft_bind_feature_button = qtwidgets.QPushButton("Bind Feature")
+            self._provider_draft_bind_feature_button = qtwidgets.QPushButton("绑定功能")
             self._provider_draft_bind_feature_button.clicked.connect(self._bind_selected_provider_draft_feature_model)
             self._style_action_button(self._provider_draft_bind_feature_button, tone="primary")
             feature_row.addWidget(self._provider_draft_feature_combo)
             feature_row.addWidget(self._provider_draft_bind_feature_button)
             shortcuts_layout.addLayout(feature_row)
-            self._provider_editor_tabs.addTab(shortcuts_panel, "Models")
+            self._provider_editor_tabs.addTab(shortcuts_panel, "模型")
             editor_layout.addWidget(self._provider_editor_tabs, 1)
             editor_shell_layout.addWidget(editor_card, 5)
             splitter.addWidget(editor_shell)
@@ -3483,18 +3498,12 @@ def create_desktop_main_window(
             top_row.setSpacing(12)
 
             controls_card, controls_layout = self._build_workspace_card()
-            controls_layout.addWidget(
-                self._build_surface_header(
-                    "Desktop Preferences",
-                    "Tune the refresh cadence and keep the desktop workspace stable while iterating on real features.",
-                )
-            )
             controls_grid = qtwidgets.QGridLayout()
             controls_grid.setContentsMargins(0, 0, 0, 0)
             controls_grid.setHorizontalSpacing(12)
             controls_grid.setVerticalSpacing(10)
-            controls_layout.setContentsMargins(16, 18, 16, 16)
-            self._settings_auto_refresh_checkbox = qtwidgets.QCheckBox("Enable auto refresh")
+            controls_layout.setContentsMargins(12, 12, 12, 12)
+            self._settings_auto_refresh_checkbox = qtwidgets.QCheckBox("启用自动刷新")
             self._settings_auto_refresh_checkbox.toggled.connect(self._set_auto_refresh_enabled)
             self._settings_refresh_interval_spin = qtwidgets.QSpinBox()
             self._settings_refresh_interval_spin.setRange(1000, 60000)
@@ -3510,43 +3519,37 @@ def create_desktop_main_window(
             self._style_compact_field(self._settings_workspace_path)
             self._style_compact_field(self._settings_gateway_path)
             controls_grid.addWidget(self._settings_auto_refresh_checkbox, 0, 0, 1, 2)
-            controls_grid.addWidget(qtwidgets.QLabel("Refresh Interval (ms)"), 1, 0)
+            controls_grid.addWidget(qtwidgets.QLabel("刷新间隔 (毫秒)"), 1, 0)
             controls_grid.addWidget(self._settings_refresh_interval_spin, 1, 1)
-            controls_grid.addWidget(qtwidgets.QLabel("Workspace"), 2, 0)
+            controls_grid.addWidget(qtwidgets.QLabel("工作区"), 2, 0)
             controls_grid.addWidget(self._settings_workspace_path, 2, 1)
-            controls_grid.addWidget(qtwidgets.QLabel("Gateway"), 3, 0)
+            controls_grid.addWidget(qtwidgets.QLabel("网关"), 3, 0)
             controls_grid.addWidget(self._settings_gateway_path, 3, 1)
             controls_grid.addWidget(self._settings_pref_status, 4, 0, 1, 2)
             controls_layout.addLayout(controls_grid)
 
             quick_actions_card, quick_actions_layout = self._build_workspace_card()
-            quick_actions_layout.addWidget(
-                self._build_surface_header(
-                    "Quick Actions",
-                    "Jump back into the core workspaces or resync the runtime without leaving the desktop shell.",
-                )
-            )
             shortcuts_grid = qtwidgets.QGridLayout()
             shortcuts_grid.setContentsMargins(0, 0, 0, 0)
             shortcuts_grid.setHorizontalSpacing(8)
             shortcuts_grid.setVerticalSpacing(8)
-            self._settings_refresh_now_button = qtwidgets.QPushButton("Refresh Now")
+            self._settings_refresh_now_button = qtwidgets.QPushButton("立即刷新")
             self._settings_refresh_now_button.clicked.connect(self.refresh_snapshot)
-            self._settings_reconnect_button = qtwidgets.QPushButton("Reconnect Gateway")
+            self._settings_reconnect_button = qtwidgets.QPushButton("重连网关")
             self._settings_reconnect_button.clicked.connect(self._reconnect_gateway)
-            self._settings_open_chat_button = qtwidgets.QPushButton("Open Chat")
+            self._settings_open_chat_button = qtwidgets.QPushButton("打开对话")
             self._settings_open_chat_button.clicked.connect(
                 lambda checked=False: self._select_page_by_id("chat")
             )
-            self._settings_open_models_button = qtwidgets.QPushButton("Open Models")
+            self._settings_open_models_button = qtwidgets.QPushButton("打开模型")
             self._settings_open_models_button.clicked.connect(
                 lambda checked=False: self._select_page_by_id("models")
             )
-            self._settings_open_providers_button = qtwidgets.QPushButton("Open Providers")
+            self._settings_open_providers_button = qtwidgets.QPushButton("打开服务商")
             self._settings_open_providers_button.clicked.connect(
                 lambda checked=False: self._select_page_by_id("providers")
             )
-            self._settings_open_memory_button = qtwidgets.QPushButton("Open Memory")
+            self._settings_open_memory_button = qtwidgets.QPushButton("打开记忆")
             self._settings_open_memory_button.clicked.connect(
                 lambda checked=False: self._select_page_by_id("memory")
             )
@@ -3574,12 +3577,6 @@ def create_desktop_main_window(
             layout.addLayout(top_row)
 
             settings_card, settings_layout = self._build_workspace_card()
-            settings_layout.addWidget(
-                self._build_surface_header(
-                    "Desktop Overview",
-                    "Track workspace state, supply-layer inventory, and the currently selected runtime session.",
-                )
-            )
             self._settings_view = qtwidgets.QPlainTextEdit()
             self._settings_view.setReadOnly(True)
             self._style_read_surface(self._settings_view)
@@ -3594,12 +3591,12 @@ def create_desktop_main_window(
             layout.setSpacing(12)
             splitter = qtwidgets.QSplitter(qtcore.Qt.Horizontal)
 
-            list_group = qtwidgets.QGroupBox("Session Ledger")
+            list_group = qtwidgets.QGroupBox("会话记录")
             list_layout = qtwidgets.QVBoxLayout(list_group)
             session_actions = qtwidgets.QHBoxLayout()
-            self._sessions_refresh_button = qtwidgets.QPushButton("Refresh")
+            self._sessions_refresh_button = qtwidgets.QPushButton("刷新")
             self._sessions_refresh_button.clicked.connect(self.refresh_snapshot)
-            self._sessions_open_chat_button = qtwidgets.QPushButton("Open In Chat")
+            self._sessions_open_chat_button = qtwidgets.QPushButton("在对话中打开")
             self._sessions_open_chat_button.clicked.connect(self._open_selected_session_in_chat)
             session_actions.addWidget(self._sessions_refresh_button)
             session_actions.addWidget(self._sessions_open_chat_button)
@@ -3612,14 +3609,14 @@ def create_desktop_main_window(
 
             right_splitter = qtwidgets.QSplitter(qtcore.Qt.Vertical)
 
-            transcript_group = qtwidgets.QGroupBox("Transcript")
+            transcript_group = qtwidgets.QGroupBox("对话记录")
             transcript_layout = qtwidgets.QVBoxLayout(transcript_group)
             self._sessions_transcript_view = qtwidgets.QTextBrowser()
             self._sessions_transcript_view.setOpenExternalLinks(False)
             transcript_layout.addWidget(self._sessions_transcript_view)
             right_splitter.addWidget(transcript_group)
 
-            detail_group = qtwidgets.QGroupBox("Session Detail")
+            detail_group = qtwidgets.QGroupBox("会话详情")
             detail_layout = qtwidgets.QVBoxLayout(detail_group)
             self._sessions_overview_detail_view = qtwidgets.QPlainTextEdit()
             self._sessions_overview_detail_view.setReadOnly(True)
@@ -3643,12 +3640,12 @@ def create_desktop_main_window(
 
             splitter = qtwidgets.QSplitter(qtcore.Qt.Horizontal)
 
-            explorer_group = qtwidgets.QGroupBox("Memory Explorer")
+            explorer_group = qtwidgets.QGroupBox("记忆浏览器")
             explorer_layout = qtwidgets.QVBoxLayout(explorer_group)
             explorer_actions = qtwidgets.QHBoxLayout()
-            self._memory_refresh_button = qtwidgets.QPushButton("Refresh")
+            self._memory_refresh_button = qtwidgets.QPushButton("刷新")
             self._memory_refresh_button.clicked.connect(self._refresh_memory_page)
-            self._memory_open_today_button = qtwidgets.QPushButton("Open Today")
+            self._memory_open_today_button = qtwidgets.QPushButton("打开今日")
             self._memory_open_today_button.clicked.connect(self._open_today_memory_file)
             explorer_actions.addWidget(self._memory_refresh_button)
             explorer_actions.addWidget(self._memory_open_today_button)
@@ -3660,15 +3657,15 @@ def create_desktop_main_window(
             self._memory_summary_view.setMinimumHeight(108)
             explorer_layout.addWidget(self._memory_summary_view)
 
-            explorer_layout.addWidget(qtwidgets.QLabel("Files"))
+            explorer_layout.addWidget(qtwidgets.QLabel("文件"))
             self._memory_file_list = qtwidgets.QListWidget()
             self._memory_file_list.currentRowChanged.connect(self._on_memory_file_selected)
             explorer_layout.addWidget(self._memory_file_list, 1)
 
             search_row = qtwidgets.QHBoxLayout()
             self._memory_search_input = qtwidgets.QLineEdit()
-            self._memory_search_input.setPlaceholderText("Search workspace memory notes")
-            self._memory_search_button = qtwidgets.QPushButton("Search")
+            self._memory_search_input.setPlaceholderText("搜索工作区记忆笔记")
+            self._memory_search_button = qtwidgets.QPushButton("搜索")
             self._memory_search_button.clicked.connect(self._search_memory_notes)
             search_row.addWidget(self._memory_search_input, 1)
             search_row.addWidget(self._memory_search_button)
@@ -3679,16 +3676,16 @@ def create_desktop_main_window(
             explorer_layout.addWidget(self._memory_search_results, 1)
             splitter.addWidget(explorer_group)
 
-            editor_group = qtwidgets.QGroupBox("Memory Editor")
+            editor_group = qtwidgets.QGroupBox("记忆编辑器")
             editor_layout = qtwidgets.QVBoxLayout(editor_group)
-            self._memory_file_path_value = qtwidgets.QLabel("No file selected")
+            self._memory_file_path_value = qtwidgets.QLabel("未选择文件")
             self._memory_file_path_value.setWordWrap(True)
             editor_layout.addWidget(self._memory_file_path_value)
 
             editor_actions = qtwidgets.QHBoxLayout()
-            self._memory_reload_button = qtwidgets.QPushButton("Reload File")
+            self._memory_reload_button = qtwidgets.QPushButton("重新加载")
             self._memory_reload_button.clicked.connect(self._reload_selected_memory_file)
-            self._memory_save_button = qtwidgets.QPushButton("Save File")
+            self._memory_save_button = qtwidgets.QPushButton("保存文件")
             self._memory_save_button.clicked.connect(self._save_selected_memory_file)
             editor_actions.addWidget(self._memory_reload_button)
             editor_actions.addStretch(1)
@@ -4103,8 +4100,6 @@ def create_desktop_main_window(
             if index is None:
                 return
             self._page_stack.setCurrentIndex(index)
-            spec = next((item for item in self._page_specs if item.get("id") == normalized), None) or {}
-            self._page_title.setText(_compact_text(spec.get("label")) or normalized.title())
             for target_id, button in self._page_nav_buttons.items():
                 self._style_page_nav_button(button, active=target_id == normalized)
 

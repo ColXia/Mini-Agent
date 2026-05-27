@@ -3,10 +3,30 @@
 from __future__ import annotations
 
 import json
+import sys
 from typing import Callable
 
 from mini_agent.tools.base import ToolResult
 from mini_agent.utils.terminal_utils import calculate_display_width
+
+
+def _safe_encode_text(text: str) -> str:
+    """Safely encode text for terminal output, replacing unencodable characters.
+
+    On Windows with GBK/CP936 encoding, many Unicode characters (emoji, etc.)
+    cannot be displayed. This function replaces them with safe alternatives.
+    """
+    if text is None:
+        return ""
+    encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
+    try:
+        # Try to encode with the terminal's encoding
+        text.encode(encoding)
+        return text
+    except UnicodeEncodeError:
+        # Replace unencodable characters with their closest ASCII equivalent
+        # or a placeholder
+        return text.encode(encoding, errors="replace").decode(encoding)
 
 
 class AgentRuntimePresenter:
@@ -135,7 +155,7 @@ class AnsiConsoleAgentRuntimePresenter(AgentRuntimePresenter):
         self._emit = emit or print
 
     def _write(self, text: str) -> None:
-        self._emit(text)
+        self._emit(_safe_encode_text(text))
 
     @staticmethod
     def _truncate_tool_arguments(arguments: dict[str, object]) -> dict[str, object]:
