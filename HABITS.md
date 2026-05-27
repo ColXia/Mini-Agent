@@ -1,7 +1,10 @@
 # Mini-Agent 开发习惯与错误记录
 
-> **最后更新**: 2026-04-06
+> **最后更新**: 2026-05-27
 > **维护者**: Mini-Agent Core Team
+> **当前架构版本**: v11.1（稳定）
+>
+> **2026-05-27 注**: 项目已从 P 阶段框架迁移至 v11 架构体系。原有习惯仍然适用，新增 v11 架构习惯（H-13~H-16）。
 
 ---
 
@@ -23,6 +26,10 @@
 | H-10 | 仓库卫生管理 | 定期清理缓存文件，保持仓库干净整洁 | 仓库卫生检查清单 |
 | H-11 | 提交前清理 | 每次提交前检查并清理缓存文件 | Git 提交前检查 |
 | H-12 | .gitignore 维护 | 发现新的缓存目录及时添加到 .gitignore | 定期审查 |
+| H-13 | v11 实体边界 | 严禁跨真源域混用：Agent Truth ⊥ Session Truth ⊥ Workspace Truth ⊥ Surface Truth | 模块导入审计 |
+| H-14 | Run 作为操作真实主体 | interrupt/resume/cancel/approval 操作目标为 Run，非 Session | 运行时状态机测试 |
+| H-15 | 模型供应不污染 Workspace/Session | ModelPool 只供应，AgentModelService 只绑定，Session 不参与模型主链 | 代码审查 |
+| H-16 | 无便利包根导入 | 禁止 `from mini_agent.application import X`，必须导入具体 owner 模块 | 命名空间边界测试 |
 
 ---
 

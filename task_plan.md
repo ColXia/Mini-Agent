@@ -1,5 +1,22 @@
 # Task Plan
 
+## Latest Sync: 2026-05-27 接手恢复 / 状态审计
+
+### Current State: v11 架构基线完成，设计文档已补全
+
+- v11.1-v11.5 代码已完成，v11.6-v11.20 对应模块均已实现
+- 设计文档（`docs/plans/v11.*`）与项目文档（`docs/project-documentation/`）已提交
+- 桌面 UI 中文国际化已提交（存在 3 个测试端口未同步）
+- 下一步方向待确认，详见 TASKS.md
+
+### Next Likely Seam
+
+- 修复 3 个失败测试（中文本地化导致）
+- 根据设计文档进行代码对齐收紧（核对 v11.1 设计文档中 v11.2 内核契约是否完全落地）
+- 补充 v11.13-v11.20 模块的详细设计文档（当前仅 README 占位）
+
+---
+
 ## Latest Sync: 2026-04-19 v11.1 Commands Router Hard Cut
 
 ## Current Execution Slice: v11.1 Commands Router Hard Cut (2026-04-19)

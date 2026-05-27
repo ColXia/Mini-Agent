@@ -1,5 +1,16 @@
 # Findings
 
+## 2026-05-27 搁置后接手审计发现
+
+- 项目搁置约 5 周（2026-04-19 → 2026-05-27），代码主线已到 v11.1-v11.5 完成态。
+- 核心发现：TASKS.md 严重过期（最后更新 2026-04-08），仍使用 P 阶段框架描述，实际代码已演进至 v11 架构。
+- 文档进度滞后于代码进度：v11.6-v11.20 的设计文档于 2026-05-10 编写期间创作，但代码中对应的模块早已实现。
+- 桌面 UI 中文国际化改动（`desktop/window.py`）导致 3 个测试失败：HTML 渲染标签从英文变为中文，测试断言未同步更新。
+- 部分中文标签存在编码异常（输出为乱码字符），需检查 `agent_core/presentation.py` 中的编码处理逻辑。
+- `docs/plans/v11.13_tools/` 至 `docs/plans/v11.20_schema/` 的 README 仅为占位文档，需补充详细内容。
+- 测试套件 1726 passed / 17 skipped / 3 failed，整体健康但需要修复 3 个失败测试。
+- 完整项目文档（`docs/project-documentation/`）于 2026-05-10 创建，版本为 v11.1，与当前代码架构一致，是新开发者最好的入门入口。
+
 ## 2026-04-19 v11.1 Commands Router Hard Cut Findings
 
 - The next meaningful physical mismatch after the runtime root-shell shrink is inside `commands/`, not the already-markerized top-level package roots.

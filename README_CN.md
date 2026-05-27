@@ -7,11 +7,14 @@ Mini-Agent 是一个以终端为主入口的 Agent 平台，当前重点是 `TUI
 
 ## 当前状态
 
-- 主入口：`CLI`、`TUI`、`桌面端`、`远程交互侧`
+- **版本**: v0.2.0
+- **架构版本**: v11.1（稳定），v11.2-v11.5（已完成），v11.6-v11.20（已实现，设计文档已补全）
+- **测试**: 1726 passed, 17 skipped, 3 failed
+- **源代码**: ~350+ .py 文件，24 个顶层模块包
+- 主入口：`CLI`、`TUI`、`桌面端`（PySide6）、`远程侧`（QQ Bot）
 - 默认本地工作流：`TUI`、`CLI`、`headless`
-- 可选运行栈：gateway + 当前启用的 QQ 远程适配器
+- 可选运行栈：gateway + QQ 远程适配器
 - 浏览器 `WebUI` / `OpenWebUI`：已删除
-- 当前架构主线：完成 `P37` 后进入 `P32b` 仓库卫生与结构对齐收口
 
 ## 依赖与参考的边界
 
@@ -134,13 +137,41 @@ uv run mini-agent models minimax --latest
 ## 仓库结构
 
 ```text
-src/mini_agent/                 核心运行时、命令系统、TUI、agent、memory、models
+src/mini_agent/                 核心运行时（24个顶层包，~350+ .py 文件）
+  agent_core/                    Agent 内核、引擎、执行循环、权限、上下文、Skills
+  application/                   应用层（端口/用例/门面/用户服务）
+  runtime/                       运行时（处理器/编排/实时控制/读模型）
+  session/                       会话持久化与投影
+  workspace_runtime/             工作区运行时与执行器
+  model_manager/                 模型池、注册、健康监控、熔断
+  memory/                        记忆系统（自动化/整合/提升/检索）
+  tools/                         工具系统（Shell/文件/MCP/知识库）
+  skills/                        内置技能与技能解析器
+  tui/                           TUI 终端界面（Textual）
+  desktop/                       PySide6 桌面应用
+  transport/                     传输层（Gateway 客户端、远程客户端）
+  llm/                           LLM 客户端（Anthropic/OpenAI）
+  interfaces/                    接口定义与 DTO
+  schema/                        数据模型与 Schema
+  commands/                      命令解析/补全/元数据
+  config/                        配置管理
+  security/                      安全策略与审计
+  rag/                           轻量 RAG（BM25+向量+RRF）
+  ops/                           运维工具
+  user_services/                 用户服务门面
+  workspace/                     工作区领域模型
+  utils/                         工具函数
+  dev/                           开发工具
 src/apps/agent_studio_gateway/  Gateway / API Host
-src/apps/desktop_ui/            DesktopUI 启动与打包应用
-src/apps/qqbot_channel/         可选 QQ 远程适配器应用
+src/apps/desktop_ui/            DesktopUI 启动入口
+src/apps/qqbot_channel/         QQ 远程适配器（Node.js）
+src/subprograms/                子程序（文档解析/知识库/记忆管理）
 scripts/                        走查、冒烟、维护脚本
-tests/                          自动化测试
-docs/                           活跃文档与历史归档
+tests/                          自动化测试（1746 个用例）
+docs/                           项目文档、设计文档、历史归档
+  docs/project-documentation/   最新中文项目文档
+  docs/plans/                   v11.6-v11.20 设计规划
+  docs/v11.1/                   v11.1 架构设计文档
 workspace/                      本地运行产物与测试输出
 ```
 
@@ -164,12 +195,13 @@ uv run mini-agent doctor
 
 ## 相关文档
 
+- **最新中文项目文档**: [`docs/project-documentation/`](./docs/project-documentation/)
+- **v11 架构设计**: [`docs/v11.1/`](./docs/v11.1/)
+- **v11 设计规划**: [`docs/plans/`](./docs/plans/)
 - [`docs/DOCS_INDEX.md`](./docs/DOCS_INDEX.md)
 - [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)
-- [`docs/DEVELOPMENT_GUIDE.md`](./docs/DEVELOPMENT_GUIDE.md)
 - [`docs/DEVELOPMENT_GUIDE_CN.md`](./docs/DEVELOPMENT_GUIDE_CN.md)
 - [`docs/DEVELOPMENT_INDEX.md`](./docs/DEVELOPMENT_INDEX.md)
-- [`docs/OSS_REFERENCE_INDEX.md`](./docs/OSS_REFERENCE_INDEX.md)
 
 ## 说明
 

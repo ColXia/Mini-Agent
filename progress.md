@@ -1,5 +1,49 @@
 # Progress
 
+## 2026-05-27 搁置后恢复接手准备
+
+- [completed] 全面审查项目文档与代码的一致性
+- [completed] 文档过期审计：TASKS.md（严重过期 2026-04-08）、HABITS.md（部分过期）、README_CN.md（版本号过期）
+- [completed] 运行完整测试套件：1726 passed, 17 skipped, 3 failed
+- [completed] 定位 3 个失败测试根因：桌面 UI 中文本地化后测试断言未同步更新
+- [completed] 更新 TASKS.md 至 v11 架构基线，反映真实开发阶段
+- [completed] 更新 progress.md 补充 2026-04-19 至今的状态记录
+- [completed] 提交 89 个文件：v11.6-v11.20 设计规划文档 + 中文项目文档 + 桌面 UI 中文国际化
+- [next] 修复 3 个失败测试
+- [next] 根据设计文档确立下一步开发任务优先级
+
+## 2026-04-28 ~ 2026-05-10 项目文档编写期
+
+- [completed] 编写完整中文项目文档（`docs/project-documentation/`）：
+  - 项目概述、整体架构、架构图集（15 张 Mermaid 图）
+  - 各核心模块详解（agent_core / application / model_manager / runtime / workspace_session / tools_skills）
+  - API 接口文档、数据合约、核心接口
+  - 数据模型、状态机（6 个状态机）
+  - 设计决策记录、开发规范、测试策略
+  - 术语表、变更日志
+- [completed] 编写 v11.6-v11.20 设计规划文档（`docs/plans/`）：
+  - v11.6 Model Service（10 个文档）
+  - v11.7 Agent Core（10 个文档）
+  - v11.8 User Interface（6 个文档）
+  - v11.9 Application（4 个文档）
+  - v11.10 Runtime（4 个文档）
+  - v11.11 Session（6 个文档）
+  - v11.12 Workspace（9 个文档）
+  - v11.13-v11.20 各模块 README
+- [completed] 桌面 UI 中文国际化改造（`desktop/window.py`）
+
+## 2026-04-19 v11.2-v11.5 核心功能补全
+
+- [completed] 完成模型核心模块（Model Service 分离）
+- [completed] 完成 User Services 层建立（Agent/Workspace/Model/Command）
+- [completed] 完成 Context Assembler 上下文组装器
+- [completed] `_safe_text` 提取到 `utils.text` 共享模块
+- [completed] runtime_stack_manager 硬切割至 workspace_runtime
+- [completed] TUI port adapters 增强（完整 run control integration）
+- [completed] User service integration for TUI
+- [completed] Stage 2 control truth migration
+- [completed] cancel_event truth 迁移至 run-owned control bridge
+
 ## 2026-04-19 v11.1 Commands Router Hard Cut
 
 - [completed] re-read the active `v11.1` guidance relevant to the next user-surface alignment seam:

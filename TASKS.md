@@ -1,291 +1,160 @@
 # Mini-Agent 开发任务表
 
-> **最后更新**: 2026-04-08
-> **当前阶段**: TUI 主入口真实使用修边角阶段（进行中）
-> **当前主线**: `mini-agent --mode tui` 日常使用 + 实际问题闭环修复
-> **暂停范围**: WebUI 主线开发
+> **最后更新**: 2026-05-27
+> **当前阶段**: v11 架构基线完成 / 设计文档补全 / 待进入对齐收紧阶段
+> **架构版本**: v11.1（已稳定），v11.2-v11.5（已完成），v11.6-v11.20（已实现，设计文档已补全）
+> **暂停范围**: 无。搁置期（2026-04-19 ~ 2026-05-27）后恢复开发，现处于接手准备阶段。
 
-> **参考项目目录**: `C:\Users\Conli\AI开源项目`
-> **用途**: 对照实现 / 快速跳转
-> **最后核对日期**: 2026-04-07
+> **在线文档**: 最新完整架构文档见 `docs/project-documentation/`
 
 ---
 
 ## 📋 当前状态
 
-- **测试状态**: 511 passed, 16 skipped
-- **架构状态**: 单主机架构，无兼容层
+- **测试状态**: 1726 passed, 17 skipped, 3 failed（3个失败为桌面UI中文本地化导致测试断言未同步）
+- **架构状态**: v11 分层架构（Schema → Config → Interfaces → Model Service → Agent Core → Application → User Interface）
+- **运行时**: 单一主代理运行时 / 多 Session 支持
+- **终端状态**: TUI/CLI/Headless/Desktop 四入口主线已打通
 - **API 版本**: v1 (`/api/v1/*`)
-- **运行时**: 单一主代理运行时
-- **终端状态**: `TUI/CLI/Headless` 主链已打通，真实 headless 冒烟已通过
-- **当前开发方式**: 以 TUI 为主入口持续使用，按真实使用中暴露的问题滚动修边角
+- **源代码**: ~350+ .py 文件，24 个顶层包
+- **关键模块全覆盖**: agent_core / application / runtime / session / workspace_runtime / model_manager / memory / tools / skills / tui / desktop / transport / llm / interfaces / schema / security / rag / ops
 
 ---
 
 ## 🎯 开发任务
 
-### P18 硬重构（已完成 ✅）
+### 已完成阶段（历史记录，已完成 ✅）
 
-#### P18.0 架构基线和契约冻结
-- [x] API 命名空间统一为 `/api/v1/*`
-- [x] 发布 API 契约骨架（OpenAPI + 类型化 DTO）
-- [x] 定义严格的响应封装和错误码分类
-- [x] 标记旧的临时路由为删除列表
+#### P18 硬重构（已完成 ✅）
+单主机架构，无兼容层，API v1，单一主代理运行时。详见原始 TASKS.md 记录。
 
-**具体细则**:
-- 所有 API 必须遵循 `/api/v1/*` 命名规范
-- 响应格式统一为 `{success, data, error, code}`
-- 错误码使用标准 HTTP 状态码 + 自定义业务码
+#### P19 轻量 RAG 系统（已完成 ✅）
+BM25 + 向量检索 + RRF 融合，Hybrid Store 本地持久化，Docling 文档解析。
 
-#### P18.1 接口层引入（硬切割）
-- [x] 为 `agent`, `novel`, `channel`, `system`, `ops` 添加接口模块
-- [x] 将 Studio Ops 路由输入/输出模型移至接口 DTO
-- [x] 将主代理路由编排移至应用用例层
-- [x] 删除路由器中的直接基础设施调用
+#### P20 预留（已完成 ✅）
+前端知识库面板，OpenWebUI 定位收敛。
 
-**具体细则**:
-- Router 层只负责请求解析、认证、响应封装
-- Interface 层定义 DTOs/契约/用例端口，无基础设施逻辑
-- Application 层负责用例/编排
-- Domain 层负责会话/代理/渠道领域逻辑
-- Infrastructure 层负责 Provider、持久化、渠道适配器
+#### P21 终端交互重构（已完成 ✅）
+独立 TUI 子系统，命令面板，模型注册服务接入，多 Surface 会话接管，Session 真源统一。
 
-#### P18.2 主代理运行时整合
-- [x] 构建单一运行时管理器
-- [x] 强制单一活跃主代理实例/会话
-- [x] 迁移工作区聊天/会话/流流程到主代理用例路径
-- [x] 删除遗留的重复运行时入口点
-
-**具体细则**:
-- 一个后端主机进程只能有一个主代理运行时
-- 所有工作区操作通过主代理用例执行
-- 删除 `gateway/main.py`, `gateway/run.py`, `mini_agent/launcher/gateway.py` 等遗留入口
-
-#### P18.3 小说子程序重绑定
-- [x] 引入 `novel-agent-profile` 配置模型
-- [x] 通过 `NovelServiceUseCase` 路由小说操作
-- [x] 隔离小说记忆/工具配置与主代理配置
-
-**具体细则**:
-- 小说生成作为独立子程序，有自己的代理配置
-- 小说操作通过后端服务层触发，不直接路由
-- 小说记忆和工具与主代理完全隔离
-
-#### P18.4 渠道统一（QQ/WeChat -> 主代理）
-- [x] 统一渠道入口负载模式
-- [x] QQ/WeChat 流量只路由到主代理
-- [x] 小说调用作为内部主代理操作
-- [x] 删除渠道特定的绕过路径
-
-**具体细则**:
-- 所有 QQ/WeChat 消息统一进入主代理处理
-- 渠道层只负责消息接收和格式转换
-- 不允许渠道直接调用其他服务
-
-#### P18.5 前端重构为契约客户端
-- [x] 用单一类型化客户端层替换混合 API 调用
-- [x] 按领域拆分 UI 模块
-- [x] 删除状态耦合和隐式端点假设
-- [x] 添加前端契约冒烟测试
-
-**具体细则**:
-- 前端只消费 `/api/v1/*` API
-- 前端不得导入后端内部模块或依赖私有负载
-- Vite 开发服务器只代理一个后端目标
-- 所有 API 调用通过类型化客户端进行
-
-#### P18.6 进程管理和热开发纪律
-- [x] 提供 `dev up/down/status/logs` 单命令管理器
-- [x] 强制一前端/一后端锁和清晰的冲突消息
-- [x] 为两个进程添加 PID + 端口防护
-- [x] 标准化本地开发环境变量和启动配置
-
-**具体细则**:
-- 开发环境必须只有一个前端和一个后端进程
-- 重复启动必须快速失败并显示 PID/端口消息
-- 使用 `mini-agent dev up/down/status/logs` 管理进程
-
-#### P18.7 硬删除和清理
-- [x] 硬切割 Studio Ops 遗留路由前缀
-- [x] 硬删除 Studio Gateway 遗留路由集
-- [x] 删除剩余的废弃路由器路径和兼容胶水
-- [x] 删除重复的服务/控制器代码分支
-
-**具体细则**:
-- 不保留任何兼容性包装器
-- 不为方便保留遗留端点
-- 生产分支中不混合旧/新编排路径
-
-#### P18.8 验证门
-- [x] 为主代理用例添加初始单元测试
-- [x] 扩展剩余用例和接口 DTO 的单元测试
-- [x] 主代理和小说代理配置流的集成测试
-- [x] 渠道入口回归测试
-- [x] 端到端开发配置测试
-
-**具体细则**:
-- 所有测试必须通过
-- 测试覆盖率不低于当前水平
-- 集成测试验证完整流程
+#### P22-P42 Desktop 产品化（已完成 ✅）
+PySide6 桌面应用，多工作区（对话/模型/服务商/设置/会话/记忆），Provider 预设与验证流程，模型角色/功能绑定。
 
 ---
 
-## 📝 下一步任务
+### v11 架构重构（已完成 ✅）
 
-### P19 轻量 RAG 系统迭代（进行中 🔄）
+#### v11.1 架构硬切割（已完成 ✅）
+- [x] 核心实体模型正式化（AgentProfile / AgentInstance / Workspace / Session / Run / CapabilitySnapshot）
+- [x] 四大真源域分离（Agent Truth / Workspace Truth / Session Truth / Surface Truth）
+- [x] runtime 模块硬切割（handlers / orchestration / live_control / read_models 四层）
+- [x] application 包根标记化，去除便利导出
+- [x] commands router 硬切割（parser / metadata / completions / execution 拆分）
+- [x] package facades 硬切割，legacy novel/plugin 表面切割
+- [x] workspace_runtime 边界硬切割（DirectWorkspaceExecutor, MutationLedger, SnapshotStore）
+- [x] 设计文档补全（`docs/v11.1/` 4份核心设计文档）
 
-#### 目标原则
-- 保持轻量：不引入重型平台依赖，不增加多进程耦合复杂度。
-- 核心能力优先：`BM25 + 向量检索 + RRF 融合` 作为默认检索路径。
-- 工程可控：先实现最小可用闭环，再按质量指标增量优化。
-- 前端策略：主前端继续迭代 Mini-Agent Studio；OpenWebUI 保留为可选适配入口，不作为主线替换。
+#### v11.2-v11.5 模型核心、用户服务、上下文组装器（已完成 ✅）
+- [x] Agent Kernel Contract 实现（AgentProfile / AgentInstance / Run / Checkpoint / ExecutionJournal）
+- [x] Model Service 模型池与服务分离（ModelPool + AgentModelService）
+- [x] User Services 层建立（Agent / Workspace / Model / Command 四个 UserService）
+- [x] Context Assembler 上下文组装器完善
+- [x] TUI port adapters 增强（完整 run control integration）
+- [x] User service integration for TUI
+- [x] Stage 2 control truth migration（cancel_event → run-owned control bridge）
+- [x] `_safe_text` 提取到 shared `utils.text` 模块
 
-#### 架构决策
-- [x] 去除 MaxKB 作为主 RAG 依赖，改为 Mini-Agent 内置轻量 RAG 存储与检索。
-- [x] 保留 Docling 作为文档解析前置能力。
-- [x] 保留 OpenWebUI adapter 为可选入口，不阻塞主前端迭代。
+#### v11.6-v11.20 设计文档与模块对齐（已完成 ✅）
+对应模块均已实现，设计文档于 2026-05-27 补齐提交：
 
-#### P19.1 迭代一：最小可用闭环（当前迭代）
-- [x] 建立轻量 Hybrid Store（本地持久化，JSON 存储）。
-- [x] 实现 `BM25` 检索打分（无外部依赖）。
-- [x] 实现哈希向量检索（cosine 相似度，无重型向量库）。
-- [x] 实现 RRF 融合排序（BM25 + 向量）。
-- [x] 新增知识库统计端点（`/api/knowledge-base/stats`）。
-- [x] 将知识库路由从 MaxKB 客户端改为本地 Hybrid Store。
-- [x] 新增文件 ingest 路由（`/api/knowledge-base/ingest/file`）并接入 DoclingParser。
-- [x] 补充路由回归测试（文本 ingest/query + 文件 ingest/query）。
+| 阶段 | 模块 | 设计文档 | 代码实现 |
+|------|------|:--:|:--:|
+| v11.6 | Model Service | `docs/plans/v11.6_model_service/` | `model_manager/` 20文件 ✅ |
+| v11.7 | Agent Core | `docs/plans/v11.7_agent_core/` | `agent_core/` ~70文件 ✅ |
+| v11.8 | User Interface | `docs/plans/v11.8_user_interface/` | `tui/` 19 + `desktop/` 6 + `transport/` 21 ✅ |
+| v11.9 | Application | `docs/plans/v11.9_application/` | `application/` ~35文件 ✅ |
+| v11.10 | Runtime | `docs/plans/v11.10_runtime/` | `runtime/` ~45文件 ✅ |
+| v11.11 | Session | `docs/plans/v11.11_session/` | `session/` 7文件 ✅ |
+| v11.12 | Workspace | `docs/plans/v11.12_workspace/` | `workspace_runtime/` 11 + `workspace/` 2 ✅ |
+| v11.13 | Tools | `docs/plans/v11.13_tools/` | `tools/` 24文件 ✅ |
+| v11.14 | Security | `docs/plans/v11.14_security/` | `security/` 5 + `agent_core/security/` ✅ |
+| v11.15 | Memory | `docs/plans/v11.15_memory/` | `memory/` 25文件 ✅ |
+| v11.16 | LLM | `docs/plans/v11.16_llm/` | `llm/` 6文件 ✅ |
+| v11.17 | Skills | `docs/plans/v11.17_skills/` | `agent_core/skills/` + `skills/` ✅ |
+| v11.18 | Config | `docs/plans/v11.18_config/` | `config/` + `config_bootstrap.py` ✅ |
+| v11.19 | Interfaces | `docs/plans/v11.19_interfaces/` | `interfaces/` 8文件 ✅ |
+| v11.20 | Schema | `docs/plans/v11.20_schema/` | `schema/` 2文件 ✅ |
 
-**交付物**:
-- `src/mini_agent/rag/lightweight_hybrid.py`
-- `src/subprograms/knowledge_base/gateway/router.py`
-- `tests/test_knowledge_base_router.py`
+---
 
-#### P19.2 迭代二：检索质量增强（已完成 ✅）
-- [x] 增加 chunk 策略配置（按文件类型/段落层级动态切分）。
-- [x] 增加查询改写（多轮会话问题独立化，保持轻量规则实现）。
-- [x] 增加检索调试接口（返回分项打分与融合前后排序）。
-- [x] 增加 citation 元数据标准（来源路径、chunk_id、文档名）。
-- [x] 增加基础离线评测脚本（Top-k 命中、答案引用覆盖率）。
+## 📝 当前待解决事项
 
-**完成标准**:
-- 关键问答场景 Top-5 命中率较迭代一提升。
-- 查询结果可稳定追溯到源文档 chunk。
+### 🔴 测试修复（高优先级）
+- [ ] **3个失败测试**：`tests/test_desktop_window_helpers.py`
+  - `test_render_conversation_html_separates_roles_and_escapes_content`
+  - `test_render_activity_html_renders_cards_with_detail_and_preview`
+  - `test_render_activity_html_supports_thinking_cards`
+  - 原因：桌面 UI 中文本地化后（`desktop/window.py`），HTML 渲染标签从英文变为中文，但测试断言仍是英文字符串。需同步更新测试期望值。
+  - 附加问题：部分中文标签存在编码异常（显示为乱码），需检查 `agent_core/presentation.py` 中的编码处理。
 
-#### P19.3 迭代三：工程化与可运维（已完成 ✅）
-- [x] 增加 ingest 作业状态与失败重试（最小队列模型）。
-- [x] 增加数据维护接口（重建、清理指定 knowledge_base）。
-- [x] 增加配置项统一（store path、chunk size、top_k、rrf_k）。
-- [x] 增加性能护栏（单请求耗时、最大 chunk 数限制）。
-- [x] 文档化运维手册（如何构建、清理、回滚索引数据）。
+### 🟡 设计文档对齐（中优先级）
+- [ ] v11.1 设计文档（`docs/v11.1/*.txt`）中提到的 v11.2 内核契约对象设计是否已完全落地，需要逐项核对
+- [ ] `docs/plans/v11.13_tools/` ~ `docs/plans/v11.20_schema/` 的 README 仅为占位，需补充详细设计文档
+- [ ] TASKS.md（本文档）与 `docs/project-documentation/08_变更日志.md` 中的版本信息需保持同步
 
-#### P19.4 验证门（每轮迭代必须执行）
-- [x] 路由单测通过。
-- [x] 核心回归集合通过。
-- [x] 本地 smoke 测试（ingest/query/health/stats）通过。
-- [x] 文档同步更新（TASKS/HABITS/相关接口文档）。
-
-### P20 预留（后续）
-
-#### P20.1 前端知识库面板
-- [x] 在 Mini-Agent 主前端增加知识库上传、索引、检索调试面板。
-- [x] 增加轻量检索配置 UI（top_k、混合权重、是否显示 citation）。
-
-#### P20.2 OpenWebUI 定位收敛
-- [x] 保持 OpenWebUI adapter 的可运行性与兼容验证。
-- [x] 不新增主业务依赖到 OpenWebUI 专属接口。
-- [x] 根据使用反馈再决定是否做深度集成。
-
-### P21 终端交互重构（进行中 🔄）
-
-#### 目标原则
-- TUI/CLI 主线优先：暂停 WebUI 主线开发，聚焦终端交互闭环。
-- 对齐开源优秀体验：参考 opencode 的终端交互风格，建设全屏化 TUI。
-- 统一能力入口：会话管理、模型切换、命令执行在一个终端界面内完成。
-- 无兼容壳：直接新增独立 TUI 子系统，不保留旧交互壳层作为主路径。
-
-#### P21.1 独立 TUI 子系统基线（当前迭代）
-- [x] 新增 `mini-agent tui` 子命令入口（独立于 `mini-agent cli`）。
-- [x] 新增全屏 TUI 布局骨架（会话栏/对话栏/模型栏 + 底部输入区）。
-- [x] 新增命令面板（Ctrl+K）与主题切换（F2）基础交互。
-- [x] 接入模型注册服务（按供应商展示模型，支持发现/切换）。
-- [x] 会话基线能力（新建/切换/列表）与消息发送链路打通。
-
-#### P21.2 交互能力收敛（下一迭代）
-- [x] 完善命令体系（补全、帮助、错误提示、可视化反馈）。
-- [x] 完善会话体验（重命名、删除、持久化、恢复）。
-- [x] 完善模型体验（默认模型可视化、供应商筛选、快捷切换）。
-- [x] 优化流式输出与中断控制（类 opencode 的运行中反馈与取消）。
-- [x] 补齐 TUI 专项测试与回归门禁。
-
-#### P21.3 统一终端入口（当前迭代）
-- [x] 入口策略改为单命令自动分流：`mini-agent` 默认终端模式（TTY -> TUI，非 TTY/`--prompt` -> Headless）。
-- [x] 增加显式模式开关：`--mode [auto|tui|cli|headless]`，保留 `cli`/`tui` 子命令作为强制入口。
-- [x] 增加 Headless 参数：`--prompt` 与 `--output-format [text|json|stream-json]`（脚本与 CI 友好）。
-- [x] 将 Studio API Host 改为显式子命令 `serve`，避免与默认终端入口冲突。
-- [x] 补齐统一入口测试（自动分流、模式强制、headless 输出契约）。
-
-#### P21.4 多 Surface 会话接管（当前迭代）
-- [x] QQ Bot 与 TUI 共享同一主会话，不再分裂为远端/本地两套上下文。
-- [x] Gateway 会话摘要增加来源面、当前活动面、远端绑定信息与最近消息接口。
-- [x] QQ Bot 增加 `/continue`，支持离开终端后远端拉取最近 10 条上下文。
-- [x] TUI 逐步转为 operator console，可查看并接管 QQ 来源任务。
-- [x] 所有能力均复用现有 `channel -> gateway -> runtime` 主链，不新增平行消息栈。
-
-#### P21.5 Session 真源统一硬重构（已完成 ✅）
-- [x] 删除 “TUI 本地 session / gateway session / 旧 session store” 三套并存结构，统一以 runtime session 为唯一真源。
-- [x] TUI 改为纯 runtime 客户端：启动、列出、新建、重命名、删除、切换、发消息全部走 gateway/runtime。
-- [x] runtime 改为可承载多 session，不再把 `single_main` 误实现成“只能有一个可用会话”。
-- [x] `share/unshare` 收敛为“是否暴露给 QQ 等远端 surface 可见”的可见性开关，不再做导入、导出、接管、同步。
-- [x] QQ 侧改为 `conversation -> session_id` 绑定，只消费被暴露的 runtime session，不再维护独立 session 副本。
-- [x] 删除 `import/export/takeover/sync` 这类补丁式 session 兼容语义，收口成统一 session API。
-- [x] TUI 本地状态文件仅保留 UI 视图缓存，不再持久化会话正文、agent message 副本、任务恢复副本。
-
-**本轮改造原则**:
-- session 内容、消息、上下文、模型、审批、记忆状态只允许 runtime 持有和持久化。
-- TUI/QQ/CLI 都只是 surface，不再拥有自己的 session 真源。
-- `share` 的定义只保留“让远端 surface 可发现/可绑定”，不再承担同步/迁移职责。
-- 不保留兼容壳；能硬切的链路直接硬切。
+### 🟢 下一步开发方向（待确认）
+- 根据 `docs/project-documentation/08_变更日志.md` 路线图：
+  - v11.2 模型服务边界优化（原计划 2026-05）
+  - v11.3 Provider 配置改进（原计划 2026-05）
+  - v11.4 模型别名系统（原计划 2026-06）
+- 根据 v11.1 设计文档指向：v11.2 Agent Kernel Contract 对象设计
+- 根据 `docs/plans/` 设计文档：v11.13-v11.20 模块文档补全 + 代码对齐收紧
 
 ---
 
 ## 🔧 开发规范
 
-### 代码规范
+（同 HABITS.md，此处保留关键条目）
+
 1. **单一真实来源**: 所有变更必须映射到活跃阶段文档
-2. **无兼容层**: 任何回退/遗留适配器都被阻止，除非明确批准
+2. **无兼容层**: 任何回退/遗留适配器都被阻止
 3. **契约优先**: 路由器变更必须先更新 DTO/契约
-4. **小而原子**: 每个变更必须包含范围边界和回滚说明
+4. **小原子切片**: 每个变更必须包含范围边界和回滚说明
+5. **即时验证**: 语法/构建/冒烟检查在移交前必须执行
 
-### 测试规范
-1. **立即验证**: 语法/构建/冒烟检查在移交前必须执行
-2. **语言特定**: Python/TypeScript 验证命令不得在一次调用中混合
-3. **测试隔离**: 测试必须使用临时路径，不触碰用户级状态
+### 测试命令
+```powershell
+# 运行全部测试
+uv run pytest -q
 
-### 提交规范
-1. **原子提交**: 每个提交应该是单一、完整的变更
-2. **清晰消息**: 提交消息必须说明"为什么"而非"是什么"
-3. **引用任务**: 提交消息必须引用任务 ID（如 P18.1）
+# 运行指定模块测试
+uv run pytest tests/test_desktop_window_helpers.py -v
+
+# 快速语法检查
+uv run ruff check src/
+```
 
 ---
 
 ## 📚 相关文档
 
-- **详细任务清单**: `docs/REFACTOR_TASKS.md`
-- **深度改造方案**: `docs/TRANSFORMATION_PLAN.md`
-- **当前执行计划**: `docs/P30_SURFACE_SESSION_REFACTOR_TASK_PLAN.md`
-- **API 契约**: `docs/API_V1_CONTRACT_SKELETON.md`
+- **最新架构文档**: `docs/project-documentation/`
+- **v11.1 设计文档**: `docs/v11.1/`
+- **v11 设计规划**: `docs/plans/`
+- **变更日志**: `docs/project-documentation/08_变更日志.md`
 - **开发习惯**: `HABITS.md`
-- **文档索引**: `docs/DOCS_INDEX.md`
-- **RAG 运维手册**: `docs/RAG_OPERATIONS.md`
+- **项目记忆**: `MEMORY.md`
+- **进度记录**: `progress.md`
+- **任务计划**: `task_plan.md`
 
 ---
 
 ## 📊 进度统计
 
-- **已完成阶段**: P0-P18
-- **已完成任务**: 200+
-- **测试通过率**: 100% (317/317)
-- **代码覆盖率**: 保持稳定
+- **已完成阶段**: P0-P42, v11.1-v11.20（代码实现）
+- **测试通过率**: 1726/1746 (98.8%)，3个失败待修复
+- **源代码规模**: ~350+ .py 文件，24 个顶层包
+- **架构版本**: v11.1 稳定
 
 ---
 
