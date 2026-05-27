@@ -9,6 +9,8 @@ description: >
   Use when the user mentions MiniMax, multimodal generation, or wants speech/music/video/image AI,
   MiniMax APIs, or FFmpeg workflows alongside MiniMax outputs.
 license: MIT
+requires:
+  bins: ffmpeg, jq
 metadata:
   version: "1.0"
   category: media-generation

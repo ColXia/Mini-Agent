@@ -2,6 +2,8 @@
 name: gif-sticker-maker
 description: Create short looping GIFs, sticker-style animations, reaction assets, and emoji-scale motion graphics. Use whenever the user asks for a GIF, animated sticker, emoji animation, reaction loop, mascot motion, or a lightweight animated asset for chat, social, or demo use.
 license: Complete terms in LICENSE.txt
+requires:
+  python_packages: pillow, imageio, imageio_ffmpeg, numpy
 metadata:
   trigger_keywords:
     - GIF

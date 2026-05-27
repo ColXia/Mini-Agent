@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import shutil
 from contextlib import AsyncExitStack
-from typing import Any
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.sse import sse_client
@@ -18,6 +18,36 @@ from .executor import MCPResourceListTool, MCPResourceReadTool, MCPTool
 from .lifecycle import get_mcp_timeout_config, register_connection
 from .naming import reserve_mcp_tool_alias
 from .types import ConnectionType, MCPServerPolicy
+
+_COMMAND_LABEL: dict[str, str] = {
+    "npx": "Node.js (npm/npx)",
+    "node": "Node.js",
+    "npm": "Node.js (npm)",
+    "uvx": "uv (uvx)",
+    "python": "Python 3",
+    "python3": "Python 3",
+    "docker": "Docker",
+    "git": "Git",
+}
+
+_COMMANDS_WITH_AUTO_INSTALL: dict[str, str] = {
+    "npx": "Install Node.js from https://nodejs.org",
+    "node": "Install Node.js from https://nodejs.org",
+    "npm": "Install Node.js from https://nodejs.org",
+    "uvx": "Install uv from https://docs.astral.sh/uv",
+    "docker": "Install Docker from https://docs.docker.com/get-docker/",
+}
+
+
+def _check_command(command: str) -> str | None:
+    """Check if a command is available. Returns error message if not found."""
+    if shutil.which(command) is not None:
+        return None
+    label = _COMMAND_LABEL.get(command, f"command '{command}'")
+    hint = _COMMANDS_WITH_AUTO_INSTALL.get(command, "")
+    if hint:
+        return f"{label} is not installed. {hint}."
+    return f"{label} is not available. Please install it to enable this MCP server."
 
 
 class MCPServerConnection:
@@ -69,6 +99,13 @@ class MCPServerConnection:
             self.last_error = "Untrusted remote MCP server (policy.trust=false)."
             print(f"[WARN] Skipping untrusted remote MCP server '{self.name}'. Set policy.trust=true to enable.")
             return False
+
+        if self.connection_type == "stdio" and self.command:
+            missing_msg = _check_command(self.command)
+            if missing_msg:
+                self.last_error = missing_msg
+                print(f"[INFO] MCP server '{self.name}' skipped: {missing_msg}")
+                return False
 
         connect_timeout = self._get_connect_timeout()
         try:
@@ -241,6 +278,7 @@ async def load_mcp_tools_async(config_path: str = "mcp.json") -> list[Tool]:
 
     all_tools: list[Tool] = []
     reserved_aliases: set[str] = set()
+    skipped: list[tuple[str, str]] = []
     for server in servers:
         connection = MCPServerConnection(
             name=server.name,
@@ -259,6 +297,13 @@ async def load_mcp_tools_async(config_path: str = "mcp.json") -> list[Tool]:
         if success:
             register_connection(connection)
             all_tools.extend(connection.tools)
+        elif connection.last_error:
+            skipped.append((server.name, connection.last_error))
+
+    if skipped:
+        print()
+        for name, reason in skipped:
+            print(f"[INFO] MCP '{name}' unavailable: {reason}")
 
     print(f"\nTotal MCP tools loaded: {len(all_tools)}")
     return all_tools
