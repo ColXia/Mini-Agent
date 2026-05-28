@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 from dataclasses import dataclass
@@ -11,6 +12,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 import tempfile
 from uuid import uuid4
+
+logger = logging.getLogger(__name__)
 
 from mini_agent.memory.session_search import SessionSearchIndex
 from mini_agent.runtime.support.sandbox_state import normalize_sandbox_diagnostics
@@ -120,7 +123,8 @@ class RuntimeSessionPersistenceRecordBuilder:
         if callable(self.agent_last_memory_automation):
             try:
                 return self._normalize_agent_payload(self.agent_last_memory_automation(agent))
-            except Exception:
+            except Exception as exc:
+                logger.warning("Failed to read agent last_memory_automation: %s", exc)
                 return {}
         return self._normalize_agent_payload(getattr(agent, "last_memory_automation", {}))
 
@@ -128,7 +132,8 @@ class RuntimeSessionPersistenceRecordBuilder:
         if callable(self.agent_last_runtime_task_memory):
             try:
                 return self._normalize_agent_payload(self.agent_last_runtime_task_memory(agent))
-            except Exception:
+            except Exception as exc:
+                logger.warning("Failed to read agent last_runtime_task_memory: %s", exc)
                 return {}
         return self._normalize_agent_payload(getattr(agent, "last_runtime_task_memory", {}))
 
@@ -137,7 +142,8 @@ class RuntimeSessionPersistenceRecordBuilder:
             return None
         try:
             payload = self.active_run_control_state(session)
-        except Exception:
+        except Exception as exc:
+            logger.warning("Failed to read active run control state: %s", exc)
             return None
         return dict(payload) if isinstance(payload, dict) else None
 
@@ -146,7 +152,8 @@ class RuntimeSessionPersistenceRecordBuilder:
             return None
         try:
             payload = self.active_approval_wait(session)
-        except Exception:
+        except Exception as exc:
+            logger.warning("Failed to read active approval wait: %s", exc)
             return None
         return dict(payload) if isinstance(payload, dict) else None
 
@@ -155,7 +162,8 @@ class RuntimeSessionPersistenceRecordBuilder:
             return None
         try:
             payload = self.active_kernel_state(session)
-        except Exception:
+        except Exception as exc:
+            logger.warning("Failed to read active kernel state: %s", exc)
             return None
         return dict(payload) if isinstance(payload, dict) else None
 
@@ -163,7 +171,8 @@ class RuntimeSessionPersistenceRecordBuilder:
         if callable(self.active_pending_approvals):
             try:
                 payload = self.active_pending_approvals(session)
-            except Exception:
+            except Exception as exc:
+                logger.warning("Failed to read active pending approvals: %s", exc)
                 payload = None
             if isinstance(payload, list):
                 return [dict(item) for item in payload if isinstance(item, dict)]
@@ -176,7 +185,8 @@ class RuntimeSessionPersistenceRecordBuilder:
         if callable(self.selected_model_identity_for_session):
             try:
                 identity = self.selected_model_identity_for_session(session)
-            except Exception:
+            except Exception as exc:
+                logger.warning("Failed to read selected model identity: %s", exc)
                 identity = None
             if isinstance(identity, tuple) and len(identity) == 3:
                 return identity
@@ -194,7 +204,8 @@ class RuntimeSessionPersistenceRecordBuilder:
         if callable(self.pending_model_identity_for_session):
             try:
                 identity = self.pending_model_identity_for_session(session)
-            except Exception:
+            except Exception as exc:
+                logger.warning("Failed to read pending model identity: %s", exc)
                 identity = None
             if isinstance(identity, tuple) and len(identity) == 3:
                 return identity
@@ -342,7 +353,8 @@ class RuntimeSessionPersistenceMetadataRegistry:
             return {"sessions": {}}
         try:
             raw = json.loads(path.read_text(encoding="utf-8-sig"))
-        except Exception:
+        except Exception as exc:
+            logger.warning("Failed to read session metadata from %s: %s", path, exc)
             return {"sessions": {}}
         if not isinstance(raw, dict):
             return {"sessions": {}}
@@ -428,7 +440,8 @@ class RuntimeSessionSharedTranscriptStore:
                 continue
             try:
                 parsed = json.loads(line)
-            except Exception:
+            except Exception as exc:
+                logger.warning("Failed to parse JSONL line in %s: %s", self.path_for, exc)
                 continue
             if isinstance(parsed, dict):
                 items.append(parsed)
@@ -437,8 +450,8 @@ class RuntimeSessionSharedTranscriptStore:
     def delete(self, session_id: str) -> None:
         try:
             self.path_for(session_id).unlink(missing_ok=True)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to delete session file for %s: %s", session_id, exc)
 
 
 class RuntimeSessionPersistenceLoader:
@@ -660,8 +673,8 @@ class SessionPersistence:
                 updated_at=updated_at,
                 messages=serialized,
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to upsert session search index for %s: %s", safe_session_id, exc)
 
     def load_session(self, session_id: str) -> dict[str, Any] | None:
         safe_session_id = _sanitize_session_id(session_id)
@@ -683,7 +696,8 @@ class SessionPersistence:
                 parsed = json.loads(line)
                 if isinstance(parsed, dict):
                     messages.append(parsed)
-            except Exception:
+            except Exception as exc:
+                logger.warning("Failed to parse JSONL line in session record: %s", exc)
                 continue
 
         record = dict(record)
@@ -714,8 +728,8 @@ class SessionPersistence:
             existed = True
         try:
             self._session_search.delete_session(safe_session_id)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to delete session from search index: %s", exc)
 
         return existed
 
@@ -768,7 +782,8 @@ class SessionPersistence:
                 parsed = json.loads(line)
                 if isinstance(parsed, dict):
                     messages.append(parsed)
-            except Exception:
+            except Exception as exc:
+                logger.warning("Failed to parse JSONL line in checkpoint: %s", exc)
                 continue
         return messages
 
@@ -843,8 +858,8 @@ class SessionPersistence:
                 continue
             try:
                 self._session_search.delete_session(session_id)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to delete session %s from search index: %s", session_id, exc)
 
         remaining = len(records) - len(to_delete)
         return {

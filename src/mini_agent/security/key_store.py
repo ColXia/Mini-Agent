@@ -5,12 +5,15 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import logging
 import os
 import secrets
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 def _utc_now() -> datetime:
@@ -83,8 +86,8 @@ class KeyStore:
         key_file.write_bytes(master_key)
         try:
             os.chmod(key_file, 0o600)  # Owner read/write only
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to set permissions on master key file: %s", exc)
 
         return master_key
 
@@ -116,8 +119,8 @@ class KeyStore:
                     algorithm=key_data.get("algorithm", "AES-256-GCM"),
                     metadata=key_data.get("metadata", {}),
                 )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to load encrypted key data: %s", exc)
 
     def _save_keys(self) -> None:
         """Save encrypted keys to storage."""
@@ -140,8 +143,8 @@ class KeyStore:
         )
         try:
             os.chmod(self._keys_file, 0o600)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to set permissions on keys file: %s", exc)
 
     def encrypt(self, key_id: str, plaintext: str, metadata: dict[str, Any] | None = None) -> EncryptedKey:
         """Encrypt and store a key."""
@@ -249,7 +252,8 @@ class KeyStore:
                 plaintext = self.decrypt(key_id)
                 metadata = self._keys[key_id].metadata
                 plaintexts[key_id] = (plaintext, metadata)
-            except Exception:
+            except Exception as exc:
+                logger.warning("Failed to decrypt key '%s' during re-key, skipping: %s", key_id, exc)
                 continue
 
         # Set new master key
@@ -265,8 +269,8 @@ class KeyStore:
         key_file.write_bytes(new_master_key)
         try:
             os.chmod(key_file, 0o600)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to set permissions on master key file: %s", exc)
 
 
 class APIKeyManager:

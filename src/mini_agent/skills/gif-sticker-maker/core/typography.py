@@ -48,7 +48,7 @@ def get_font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
     for font_path in font_paths:
         try:
             return ImageFont.truetype(font_path, size)
-        except:
+        except Exception:
             continue
 
     # Ultimate fallback

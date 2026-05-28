@@ -4,10 +4,13 @@ import asyncio
 from collections.abc import Mapping
 from contextlib import contextmanager
 import inspect
+import logging
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
 from time import perf_counter
+
+_module_logger = logging.getLogger(__name__)
 from typing import Any, Awaitable, Callable, Optional
 
 from mini_agent.agent_core.context.context_compaction import LayeredContextCompactor, estimate_tokens
@@ -662,7 +665,8 @@ class Agent:
             return None
         try:
             return Path(raw).expanduser().resolve()
-        except Exception:
+        except Exception as exc:
+            _module_logger.warning("Failed to resolve catalog path '%s': %s", raw, exc)
             return None
 
     @staticmethod
@@ -702,8 +706,8 @@ class Agent:
                 model_id=identity[2],
                 learned_token_limit=effective_limit,
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            _module_logger.warning("Failed to update learned token limit: %s", exc)
         return effective_limit
 
     async def _recover_from_context_overflow(

@@ -4,10 +4,13 @@ Supports both bash (Unix/Linux/macOS) and PowerShell (Windows).
 """
 
 import asyncio
+import logging
 import os
 import platform
 import re
 import time
+
+_logger = logging.getLogger(__name__)
 import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -114,8 +117,8 @@ class BackgroundShell:
         # Drain pipes to avoid transport warnings on Windows Proactor loop.
         try:
             await asyncio.wait_for(self.process.communicate(), timeout=1)
-        except Exception:
-            pass
+        except Exception as exc:
+            _logger.debug("Process communicate drain failed: %s", exc)
         self.status = "terminated"
         self.exit_code = self.process.returncode
 
@@ -205,8 +208,8 @@ class BackgroundShellManager:
             await task
         except asyncio.CancelledError:
             pass
-        except Exception:
-            pass
+        except Exception as exc:
+            _logger.debug("Background task cleanup failed: %s", exc)
 
     @classmethod
     async def terminate(cls, bash_id: str) -> BackgroundShell:
@@ -368,14 +371,14 @@ Examples:
             process.kill()
             try:
                 await asyncio.wait_for(process.wait(), timeout=2)
-            except Exception:
-                pass
+            except Exception as exc:
+                _logger.debug("Process wait after kill failed: %s", exc)
 
         # Drain pipes to avoid platform transport warnings.
         try:
             await asyncio.wait_for(process.communicate(), timeout=1)
-        except Exception:
-            pass
+        except Exception as exc:
+            _logger.debug("Process communicate drain failed: %s", exc)
         return True
 
     async def execute(
@@ -541,8 +544,8 @@ Examples:
                     process.kill()
                     try:
                         await asyncio.wait_for(process.communicate(), timeout=5)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        _logger.debug("Process communicate after timeout failed: %s", exc)
                     error_msg = f"Command timed out after {timeout} seconds"
                     return BashOutputResult(
                         success=False,

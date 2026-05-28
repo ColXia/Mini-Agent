@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 import json
 import os
@@ -338,7 +339,8 @@ class WebSearchTool(Tool):
             return ToolResult(success=False, error="engines must be a list of strings.")
 
         try:
-            response = self._client.search(
+            response = await asyncio.to_thread(
+                self._client.search,
                 query=query,
                 limit=limit,
                 engines=[str(item) for item in engines] if isinstance(engines, list) else None,

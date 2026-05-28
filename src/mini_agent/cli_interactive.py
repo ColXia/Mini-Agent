@@ -1,4 +1,4 @@
-﻿"""Interactive CLI session for Mini-Agent.
+"""Interactive CLI session for Mini-Agent.
 
 This module provides the interactive terminal session for Mini-Agent,
 supporting both interactive mode and single-task execution.
